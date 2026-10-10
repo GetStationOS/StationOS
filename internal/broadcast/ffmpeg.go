@@ -95,11 +95,33 @@ func (f FFmpeg) Open(parent context.Context, item content.AudioItem) (io.ReadClo
 		cancel()
 		return nil, err
 	}
-	// Adapted from Retro Radio's checked-byte FLAC conversion; one encoder serves
-	// the whole station. The manager paces delivery; output has no per-track file tags.
-	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", format, "-i", "pipe:0", "-map", "0:a:0", "-vn", "-threads", "1", "-filter_threads", "1", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-reservoir", "0", "-f", "mp3", "-write_xing", "0", "-id3v2_version", "0", "-flush_packets", "1", "pipe:1"}
+	// Decode checked source bytes before encoding so only the final near-silence
+	// can be trimmed with bounded memory, without cutting pauses within a song.
+	decodeArgs := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", format, "-i", "pipe:0", "-map", "0:a:0", "-vn", "-threads", "1", "-filter_threads", "1", "-ar", "44100", "-ac", "2", "-f", "s16le", "pipe:1"}
+	decoderCtx, decoderCancel := context.WithCancel(ctx)
+	decoder := exec.CommandContext(decoderCtx, f.Path, decodeArgs...)
+	decoder.Env = []string{}
+	decoder.WaitDelay = time.Second
+	decoder.Stdin = source
+	decoder.Stderr = io.Discard
+	pcm, err := decoder.StdoutPipe()
+	if err == nil {
+		err = decoder.Start()
+	}
+	if err != nil {
+		decoderCancel()
+		if pcm != nil {
+			pcm.Close()
+		}
+		cancel()
+		source.Close()
+		return nil, err
+	}
+	originalSource := source
+	stopSource := context.AfterFunc(decoderCtx, func() { originalSource.Close() })
+	source = &musicTail{ReadCloser: &startupReader{encoded: &encoded{ReadCloser: pcm, cancel: decoderCancel, source: originalSource, cmd: decoder}, stop: stopSource}}
+	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", "s16le", "-ar", "44100", "-ac", "2", "-i", "pipe:0", "-map", "0:a:0", "-vn", "-threads", "1", "-filter_threads", "1", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-reservoir", "0", "-f", "mp3", "-write_xing", "0", "-id3v2_version", "0", "-flush_packets", "1", "pipe:1"}
 	if level := musicLevel(parent); level != 100 {
-		// Force stereo before applying independent sample gain and peak protection.
 		args = append(args[:len(args)-1], "-af", "aformat=channel_layouts=stereo,"+gainFilter(level), "pipe:1")
 	}
 	cmd := exec.CommandContext(ctx, f.Path, args...)
@@ -115,8 +137,8 @@ func (f FFmpeg) Open(parent context.Context, item content.AudioItem) (io.ReadClo
 		if stdout != nil {
 			stdout.Close()
 		}
-		source.Close()
 		cancel()
+		source.Close()
 		return nil, err
 	}
 	// Closing source bytes on cancellation also releases the stdin copier.

@@ -2,7 +2,6 @@
 package broadcast
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -309,13 +308,15 @@ type prepareRequest struct {
 	pool       []content.AudioItem
 }
 type preparedResult struct {
-	key      string
-	prepared production.Prepared
-	err      error
+	key          string
+	prepared     production.Prepared
+	intro, outro *preparedSpeech
+	err          error
 }
 type linkResult struct {
 	request production.LinkRequest
 	audio   []byte
+	speech  *preparedSpeech
 	err     error
 }
 
@@ -333,8 +334,15 @@ func (m *Manager) playProgramme(id string, r *run) {
 				return
 			case req := <-requests:
 				prepared, err := m.options.Producer.Prepare(prepCtx, req.show, req.next, req.pool)
+				var intro, outro *preparedSpeech
+				if err == nil {
+					intro, err = m.prepareSpeech(prepCtx, id, prepared.Intro)
+				}
+				if err == nil {
+					outro, err = m.prepareSpeech(prepCtx, id, prepared.Outro)
+				}
 				select {
-				case results <- preparedResult{production.CacheKey(req.show, req.next), prepared, err}:
+				case results <- preparedResult{key: production.CacheKey(req.show, req.next), prepared: prepared, intro: intro, outro: outro, err: err}:
 				case <-prepCtx.Done():
 					return
 				}
@@ -343,6 +351,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 	}()
 	defer func() { cancel(); <-prepDone }()
 	prepared := map[string]production.Prepared{}
+	preparedVoices := map[string]preparedResult{}
 	attempted := map[string]bool{}
 	failed := map[string]bool{}
 	var recent []string
@@ -353,6 +362,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				if result.err == nil {
 					if attempted[result.key] {
 						prepared[result.key] = result.prepared
+						preparedVoices[result.key] = result
 					}
 				} else {
 					if attempted[result.key] {
@@ -382,6 +392,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				recent = recent[1:]
 				delete(attempted, old)
 				delete(prepared, old)
+				delete(preparedVoices, old)
 				delete(failed, old)
 			}
 		default:
@@ -448,8 +459,17 @@ func (m *Manager) playProgramme(id string, r *run) {
 				audio.Close()
 				return false, err
 			}
-			if encoder, ok := m.encoder.(PresenterEncoder); ok && levels.DJ != 100 {
-				data, err := production.ReadBounded(audio, 1<<20)
+			gain := 100
+			var original []byte
+			if ready, ok := audio.(*speechReader); ok {
+				gain = ready.prepared.level
+				original = ready.prepared.raw
+			}
+			if encoder, ok := m.encoder.(PresenterEncoder); ok && levels.DJ != gain {
+				data := original
+				if data == nil {
+					data, err = production.ReadBounded(audio, 1<<20)
+				}
 				audio.Close()
 				if err != nil {
 					return false, err
@@ -499,6 +519,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 	var previous string
 	var playing schedule.Occurrence
 	var oldPrepared production.Prepared
+	var oldVoice preparedResult
 	var pendingLink <-chan linkResult
 	var linkCancel context.CancelFunc
 	linkSlots := make(chan struct{}, 1)
@@ -553,14 +574,17 @@ func (m *Manager) playProgramme(id string, r *run) {
 			// Never disconnect subscribers at a show boundary. Prepared speech is sent
 			// through the same paced fan-out as music, in the outgoing DJ's voice.
 			outro := []byte(nil)
+			var outroVoice *preparedSpeech
 			if link != nil && link.request.Handover && link.request.Following.Key == timeline.Current.Key {
 				outro = link.audio
+				outroVoice = link.speech
 			} else if oldPrepared.Plan.NextKey == timeline.Current.Key {
 				outro = oldPrepared.Outro
+				outroVoice = oldVoice.outro
 			}
 			if len(outro) > 0 {
 				cue := content.AudioItem{ID: "handover:" + playing.Key, Title: "Handover", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
-				stream(io.NopCloser(bytes.NewReader(outro)), State{Status: "Broadcasting", Programme: playing, Following: timeline.Current, Current: cue, Phase: "handover", PresenterStatus: "Speaking"})
+				stream(speechAudio(outro, outroVoice), State{Status: "Broadcasting", Programme: playing, Following: timeline.Current, Current: cue, Phase: "handover", PresenterStatus: "Speaking"})
 			}
 			// A long outgoing track may span more than one short show. Resolve again
 			// after speech instead of starting a show which has already ended.
@@ -617,14 +641,15 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		if !changing && link != nil && !link.request.Handover && link.request.Show.Key == playing.Key && link.request.Next.ID == current.ID && len(link.audio) > 0 {
 			cue := content.AudioItem{ID: "link:" + playing.Key + ":" + current.ID, Title: "DJ link", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
-			stream(io.NopCloser(bytes.NewReader(link.audio)), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, Phase: "chatter", PresenterStatus: "Speaking"})
+			stream(speechAudio(link.audio, link.speech), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, Phase: "chatter", PresenterStatus: "Speaking"})
 			introPlayed = true
 		} else if ready && !introPlayed && len(plan.Intro) > 0 {
 			cue := content.AudioItem{ID: "intro:" + playing.Key, Title: "Show introduction", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
-			stream(io.NopCloser(bytes.NewReader(plan.Intro)), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, Phase: "chatter", PresenterStatus: "Speaking"})
+			stream(speechAudio(plan.Intro, preparedVoices[key].intro), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, Phase: "chatter", PresenterStatus: "Speaking"})
 			introPlayed = true
 		}
 		oldPrepared = plan
+		oldVoice = preparedVoices[key]
 		predictedEnd := playoutNow()
 		if current.Duration != nil {
 			predictedEnd = predictedEnd.Add(*current.Duration)
@@ -676,11 +701,15 @@ func (m *Manager) playProgramme(id string, r *run) {
 					defer linkWorkers.Done()
 					defer func() { <-linkSlots }()
 					audio, err := m.options.Links.Link(linkCtx, req)
+					var speech *preparedSpeech
+					if err == nil {
+						speech, err = m.prepareSpeech(linkCtx, id, audio)
+					}
 					if err != nil && !errors.Is(err, context.Canceled) {
 						m.logger.Warn("DJ link unavailable", "station_id", id, "error", err)
 					}
 					select {
-					case out <- linkResult{req, audio, err}:
+					case out <- linkResult{request: req, audio: audio, speech: speech, err: err}:
 					case <-linkCtx.Done():
 					}
 				}()

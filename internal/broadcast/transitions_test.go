@@ -5,7 +5,9 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"stationos.local/stationos/internal/mixer"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -162,5 +164,76 @@ func TestLateChatterCancellationDoesNotBlockMusic(t *testing.T) {
 	}
 	if string(receive(t, sub)) != "MORE MUSIC" {
 		t.Fatal("music interrupted")
+	}
+}
+
+type slowPresenterEncoder struct {
+	*aheadTestEncoder
+	speechStarted chan struct{}
+	speechRelease chan struct{}
+	conversions   atomic.Int32
+}
+
+func (e *slowPresenterEncoder) OpenPresenter(ctx context.Context, data []byte, level int) (io.ReadCloser, error) {
+	e.conversions.Add(1)
+	select {
+	case e.speechStarted <- struct{}{}:
+	default:
+	}
+	select {
+	case <-e.speechRelease:
+		return io.NopCloser(bytes.NewReader(data)), nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+func TestDJGainConversionCompletesDuringMusicBeforeHandover(t *testing.T) {
+	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+	shows := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
+	levels := &liveMixer{}
+	levels.Save(context.Background(), "radio", mixer.Levels{Music: 100, DJ: 175})
+	repo := &memoryRepo{playlist: "pool", pool: []content.AudioItem{length("one", 180), length("two", 180)}}
+	e := &slowPresenterEncoder{aheadTestEncoder: &aheadTestEncoder{fakeEncoder: fakeEncoder{calls: make(chan opening, 8)}, cleanupRelease: make(chan struct{}), cleanupStarted: make(chan struct{}), primed: make(chan struct{}, 8)}, speechStarted: make(chan struct{}, 8), speechRelease: make(chan struct{})}
+	m := New(repo, e, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Mixer: levels, Schedule: shows, Links: readyLinks{called: make(chan production.LinkRequest, 8)}, Now: func() time.Time { return now }})
+	defer m.Close()
+	defer close(e.cleanupRelease)
+	a, _ := m.Subscribe(context.Background(), "radio")
+	defer a.Close()
+	b, _ := m.Subscribe(context.Background(), "radio")
+	defer b.Close()
+	current := opened(t, &e.fakeEncoder)
+	next := opened(t, &e.fakeEncoder)
+	select {
+	case <-e.speechStarted:
+	case <-time.After(time.Second):
+		t.Fatal("DJ conversion was not started during current music")
+	}
+	next.write.Write([]byte("NEXT MUSIC"))
+	<-e.primed
+	current.write.Write([]byte("MUSIC WHILE DJ PREPARES"))
+	if string(receive(t, a)) != "MUSIC WHILE DJ PREPARES" || string(receive(t, b)) != "MUSIC WHILE DJ PREPARES" {
+		t.Fatal("DJ preparation blocked music")
+	}
+	close(e.speechRelease)
+	// Continue music through a paced half second while the worker publishes.
+	current.write.Write(bytes.Repeat([]byte{'M'}, 8192))
+	for i := 0; i < 2; i++ {
+		receive(t, a)
+		receive(t, b)
+	}
+	current.write.Close()
+	select {
+	case data := <-a.Audio:
+		if string(data) != "HANDOVER" {
+			t.Fatal("missing prepared link", string(data))
+		}
+	case <-time.After(300 * time.Millisecond):
+		t.Fatal("DJ converter delayed boundary")
+	}
+	if string(receive(t, b)) != "HANDOVER" {
+		t.Fatal("listeners heard different links")
+	}
+	if e.conversions.Load() != 1 {
+		t.Fatal("DJ volume was converted again at boundary", e.conversions.Load())
 	}
 }

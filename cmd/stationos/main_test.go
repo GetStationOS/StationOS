@@ -60,7 +60,7 @@ func TestMaintenanceCommands(t *testing.T) {
 func TestInvalidCommandsAndPublicListen(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	t.Setenv("STATIONOS_ADMIN_PASSWORD", "")
-	for _, args := range [][]string{{"-task", "unknown"}, {"-task", "sync"}, {"-task", "sync", "-source", "missing"}, {"-listen", "0.0.0.0:8080"}, {"-listen", "bad"}, {"-unknown"}} {
+	for _, args := range [][]string{{"-task", "unknown"}, {"-task", "sync"}, {"-task", "sync", "-source", "missing"}, {"-listen", "0.0.0.0:8080"}, {"-listen", "bad"}, {"-stream-buffer", "-1s"}, {"-stream-buffer", "6s"}, {"-unknown"}} {
 		path := filepath.Join(t.TempDir(), "test.db")
 		if err := run(append([]string{"-db", path}, args...), logger); err == nil {
 			t.Fatal("invalid command accepted", args)

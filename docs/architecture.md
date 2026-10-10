@@ -102,3 +102,12 @@ The authenticated `/stations/events` endpoint retains one connection per live ho
 ### Persistent player metadata
 
 The shell player shows the actual current and next titles and performing artists, with DJ on air during speech. A station-specific authenticated event connection updates only changed metadata and remains active across HTMX navigation. It does not start audio or count as a listener; switching stations replaces the connection and Stop closes it. Empty runtime states show Nothing playing and Not queued. The layout wraps for smaller screens.
+
+
+## Bounded streaming reserve
+
+The serve command configures a five-second `StreamBuffer`. A delivery clock permits a bounded startup/catch-up burst and then real-time 16,000-byte/s MP3 output. Supply stalls no longer reset the clock after one second: short deficits are repaid, while recovery after a prolonged outage is capped at the configured lead. The station keeps a byte-bounded recent window (up to 80,000 bytes, at most 64 chunks). Listener admission snapshots that window into one initial queue entry under the same lock as subsequent fan-out, avoiding a hole or duplicated audio at the join boundary. The same audio feeds all clients; no listener starts a separate producer.
+
+Each FFmpeg stream uses a cancellable 32-chunk read-ahead channel, normalising pipe reads into 4 KiB output blocks and preserving the final partial block/errors. A single in-flight read plus the channel holds at most about 8.5 seconds of encoded bytes per reader; the current and preloaded next item remain bounded separately. Backpressure bounds further source consumption. MP3 format and bitrate stay unchanged; no fake keepalive bytes are inserted into audio. Starved supply reads over one second and slow-listener eviction are logged. Physical radio and deployment-network acceptance remains necessary; outages beyond the reserve cannot be guaranteed seamless.
+
+Schedule resolution and remaining-time planning use the audio timeline at track boundaries, accounting for bytes sent ahead of wall-clock playback. A startup burst cannot add an extra outgoing track just because its delivery ends before its audible show boundary.

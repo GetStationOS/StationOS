@@ -125,3 +125,10 @@ Backend tests verify quiet unchanged audio frames, coalescing, listener changes,
 ### Persistent player metadata
 
 The shell player shows the actual current and next titles and performing artists, with DJ on air during speech. A station-specific authenticated event connection updates only changed metadata and remains active across HTMX navigation. It does not start audio or count as a listener; switching stations replaces the connection and Stop closes it. Empty runtime states show Nothing playing and Not queued. The layout wraps for smaller screens.
+
+
+## Hardware-radio buffer reserve (10 October 2026)
+
+Investigating mid-track cutouts on a Pure radio through an HTTPS proxy exposed insufficient buffering: delivery previously started at the nominal playback rate, late listeners received no recent-audio burst, and a supply stall over one second discarded the catch-up clock. The serve command now defaults to a bounded five-second startup/join reserve (`-stream-buffer`, 0s–5s), with a shared recent window and atomic replay-to-live admission. The pacing clock repays short deficits without allowing unbounded recovery bursts. FFmpeg output is normalised into 4 KiB blocks through a cancellable eight-second read-ahead channel for each current/preloaded track. Source stalls and slow-client eviction are logged. Audio and listener queues remain bounded; the same programme serves all clients.
+
+Regression checks cover paced startup bursts, bounded source fetching, partial reads/EOF/errors, parent cancellation, late joins without missing or duplicated bytes, and uninterrupted two-listener delivery through a controlled mid-track input pause. Generated FLAC is encoded by real FFmpeg; startup and late-join MP3 buffers decode successfully. Physical Pure radio/proxy acceptance still needs verification after deployment; prolonged network/source outages can exhaust the finite reserve.

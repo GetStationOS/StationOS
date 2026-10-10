@@ -41,6 +41,7 @@ type State struct {
 }
 type Options struct {
 	MaxStations, MaxListeners, BufferChunks int
+	StreamBuffer                            time.Duration
 	Now                                     func() time.Time
 	Schedule                                schedule.Source
 	Producer                                production.Producer
@@ -64,6 +65,7 @@ type run struct {
 	cancel    context.CancelFunc
 	listeners map[*Subscription]struct{}
 	state     State
+	recent    recentAudio
 	done      chan struct{}
 }
 type Subscription struct {
@@ -78,6 +80,7 @@ type Subscription struct {
 }
 
 func New(repo Repository, encoder Encoder, logger *slog.Logger, options Options) *Manager {
+	options.StreamBuffer = max(time.Duration(0), min(5*time.Second, options.StreamBuffer))
 	if options.MaxStations <= 0 {
 		options.MaxStations = 4
 	}
@@ -87,6 +90,8 @@ func New(repo Repository, encoder Encoder, logger *slog.Logger, options Options)
 	if options.BufferChunks <= 0 {
 		options.BufferChunks = 32
 	}
+	burstChunks := int((options.StreamBuffer*audioBytesPerSecond/time.Second + audioChunkBytes - 1) / audioChunkBytes)
+	options.BufferChunks = max(options.BufferChunks, burstChunks+2)
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -148,7 +153,7 @@ func (m *Manager) SubscribeClient(ctx context.Context, id, clientID string) (*Su
 				return nil, ErrBusy
 			}
 			worker, cancel := context.WithCancel(context.Background())
-			r = &run{playlist: playlist, ctx: worker, cancel: cancel, done: make(chan struct{}), listeners: map[*Subscription]struct{}{}, state: State{Status: "Starting"}}
+			r = &run{playlist: playlist, ctx: worker, cancel: cancel, done: make(chan struct{}), listeners: map[*Subscription]struct{}{}, state: State{Status: "Starting"}, recent: recentAudio{limit: int(m.options.StreamBuffer * audioBytesPerSecond / time.Second)}}
 			m.runs[id] = r
 			m.wg.Add(1)
 			go m.play(id, r)
@@ -168,6 +173,9 @@ func (m *Manager) SubscribeClient(ctx context.Context, id, clientID string) (*Su
 		}
 		queue := make(chan []byte, m.options.BufferChunks)
 		done := make(chan struct{})
+		if r.recent.bytes > 0 {
+			queue <- r.recent.snapshot()
+		}
 		sub := &Subscription{Audio: queue, queue: queue, Done: done, done: done, m: m, id: id, clientID: clientID, run: r}
 		r.listeners[sub] = struct{}{}
 		m.changedLocked()
@@ -284,8 +292,11 @@ func (m *Manager) now() time.Time {
 	return time.Now()
 }
 func (m *Manager) timeline(ctx context.Context, id string) (schedule.Timeline, error) {
+	return m.timelineAt(ctx, id, m.now())
+}
+func (m *Manager) timelineAt(ctx context.Context, id string, at time.Time) (schedule.Timeline, error) {
 	if m.options.Schedule != nil {
-		return m.options.Schedule.Resolve(ctx, id, m.now())
+		return m.options.Schedule.Resolve(ctx, id, at)
 	}
 	playlist, err := m.repo.Assignment(ctx, id)
 	return schedule.Timeline{Current: schedule.Occurrence{Key: "default:" + playlist, StationID: id, PlaylistID: playlist, Title: "Continuous music"}}, err
@@ -376,7 +387,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 	}
 	var audioCleanup sync.WaitGroup
 	defer audioCleanup.Wait()
-	var emitAt time.Time
+	clock := deliveryClock{lead: m.options.StreamBuffer}
+	playoutNow := func() time.Time { return clock.programmeTime(m.now(), time.Now()) }
 	emit := func(data []byte, state State) bool {
 		// Reflect completed preparation while the current track is still playing.
 		// Draining ready results never waits for external generation.
@@ -389,10 +401,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				state.PresenterStatus = "Unavailable"
 			}
 		}
-		if emitAt.IsZero() || time.Since(emitAt) > time.Second {
-			emitAt = time.Now()
-		}
-		if delay := time.Until(emitAt); delay > 0 {
+		if delay := clock.delay(time.Now()); delay > 0 {
 			timer := time.NewTimer(delay)
 			select {
 			case <-r.ctx.Done():
@@ -404,16 +413,18 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if r.ctx.Err() != nil {
 			return false
 		}
-		emitAt = emitAt.Add(time.Duration(len(data)) * time.Second / 16000)
+		clock.advance(len(data))
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		changed := !sameRuntimeState(r.state, state)
 		beforeListeners := len(r.listeners)
 		r.state = state
+		r.recent.append(data)
 		for sub := range r.listeners {
 			select {
 			case sub.queue <- data:
 			default:
+				m.logger.Warn("Slow stream listener disconnected", "station_id", id)
 				delete(r.listeners, sub)
 				close(sub.queue)
 				close(sub.done)
@@ -442,7 +453,11 @@ func (m *Manager) playProgramme(id string, r *run) {
 		started := false
 		for r.ctx.Err() == nil {
 			buf := make([]byte, 4096)
+			readStart := time.Now()
 			n, err := audio.Read(buf)
+			if elapsed := time.Since(readStart); elapsed > time.Second && r.ctx.Err() == nil {
+				m.logger.Warn("Audio supply stalled", "station_id", id, "track_id", state.Current.ID, "elapsed", elapsed)
+			}
 			if n > 0 {
 				if !started {
 					state.Started = m.now()
@@ -490,7 +505,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 	introPlayed := false
 	failures := 0
 	for r.ctx.Err() == nil {
-		timeline, err := m.timeline(r.ctx, id)
+		timeline, err := m.timelineAt(r.ctx, id, playoutNow())
 		if err != nil || timeline.Current.PlaylistID == "" {
 			return
 		}
@@ -529,7 +544,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 			}
 			// A long outgoing track may span more than one short show. Resolve again
 			// after speech instead of starting a show which has already ended.
-			timeline, err = m.timeline(r.ctx, id)
+			timeline, err = m.timelineAt(r.ctx, id, playoutNow())
 			if err != nil || timeline.Current.PlaylistID == "" {
 				return
 			}
@@ -564,7 +579,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		remaining := time.Duration(0)
 		if !playing.End.IsZero() {
-			remaining = playing.End.Sub(m.now())
+			remaining = playing.End.Sub(playoutNow())
 			if link != nil && !link.request.Handover {
 				remaining -= time.Duration(len(link.audio)) * time.Second / 16000
 			} else if ready && !introPlayed {
@@ -590,7 +605,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 			introPlayed = true
 		}
 		oldPrepared = plan
-		predictedEnd := m.now()
+		predictedEnd := playoutNow()
 		if current.Duration != nil {
 			predictedEnd = predictedEnd.Add(*current.Duration)
 		}
@@ -613,7 +628,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		queued = selectTrack(nextPool, current.ID, selectedIDs, nextRemaining)
 		queuedShow = nextTimeline.Current.Key
 		// Prepare the next DJ in advance while the outgoing programme is playing.
-		if timeline.Next.DJ.ID != "" && !playing.End.IsZero() && playing.End.Sub(m.now()) <= 10*time.Minute {
+		if timeline.Next.DJ.ID != "" && !playing.End.IsZero() && playing.End.Sub(playoutNow()) <= 10*time.Minute {
 			after, err := m.options.Schedule.Resolve(r.ctx, id, timeline.Next.Start.Add(time.Second))
 			if err == nil {
 				if p, err := m.repo.Pool(r.ctx, after.Current.PlaylistID); err == nil {

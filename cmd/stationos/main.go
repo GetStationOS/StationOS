@@ -40,6 +40,7 @@ func run(args []string, logger *slog.Logger) error {
 	dbPath := flags.String("db", "data/stationos.db", "SQLite database path")
 	listen := flags.String("listen", "127.0.0.1:8080", "HTTP listen address")
 	publicURL := flags.String("public-url", "", "public origin for stream URLs and proxied management writes (optional)")
+	streamBuffer := flags.Duration("stream-buffer", 5*time.Second, "shared startup/join audio buffer (0s to 5s)")
 	maxListeners := flags.Int("max-listeners", 1024, "maximum connected listeners per station")
 	maxBroadcasts := flags.Int("max-broadcasts", min(8, max(1, runtime.NumCPU())), "maximum simultaneous station encoders")
 	task := flags.String("task", "serve", "serve, integrity, sync, or clear-catalogue")
@@ -104,6 +105,9 @@ func run(args []string, logger *slog.Logger) error {
 		}
 		*publicURL = strings.TrimSuffix(*publicURL, "/")
 	}
+	if *streamBuffer < 0 || *streamBuffer > 5*time.Second {
+		return errors.New("stream-buffer must be between 0s and 5s")
+	}
 	if *maxListeners < 1 || *maxListeners > 10000 || *maxBroadcasts < 1 || *maxBroadcasts > 64 {
 		return errors.New("invalid broadcast capacity")
 	}
@@ -118,7 +122,7 @@ func run(args []string, logger *slog.Logger) error {
 	}
 	shows := persistence.Schedule{DB: db}
 	presenter := ai.New(djsRepo, persistence.PresenterAssets{DB: db}, production.FFmpeg{Path: ffmpeg})
-	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter})
+	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter})
 	defer broadcasts.Close()
 	handler, err := web.New(web.Dependencies{ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
 	if err != nil {

@@ -131,3 +131,12 @@ Clock-injected tests verify finishing tracks, sharing handovers without reconnec
 The homepage now shows each station’s active programme, DJ, local show times and playlist; stations without a running show show the configured default playlist. Current and next tracks include artist, album, duration and artwork where available. Cards also show measured listener count, DJ preparation/failure or missing-key state, finish-track/handover status and the following show. Dormant stations remain clearly empty. DJ and playlist names link to their settings; Listen uses the persistent player.
 
 Cards poll quietly without stealing keyboard focus, and card navigation opens the full station workspace. Artwork is served through StationOS from the source’s checked transport, with an eight-second timeout, a 4 MiB raster-image limit, four concurrent requests and private browser caching. Missing artwork uses a music placeholder. No database migration is required for this UI change.
+
+
+## Stream buffering and hardware radios
+
+The server defaults to `-stream-buffer 5s` (configurable from `0s` to `5s`). The first listener receives a bounded startup burst, followed by 128 kbps delivery. Later listeners receive approximately the most recent five seconds from the same programme, then join ongoing delivery atomically. Short supply stalls retain their catch-up budget so the device can rebuild its reserve. Device buffering determines audible latency; current/next metadata reflects server delivery.
+
+FFmpeg output is read ahead through a bounded eight-second encoded buffer for the current and queued tracks. This absorbs source/encoder jitter without fetching or storing whole songs. Recent audio is shared per station; slow listeners remain bounded and cannot block others. Extended source outages or a persistently slow network can still exhaust buffers. Logs report `Audio supply stalled` and `Slow stream listener disconnected` for diagnosis.
+
+For Nginx Proxy Manager, leave response caching disabled for the station proxy. StationOS sends `X-Accel-Buffering: no` on streams and live events. If custom proxy settings override this, pass through `/streams/` and `/stations/...` event responses without buffering or compression. To isolate device/network/proxy faults, compare the same station's HTTPS stream with its direct LAN HTTP stream. The management password is not needed for either stream URL.

@@ -102,9 +102,11 @@ func TestReadyChatterAndPrimedMusicDoNotWaitForTrackCleanup(t *testing.T) {
 	if time.Since(boundary) > 300*time.Millisecond {
 		t.Fatal("transition introduced a gap")
 	}
+	// Cleanup runs asynchronously: verify it starts without requiring the
+	// scheduler to run its goroutine before the ready audio is delivered.
 	select {
 	case <-encoder.cleanupStarted:
-	default:
+	case <-time.After(time.Second):
 		t.Fatal("old audio not cleaned up")
 	}
 	if m.State("radio").Current.ID != next.item.ID {

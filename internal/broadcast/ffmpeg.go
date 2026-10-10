@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"stationos.local/stationos/internal/content"
@@ -26,7 +27,7 @@ type encoded struct {
 	once     sync.Once
 	waitOnce sync.Once
 	waitErr  error
-	eof      bool
+	eof      atomic.Bool
 }
 
 func (e *encoded) wait() error { e.waitOnce.Do(func() { e.waitErr = e.cmd.Wait() }); return e.waitErr }
@@ -35,14 +36,14 @@ func (e *encoded) Read(buf []byte) (int, error) {
 	// source happens in Close, off the station's timed playout path.
 	n, err := e.ReadCloser.Read(buf)
 	if errors.Is(err, io.EOF) {
-		e.eof = true
+		e.eof.Store(true)
 	}
 	return n, err
 }
 
 func (e *encoded) Close() error {
 	e.once.Do(func() {
-		if !e.eof {
+		if !e.eof.Load() {
 			e.cancel()
 		}
 		e.source.Close()
@@ -50,7 +51,7 @@ func (e *encoded) Close() error {
 		e.wait()
 		e.cancel()
 	})
-	if e.eof && e.waitErr != nil {
+	if e.eof.Load() && e.waitErr != nil {
 		return errors.New("audio encoder failed")
 	}
 	return nil
@@ -115,7 +116,7 @@ func (f FFmpeg) Open(parent context.Context, item content.AudioItem) (io.ReadClo
 	}
 	// Closing source bytes on cancellation also releases the stdin copier.
 	stop := context.AfterFunc(ctx, func() { source.Close() })
-	return &startupReader{encoded: &encoded{ReadCloser: stdout, cancel: cancel, source: source, cmd: cmd}, stop: stop}, nil
+	return readAheadAudio(ctx, &startupReader{encoded: &encoded{ReadCloser: stdout, cancel: cancel, source: source, cmd: cmd}, stop: stop}), nil
 }
 
 type startupReader struct {

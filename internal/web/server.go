@@ -113,6 +113,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /playlists/{id}/delete", s.playlistPage)
 	mux.HandleFunc("POST /playlists/{id}/delete", s.deletePlaylist)
 	mux.HandleFunc("POST /playlists", s.savePlaylist)
+	mux.HandleFunc("POST /playlists/{id}/default", s.defaultPlaylist)
 	mux.HandleFunc("POST /playlists/select", s.selectItems)
 	mux.HandleFunc("POST /playlists/{id}/rules", s.addRule)
 	mux.HandleFunc("POST /playlists/{id}/selections", s.replaceRules)

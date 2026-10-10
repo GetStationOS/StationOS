@@ -134,7 +134,7 @@ func (s *Server) assignBroadcast(w http.ResponseWriter, r *http.Request) {
 	if s.d.Broadcast != nil {
 		s.d.Broadcast.Stop(id)
 	}
-	s.redirect(w, r, "/stations/"+id+"?notice=broadcast-saved")
+	s.redirect(w, r, "/stations/"+id+"/settings?notice=broadcast-saved")
 }
 func (s *Server) liveStation(w http.ResponseWriter, r *http.Request) {
 	st, err := s.d.Stations.Get(r.Context(), r.PathValue("id"))

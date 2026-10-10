@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -118,6 +119,13 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		v.ReturnTo = r.URL.RequestURI()
 		for n, entry := range v.PlaylistResult.Entries {
 			v.Rows = append(v.Rows, track(entry.Item, v.Sources, (v.Pagination.Number-1)*size+n+1, entry.Available))
+		}
+	}
+	if v.StationID != "" && s.d.BroadcastConfig != nil {
+		v.BroadcastPlaylist, err = s.d.BroadcastConfig.Assignment(r.Context(), v.StationID)
+		if err != nil {
+			s.fail(w, err)
+			return
 		}
 	}
 	s.render(w, r, v)
@@ -269,4 +277,71 @@ func (s *Server) deletePlaylist(w http.ResponseWriter, r *http.Request) {
 		s.d.Broadcast.StopPlaylist(p.ID)
 	}
 	s.redirect(w, r, "/playlists?station="+p.StationID+"&notice=playlist-deleted")
+}
+
+func (s *Server) defaultPlaylist(w http.ResponseWriter, r *http.Request) {
+	if s.d.BroadcastConfig == nil || s.d.Playlists == nil {
+		http.Error(w, "broadcast unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	p, err := s.d.Playlists.Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.playlistError(w, err)
+		return
+	}
+	playlistID, notice := p.ID, "broadcast-saved"
+	switch r.PostForm.Get("action") {
+	case "set":
+	case "clear":
+		current, err := s.d.BroadcastConfig.Assignment(r.Context(), p.StationID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if current != p.ID {
+			s.defaultPlaylistResponse(w, r, p, "")
+			return
+		}
+		playlistID, notice = "", "default-cleared"
+	default:
+		http.Error(w, "Choose set or clear for the station default.", http.StatusBadRequest)
+		return
+	}
+	if err := s.d.BroadcastConfig.Assign(r.Context(), p.StationID, playlistID); err != nil {
+		s.playlistError(w, err)
+		return
+	}
+	if s.d.Broadcast != nil {
+		s.d.Broadcast.Stop(p.StationID)
+	}
+	s.defaultPlaylistResponse(w, r, p, notice)
+}
+
+func (s *Server) defaultPlaylistResponse(w http.ResponseWriter, r *http.Request, p playlists.Playlist, notice string) {
+	if r.Header.Get("HX-Request") != "true" {
+		to := "/playlists/" + p.ID + "/settings"
+		if notice != "" {
+			to += "?notice=" + notice
+		}
+		s.redirect(w, r, to)
+		return
+	}
+	assignment, err := s.d.BroadcastConfig.Assignment(r.Context(), p.StationID)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	v := view{Playlist: p, CSRF: s.csrf, BroadcastPlaylist: assignment}
+	var body bytes.Buffer
+	if err := s.t.ExecuteTemplate(&body, "playlist-default", v); err != nil {
+		s.fail(w, err)
+		return
+	}
+	if s.d.Broadcast != nil && notice != "" {
+		s.d.Broadcast.Changed()
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := w.Write(body.Bytes()); err != nil {
+		s.d.Logger.Error("default playlist rendering failed", "error", err)
+	}
 }

@@ -348,3 +348,5 @@ textarea{font-weight:400;line-height:1.5}
 .now-playing .track-art{background:#294f56}.now-playing .art-placeholder{color:#b8d0d1}
 @media(max-width:1100px){.overview-track{gap:16px}.overview-track .track-art{width:96px;height:96px;flex-basis:96px}}
 @media(max-width:480px){.overview-track{gap:12px}.overview-track .track-art{width:80px;height:80px;flex-basis:80px}.overview-track-info h2{font-size:20px}}
+
+.playlist-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}.playlist-card-heading h2{margin:0;min-width:0;overflow-wrap:anywhere}.playlist-card-heading .badge{flex-shrink:0}.playlist-card-heading+p{margin-top:12px}

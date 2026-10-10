@@ -177,6 +177,7 @@ type albumOption struct {
 type playlistOption struct {
 	Playlist playlists.Playlist
 	Station  string
+	Default  bool
 }
 type ruleRow struct {
 	Rule   playlists.Rule
@@ -252,9 +253,6 @@ func (s *Server) baseView(r *http.Request) (view, error) {
 	v.BroadcastEnabled = s.d.Broadcast != nil
 
 	v.Notice = map[string]string{"station-deleted": "Station deleted.", "playlist-deleted": "Playlist deleted.", "station-saved": "Station saved.", "playlist-saved": "Playlist saved.", "selections-saved": "Selections saved.", "tracks-added": "Tracks added to the playlist.", "track-removed": "Track excluded from this playlist.", "source-saved": "Source saved.", "imported": "Library refreshed."}[r.URL.Query().Get("notice")]
-	if r.URL.Query().Get("notice") == "broadcast-saved" {
-		v.Notice = "Broadcast playlist saved."
-	}
 	var err error
 	v.Stations, err = s.d.Stations.List(r.Context())
 	if err != nil {
@@ -303,6 +301,11 @@ func (s *Server) baseView(r *http.Request) (view, error) {
 			card.PlaylistID, err = s.d.BroadcastConfig.Assignment(r.Context(), st.ID)
 			if err != nil {
 				return v, err
+			}
+		}
+		for i := range v.PlaylistOptions {
+			if v.PlaylistOptions[i].Playlist.ID == card.PlaylistID {
+				v.PlaylistOptions[i].Default = true
 			}
 		}
 		if card.Broadcast.Current.ID != "" && card.Broadcast.Programme.PlaylistID != "" {

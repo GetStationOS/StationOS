@@ -51,6 +51,7 @@ func (s *Server) scheduleView(r *http.Request) (view, error) {
 	v.Title = "Schedule"
 	v.ScheduleMode = "list"
 	v.ScheduleDays = weekDays
+	v.ShowDays = map[int]bool{0: true}
 	for h := 0; h < 24; h++ {
 		v.ScheduleHours = append(v.ScheduleHours, scheduleHour{"at-" + strconv.Itoa(h*4), schedule.TimeLabel(h * 60)})
 	}
@@ -85,6 +86,8 @@ func (s *Server) scheduleView(r *http.Request) (view, error) {
 		}
 	}
 	switch r.URL.Query().Get("notice") {
+	case "shows-added":
+		v.Notice = "Shows added on the selected days."
 	case "show-saved":
 		v.Notice = "Show saved."
 	case "show-deleted":
@@ -126,15 +129,38 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Schedule unavailable", 503)
 		return
 	}
-	day, e1 := strconv.Atoi(r.PostForm.Get("day"))
+	days := []int{}
+	selected := map[int]bool{}
+	dayError := false
+	for _, raw := range r.PostForm["day"] {
+		day, err := strconv.Atoi(raw)
+		if err != nil || day < 0 || day > 6 || selected[day] {
+			dayError = true
+			continue
+		}
+		selected[day] = true
+		days = append(days, day)
+	}
+	day := 0
+	if len(days) > 0 {
+		day = days[0]
+	}
 	start, e2 := parseShowTime(r.PostForm.Get("start"))
 	end, e3 := parseShowTime(r.PostForm.Get("end"))
-	if e1 != nil || e2 != nil || e3 != nil {
-		http.Error(w, "Choose a day and valid start/end times.", 422)
+	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Start: start, End: end}
+	if dayError || len(days) == 0 || (v.ID != "" && len(days) != 1) || e2 != nil || e3 != nil {
+		s.invalidShow(w, r, v, "Choose at least one day and valid quarter-hour start/end times.")
 		return
 	}
-	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Start: start, End: end}
-	_, err := (schedule.Service{Repo: s.d.Schedule}).Save(r.Context(), v)
+	service := schedule.Service{Repo: s.d.Schedule}
+	var err error
+	notice := "show-saved"
+	if v.ID == "" {
+		err = service.CreateDays(r.Context(), v, days)
+		notice = "shows-added"
+	} else {
+		_, err = service.Save(r.Context(), v)
+	}
 	if err != nil {
 		if errors.Is(err, schedule.ErrInvalid) || errors.Is(err, schedule.ErrOverlap) {
 			s.invalidShow(w, r, v, err.Error())
@@ -143,7 +169,7 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	s.redirect(w, r, "/stations/"+v.StationID+"/schedule?notice=show-saved")
+	s.redirect(w, r, "/stations/"+v.StationID+"/schedule?notice="+notice)
 }
 func (s *Server) deleteShow(w http.ResponseWriter, r *http.Request) {
 	if s.d.Schedule == nil {
@@ -172,6 +198,12 @@ func (s *Server) invalidShow(w http.ResponseWriter, r *http.Request, show schedu
 		return
 	}
 	v.Show = show
+	v.ShowDays = map[int]bool{}
+	for _, raw := range r.PostForm["day"] {
+		if day, err := strconv.Atoi(raw); err == nil && day >= 0 && day <= 6 {
+			v.ShowDays[day] = true
+		}
+	}
 	v.ShowStart = r.PostForm.Get("start")
 	v.ShowEnd = r.PostForm.Get("end")
 	v.ScheduleMode = "form"

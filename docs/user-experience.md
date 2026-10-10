@@ -66,7 +66,7 @@ Station cards, per-station Overview/Playlists/Settings, playlist Selections/Trac
 
 ## Weekly shows
 
-Use a station Schedule tab with a weekly calendar, explicit local timezone and optional show list. Add show opens a dedicated form; selecting a card opens its details. Use quarter-hour time controls, a shared DJ selector and a station-owned playlist selector. Reject overlaps with a useful message while retaining input. A show may cross midnight. Show deletion follows the common footer/dialog standard and leaves its DJ and playlist intact. Display measured current presenter/show state during playback; never label a planned presenter as actually on air. Starter DJs are editable configuration, seeded once with empty credentials.
+Use a station Schedule tab with a weekly calendar, explicit local timezone and optional show list. Add show opens a dedicated form with a day checklist. Saving creates an independent weekly show for each selected day, atomically; a conflict on any day retains the choices and creates none. Selecting a card opens that day’s show details for individual editing. Use quarter-hour time controls, a shared DJ selector and a station-owned playlist selector. Reject overlaps with a useful message while retaining input. A show may cross midnight. Show deletion follows the common footer/dialog standard and leaves its DJ and playlist intact. Display measured current presenter/show state during playback; never label a planned presenter as actually on air. Starter DJs are editable configuration, seeded once with empty credentials.
 
 ## Producer cards
 

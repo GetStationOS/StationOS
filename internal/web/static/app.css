@@ -305,3 +305,6 @@ textarea{font-weight:400;line-height:1.5}
 .radio-player{display:grid;grid-template-columns:minmax(130px,.7fr) minmax(0,2fr) auto auto auto;gap:18px}.player-identity{min-width:0}.player-tracks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;min-width:0}.player-track{display:flex;flex-direction:column;gap:3px;min-width:0}.player-track .eyebrow{color:#b7cfd3}.player-track strong{font-size:13px;line-height:1.4;overflow-wrap:anywhere}.player-track-artist{font-size:12px;color:#b7cfd3;overflow-wrap:anywhere}.radio-player button{white-space:nowrap}
 @media(max-width:1100px){.radio-player{display:flex;flex-wrap:wrap;gap:12px 18px}.player-identity{flex:1;min-width:130px}.player-tracks{order:2;flex-basis:100%}}
 @media(max-width:480px){.player-tracks{gap:12px}.player-track strong{font-size:12px}.player-volume{min-width:70px;width:80px}.radio-player{gap:10px}.player-identity{flex-basis:100%}.radio-player button{min-height:36px;padding:7px 12px}}
+
+/* Compact checkbox choices wrap while retaining generous click targets. */
+.choice-row{display:flex;flex-wrap:wrap;gap:8px}.choice-row .choice{gap:8px;padding:8px 10px;min-height:42px;border:1px solid var(--line);white-space:nowrap}.show-days{margin:0 0 24px}.show-days .hint{margin-bottom:12px}

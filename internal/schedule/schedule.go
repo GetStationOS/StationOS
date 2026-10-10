@@ -57,6 +57,7 @@ type Repository interface {
 	List(context.Context, string) ([]Show, error)
 	Get(context.Context, string, string) (Show, error)
 	Save(context.Context, Show) error
+	SaveMany(context.Context, []Show) error
 	Delete(context.Context, string, string) error
 }
 type Service struct{ Repo Repository }
@@ -79,6 +80,34 @@ func (s Service) Save(ctx context.Context, v Show) (Show, error) {
 		return Show{}, err
 	}
 	return s.Repo.Get(ctx, v.StationID, v.ID)
+}
+
+// CreateDays creates independent weekly shows in one atomic write.
+func (s Service) CreateDays(ctx context.Context, v Show, days []int) error {
+	if v.ID != "" || len(days) == 0 || len(days) > 7 {
+		return ErrInvalid
+	}
+	v.Name = strings.TrimSpace(v.Name)
+	shows := make([]Show, 0, len(days))
+	seen := map[int]bool{}
+	for _, day := range days {
+		if seen[day] {
+			return ErrInvalid
+		}
+		seen[day] = true
+		show := v
+		show.Day = day
+		if err := show.Validate(); err != nil {
+			return err
+		}
+		var b [16]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return err
+		}
+		show.ID = hex.EncodeToString(b[:])
+		shows = append(shows, show)
+	}
+	return s.Repo.SaveMany(ctx, shows)
 }
 
 type Occurrence struct {

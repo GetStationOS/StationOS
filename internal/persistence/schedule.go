@@ -44,10 +44,12 @@ func (r Schedule) Get(ctx context.Context, stationID, id string) (schedule.Show,
 	return scanShow(r.DB.QueryRowContext(ctx, `SELECT `+showFields+showJoin+` WHERE s.station_id=? AND s.id=?`, stationID, id))
 }
 func (r Schedule) Save(ctx context.Context, v schedule.Show) error {
-	if err := v.Validate(); err != nil {
-		return err
-	}
-	if v.ID == "" {
+	return r.SaveMany(ctx, []schedule.Show{v})
+}
+
+// SaveMany validates and saves every show within the same transaction.
+func (r Schedule) SaveMany(ctx context.Context, shows []schedule.Show) error {
+	if len(shows) == 0 || len(shows) > 7 {
 		return schedule.ErrInvalid
 	}
 	tx, err := r.DB.BeginTx(ctx, nil)
@@ -55,6 +57,22 @@ func (r Schedule) Save(ctx context.Context, v schedule.Show) error {
 		return err
 	}
 	defer tx.Rollback()
+	for _, v := range shows {
+		if err := saveShow(ctx, tx, v); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
+	if err := v.Validate(); err != nil {
+		return err
+	}
+	if v.ID == "" {
+		return schedule.ErrInvalid
+	}
+	var err error
 	var count int
 	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM stations WHERE id=?`, v.StationID).Scan(&count); err != nil {
 		return err
@@ -116,7 +134,7 @@ func (r Schedule) Save(ctx context.Context, v schedule.Show) error {
 	if n != 1 {
 		return schedule.ErrNotFound
 	}
-	return tx.Commit()
+	return nil
 }
 func (r Schedule) Delete(ctx context.Context, stationID, id string) error {
 	result, err := r.DB.ExecContext(ctx, `DELETE FROM station_shows WHERE station_id=? AND id=?`, stationID, id)

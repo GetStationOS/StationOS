@@ -204,6 +204,7 @@ type view struct {
 	ShowError                        string
 	ScheduleMode, ShowStart, ShowEnd string
 	ScheduleDays                     []scheduleDay
+	ShowDays                         map[int]bool
 	ScheduleHours                    []scheduleHour
 	ScheduleCards                    []scheduleCard
 

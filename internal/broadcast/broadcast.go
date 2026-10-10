@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/mixer"
 	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/schedule"
 )
@@ -40,6 +41,7 @@ type State struct {
 	Error                  string
 }
 type Options struct {
+	Mixer                                   mixer.Repository
 	MaxStations, MaxListeners, BufferChunks int
 	StreamBuffer                            time.Duration
 	Now                                     func() time.Time
@@ -440,6 +442,24 @@ func (m *Manager) playProgramme(id string, r *run) {
 		return true
 	}
 	stream := func(audio io.ReadCloser, state State) (bool, error) {
+		if state.Current.Kind == content.PresenterLink {
+			levels, err := m.levels(r.ctx, id)
+			if err != nil {
+				audio.Close()
+				return false, err
+			}
+			if encoder, ok := m.encoder.(PresenterEncoder); ok && levels.DJ != 100 {
+				data, err := production.ReadBounded(audio, 1<<20)
+				audio.Close()
+				if err != nil {
+					return false, err
+				}
+				audio, err = encoder.OpenPresenter(r.ctx, data, levels.DJ)
+				if err != nil {
+					return false, err
+				}
+			}
+		}
 		// Source/process cleanup cannot delay the following ready audio segment.
 		defer func() {
 			audioCleanup.Add(1)
@@ -669,9 +689,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 				// create an unbounded backlog of speech requests.
 			}
 		}
+		levels, levelErr := m.levels(r.ctx, id)
+		if levelErr != nil {
+			return
+		}
+		musicCtx := withMusicLevel(r.ctx, levels.Music)
 		var audio io.ReadCloser
 		if ahead != nil {
-			if ahead.show == playing.Key && ahead.item.ID == current.ID {
+			if ahead.show == playing.Key && ahead.music == levels.Music && ahead.item.ID == current.ID {
 				select {
 				case audio = <-ahead.result:
 				default:
@@ -685,11 +710,11 @@ func (m *Manager) playProgramme(id string, r *run) {
 		// Keep only the next track primed, shared by every station listener.
 		// Existing next-item eligibility and show revalidation still apply.
 		if preloader, ok := m.encoder.(PreloadingEncoder); ok && queued.ID != "" {
-			ahead = startAudioPreparation(r.ctx, preloader, queued, queuedShow, &audioWorkers)
+			ahead = startAudioPreparation(musicCtx, preloader, queued, queuedShow, &audioWorkers)
 		}
 		err = nil
 		if audio == nil {
-			audio, err = m.encoder.Open(r.ctx, current)
+			audio, err = m.encoder.Open(musicCtx, current)
 		}
 		started := false
 		if err == nil {

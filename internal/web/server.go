@@ -19,6 +19,7 @@ import (
 
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/mixer"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
@@ -29,6 +30,7 @@ import (
 var assets embed.FS
 
 type Dependencies struct {
+	Mixer           mixer.Repository
 	ArtworkFactory  sources.Factory
 	Schedule        schedule.Repository
 	DJs             djs.Repository
@@ -80,6 +82,8 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /stations/{id}/artwork/{item}", s.stationArtwork)
 	mux.HandleFunc("GET /stations/{id}/live", s.liveStation)
 	mux.HandleFunc("POST /stations/{id}/broadcast", s.assignBroadcast)
+	mux.HandleFunc("GET /stations/{id}/mixer", s.mixerPage)
+	mux.HandleFunc("POST /stations/{id}/mixer", s.saveMixer)
 	mux.HandleFunc("GET /stations/{id}/settings", s.stationPage)
 	mux.HandleFunc("GET /stations/{id}/delete", s.stationPage)
 	mux.HandleFunc("POST /stations/{id}/delete", s.deleteStation)

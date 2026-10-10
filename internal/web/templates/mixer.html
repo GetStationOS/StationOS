@@ -1,0 +1,29 @@
+{{define "station-mixer"}}
+<form class="mixer-form" method="post" action="/stations/{{.Station.ID}}/mixer" hx-boost="false" data-mixer-form>
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+{{if .MixerError}}<p class="notice" role="alert">{{.MixerError}}</p>{{end}}
+<section class="mixer-console" aria-label="Broadcast mixing console">
+<div class="mixer-console-heading"><div><span class="mixer-kicker">STATION OUTPUT</span><h2>Broadcast mix</h2></div><span class="mixer-baseline">100% = normal level</span></div>
+<div class="mixer-channels">
+{{range .MixerChannels}}{{template "mixer-channel" .}}{{end}}
+</div>
+<div class="mixer-console-note">Changes save automatically for every listener and start with the next track or announcement.</div>
+<div class="mixer-save-feedback"><span data-mixer-feedback role="status" aria-live="polite"></span><button type="button" data-mixer-retry hidden>Retry</button></div>
+</section>
+</form>
+{{end}}
+
+{{define "mixer-channel"}}
+<fieldset class="mixer-channel mixer-{{.Key}}">
+<legend><span class="mixer-channel-number">{{.Number}}</span> {{.Name}}</legend>
+<p class="mixer-channel-source" id="{{.Key}}-help">{{.Description}}</p>
+<div class="mixer-fader" data-fader hidden>
+<div class="mixer-scale" aria-hidden="true"><span>400</span><span>300</span><span>200</span><span class="mixer-unity">100</span><span>0</span></div>
+<div class="mixer-fader-well"><input id="{{.Key}}-fader" type="range" min="0" max="400" step="5" value="{{.Volume}}" aria-label="{{.Name}} volume" aria-orientation="vertical" aria-describedby="{{.Key}}-help" data-volume-for="{{.Key}}-volume"></div>
+<div class="mixer-scale-caption" aria-hidden="true">LEVEL %</div>
+</div>
+<label class="mixer-level-label" for="{{.Key}}-volume">{{.Name}} level</label>
+<div class="mixer-value"><input id="{{.Key}}-volume" name="{{.Field}}" type="number" min="0" max="400" step="1" value="{{.Volume}}" required aria-describedby="{{.Key}}-help" data-mixer-level data-channel-name="{{.Name}}"><span aria-hidden="true">%</span></div>
+<div class="mixer-channel-actions" data-mixer-actions hidden><button type="button" data-mixer-mute="{{.Key}}-volume" aria-pressed="false" aria-label="Mute {{.Name}}">Mute</button><button type="button" data-mixer-reset="{{.Key}}-volume" aria-label="Reset {{.Name}} to 100%">100%</button></div>
+</fieldset>
+{{end}}

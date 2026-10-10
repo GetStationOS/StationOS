@@ -83,3 +83,8 @@ Use one authenticated server-sent event connection while the homepage is visible
 ### Persistent player metadata
 
 The shell player shows the actual current and next titles and performing artists, with DJ on air during speech. A station-specific authenticated event connection updates only changed metadata and remains active across HTMX navigation. It does not start audio or count as a listener; switching stations replaces the connection and Stop closes it. Empty runtime states show Nothing playing and Not queued. The layout wraps for smaller screens.
+
+
+### Station Mixer
+
+Mixer is a station workspace tab, alongside Overview, Playlists, Schedule and Settings. A dark broadcast console has separate Music and DJ channel strips, vertical faders with percentage scales, exact level fields, Mute and 100% reset controls, immediate automatic saving and inline saving/error feedback with Retry. Slider, percentage, mute and reset changes save without replacing the form or moving focus; requests are serialized and rapid changes coalesce to the latest levels. Channel strips share one reusable component; more supported audio channels can join the responsive console, with strips wrapping on narrower screens. Channel colours identify music and presenter controls; the scale shows configured gain, never invented live metering. Both levels range from 0% (mute) to 400%, defaulting to 100%. Changes commit automatically and affect every listener at the next track or announcement, including cached speech. The persistent app player's volume remains a personal listening control. Invalid input is retained with an accessible message; settings save together and survive restarts.

@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"stationos.local/stationos/internal/mixer"
 	"testing"
 
 	"stationos.local/stationos/internal/catalogue"
@@ -15,7 +17,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
 		t.Run(string(rune('0'+version)), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -136,12 +138,29 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			for n := 8; n <= version; n++ {
+				frozen, err := os.ReadFile(fmt.Sprintf("testdata/v%d.sql", n))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err = db.Exec(string(frozen)); err != nil {
+					t.Fatal(err)
+				}
+				hash = sha256.Sum256(frozen)
+				if _, err = db.Exec(`INSERT INTO schema_migrations VALUES(?,?)`, n, hex.EncodeToString(hash[:])); err != nil {
+					t.Fatal(err)
+				}
+			}
 			db.Close()
 			db, err = Open(ctx, path)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer db.Close()
+			levels, err := (Mixer{DB: db}).Get(ctx, "station")
+			if err != nil || levels != mixer.Default() {
+				t.Fatal("upgrade changed station levels", levels, err)
+			}
 			station, err := (Stations{DB: db}).Get(ctx, "station")
 			if err != nil || station.Description != "Identity" || station.StreamSlug != "keep-station" {
 				t.Fatal(station, err)

@@ -2,6 +2,7 @@
 package broadcast
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -97,6 +98,10 @@ func (f FFmpeg) Open(parent context.Context, item content.AudioItem) (io.ReadClo
 	// Adapted from Retro Radio's checked-byte FLAC conversion; one encoder serves
 	// the whole station. The manager paces delivery; output has no per-track file tags.
 	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", format, "-i", "pipe:0", "-map", "0:a:0", "-vn", "-threads", "1", "-filter_threads", "1", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-reservoir", "0", "-f", "mp3", "-write_xing", "0", "-id3v2_version", "0", "-flush_packets", "1", "pipe:1"}
+	if level := musicLevel(parent); level != 100 {
+		// Force stereo before applying independent sample gain and peak protection.
+		args = append(args[:len(args)-1], "-af", "aformat=channel_layouts=stereo,"+gainFilter(level), "pipe:1")
+	}
 	cmd := exec.CommandContext(ctx, f.Path, args...)
 	cmd.Env = []string{}
 	cmd.WaitDelay = time.Second
@@ -138,3 +143,30 @@ func (r *startupReader) Read(buf []byte) (int, error) {
 	return n, err
 }
 func (r *startupReader) Close() error { err := r.encoded.Close(); r.stop(); return err }
+
+// OpenPresenter transforms cached audio locally; it never regenerates speech.
+func (f FFmpeg) OpenPresenter(parent context.Context, data []byte, level int) (io.ReadCloser, error) {
+	if f.Path == "" || len(data) == 0 || len(data) > 1<<20 || level < 0 || level > 400 {
+		return nil, errors.New("invalid presenter audio or volume")
+	}
+	ctx, cancel := context.WithCancel(parent)
+	source := io.NopCloser(bytes.NewReader(data))
+	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", "mp3", "-i", "pipe:0", "-map", "0:a:0", "-vn", "-af", "aformat=channel_layouts=stereo," + gainFilter(level), "-threads", "1", "-filter_threads", "1", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-reservoir", "0", "-f", "mp3", "-write_xing", "0", "-id3v2_version", "0", "-flush_packets", "1", "pipe:1"}
+	cmd := exec.CommandContext(ctx, f.Path, args...)
+	cmd.Env = []string{}
+	cmd.WaitDelay = time.Second
+	cmd.Stdin = source
+	cmd.Stderr = io.Discard
+	stdout, err := cmd.StdoutPipe()
+	if err == nil {
+		err = cmd.Start()
+	}
+	if err != nil {
+		if stdout != nil {
+			stdout.Close()
+		}
+		cancel()
+		return nil, err
+	}
+	return readAheadAudio(ctx, &startupReader{encoded: &encoded{ReadCloser: stdout, cancel: cancel, source: source, cmd: cmd}, stop: func() bool { return false }}), nil
+}

@@ -40,13 +40,12 @@ type Normalizer interface {
 }
 
 func CacheKey(show, next schedule.Occurrence) string {
-	// Cached presenter assets from earlier normalizers may contain long edge
-	// silence or ambiguous artist credits. Version the output contract so they
-	// are prepared again with performer/composer metadata.
+	// Version the prepared speech contract: level the voice before caching,
+	// preserve editorial pauses and use explicit performer/composer credits.
 	raw, _ := json.Marshal(struct {
 		AudioVersion int
 		Show, Next   schedule.Occurrence
-	}{3, show, next})
+	}{4, show, next})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }

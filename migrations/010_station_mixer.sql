@@ -1,0 +1,5 @@
+CREATE TABLE station_mixer (
+ station_id TEXT PRIMARY KEY REFERENCES stations(id) ON DELETE CASCADE,
+ music_volume INTEGER NOT NULL DEFAULT 100 CHECK(music_volume BETWEEN 0 AND 400),
+ dj_volume INTEGER NOT NULL DEFAULT 100 CHECK(dj_volume BETWEEN 0 AND 400)
+);

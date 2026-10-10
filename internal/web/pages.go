@@ -199,14 +199,16 @@ type sourceCard struct {
 	Tracks int
 }
 type view struct {
-	Show                             schedule.Show
-	Shows                            []schedule.Show
-	ShowError                        string
-	ScheduleMode, ShowStart, ShowEnd string
-	ScheduleDays                     []scheduleDay
-	ShowDays                         map[int]bool
-	ScheduleHours                    []scheduleHour
-	ScheduleCards                    []scheduleCard
+	MixerChannels                     []mixerChannel
+	MusicVolume, DJVolume, MixerError string
+	Show                              schedule.Show
+	Shows                             []schedule.Show
+	ShowError                         string
+	ScheduleMode, ShowStart, ShowEnd  string
+	ScheduleDays                      []scheduleDay
+	ShowDays                          map[int]bool
+	ScheduleHours                     []scheduleHour
+	ScheduleCards                     []scheduleCard
 
 	DJ                                                                                                   djs.Profile
 	DJs                                                                                                  []djs.Profile

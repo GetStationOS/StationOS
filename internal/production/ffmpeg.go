@@ -24,7 +24,7 @@ func (f FFmpeg) MP3(parent context.Context, data []byte) ([]byte, error) {
 	}
 	ctx, cancel := context.WithTimeout(parent, 20*time.Second)
 	defer cancel()
-	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", "mp3", "-i", "pipe:0", "-map", "0:a:0", "-vn", "-af", "silenceremove=start_periods=1:start_duration=0.01:start_threshold=-60dB,areverse,silenceremove=start_periods=1:start_duration=0.01:start_threshold=-60dB,areverse", "-threads", "1", "-filter_threads", "1", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-reservoir", "0", "-f", "mp3", "-write_xing", "0", "-id3v2_version", "0", "pipe:1"}
+	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", "mp3", "-i", "pipe:0", "-map", "0:a:0", "-vn", "-af", "acompressor=threshold=0.0316:ratio=3:attack=5:release=100:makeup=1,loudnorm=I=-14:TP=-2:LRA=7,silenceremove=start_periods=1:start_duration=0.01:start_threshold=-60dB,areverse,silenceremove=start_periods=1:start_duration=0.01:start_threshold=-60dB,areverse", "-threads", "1", "-filter_threads", "1", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-reservoir", "0", "-f", "mp3", "-write_xing", "0", "-id3v2_version", "0", "pipe:1"}
 	cmd := exec.CommandContext(ctx, f.Path, args...)
 	cmd.Env = []string{}
 	cmd.WaitDelay = time.Second

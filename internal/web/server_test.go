@@ -48,7 +48,7 @@ func setupWeb(t *testing.T, password string) (http.Handler, persistence.Stations
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := New(Dependencies{Schedule: persistence.Schedule{DB: db}, DJs: djsRepo, Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Password: password, Logger: logger})
+	h, err := New(Dependencies{Mixer: persistence.Mixer{DB: db}, Schedule: persistence.Schedule{DB: db}, DJs: djsRepo, Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Password: password, Logger: logger})
 	if err != nil {
 		t.Fatal(err)
 	}

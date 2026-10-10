@@ -1,3 +1,4 @@
+const mixerSaves = new WeakMap();
 let stationEvents=null;
 let stationEventOwner=null;
 htmx.config.allowEval = false;
@@ -39,6 +40,7 @@ function initialise() {
   });
   document.querySelectorAll('[data-selection-form]').forEach(form => { form.dataset.initial = selectionState(form); refreshChoices(form); });
   document.querySelectorAll('[data-track-form]').forEach(refreshTracks);
+  document.querySelectorAll('[data-mixer-form]').forEach(initialiseMixer);
   document.querySelectorAll('[data-dj-model]').forEach(refreshDJModel);
   document.querySelectorAll('.calendar-scroll:not([data-positioned])').forEach(calendar => {
     const cards = Array.from(calendar.querySelectorAll('.calendar-show'));
@@ -50,6 +52,21 @@ function refreshDJModel(select) {
  const field = select.closest('form').querySelector('[data-custom-model]');
  field.hidden = select.value !== 'custom';
  field.querySelector('input').required = select.value === 'custom';
+}
+function mixerState(form) { return JSON.stringify(Array.from(form.querySelectorAll('[data-mixer-level]'), field => [field.name, field.value])); }
+function refreshMixer(form) {
+ form.querySelectorAll('[data-volume-for]').forEach(slider => {
+  const field = document.getElementById(slider.dataset.volumeFor);
+  slider.value = field.value;
+  slider.style.setProperty('--fader-fill', (Number(slider.value) / 4) + '%');
+  slider.setAttribute('aria-valuetext', slider.value + ' percent');
+  const mute = form.querySelector('[data-mixer-mute="'+field.id+'"]');
+  const muted = field.value !== '' && Number(field.value) === 0;
+  mute.setAttribute('aria-pressed', String(muted));
+  mute.textContent = muted ? 'Unmute' : 'Mute';
+  mute.setAttribute('aria-label', (muted ? 'Unmute ' : 'Mute ') + field.dataset.channelName);
+ });
+
 }
 function unsavedSelections() { return !!document.querySelector('[data-selection-form][data-dirty="true"]'); }
 let pendingNavigation = null;
@@ -264,3 +281,85 @@ function startRadioMetadata(){
 }
 window.addEventListener('pagehide',()=>{radioMetadataEvents?.close();radioMetadataEvents=null;});
 window.addEventListener('pageshow',()=>{if(selectedRadio)startRadioMetadata();});
+
+document.body.addEventListener('input', event => {
+ const form = event.target.closest('[data-mixer-form]');
+ if (!form) return;
+ if (event.target.matches('[data-volume-for]')) {
+  document.getElementById(event.target.dataset.volumeFor).value = event.target.value;
+ } else if (event.target.type === 'number') {
+  const slider = form.querySelector('[data-volume-for="'+event.target.id+'"]');
+  if (slider) slider.value = event.target.value;
+ }
+ refreshMixer(form);
+ saveMixer(form);
+});
+
+document.body.addEventListener('click', event => {
+ const button = event.target.closest('[data-mixer-mute], [data-mixer-reset]');
+ if (!button) return;
+ const form = button.closest('[data-mixer-form]');
+ const field = document.getElementById(button.dataset.mixerMute || button.dataset.mixerReset);
+ if (button.hasAttribute('data-mixer-reset')) {
+  field.value = '100';
+ } else if (Number(field.value) === 0) {
+  field.value = field.dataset.unmutedLevel || '100';
+ } else {
+  field.dataset.unmutedLevel = field.value;
+  field.value = '0';
+ }
+ refreshMixer(form);
+ saveMixer(form);
+});
+
+function initialiseMixer(form) {
+ if (mixerSaves.has(form)) return;
+ mixerSaves.set(form, {saved: mixerState(form), saving: false});
+ form.querySelectorAll('[data-fader], [data-mixer-actions]').forEach(control => { control.hidden = false; });
+ refreshMixer(form);
+ form.addEventListener('submit', event => { event.preventDefault(); saveMixer(form); });
+}
+function mixerFeedback(form, message, failed = false) {
+ const output = form.querySelector('[data-mixer-feedback]');
+ output.textContent = message;
+ output.setAttribute('role', failed ? 'alert' : 'status');
+ form.querySelector('[data-mixer-retry]').hidden = !failed;
+}
+async function saveMixer(form) {
+ const state = mixerSaves.get(form);
+ if (!state || state.saving) return;
+ if (!form.checkValidity()) {
+  mixerFeedback(form, 'Enter a whole-number level from 0% to 400%.');
+  return;
+ }
+ const snapshot = mixerState(form);
+ if (snapshot === state.saved) { mixerFeedback(form, 'Saved'); return; }
+ const body = new URLSearchParams(new FormData(form));
+ state.saving = true;
+ mixerFeedback(form, 'Saving…');
+ try {
+  const response = await fetch(form.action, {
+   method: 'POST', body, credentials: 'same-origin', keepalive: true,
+   headers: {'X-Mixer-Autosave': 'true', 'Accept': 'application/json'}
+  });
+  const result = await response.json().catch(() => null);
+  if (!response.ok || result?.status !== 'saved') {
+   throw new Error(result?.error || (response.status === 401 ? 'Reload to sign in before adjusting the mixer.' : 'Couldn’t save the mixer. Please retry.'));
+  }
+  state.saved = snapshot;
+  mixerFeedback(form, 'Saved');
+ } catch (error) {
+  // A lost response may follow a committed write; retry the desired state.
+  state.saved = null;
+  mixerFeedback(form, error.message || 'Couldn’t save the mixer. Please retry.', true);
+ } finally {
+  state.saving = false;
+  // Serialize requests and send the latest position after an earlier save.
+  // HTMX navigation may detach the form; its pending save still completes.
+  if (mixerState(form) !== snapshot) saveMixer(form);
+ }
+}
+document.body.addEventListener('click', event => {
+ const retry = event.target.closest('[data-mixer-retry]');
+ if (retry) saveMixer(retry.closest('[data-mixer-form]'));
+});

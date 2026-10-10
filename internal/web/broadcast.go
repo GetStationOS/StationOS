@@ -1,0 +1,180 @@
+package web
+
+import (
+	"encoding/hex"
+	"errors"
+	"net/http"
+	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/playlists"
+	"stationos.local/stationos/internal/station"
+	"time"
+)
+
+func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
+	if s.d.Broadcast == nil {
+		http.Error(w, "broadcast unavailable", 503)
+		return
+	}
+	var st station.Station
+	var err error
+	if lookup, ok := s.d.Stations.(station.StreamLookup); ok {
+		st, err = lookup.ByStreamSlug(r.Context(), r.PathValue("id"))
+	} else {
+		var items []station.Station
+		items, err = s.d.Stations.List(r.Context())
+		for _, item := range items {
+			if item.StreamSlug == r.PathValue("id") {
+				st = item
+				break
+			}
+		}
+	}
+	if err != nil && !errors.Is(err, station.ErrNotFound) {
+		s.fail(w, err)
+		return
+	}
+	if st.ID == "" {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "audio/mpeg")
+	w.Header().Set("Accept-Ranges", "none")
+	w.Header().Set("X-Accel-Buffering", "no")
+	// A live programme has no byte-addressable representation. Ignore Range
+	// and return the live 200 response, including Safari's bytes=0-1 probe.
+	// Rejecting that probe makes Safari report otherwise valid MP3 as unplayable.
+	if r.Method == http.MethodHead {
+		return
+	}
+	// Only app-generated opaque IDs group requests; IP addresses and cookies
+	// cannot distinguish multiple players on the same browser or home network.
+	clientID := r.URL.Query().Get("listener")
+	if clientID != "" {
+		if decoded, err := hex.DecodeString(clientID); err != nil || len(decoded) != 16 {
+			http.Error(w, "invalid listener session", http.StatusBadRequest)
+			return
+		}
+	}
+	sub, err := s.d.Broadcast.SubscribeClient(r.Context(), st.ID, clientID)
+	if err != nil {
+		http.Error(w, err.Error(), 503)
+		return
+	}
+	defer sub.Close()
+	timer := time.NewTimer(25 * time.Second)
+	defer timer.Stop()
+	var first []byte
+	select {
+	case <-sub.Done:
+		http.Error(w, "station could not play its music; check the source and try again", 503)
+		return
+	case <-r.Context().Done():
+		return
+	case <-timer.C:
+		http.Error(w, "station could not start; check the source and try again", 503)
+		return
+	case data, ok := <-sub.Audio:
+		if !ok {
+			http.Error(w, "station could not play its music; check the source and try again", 503)
+			return
+		}
+		first = data
+	}
+	rc := http.NewResponseController(w)
+	defer rc.SetWriteDeadline(time.Time{})
+	write := func(data []byte) bool {
+		select {
+		case <-sub.Done:
+			return false
+		default:
+		}
+		if rc.SetWriteDeadline(time.Now().Add(10*time.Second)) != nil {
+			return false
+		}
+		if _, err := w.Write(data); err != nil {
+			return false
+		}
+		return rc.Flush() == nil
+	}
+	if !write(first) {
+		return
+	}
+	for {
+		select {
+		case <-sub.Done:
+			return
+		case <-r.Context().Done():
+			return
+		case data, ok := <-sub.Audio:
+			if !ok || !write(data) {
+				return
+			}
+		}
+	}
+}
+func (s *Server) assignBroadcast(w http.ResponseWriter, r *http.Request) {
+	if s.d.BroadcastConfig == nil {
+		http.Error(w, "broadcast unavailable", 503)
+		return
+	}
+	id := r.PathValue("id")
+	err := s.d.BroadcastConfig.Assign(r.Context(), id, r.PostForm.Get("playlist"))
+	if errors.Is(err, station.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if errors.Is(err, playlists.ErrInvalid) {
+		http.Error(w, "Choose a playlist belonging to this station.", 422)
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if s.d.Broadcast != nil {
+		s.d.Broadcast.Stop(id)
+	}
+	s.redirect(w, r, "/stations/"+id+"?notice=broadcast-saved")
+}
+func (s *Server) liveStation(w http.ResponseWriter, r *http.Request) {
+	st, err := s.d.Stations.Get(r.Context(), r.PathValue("id"))
+	if errors.Is(err, station.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	v := view{Station: st, Broadcast: broadcast.State{Status: "Dormant"}}
+	if s.d.Broadcast != nil {
+		v.Broadcast = s.d.Broadcast.State(st.ID)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.t.ExecuteTemplate(w, "station-live", v); err != nil {
+		s.d.Logger.Error("status rendering failed", "error", err)
+	}
+}
+func (s *Server) streamURL(r *http.Request, id string) string {
+	base := s.d.PublicURL
+	if base == "" {
+		scheme := "http"
+		if r.TLS != nil {
+			scheme = "https"
+		}
+		base = scheme + "://" + r.Host
+	}
+	return base + "/streams/" + id
+}
+
+func (s *Server) liveCards(w http.ResponseWriter, r *http.Request) {
+	v, err := s.baseView(r)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := s.t.ExecuteTemplate(w, "station-cards", v); err != nil {
+		s.d.Logger.Error("cards rendering failed", "error", err)
+	}
+}

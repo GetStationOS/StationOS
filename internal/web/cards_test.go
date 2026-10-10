@@ -1,0 +1,149 @@
+package web
+
+import (
+	"context"
+	"encoding/base64"
+	"io"
+	"log/slog"
+	"net/http"
+	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/persistence"
+	"stationos.local/stationos/internal/playlists"
+	"stationos.local/stationos/internal/schedule"
+	"stationos.local/stationos/internal/sources"
+	"stationos.local/stationos/internal/station"
+	"strings"
+	"testing"
+	"time"
+)
+
+type artworkSource struct{ fakeSource }
+
+func (artworkSource) Profile() sources.Profile {
+	return sources.Profile{Capabilities: sources.Capabilities{Artwork: true}}
+}
+func (artworkSource) Artwork(_ context.Context, raw string) ([]byte, string, error) {
+	data, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aC1sAAAAASUVORK5CYII=")
+	return data, "image/png", nil
+}
+func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
+	_, st, src, cat := setupWeb(t, "")
+	ctx := context.Background()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pr := persistence.Playlists{DB: st.DB}
+	config := persistence.Broadcast{DB: st.DB}
+	shows := persistence.Schedule{DB: st.DB}
+	if err := st.Save(ctx, station.Station{ID: "radio", Name: "Jazz Station", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := (sources.Service{Repo: src}).Save(ctx, sources.Config{Name: "Music", Kind: "upnp", Endpoint: "http://server/desc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	length := 3 * time.Minute
+	items := []content.AudioItem{}
+	for _, name := range []string{"First <song>", "Second song"} {
+		items = append(items, content.AudioItem{ID: content.ID(c.ID, name), SourceID: c.ID, SourceItemID: name, Title: name, Artist: "The Quartet", Album: "Night music", Duration: &length, Artwork: "http://server/art.png", Kind: content.Track, Origin: content.Original})
+	}
+	if err = cat.Replace(ctx, c, items); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []playlists.Playlist{{ID: "default", StationID: "radio", Name: "Jazz Default"}, {ID: "show", StationID: "radio", Name: "Show Pool"}} {
+		if err = pr.Save(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+		if err = pr.SetIncluded(ctx, p.ID, []string{items[0].ID, items[1].ID}, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	config.Assign(ctx, "radio", "default")
+	now := time.Now().UTC()
+	start := (now.Hour()*60 + now.Minute()) / 15 * 15
+	if err = shows.Save(ctx, schedule.Show{ID: "slot", StationID: "radio", Name: "Evening sessions", DJID: "default-jazz", PlaylistID: "show", Day: (int(now.Weekday()) + 6) % 7, Start: start, End: (start + 60) % 1440}); err != nil {
+		t.Fatal(err)
+	}
+	m := broadcast.New(config, tickingEncoder{}, logger, broadcast.Options{Schedule: shows})
+	defer m.Close()
+	deps := Dependencies{Stations: st, Sources: src, Catalogue: cat, Playlists: pr, Broadcast: m, BroadcastConfig: config, ArtworkFactory: func(context.Context, sources.Config) (sources.AudioSource, error) { return artworkSource{}, nil }, Ready: st.DB.PingContext, Logger: logger}
+	h, err := New(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := request(h, "GET", "/", nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Jazz Default") || !strings.Contains(w.Body.String(), "Nothing playing") || strings.Contains(w.Body.String(), "Evening sessions") {
+		t.Fatal("dormant card fabricates active programme", w.Body.String())
+	}
+	sub, err := m.Subscribe(ctx, "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	select {
+	case <-sub.Audio:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stream did not start")
+	}
+	for _, path := range []string{"/", "/stations/live"} {
+		w = request(h, "GET", path, nil, nil)
+		html := w.Body.String()
+		for _, want := range []string{"Evening sessions", "Miles Mercer", "Show Pool", "First &lt;song&gt;", "Second song", "The Quartet", "Night music", "3:00", "1 listener", "/artwork/", "hx-indicator=\"this\"", `class="station-card producer-card" hx-target="#main"`} {
+			if !strings.Contains(html, want) {
+				t.Fatal("card missing", want, html)
+			}
+		}
+		if strings.Contains(html, "http://server/art.png") {
+			t.Fatal("artwork bypasses checked source")
+		}
+	}
+	state := m.State("radio")
+	path := "/stations/radio/artwork/" + state.Current.ID
+	w = request(h, "GET", path, nil, nil)
+	if w.Code != 200 || w.Header().Get("Content-Type") != "image/png" || w.Header().Get("Cache-Control") != "private, max-age=300" {
+		t.Fatal(w.Code, w.Header())
+	}
+	if request(h, "GET", "/stations/radio/artwork/arbitrary?url=http://other.example", nil, nil).Code != 404 {
+		t.Fatal("arbitrary artwork admitted")
+	}
+	deps.Password = "secret"
+	protected, err := New(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request(protected, "GET", path, nil, nil).Code != http.StatusUnauthorized {
+		t.Fatal("artwork bypassed management authentication")
+	}
+	sub.Close()
+	m.Stop("radio")
+	if err = shows.Delete(ctx, "radio", "slot"); err != nil {
+		t.Fatal(err)
+	}
+	fallback, err := m.Subscribe(ctx, "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fallback.Close()
+	select {
+	case <-fallback.Audio:
+	case <-time.After(2 * time.Second):
+		t.Fatal("default music did not start")
+	}
+	w = request(h, "GET", "/stations/live", nil, nil)
+	html := w.Body.String()
+	if !strings.Contains(html, "Jazz Default") || !strings.Contains(html, "Second song") || strings.Contains(html, "Evening sessions") || strings.Contains(html, "ON AIR") {
+		t.Fatal("default card mislabels show", html)
+	}
+}
+func TestProgrammeDetailsUsesStationTimezoneAndFinishPolicy(t *testing.T) {
+	end := time.Date(2026, 10, 9, 10, 0, 0, 0, time.UTC)
+	s := broadcast.State{Programme: schedule.Occurrence{ShowID: "show", Start: end.Add(-time.Hour), End: end}, Current: content.AudioItem{ID: "track", Kind: content.Track}, PresenterStatus: "Ready"}
+	times, status := programmeDetails(s, "Europe/London", end.Add(time.Second))
+	if times != "10:00–11:00" || status != "Finishing current track" {
+		t.Fatal(times, status)
+	}
+	s.Phase = "handover"
+	_, status = programmeDetails(s, "UTC", end)
+	if status != "Handing over" {
+		t.Fatal(status)
+	}
+}

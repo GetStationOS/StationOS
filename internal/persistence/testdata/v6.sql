@@ -1,0 +1,9 @@
+CREATE TABLE djs (
+ id TEXT PRIMARY KEY,
+ name TEXT NOT NULL,
+ model TEXT NOT NULL,
+ prompt TEXT NOT NULL DEFAULT '',
+ vibe TEXT NOT NULL DEFAULT '',
+ api_key_cipher BLOB NOT NULL DEFAULT X''
+);
+CREATE INDEX dj_name ON djs(name COLLATE NOCASE,id);

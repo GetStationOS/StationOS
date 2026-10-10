@@ -1,0 +1,1 @@
+<root><device><friendlyName>MinimServer fixture</friendlyName><deviceList><device><serviceList><service><serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType><controlURL>/control</controlURL></service></serviceList></device></deviceList></device></root>

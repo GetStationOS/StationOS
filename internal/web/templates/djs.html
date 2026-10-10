@@ -1,0 +1,20 @@
+{{define "djs"}}
+{{if eq .DJMode "list"}}
+{{if .DJs}}<div class="source-list">{{range .DJs}}<article class="source-row"><span class="station-avatar" aria-hidden="true">♫</span><div class="source-identity"><h2><a href="/djs/{{.ID}}">{{.Name}}</a></h2><span>{{.Model}} · {{.Voice}}</span></div><span class="source-count">{{if .HasKey}}Key saved{{else}}No API key{{end}}</span><a class="button secondary" href="/djs/{{.ID}}">Edit DJ →</a></article>{{end}}</div>{{else}}<section class="empty-state"><h2>No DJs yet</h2><p>Create a fictional presenter with their own prompt and voice direction.</p><a class="button" href="/djs/new">Create DJ</a></section>{{end}}
+{{else if eq .DJMode "delete"}}{{template "delete-dj" .}}
+{{else}}
+<section class="form-panel">{{if .DJError}}<p class="notice error" role="alert">{{.DJError}}</p>{{end}}<form method="post" action="/djs" hx-disabled-elt="find button" data-dj-form>
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.DJ.ID}}">
+<label>Fictional name<input name="name" value="{{.DJ.Name}}" required maxlength="200" placeholder="e.g. The Midnight Archivist" {{if eq .DJMode "new"}}autofocus{{end}}></label>
+<div class="fields"><label>AI model<select name="model" data-dj-model>{{range .DJModels}}<option value="{{.ID}}" {{if eq .ID $.DJ.Model}}selected{{end}}>{{.Label}}</option>{{end}}<option value="custom" {{if .DJCustomModel}}selected{{end}}>Other model…</option></select><span class="hint">For writing and music curation.</span></label>
+<label>Voice<select name="voice" required>{{range .DJVoices}}<option value="{{.ID}}" {{if eq .ID $.DJ.Voice}}selected{{end}}>{{.Name}}</option>{{end}}</select></label></div>
+<label data-custom-model>Model ID<input name="custom_model" maxlength="128" value="{{if .DJCustomModel}}{{.DJ.Model}}{{end}}" placeholder="Your OpenAI model ID"></label>
+<label>OpenAI API key <span class="optional">{{if .DJ.HasKey}}Saved{{else}}Optional{{end}}</span><input type="password" name="api_key" autocomplete="new-password" maxlength="4096" spellcheck="false" autocapitalize="none" placeholder="{{if .DJ.HasKey}}Leave blank to keep the saved key{{else}}Enter your API key{{end}}"><span class="hint">Stored encrypted. Saved keys are never displayed.</span></label>
+{{if .DJ.HasKey}}<label class="check"><input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
+<label>Prompt<textarea name="prompt" rows="7" maxlength="32000" placeholder="Describe the DJ’s personality, music choices and how they introduce tracks.">{{.DJ.Prompt}}</textarea></label>
+<label>Vibe<textarea name="vibe" rows="8" maxlength="16000" placeholder="{{.ExampleVibe}}">{{.DJ.Vibe}}</textarea><span class="hint">Voice, phrasing, punctuation and tone.</span></label><button type="button" class="text-button" data-example-vibe>Use example vibe</button>
+<div class="form-footer">{{if .DJ.ID}}<a class="button danger" href="/djs/{{.DJ.ID}}/delete" hx-get="/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}<div class="form-actions"><a class="button secondary" href="/djs">Cancel</a><button>{{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button></div></div>
+</form></section>
+{{end}}{{end}}
+
+{{define "delete-dj"}}<section class="form-panel"><h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2><p id="dialog-description">This permanently deletes this DJ’s profile and saved API key.</p><form method="post" action="/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="yes"><div class="form-actions"><a class="button secondary" href="/djs/{{.DJ.ID}}" data-close-dialog>Cancel</a><button class="danger">Delete DJ</button></div></form></section>{{end}}

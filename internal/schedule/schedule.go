@@ -1,0 +1,187 @@
+// Package schedule owns recurring shows in station-local civil time.
+package schedule
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"sort"
+	"stationos.local/stationos/internal/djs"
+	"strconv"
+	"strings"
+	"time"
+)
+
+var ErrNotFound = errors.New("show not found")
+var ErrInvalid = errors.New("invalid show settings")
+var ErrOverlap = errors.New("this show overlaps another show; choose a free time")
+var ErrInUse = errors.New("this item is used by a scheduled show; remove or update that show first")
+
+const WeekMinutes = 7 * 24 * 60
+const MaxShows = 200
+
+type Show struct {
+	ID, StationID, Name, DJID, PlaylistID string
+	Day, Start, End                       int // Monday=0; minutes after midnight. End <= Start means next day.
+	Revision                              int
+	DJName, PlaylistName                  string
+	DJ                                    djs.Profile
+}
+
+func (s Show) Duration() int {
+	d := s.End - s.Start
+	if d <= 0 {
+		d += 1440
+	}
+	return d
+}
+func (s Show) Validate() error {
+	if s.StationID == "" || strings.TrimSpace(s.Name) == "" || len(s.Name) > 200 || s.DJID == "" || s.PlaylistID == "" || s.Day < 0 || s.Day > 6 || s.Start < 0 || s.Start >= 1440 || s.End < 0 || s.End >= 1440 || s.Start%15 != 0 || s.End%15 != 0 {
+		return ErrInvalid
+	}
+	return nil
+}
+func Overlaps(a, b Show) bool {
+	x := a.Day*1440 + a.Start
+	y := b.Day*1440 + b.Start
+	for _, shift := range []int{-WeekMinutes, 0, WeekMinutes} {
+		if x < y+shift+b.Duration() && y+shift < x+a.Duration() {
+			return true
+		}
+	}
+	return false
+}
+
+type Repository interface {
+	List(context.Context, string) ([]Show, error)
+	Get(context.Context, string, string) (Show, error)
+	Save(context.Context, Show) error
+	Delete(context.Context, string, string) error
+}
+type Service struct{ Repo Repository }
+
+func (s Service) Save(ctx context.Context, v Show) (Show, error) {
+	v.Name = strings.TrimSpace(v.Name)
+	if err := v.Validate(); err != nil {
+		return Show{}, err
+	}
+	if v.ID == "" {
+		var b [16]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return Show{}, err
+		}
+		v.ID = hex.EncodeToString(b[:])
+	} else if _, err := s.Repo.Get(ctx, v.StationID, v.ID); err != nil {
+		return Show{}, err
+	}
+	if err := s.Repo.Save(ctx, v); err != nil {
+		return Show{}, err
+	}
+	return s.Repo.Get(ctx, v.StationID, v.ID)
+}
+
+type Occurrence struct {
+	Key, StationID, Title, PlaylistID, PlaylistName string
+	ShowID                                          string
+	DJ                                              djs.Profile
+	Start, End                                      time.Time
+}
+type Timeline struct{ Current, Next Occurrence }
+type Source interface {
+	Resolve(context.Context, string, time.Time) (Timeline, error)
+}
+
+func Monday(now time.Time, loc *time.Location) time.Time {
+	t := now.In(loc)
+	days := (int(t.Weekday()) + 6) % 7
+	return time.Date(t.Year(), t.Month(), t.Day()-days, 0, 0, 0, 0, loc)
+}
+
+// WallTime resolves repeated boundaries at their first occurrence, so adjacent
+// shows share one boundary. A missing spring-forward
+// wall time moves to the next valid minute; collapsed occurrences are skipped.
+func WallTime(date time.Time, minutes int, end bool) time.Time {
+	loc := date.Location()
+	day := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, time.UTC)
+	desired := day.Add(time.Duration(minutes) * time.Minute)
+	candidate := time.Date(desired.Year(), desired.Month(), desired.Day(), desired.Hour(), desired.Minute(), 0, 0, loc)
+	var match time.Time
+	for t := candidate.Add(-3 * time.Hour); !t.After(candidate.Add(3 * time.Hour)); t = t.Add(time.Minute) {
+		wall := t.In(loc)
+		naive := time.Date(wall.Year(), wall.Month(), wall.Day(), wall.Hour(), wall.Minute(), 0, 0, time.UTC)
+		if naive.Equal(desired) {
+			if match.IsZero() {
+				match = t
+			}
+			return t
+		}
+	}
+	if !match.IsZero() {
+		return match
+	}
+	for i := 1; i <= 180; i++ {
+		target := desired.Add(time.Duration(i) * time.Minute)
+		t := time.Date(target.Year(), target.Month(), target.Day(), target.Hour(), target.Minute(), 0, 0, loc)
+		wall := t.In(loc)
+		if wall.Year() == target.Year() && wall.YearDay() == target.YearDay() && wall.Hour() == target.Hour() && wall.Minute() == target.Minute() {
+			return t
+		}
+	}
+	return candidate
+}
+func Occurrences(shows []Show, now time.Time, loc *time.Location) []Occurrence {
+	monday := Monday(now, loc)
+	out := []Occurrence{}
+	for _, week := range []int{-1, 0, 1, 2} {
+		for _, show := range shows {
+			date := monday.AddDate(0, 0, week*7+show.Day)
+			start := WallTime(date, show.Start, false)
+			end := WallTime(date, show.Start+show.Duration(), true)
+			if !end.After(start) {
+				continue
+			}
+			out = append(out, Occurrence{Key: show.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + strconv.Itoa(show.Revision), StationID: show.StationID, ShowID: show.ID, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, Start: start, End: end})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
+	return out
+}
+func Resolve(shows []Show, stationID, defaultPlaylist, defaultName string, now time.Time, loc *time.Location) Timeline {
+	fallback := Occurrence{Key: "default:" + stationID + ":" + defaultPlaylist, StationID: stationID, Title: "Continuous music", PlaylistID: defaultPlaylist, PlaylistName: defaultName}
+	all := Occurrences(shows, now, loc)
+	timeline := Timeline{Current: fallback}
+	for _, o := range all {
+		if !now.Before(o.Start) && now.Before(o.End) {
+			timeline.Current = o
+			break
+		}
+	}
+	boundary := now
+	if timeline.Current.ShowID != "" {
+		boundary = timeline.Current.End
+	}
+	for _, o := range all {
+		if !o.Start.Before(boundary) {
+			if timeline.Current.ShowID == "" {
+				timeline.Current.End = o.Start
+				timeline.Next = o
+			} else if o.Start.Equal(boundary) {
+				timeline.Next = o
+			} else {
+				timeline.Next = fallback
+				timeline.Next.Start = boundary
+				timeline.Next.End = o.Start
+			}
+			return timeline
+		}
+	}
+	if timeline.Current.ShowID != "" {
+		timeline.Next = fallback
+		timeline.Next.Start = boundary
+	}
+	return timeline
+}
+func TimeLabel(minutes int) string {
+	return time.Date(2000, 1, 1, minutes/60, minutes%60, 0, 0, time.UTC).Format("15:04")
+}

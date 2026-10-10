@@ -1,0 +1,126 @@
+package web
+
+import (
+	"context"
+	"net/url"
+	"strings"
+	"testing"
+)
+
+func TestDJFormsCredentialsAndDeletion(t *testing.T) {
+	h, st, _, _ := setupWeb(t, "")
+	token := csrf(t, h)
+	w := request(h, "GET", "/djs/new", nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `type="password"`) || !strings.Contains(w.Body.String(), "Use example vibe") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	key := "sk-test-do-not-expose"
+	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "api_key": {key}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}}
+	if w = request(h, "POST", "/djs", form, nil); w.Code != 303 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var id string
+	if err := st.DB.QueryRow(`SELECT id FROM djs WHERE name='<script>Night DJ</script>'`).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/djs", "/djs/" + id, "/djs/" + id + "/delete"} {
+		for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
+			w = request(h, "GET", path, nil, headers)
+			if w.Code != 200 || strings.Contains(w.Body.String(), key) || strings.Contains(w.Body.String(), "<script>Night DJ") {
+				t.Fatal("credential or unescaped metadata rendered", w.Code)
+			}
+		}
+	}
+	form.Set("id", id)
+	form.Set("name", "Night DJ")
+	form.Set("api_key", "")
+	form.Set("model", "custom")
+	form.Set("custom_model", "my-model-v2")
+	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "dj-saved") {
+		t.Fatal(w.Code, w.Header())
+	}
+	var voice string
+	st.DB.QueryRow(`SELECT voice FROM djs WHERE id=?`, id).Scan(&voice)
+	if voice != "onyx" {
+		t.Fatal("voice choice not saved")
+	}
+	var saved bool
+	st.DB.QueryRow(`SELECT length(api_key_cipher)>0 FROM djs WHERE id=?`, id).Scan(&saved)
+	if !saved {
+		t.Fatal("blank form erased key")
+	}
+	form.Set("voice", "unsupported")
+	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	if w.Code != 422 {
+		t.Fatal("unsupported voice accepted")
+	}
+	st.DB.QueryRow(`SELECT voice FROM djs WHERE id=?`, id).Scan(&voice)
+	if voice != "onyx" {
+		t.Fatal("invalid voice altered saved choice")
+	}
+	form.Set("voice", "onyx")
+	form.Set("name", "")
+	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	if w.Code != 422 || strings.Contains(w.Body.String(), key) {
+		t.Fatal("invalid edit accepted")
+	}
+	w = request(h, "POST", "/djs", form, nil)
+	if w.Code != 422 || !strings.Contains(w.Body.String(), "Introduce tracks") || !strings.Contains(w.Body.String(), "Re-enter an API key") || strings.Contains(w.Body.String(), key) {
+		t.Fatal("ordinary validation lost input or exposed credential")
+	}
+	if w = request(h, "POST", "/djs/"+id+"/delete", url.Values{"csrf": {token}}, nil); w.Code != 400 {
+		t.Fatal("unconfirmed deletion")
+	}
+	if w = request(h, "POST", "/djs/"+id+"/delete", url.Values{"confirm": {"yes"}}, nil); w.Code != 403 {
+		t.Fatal("delete bypasses CSRF")
+	}
+	w = request(h, "GET", "/djs/"+id+"/delete", nil, map[string]string{"HX-Request": "true", "HX-Target": "dialog-body"})
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `id="dialog-heading"`) || strings.Contains(w.Body.String(), "<!doctype") {
+		t.Fatal("invalid delete dialog")
+	}
+	if w = request(h, "POST", "/djs/"+id+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, nil); w.Code != 303 {
+		t.Fatal(w.Code)
+	}
+	if w = request(h, "GET", "/djs/"+id, nil, nil); w.Code != 404 {
+		t.Fatal("deleted DJ remains")
+	}
+	var count int
+	st.DB.QueryRowContext(context.Background(), `SELECT count(*) FROM djs`).Scan(&count)
+	if count != 3 {
+		t.Fatal("delete left data")
+	}
+}
+func TestDJsProtectedByManagementAuthentication(t *testing.T) {
+	h, _, _, _ := setupWeb(t, "secret")
+	for _, path := range []string{"/djs", "/djs/new", "/djs/missing"} {
+		if w := request(h, "GET", path, nil, nil); w.Code != 401 {
+			t.Fatal(path, w.Code)
+		}
+	}
+}
+
+func TestLongAPIKeyAcceptedThroughFormWithoutEcho(t *testing.T) {
+	h, st, _, _ := setupWeb(t, "")
+	token := csrf(t, h)
+	key := "sk-proj-" + strings.Repeat("a", 700)
+	form := url.Values{"csrf": {token}, "id": {"default-pop"}, "name": {"Alex Bright"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "api_key": {key[:150] + " \n" + key[150:]}}
+	w := request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	if w.Code != 204 || strings.Contains(w.Body.String(), key) {
+		t.Fatal(w.Code)
+	}
+	var saved bool
+	st.DB.QueryRow(`SELECT length(api_key_cipher)>0 FROM djs WHERE id='default-pop'`).Scan(&saved)
+	if !saved {
+		t.Fatal("key not saved")
+	}
+	w = request(h, "GET", "/djs/default-pop", nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `maxlength="4096"`) || strings.Contains(w.Body.String(), key) {
+		t.Fatal("key echoed or truncated by form")
+	}
+	form.Set("clear_key", "yes")
+	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	if w.Code != 422 || !strings.Contains(w.Body.String(), "Untick Remove saved key") || strings.Contains(w.Body.String(), key) {
+		t.Fatal("conflict not explained safely")
+	}
+}

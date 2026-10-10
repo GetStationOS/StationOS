@@ -1,0 +1,9 @@
+data
+bin
+.git
+.env
+.env.*
+*.secrets-key
+.stationos-key-*
+*.db
+coverage.out

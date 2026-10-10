@@ -1,0 +1,3 @@
+<DIDL-Lite xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/">
+<item id="track&amp;1" parentID="0"><dc:title>Track &amp; One</dc:title><dc:creator>Artist</dc:creator><upnp:artist role="Performer">Artist</upnp:artist><upnp:artist role="Composer">Composer</upnp:artist><upnp:class>object.item.audioItem.musicTrack</upnp:class><upnp:album>Album</upnp:album><upnp:genre>Jazz</upnp:genre><upnp:albumArtURI>/art.jpg</upnp:albumArtURI><res protocolInfo="http-get:*:audio/flac:*" duration="0:03:41.250">/music.flac</res><res protocolInfo="http-get:*:audio/mpeg:*" duration="0:03:41.250">/music.mp3</res></item>
+</DIDL-Lite>

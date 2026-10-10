@@ -15,7 +15,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	key := "sk-test-do-not-expose"
-	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "conversation_speed": {"1.15"}, "api_key": {key}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}}
+	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "conversation_speed": {"1.15"}, "api_key": {key}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}, "background": {"Fictional record-shop curator <script>bad</script>"}, "portrait_url": {"/static/djs/alex-bright.jpg"}}
 	if w = request(h, "POST", "/djs", form, nil); w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -26,7 +26,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	for _, path := range []string{"/djs", "/djs/" + id, "/djs/" + id + "/delete"} {
 		for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
 			w = request(h, "GET", path, nil, headers)
-			if w.Code != 200 || strings.Contains(w.Body.String(), key) || strings.Contains(w.Body.String(), "<script>Night DJ") {
+			if w.Code != 200 || strings.Contains(w.Body.String(), key) || strings.Contains(w.Body.String(), "<script>Night DJ") || strings.Contains(w.Body.String(), "<script>bad</script>") {
 				t.Fatal("credential or unescaped metadata rendered", w.Code)
 			}
 		}
@@ -153,5 +153,15 @@ func TestConversationSpeedValidationRetainsProfile(t *testing.T) {
 	w := request(h, "GET", "/djs/default-pop", nil, nil)
 	if !strings.Contains(w.Body.String(), `name="conversation_speed"`) || !strings.Contains(w.Body.String(), `value="1.2"`) || !strings.Contains(w.Body.String(), "1.20×") {
 		t.Fatal("saved slider missing", w.Body.String())
+	}
+}
+
+func TestDefaultPortraitsAreEmbedded(t *testing.T) {
+	h, _, _, _ := setupWeb(t, "")
+	for _, name := range []string{"alex-bright", "miles-mercer", "clara-vale"} {
+		w := request(h, "GET", "/static/djs/"+name+".jpg", nil, nil)
+		if w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" {
+			t.Fatal(name, w.Code, w.Header())
+		}
 	}
 }

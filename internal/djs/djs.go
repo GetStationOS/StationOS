@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"math"
+	"net/url"
 	"regexp"
 	"strings"
 	"unicode"
@@ -19,6 +20,7 @@ var modelID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$`)
 
 type Profile struct {
 	ID, Name, Model, Voice, Prompt, Vibe string
+	Background, PortraitURL              string
 	HasKey                               bool
 	ConversationSpeed                    float64
 }
@@ -66,6 +68,16 @@ func (p Profile) Validate() error {
 	if !modelID.MatchString(p.Model) {
 		return errors.New("choose an AI model or enter a valid model ID")
 	}
+	if len(p.Background) > 16000 {
+		return errors.New("background profile is too long")
+	}
+	if p.PortraitURL != "" {
+		u, err := url.Parse(p.PortraitURL)
+		local := p.PortraitURL == "/static/djs/alex-bright.jpg" || p.PortraitURL == "/static/djs/miles-mercer.jpg" || p.PortraitURL == "/static/djs/clara-vale.jpg"
+		if len(p.PortraitURL) > 2048 || err != nil || (!local && (u.Scheme != "https" || u.Hostname() == "" || u.User != nil)) {
+			return errors.New("use an HTTPS profile picture URL or a bundled DJ portrait")
+		}
+	}
 	if len(p.Prompt) > 32000 || len(p.Vibe) > 16000 {
 		return errors.New("prompt or vibe is too long")
 	}
@@ -80,6 +92,8 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 	}
 	p.Name = strings.TrimSpace(p.Name)
 	p.Model = strings.TrimSpace(p.Model)
+	p.Background = strings.TrimSpace(p.Background)
+	p.PortraitURL = strings.TrimSpace(p.PortraitURL)
 	k.Value = strings.TrimSpace(k.Value)
 	// Clipboard wrapping is not part of an OpenAI key. Only normalize a single
 	// recognizable key; never join two pasted credentials.

@@ -86,7 +86,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 	if model == "custom" {
 		model = r.PostForm.Get("custom_model")
 	}
-	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Model: model, Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe")}
+	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Model: model, Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe"), Background: r.PostForm.Get("background"), PortraitURL: r.PostForm.Get("portrait_url")}
 	p.ConversationSpeed = djs.DefaultConversationSpeed
 	var err error
 	if raw := r.PostForm.Get("conversation_speed"); raw != "" {

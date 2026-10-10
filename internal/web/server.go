@@ -131,7 +131,7 @@ func (s *Server) protect(next http.Handler) http.Handler {
 		// Native form POSTs can send Origin: null under no-referrer, even to this server.
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 		publicStream := (r.Method == http.MethodGet || r.Method == http.MethodHead) && len(r.URL.Path) > len("/streams/") && strings.HasPrefix(r.URL.Path, "/streams/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
 		if s.d.Password != "" && r.URL.Path != "/healthz" && r.URL.Path != "/readyz" && !publicStream {
 			user, pass, ok := r.BasicAuth()

@@ -42,10 +42,13 @@ type Normalizer interface {
 func CacheKey(show, next schedule.Occurrence) string {
 	// Version the prepared speech contract: level the voice before caching,
 	// preserve editorial pauses and use explicit performer/composer credits.
+	// Portraits are presentation only; changing one must not regenerate speech.
+	show.DJ.PortraitURL = ""
+	next.DJ.PortraitURL = ""
 	raw, _ := json.Marshal(struct {
 		AudioVersion int
 		Show, Next   schedule.Occurrence
-	}{4, show, next})
+	}{5, show, next})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }

@@ -155,3 +155,49 @@ func TestPastedLongAndWrappedKeys(t *testing.T) {
 		t.Fatal("ambiguous conflict message", err)
 	}
 }
+
+func TestBackgroundAndPortraitPreserveCredentialsAndReachSchedule(t *testing.T) {
+	db := database(t)
+	ctx := context.Background()
+	r, err := NewDJs(db, bytes.Repeat([]byte{1}, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := r.Get(ctx, "default-pop")
+	if err != nil || p.Background == "" || p.PortraitURL != "/static/djs/alex-bright.jpg" {
+		t.Fatal("starter biography missing", p, err)
+	}
+	p.ConversationSpeed = 1.25
+	p.Background = "Fictional record-shop curator"
+	if err = r.Save(ctx, p, djs.KeyChange{Value: "sk-test"}); err != nil {
+		t.Fatal(err)
+	}
+	p.Background = "Changed fictional background"
+	p.PortraitURL = "https://example.com/portrait.jpg"
+	if err = r.Save(ctx, p, djs.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.Get(ctx, p.ID)
+	if err != nil || got.Background != p.Background || got.PortraitURL != p.PortraitURL || got.ConversationSpeed != 1.25 {
+		t.Fatal(got, err)
+	}
+	key, err := r.APIKey(ctx, p.ID)
+	if err != nil || key != "sk-test" {
+		t.Fatal("profile edit lost key", err)
+	}
+	_, err = db.Exec(`INSERT INTO stations(id,name,description,timezone,locale,stream_slug) VALUES('s','Station','','UTC','en','station'); INSERT INTO playlists(id,station_id,name,description) VALUES('p','s','Pool',''); INSERT INTO station_shows(id,station_id,name,weekday,start_minute,end_minute,dj_id,playlist_id) VALUES('show','s','Show',0,0,60,'default-pop','p')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	show, err := (Schedule{DB: db}).Get(ctx, "s", "show")
+	if err != nil || show.DJ.Background != p.Background || show.DJ.PortraitURL != p.PortraitURL || show.DJ.ConversationSpeed != 1.25 {
+		t.Fatal("schedule lost profile", show, err)
+	}
+	if err = migrate(ctx, db); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = r.Get(ctx, p.ID)
+	if got.Background != p.Background {
+		t.Fatal("startup overwrote custom profile")
+	}
+}

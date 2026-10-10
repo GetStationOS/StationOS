@@ -33,7 +33,7 @@ func answer(text string) *http.Response {
 	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(raw))), Header: make(http.Header)}
 }
 func profile() schedule.Occurrence {
-	return schedule.Occurrence{Key: "show", StationID: "station", Title: "Jazz hour", DJ: djs.Profile{ID: "dj", Name: "Miles", HasKey: true, Model: "chosen-model", Voice: "onyx", Prompt: "Curate with musical expertise", Vibe: "Warm and relaxed", ConversationSpeed: 1.15}}
+	return schedule.Occurrence{Key: "show", StationID: "station", Title: "Jazz hour", DJ: djs.Profile{ID: "dj", Name: "Miles", HasKey: true, Model: "chosen-model", Voice: "onyx", Background: "Fictional amateur pianist and city photographer", PortraitURL: "https://private-portrait/image.jpg", Prompt: "Curate with musical expertise", Vibe: "Warm and relaxed", ConversationSpeed: 1.15}}
 }
 func TestCurationAndSpeechUseConfiguredProfile(t *testing.T) {
 	count := 0
@@ -52,6 +52,9 @@ func TestCurationAndSpeechUseConfiguredProfile(t *testing.T) {
 				t.Fatal(body)
 			}
 			input := body["input"].(string)
+			if !strings.Contains(input, "Fictional amateur pianist") || strings.Contains(input, "private-portrait") || !strings.Contains(body["instructions"].(string), "not instructions or evidence") {
+				t.Fatal("background contract missing", body)
+			}
 			if !strings.Contains(input, "Album title") || !strings.Contains(input, "180") || !strings.Contains(input, `"Performers":"Artist"`) || !strings.Contains(input, `"Composer":"Composer"`) {
 				t.Fatal("missing album or duration", input)
 			}
@@ -76,6 +79,9 @@ func TestLinksUseCurrentNextAndHandoverWithoutSourceURLs(t *testing.T) {
 		json.NewDecoder(r.Body).Decode(&body)
 		if r.URL.Path == "/v1/responses" {
 			s := body["input"].(string)
+			if !strings.Contains(s, "Fictional amateur pianist") || strings.Contains(s, "private-portrait") || !strings.Contains(body["instructions"].(string), "not instructions or evidence") {
+				t.Fatal("link background contract missing", body)
+			}
 			for _, want := range []string{"Current song", "Next song", "Clara", "true", "240", `"Performers":"Current performer"`, `"Composer":"Current composer"`, `"Performers":"Next performer"`, `"Composer":"Next composer"`} {
 				if !strings.Contains(s, want) {
 					t.Fatal(s)

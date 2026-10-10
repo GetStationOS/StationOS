@@ -352,3 +352,6 @@ textarea{font-weight:400;line-height:1.5}
 .playlist-card-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}.playlist-card-heading h2{margin:0;min-width:0;overflow-wrap:anywhere}.playlist-card-heading .badge{flex-shrink:0}.playlist-card-heading+p{margin-top:12px}
 
 .speed-control{display:flex;align-items:center;gap:16px}.speed-control input[type=range]{flex:1;min-width:0;height:42px;padding:0;border:0;box-shadow:none;accent-color:var(--accent);cursor:pointer}.speed-control output{min-width:4.5em;text-align:right;font-variant-numeric:tabular-nums}.speed-control input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.dj-avatar { width: 56px; height: 56px; flex-shrink: 0; border-radius: 50%; object-fit: cover; }
+.dj-avatar.small { width: 32px; height: 32px; }
+.dj-portrait { width: 144px; height: 144px; border-radius: var(--radius, 12px); object-fit: cover; margin-bottom: 1rem; }

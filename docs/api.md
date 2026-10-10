@@ -49,3 +49,8 @@ Protected management routes: GET `/djs`, `/djs/new`, `/djs/{id}` and `/djs/{id}/
 Fields: `id`, `name`, `model`, `voice`, `prompt`, `vibe`, write-only `api_key`, and optional `clear_key=yes`. Blank key keeps the existing key; clear and replace together are rejected. `model=custom` uses `custom_model`. Presets verified against the [official OpenAI model catalogue](https://developers.openai.com/api/docs/models) on 9 October 2026: gpt-6.1-sol, gpt-6-luna and gpt-6-astra. Model access depends on the operator’s API account; saving settings does not validate access or call OpenAI. Prompts/vibes are bounded to 32/16 KiB. The profile HTML never contains saved credentials. Keys are encrypted in SQLite with a private `<database>.secrets-key` sidecar; that file is required when restoring encrypted profiles. No DJ public JSON or generation endpoint is exposed yet.
 
 Voice choices use the [13 built-in OpenAI text-to-speech voices](https://developers.openai.com/api/docs/guides/text-to-speech#voice-options), with Cedar selected initially. The voice and vibe are separate settings; the future speech adapter must use a compatible speech model such as gpt-4o-mini-tts. Unsupported voices are rejected without changing the saved profile.
+
+
+## HTTPS reverse proxies
+
+Set `-public-url` to the exact externally accessed HTTP(S) origin. POST requests may originate from the direct request origin or that configured public origin, allowing HTTPS termination at a reverse proxy with an HTTP upstream. Other origins (including null, different ports, subdomains and origins containing paths, queries or fragments) are rejected. Forwarded headers are not trusted to expand this allowlist. Authentication and form-token validation still apply.

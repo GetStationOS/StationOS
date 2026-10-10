@@ -70,7 +70,7 @@ Local execution needs the password if binding beyond loopback:
 STATIONOS_ADMIN_PASSWORD='choose-a-strong-password' ./bin/stationos -listen 0.0.0.0:8080
 ```
 
-The initial management UI is intended for a trusted host/network. Basic authentication over plain HTTP is suitable only for local/private access; use an SSH tunnel for remote administration. Forwarded headers are deliberately not trusted. Multi-user roles, public internet deployment and reverse-proxy TLS configuration are future work. Health endpoints reveal only availability and are unauthenticated. Writes require a form token and reject cross-origin requests. Secrets are supplied by environment, never source control.
+The initial management UI is intended for a trusted host/network. Basic authentication over plain HTTP is suitable only for local/private access; use an SSH tunnel for remote administration. Forwarded headers are deliberately not trusted. For an HTTPS reverse proxy, set `-public-url` to the exact external origin (for example, `https://radio.example.com`). This origin is also allowed for management writes when the proxy connects over HTTP; forwarded headers cannot add trusted origins. Keep authentication enabled. Multi-user roles and a hardened public internet deployment remain future work. Health endpoints reveal only availability and are unauthenticated. Writes require a form token and reject cross-origin requests. Secrets are supplied by environment, never source control.
 
 ## Documentation
 
@@ -103,7 +103,7 @@ For devices on your LAN, bind to the LAN interface and set an advertised origin 
 STATIONOS_ADMIN_PASSWORD='choose-a-strong-password' ./bin/stationos -listen 0.0.0.0:8080 -public-url http://your-server:8080
 ```
 
-Management remains password protected when configured; GET/HEAD `/streams/<address>` is public for external-player compatibility. The default listener and Compose host publishing remain loopback. `-public-url` changes displayed URLs only, not routing, TLS or network exposure. Browsers need JavaScript for the persistent player; ordinary management forms retain their fallback. The app does not start playback automatically. Changing the assigned playlist or deleting it disconnects the current broadcast; reconnect to start the updated pool. Membership changes and newly imported genre/album matches take effect at the next track boundary.
+Management remains password protected when configured; GET/HEAD `/streams/<address>` is public for external-player compatibility. The default listener and Compose host publishing remain loopback. `-public-url` sets displayed stream URLs and the explicitly trusted public origin for management writes; it does not change routing, TLS or network exposure. Browsers need JavaScript for the persistent player; ordinary management forms retain their fallback. The app does not start playback automatically. Changing the assigned playlist or deleting it disconnects the current broadcast; reconnect to start the updated pool. Membership changes and newly imported genre/album matches take effect at the next track boundary.
 
 
 ## DJs

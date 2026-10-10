@@ -260,3 +260,81 @@ func TestNativeFormOriginPolicy(t *testing.T) {
 		t.Fatalf("unexpected saved stations: %+v, %v", saved, err)
 	}
 }
+
+func TestHTTPSProxyOriginPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name, publicURL, origin, token string
+		want                           int
+	}{
+		{"configured HTTPS", "https://radio.example", "https://radio.example", "valid", 204},
+		{"configured trailing slash", "https://radio.example/", "https://radio.example", "valid", 204},
+		{"direct HTTP remains usable", "https://radio.example", "http://example.com", "valid", 204},
+		{"no configured proxy", "", "https://radio.example", "valid", 403},
+		{"wrong scheme", "https://radio.example", "http://radio.example", "valid", 403},
+		{"wrong port", "https://radio.example", "https://radio.example:8443", "valid", 403},
+		{"configured port", "https://radio.example:8443", "https://radio.example:8443", "valid", 204},
+		{"host suffix", "https://radio.example", "https://radio.example.evil.example", "valid", 403},
+		{"subdomain", "https://radio.example", "https://other.radio.example", "valid", 403},
+		{"null", "https://radio.example", "null", "valid", 403},
+		{"userinfo", "https://radio.example", "https://user@radio.example", "valid", 403},
+		{"path", "https://radio.example", "https://radio.example/", "valid", 403},
+		{"query", "https://radio.example", "https://radio.example?", "valid", 403},
+		{"fragment", "https://radio.example", "https://radio.example#bad", "valid", 403},
+		{"missing token", "https://radio.example", "https://radio.example", "", 403},
+		{"wrong token", "https://radio.example", "https://radio.example", "wrong", 403},
+		{"forwarded headers cannot whitelist", "https://radio.example", "https://evil.example", "valid", 403},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &Server{d: Dependencies{PublicURL: tc.publicURL}, csrf: "valid"}
+			h := s.protect(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))
+			response := request(h, "POST", "/station", url.Values{"csrf": {tc.token}}, map[string]string{
+				"Origin": tc.origin, "X-Forwarded-Proto": "https", "X-Forwarded-Host": "evil.example", "Forwarded": "proto=https;host=evil.example",
+			})
+			if response.Code != tc.want {
+				t.Fatalf("got %d, want %d: %s", response.Code, tc.want, response.Body.String())
+			}
+		})
+	}
+}
+
+func TestCreateStationThroughHTTPSProxy(t *testing.T) {
+	_, st, src, cat := setupWeb(t, "")
+	h, err := New(Dependencies{Stations: st, Sources: src, Catalogue: cat, PublicURL: "https://radio.example", Password: "secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := httptest.NewRequest("GET", "http://upstream/stations/new", nil)
+	page.SetBasicAuth("admin", "secret")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, page)
+	match := regexp.MustCompile(`name="csrf" value="([a-f0-9]+)"`).FindStringSubmatch(w.Body.String())
+	if len(match) != 2 {
+		t.Fatal("no form token", w.Code, w.Body.String())
+	}
+	values := url.Values{"csrf": {match[1]}, "name": {"Proxy station"}, "timezone": {"UTC"}}
+	post := func(auth bool, origin string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("POST", "http://upstream/station", strings.NewReader(values.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		r.Header.Set("Origin", origin)
+		r.Header.Set("HX-Request", "true")
+		if auth {
+			r.SetBasicAuth("admin", "secret")
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	if w := post(false, "https://radio.example"); w.Code != http.StatusUnauthorized {
+		t.Fatal("proxy bypassed authentication", w.Code)
+	}
+	if w := post(true, "https://evil.example"); w.Code != http.StatusForbidden {
+		t.Fatal("foreign origin accepted", w.Code)
+	}
+	if w := post(true, "https://radio.example"); w.Code != http.StatusNoContent || !strings.Contains(w.Header().Get("HX-Location"), "/stations/") {
+		t.Fatal("proxied creation failed", w.Code, w.Body.String())
+	}
+	stations, err := st.List(context.Background())
+	if err != nil || len(stations) != 1 || stations[0].Name != "Proxy station" {
+		t.Fatal("station was not persisted", stations, err)
+	}
+}

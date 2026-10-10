@@ -145,7 +145,11 @@ func (s *Server) protect(next http.Handler) http.Handler {
 				if r.TLS != nil {
 					scheme = "https"
 				}
-				if err != nil || u.Scheme != scheme || u.Host != r.Host || u.User != nil || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" {
+				validOrigin := err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && !u.ForceQuery && u.Fragment == ""
+				// TLS may terminate at the proxy. Only the explicitly configured
+				// public origin is trusted; forwarded headers cannot grant access.
+				allowedOrigin := validOrigin && ((u.Scheme == scheme && u.Host == r.Host) || origin == strings.TrimSuffix(s.d.PublicURL, "/"))
+				if !allowedOrigin {
 					http.Error(w, "cross-origin write rejected", 403)
 					return
 				}

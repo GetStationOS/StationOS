@@ -39,7 +39,7 @@ func run(args []string, logger *slog.Logger) error {
 	flags := flag.NewFlagSet("stationos", flag.ContinueOnError)
 	dbPath := flags.String("db", "data/stationos.db", "SQLite database path")
 	listen := flags.String("listen", "127.0.0.1:8080", "HTTP listen address")
-	publicURL := flags.String("public-url", "", "public base URL for station streams (optional)")
+	publicURL := flags.String("public-url", "", "public origin for stream URLs and proxied management writes (optional)")
 	maxListeners := flags.Int("max-listeners", 1024, "maximum connected listeners per station")
 	maxBroadcasts := flags.Int("max-broadcasts", min(8, max(1, runtime.NumCPU())), "maximum simultaneous station encoders")
 	task := flags.String("task", "serve", "serve, integrity, sync, or clear-catalogue")

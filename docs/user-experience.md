@@ -82,7 +82,7 @@ Use one authenticated server-sent event connection while the homepage is visible
 
 ### Persistent player metadata
 
-The shell player shows the actual current and next titles and performing artists, with DJ on air during speech. A station-specific authenticated event connection updates only changed metadata and remains active across HTMX navigation. It does not start audio or count as a listener; switching stations replaces the connection and Stop closes it. Empty runtime states show Nothing playing and Not queued. The layout wraps for smaller screens.
+The shell player shows the actual current and next titles, performing artists and available album artwork, with DJ on air during speech. Square covers are 80px on station cards and 56px in the player, reducing to 64px and 44px respectively on small screens. Both reuse authenticated station artwork URLs and retain a neutral placeholder when artwork is missing or unreadable. A station-specific authenticated event connection updates only changed metadata and remains active across HTMX navigation. It does not start audio or count as a listener; switching stations replaces the connection and Stop closes it. Empty runtime states show Nothing playing and Not queued. The layout wraps for smaller screens.
 
 
 ### Station Mixer

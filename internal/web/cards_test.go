@@ -97,6 +97,20 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 		}
 	}
 	state := m.State("radio")
+	for _, path := range []string{"/stations/radio", "/stations/radio/live"} {
+		html := request(h, "GET", path, nil, nil).Body.String()
+		if strings.Count(html, `class="overview-track"`) != 2 {
+			t.Fatal("overview missing playback panels", path, html)
+		}
+		for _, item := range []content.AudioItem{state.Current, state.Next} {
+			if !strings.Contains(html, stationTrack("radio", "", "", item).Artwork) {
+				t.Fatal("overview missing track artwork", path, html)
+			}
+		}
+		if strings.Contains(html, "http://server/art.png") {
+			t.Fatal("overview exposes source artwork URL", path)
+		}
+	}
 	path := "/stations/radio/artwork/" + state.Current.ID
 	w = request(h, "GET", path, nil, nil)
 	if w.Code != 200 || w.Header().Get("Content-Type") != "image/png" || w.Header().Get("Cache-Control") != "private, max-age=300" {

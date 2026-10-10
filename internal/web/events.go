@@ -55,7 +55,7 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 		eventName := "stations"
 		if id != "" {
 			eventName = "player"
-			if err := s.t.ExecuteTemplate(&html, "player-tracks", view{Broadcast: s.d.Broadcast.State(id)}); err != nil {
+			if err := s.t.ExecuteTemplate(&html, "player-tracks", view{Station: station.Station{ID: id}, Broadcast: s.d.Broadcast.State(id)}); err != nil {
 				return false
 			}
 		} else {

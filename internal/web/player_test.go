@@ -27,7 +27,7 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tracks := []content.AudioItem{{ID: content.ID(c.ID, "a"), SourceID: c.ID, SourceItemID: "a", Title: "Current <song>", Artist: "Recording artist", Kind: content.Track, Origin: content.Original}, {ID: content.ID(c.ID, "b"), SourceID: c.ID, SourceItemID: "b", Title: "Next song", Artist: "Next artist", Kind: content.Track, Origin: content.Original}}
+	tracks := []content.AudioItem{{ID: content.ID(c.ID, "a"), SourceID: c.ID, SourceItemID: "a", Title: "Current <song>", Artist: "Recording artist", Artwork: "http://server/current.png", Kind: content.Track, Origin: content.Original}, {ID: content.ID(c.ID, "b"), SourceID: c.ID, SourceItemID: "b", Title: "Next song", Artist: "Next artist", Artwork: "http://server/next.png", Kind: content.Track, Origin: content.Original}}
 	if err := cat.Replace(ctx, c, tracks); err != nil {
 		t.Fatal(err)
 	}
@@ -100,6 +100,14 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 		select {
 		case html := <-messages:
 			if strings.Contains(html, "NOW PLAYING") && strings.Contains(html, "UP NEXT") && strings.Contains(html, "Recording artist") && strings.Contains(html, "Next artist") && strings.Contains(html, "Current &lt;song&gt;") {
+				for _, track := range tracks {
+					if !strings.Contains(html, stationTrack("radio", "", "", track).Artwork) {
+						t.Fatal("player missing artwork", html)
+					}
+				}
+				if strings.Contains(html, "http://server/") {
+					t.Fatal("player exposes source artwork URL", html)
+				}
 				if m.State("radio").Listeners != 1 {
 					t.Fatal("metadata counted as a listener")
 				}

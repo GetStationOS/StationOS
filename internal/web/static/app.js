@@ -267,7 +267,11 @@ window.addEventListener('pageshow',syncStationEvents);
 function startRadioMetadata(){
  radioMetadataEvents?.close();radioMetadataEvents=null;
  const tracks=document.getElementById('player-tracks');
- tracks.innerHTML='<div class="player-track"><span class="eyebrow">NOW PLAYING</span><strong>Connecting…</strong></div><div class="player-track"><span class="eyebrow">UP NEXT</span><strong>Not queued</strong></div>';
+ tracks.querySelectorAll('img[data-track-artwork], .player-track-artist').forEach(node=>node.remove());
+ const rows=tracks.querySelectorAll('.player-track');
+ rows[0].querySelector('.eyebrow').textContent='NOW PLAYING';
+ rows[0].querySelector('strong').textContent='Connecting…';
+ rows[1].querySelector('strong').textContent='Not queued';
  if(!selectedRadio?.id||!window.EventSource)return;
  const id=selectedRadio.id;
  const connection=new EventSource('/stations/'+encodeURIComponent(id)+'/player');radioMetadataEvents=connection;
@@ -362,4 +366,14 @@ async function saveMixer(form) {
 document.body.addEventListener('click', event => {
  const retry = event.target.closest('[data-mixer-retry]');
  if (retry) saveMixer(retry.closest('[data-mixer-form]'));
+});
+
+// Retain unchanged covers when the station Overview refreshes its live state.
+document.body.addEventListener('htmx:beforeSwap',event=>{
+ const target=event.detail.target;
+ if(target?.id!=='station-live'||!event.detail.shouldSwap||event.detail.xhr.status!==200)return;
+ const incoming=target.cloneNode(false);
+ incoming.innerHTML=event.detail.serverResponse;
+ patchStationNode(target,incoming);
+ event.detail.shouldSwap=false;
 });

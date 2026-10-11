@@ -44,25 +44,26 @@ func (c *deliveryClock) programmeTime(now, wall time.Time) time.Time {
 type recentAudio struct {
 	limit  int
 	bytes  int
-	chunks [][]byte
+	frames []StreamFrame
 }
 
-func (b *recentAudio) append(data []byte) {
+func (b *recentAudio) append(frame StreamFrame) {
+	data := frame.Audio
 	if b.limit <= 0 {
 		return
 	}
-	b.chunks = append(b.chunks, data)
+	b.frames = append(b.frames, frame)
 	b.bytes += len(data)
-	for b.bytes > b.limit || len(b.chunks) > 64 {
-		b.bytes -= len(b.chunks[0])
-		b.chunks[0] = nil
-		b.chunks = b.chunks[1:]
+	for b.bytes > b.limit || len(b.frames) > 64 {
+		b.bytes -= len(b.frames[0].Audio)
+		b.frames[0] = StreamFrame{}
+		b.frames = b.frames[1:]
 	}
 }
 func (b *recentAudio) snapshot() []byte {
 	data := make([]byte, 0, b.bytes)
-	for _, part := range b.chunks {
-		data = append(data, part...)
+	for _, part := range b.frames {
+		data = append(data, part.Audio...)
 	}
 	return data
 }
@@ -146,4 +147,8 @@ func (b *bufferedAudio) Close() error {
 		<-b.done
 	})
 	return b.closeErr
+}
+
+func (b *recentAudio) frameSnapshot() []StreamFrame {
+	return append([]StreamFrame(nil), b.frames...)
 }

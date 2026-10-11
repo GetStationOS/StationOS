@@ -3,6 +3,7 @@ package web
 import (
 	"encoding/hex"
 	"errors"
+	"io"
 	"net/http"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/playlists"
@@ -40,6 +41,13 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "audio/mpeg")
 	w.Header().Set("Accept-Ranges", "none")
 	w.Header().Set("X-Accel-Buffering", "no")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("icy-name", cleanICY(st.Name))
+	w.Header().Set("icy-br", "128")
+	metadata := r.Header.Get("Icy-MetaData") == "1"
+	if metadata {
+		w.Header().Set("icy-metaint", "8192")
+	}
 	// A live programme has no byte-addressable representation. Ignore Range
 	// and return the live 200 response, including Safari's bytes=0-1 probe.
 	// Rejecting that probe makes Safari report otherwise valid MP3 as unplayable.
@@ -55,7 +63,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	sub, err := s.d.Broadcast.SubscribeClient(r.Context(), st.ID, clientID)
+	sub, err := s.d.Broadcast.SubscribeStream(r.Context(), st.ID, clientID)
 	if err != nil {
 		http.Error(w, err.Error(), 503)
 		return
@@ -63,7 +71,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	defer sub.Close()
 	timer := time.NewTimer(25 * time.Second)
 	defer timer.Stop()
-	var first []byte
+	var first []broadcast.StreamFrame
 	select {
 	case <-sub.Done:
 		http.Error(w, "station could not play its music; check the source and try again", 503)
@@ -73,7 +81,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	case <-timer.C:
 		http.Error(w, "station could not start; check the source and try again", 503)
 		return
-	case data, ok := <-sub.Audio:
+	case data, ok := <-sub.Frames:
 		if !ok {
 			http.Error(w, "station could not play its music; check the source and try again", 503)
 			return
@@ -82,7 +90,12 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	}
 	rc := http.NewResponseController(w)
 	defer rc.SetWriteDeadline(time.Time{})
-	write := func(data []byte) bool {
+	var output io.Writer = w
+	icy := icyWriter{output: w, remaining: icyInterval}
+	if metadata {
+		output = &icy
+	}
+	write := func(frames []broadcast.StreamFrame) bool {
 		select {
 		case <-sub.Done:
 			return false
@@ -91,8 +104,11 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		if rc.SetWriteDeadline(time.Now().Add(10*time.Second)) != nil {
 			return false
 		}
-		if _, err := w.Write(data); err != nil {
-			return false
+		for _, frame := range frames {
+			icy.title = icyTitle(frame, st.Name)
+			if _, err := output.Write(frame.Audio); err != nil {
+				return false
+			}
 		}
 		return rc.Flush() == nil
 	}
@@ -105,7 +121,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 			return
 		case <-r.Context().Done():
 			return
-		case data, ok := <-sub.Audio:
+		case data, ok := <-sub.Frames:
 			if !ok || !write(data) {
 				return
 			}

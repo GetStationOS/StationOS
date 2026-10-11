@@ -32,7 +32,7 @@ func (tickingEncoder) Open(ctx context.Context, _ content.AudioItem) (io.ReadClo
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if _, err := writer.Write([]byte("shared audio")); err != nil {
+				if _, err := writer.Write([]byte("shared audio" + strings.Repeat("x", 4096-len("shared audio")))); err != nil {
 					return
 				}
 			}
@@ -63,7 +63,7 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item := content.AudioItem{ID: content.ID(c.ID, "one"), SourceID: c.ID, SourceItemID: "one", Title: "One", Kind: content.Track, Origin: content.Original}
+	item := content.AudioItem{ID: content.ID(c.ID, "one"), SourceID: c.ID, SourceItemID: "one", Title: "One", Artist: "Performer", Kind: content.Track, Origin: content.Original}
 	cat.Replace(ctx, c, []content.AudioItem{item})
 	pr.Save(ctx, playlists.Playlist{ID: "pool", StationID: a.ID, Name: "Pool"})
 	pr.SetIncluded(ctx, "pool", []string{item.ID}, true)
@@ -75,6 +75,10 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	w := request(h, "GET", "/stations/"+a.ID, nil, headers)
 	if !strings.Contains(w.Body.String(), "https://radio.example/streams/jazz-24") || !strings.Contains(w.Body.String(), `id="radio-player"`) || !strings.Contains(w.Body.String(), `hx-history-elt`) {
 		t.Fatal(w.Body.String())
+	}
+	metadataHead := request(h, "HEAD", "/streams/jazz-24", nil, map[string]string{"Icy-MetaData": "1"})
+	if metadataHead.Code != 200 || metadataHead.Header().Get("icy-metaint") != "8192" || metadataHead.Body.Len() != 0 || m.State(a.ID).Listeners != 0 {
+		t.Fatal("metadata HEAD started production")
 	}
 	if request(h, "HEAD", "/streams/jazz-24", nil, nil).Code != 200 || m.State(a.ID).Listeners != 0 {
 		t.Fatal("HEAD starts listening")
@@ -110,6 +114,35 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	defer second.Body.Close()
 	if first.StatusCode != 200 || second.StatusCode != 200 || first.Header.Get("Content-Range") != "" || second.Header.Get("Content-Range") != "" || first.Header.Get("Content-Type") != "audio/mpeg" || first.Header.Get("Accept-Ranges") != "none" || m.State(a.ID).Listeners != 2 {
 		t.Fatal(first.StatusCode, first.Header, m.State(a.ID))
+	}
+	metadataRequest, _ := http.NewRequest("GET", srv.URL+"/streams/jazz-24", nil)
+	metadataRequest.Header.Set("Icy-MetaData", "1")
+	metadataResponse, err := http.DefaultClient.Do(metadataRequest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadataResponse.Header.Get("icy-metaint") != "8192" || metadataResponse.Header.Get("icy-name") != "Jazz 24" || metadataResponse.Header.Get("icy-br") != "128" || first.Header.Get("icy-metaint") != "" {
+		t.Fatal("metadata negotiation", metadataResponse.Header, first.Header)
+	}
+	audioBlock := make([]byte, icyInterval)
+	if _, err := io.ReadFull(metadataResponse.Body, audioBlock); err != nil {
+		t.Fatal(err)
+	}
+	size := make([]byte, 1)
+	if _, err := io.ReadFull(metadataResponse.Body, size); err != nil {
+		t.Fatal(err)
+	}
+	block := make([]byte, int(size[0])*16)
+	if _, err := io.ReadFull(metadataResponse.Body, block); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimRight(string(block), "\x00") != "StreamTitle='Performer - One';" {
+		t.Fatal(string(block))
+	}
+	metadataResponse.Body.Close()
+	deadlineMetadata := time.Now().Add(time.Second)
+	for m.State(a.ID).Listeners != 2 && time.Now().Before(deadlineMetadata) {
+		time.Sleep(time.Millisecond)
 	}
 	buf := make([]byte, len("shared audio"))
 	if _, err := io.ReadFull(second.Body, buf); err != nil || string(buf) != "shared audio" {

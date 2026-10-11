@@ -67,7 +67,7 @@ Do not claim the continuous linear radio milestone until real deterministic sche
 
 A station starts on the first subscription and stops after its last listener. Concurrent first listeners share one worker; reconnect waits for cancellation cleanup before creating a successor. Capacity limits bound active workers and listeners. Fan-out uses immutable 4 KiB chunks, 32 queue slots by default, and evicts slow listeners without blocking peers. Closing a subscription signals handlers immediately rather than draining stale queued audio. HTTP writes have rolling ten-second deadlines that override the normal finite-response WriteTimeout. GET startup waits for actual bytes; HEAD cannot start playback. Stream routes accept a stored station slug, never an input URL. Management uses the existing authentication/CSRF policy; external streams deliberately allow unauthenticated GET/HEAD.
 
-This implements playable shared radio with current/next delivery state, but not deterministic programme logs, AI curation, production, crossfades, gapless transitions, recordings, ICY metadata or distributed output. The temporary selector is separate from playlist membership and can be replaced with a curator boundary. Broadcast remains listener-driven rather than running a schedule through zero listeners.
+This implements playable shared radio with current/next delivery state, but not deterministic programme logs, AI curation, production, crossfades, gapless transitions, recordings or distributed output. The temporary selector is separate from playlist membership and can be replaced with a curator boundary. Broadcast remains listener-driven rather than running a schedule through zero listeners.
 
 ## Scheduling and production adapters
 
@@ -133,3 +133,10 @@ Migration 12 adds background and portrait_url to operator-owned DJ configuration
 ## Admin-managed DJ photos
 
 Migration 13 adds a bounded `dj_photos` blob table, referencing DJ identity with cascading deletion. The web adapter accepts authenticated, CSRF-protected multipart profile forms, bounds request/file sizes and image dimensions, decodes JPEG/PNG, flattens transparency, strips metadata and scales to at most 768 pixels. The domain carries a write-only photo change; persistence saves profile, encrypted-key changes and image atomically. Versioned same-origin photo URLs are generated internally, work with existing scheduled DJ snapshots and are served through authenticated management routes. No directory mounts, filesystem paths or remote URL entry are needed by the admin. Existing supplied portraits are preserved until replaced or removed. Photos are part of normal SQLite backups.
+
+
+## External radio metadata
+
+External MP3 clients requesting `Icy-MetaData: 1` receive `icy-metaint: 8192` and standard ICY `StreamTitle` blocks: performer and track title during music, presenter name and show title during speech. Station identity and 128 kbps bitrate are advertised in `icy-name` and `icy-br`. Clients without that opt-in retain plain MP3 bytes; HEAD advertises headers without starting production.
+
+Immutable stream frames retain segment metadata alongside shared audio, including the bounded recent window and listener queues. Metadata follows the bytes delivered to each listener rather than a potentially newer producer snapshot. The HTTP adapter inserts length-prefixed, UTF-8-safe, bounded and padded metadata every 8192 audio bytes; unchanged titles use empty blocks. The station's encoder, pacing and listener lifecycle remain shared. A physical radio check behind the deployment proxy is required to confirm device display behaviour.

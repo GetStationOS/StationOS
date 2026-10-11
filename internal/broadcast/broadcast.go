@@ -69,7 +69,26 @@ type run struct {
 	recent    recentAudio
 	done      chan struct{}
 }
+
+// StreamFrame carries metadata for these exact audio bytes, including late-join
+// reserves. Consumers must not substitute the producer's newer runtime state.
+type StreamFrame struct {
+	Audio                   []byte
+	Title, Artist, DJ, Show string
+}
+
+func streamFrame(data []byte, state State) StreamFrame {
+	frame := StreamFrame{Audio: data, Title: state.Current.Title, Artist: state.Current.Artist}
+	if state.PresenterStatus == "Speaking" {
+		frame.Title, frame.Artist = "", ""
+		frame.DJ, frame.Show = state.Programme.DJ.Name, state.Programme.Title
+	}
+	return frame
+}
+
 type Subscription struct {
+	Frames   <-chan []StreamFrame
+	frames   chan []StreamFrame
 	Audio    <-chan []byte
 	Done     <-chan struct{}
 	done     chan struct{}
@@ -116,11 +135,20 @@ func (m *Manager) Subscribe(ctx context.Context, id string) (*Subscription, erro
 	return m.SubscribeClient(ctx, id, "")
 }
 
+// SubscribeStream provides audio with its immutable segment metadata.
+func (m *Manager) SubscribeStream(ctx context.Context, id, clientID string) (*Subscription, error) {
+	return m.subscribeClient(ctx, id, clientID, true)
+}
+
 // SubscribeClient admits one connection per station and opaque player session.
 // A browser may leave its initial media probe open when it requests playback.
 // Replace that connection atomically, without restarting the shared programme.
 // Empty client IDs represent independent external stream connections.
 func (m *Manager) SubscribeClient(ctx context.Context, id, clientID string) (*Subscription, error) {
+	return m.subscribeClient(ctx, id, clientID, false)
+}
+
+func (m *Manager) subscribeClient(ctx context.Context, id, clientID string, metadata bool) (*Subscription, error) {
 	// Lookup before taking the runtime lock, then serialize admission/worker creation.
 	timeline, err := m.timeline(ctx, id)
 	playlist := timeline.Current.PlaylistID
@@ -163,7 +191,7 @@ func (m *Manager) SubscribeClient(ctx context.Context, id, clientID string) (*Su
 			for previous := range r.listeners {
 				if previous.clientID == clientID {
 					delete(r.listeners, previous)
-					close(previous.queue)
+					previous.closeQueue()
 					close(previous.done)
 				}
 			}
@@ -172,25 +200,59 @@ func (m *Manager) SubscribeClient(ctx context.Context, id, clientID string) (*Su
 			m.mu.Unlock()
 			return nil, ErrBusy
 		}
-		queue := make(chan []byte, m.options.BufferChunks)
 		done := make(chan struct{})
-		if r.recent.bytes > 0 {
-			queue <- r.recent.snapshot()
+		sub := &Subscription{Done: done, done: done, m: m, id: id, clientID: clientID, run: r}
+		if metadata {
+			frames := make(chan []StreamFrame, m.options.BufferChunks)
+			sub.Frames, sub.frames = frames, frames
+			if r.recent.bytes > 0 {
+				frames <- r.recent.frameSnapshot()
+			}
+		} else {
+			queue := make(chan []byte, m.options.BufferChunks)
+			sub.Audio, sub.queue = queue, queue
+			if r.recent.bytes > 0 {
+				queue <- r.recent.snapshot()
+			}
 		}
-		sub := &Subscription{Audio: queue, queue: queue, Done: done, done: done, m: m, id: id, clientID: clientID, run: r}
 		r.listeners[sub] = struct{}{}
 		m.changedLocked()
 		m.mu.Unlock()
 		return sub, nil
 	}
 }
+func (s *Subscription) closeQueue() {
+	if s.frames != nil {
+		close(s.frames)
+	} else {
+		close(s.queue)
+	}
+}
+
+func (s *Subscription) enqueue(frame StreamFrame) bool {
+	if s.frames != nil {
+		select {
+		case s.frames <- []StreamFrame{frame}:
+			return true
+		default:
+			return false
+		}
+	}
+	select {
+	case s.queue <- frame.Audio:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Subscription) Close() {
 	m := s.m
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, ok := s.run.listeners[s]; ok {
 		delete(s.run.listeners, s)
-		close(s.queue)
+		s.closeQueue()
 		close(s.done)
 		if len(s.run.listeners) == 0 {
 			s.run.cancel()
@@ -207,7 +269,7 @@ func (m *Manager) Stop(id string) {
 		r.cancel()
 		for s := range r.listeners {
 			delete(r.listeners, s)
-			close(s.queue)
+			s.closeQueue()
 			close(s.done)
 		}
 	}
@@ -221,7 +283,7 @@ func (m *Manager) StopPlaylist(id string) {
 			r.cancel()
 			for s := range r.listeners {
 				delete(r.listeners, s)
-				close(s.queue)
+				s.closeQueue()
 				close(s.done)
 			}
 		}
@@ -238,7 +300,7 @@ func (m *Manager) Close() {
 		r.cancel()
 		for s := range r.listeners {
 			delete(r.listeners, s)
-			close(s.queue)
+			s.closeQueue()
 			close(s.done)
 		}
 	}
@@ -267,7 +329,7 @@ func (m *Manager) play(id string, r *run) {
 		defer m.mu.Unlock()
 		for s := range r.listeners {
 			delete(r.listeners, s)
-			close(s.queue)
+			s.closeQueue()
 			close(s.done)
 		}
 		delete(m.runs, id)
@@ -432,14 +494,13 @@ func (m *Manager) playProgramme(id string, r *run) {
 		changed := !sameRuntimeState(r.state, state)
 		beforeListeners := len(r.listeners)
 		r.state = state
-		r.recent.append(data)
+		frame := streamFrame(data, state)
+		r.recent.append(frame)
 		for sub := range r.listeners {
-			select {
-			case sub.queue <- data:
-			default:
+			if !sub.enqueue(frame) {
 				m.logger.Warn("Slow stream listener disconnected", "station_id", id)
 				delete(r.listeners, sub)
-				close(sub.queue)
+				sub.closeQueue()
 				close(sub.done)
 			}
 		}

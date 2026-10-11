@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -57,13 +58,38 @@ func TestMaintenanceCommands(t *testing.T) {
 		t.Fatal(items, err)
 	}
 }
-func TestInvalidCommandsAndPublicListen(t *testing.T) {
+func TestInvalidCommands(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	t.Setenv("STATIONOS_ADMIN_PASSWORD", "")
-	for _, args := range [][]string{{"-task", "unknown"}, {"-task", "sync"}, {"-task", "sync", "-source", "missing"}, {"-listen", "0.0.0.0:8080"}, {"-listen", "bad"}, {"-stream-buffer", "-1s"}, {"-stream-buffer", "6s"}, {"-unknown"}} {
+	for _, args := range [][]string{{"-task", "unknown"}, {"-task", "sync"}, {"-task", "sync", "-source", "missing"}, {"-listen", "bad"}, {"-stream-buffer", "-1s"}, {"-stream-buffer", "6s"}, {"-unknown"}} {
 		path := filepath.Join(t.TempDir(), "test.db")
 		if err := run(append([]string{"-db", path}, args...), logger); err == nil {
 			t.Fatal("invalid command accepted", args)
 		}
+	}
+}
+
+func TestOptionalPasswordOnNonLoopbackListen(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	for _, tc := range []struct {
+		name, password string
+		unset          bool
+	}{{name: "missing", unset: true}, {name: "empty"}, {name: "configured", password: "secret"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("STATIONOS_ADMIN_PASSWORD", tc.password)
+			if tc.unset {
+				if err := os.Unsetenv("STATIONOS_ADMIN_PASSWORD"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, address := range []string{"0.0.0.0:8080", "[::]:8080", "localhost:8080"} {
+				path := filepath.Join(t.TempDir(), "test.db")
+				// Reach the next configuration check without starting a server.
+				err := run([]string{"-db", path, "-listen", address, "-stream-buffer", "6s"}, logger)
+				if err == nil || err.Error() != "stream-buffer must be between 0s and 5s" {
+					t.Fatalf("listen %s: unexpected startup error: %v", address, err)
+				}
+			}
+		})
 	}
 }

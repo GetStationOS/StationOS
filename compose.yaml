@@ -4,7 +4,7 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      STATIONOS_ADMIN_PASSWORD: ${STATIONOS_ADMIN_PASSWORD:?Set STATIONOS_ADMIN_PASSWORD}
+      STATIONOS_ADMIN_PASSWORD: ${STATIONOS_ADMIN_PASSWORD:-}
     volumes:
       - stationos-data:/data
     restart: unless-stopped

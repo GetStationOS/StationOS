@@ -58,19 +58,20 @@ Imports are full source reconciliations, not incremental synchronisation. Catalo
 ## Docker
 
 ```sh
+# Optional: enable login with username admin.
 export STATIONOS_ADMIN_PASSWORD='choose-a-strong-password'
 docker compose up --build -d
 ```
 
-Open http://127.0.0.1:8080, username `admin`, password from the environment. Compose publishes to host loopback and retains `/data` in a named volume. The runtime runs as a non-root user. Container health checks use readiness. UPnP access uses outbound HTTP to the configured server; SSDP and host networking are not required by this milestone. Docker Desktop/container networking must be able to reach that server.
+Open http://127.0.0.1:8080. When `STATIONOS_ADMIN_PASSWORD` is set to a non-empty value, sign in as `admin` with that password. If the variable is unset or empty, authentication is disabled and the management UI and API are accessible without login. Compose publishes to host loopback and retains `/data` in a named volume. The runtime runs as a non-root user. Container health checks use readiness. UPnP access uses outbound HTTP to the configured server; SSDP and host networking are not required by this milestone. Docker Desktop/container networking must be able to reach that server.
 
-Local execution needs the password if binding beyond loopback:
+The password is optional for local execution too, including when binding beyond loopback:
 
 ```sh
 STATIONOS_ADMIN_PASSWORD='choose-a-strong-password' ./bin/stationos -listen 0.0.0.0:8080
 ```
 
-The initial management UI is intended for a trusted host/network. Basic authentication over plain HTTP is suitable only for local/private access; use an SSH tunnel for remote administration. Forwarded headers are deliberately not trusted. For an HTTPS reverse proxy, set `-public-url` to the exact external origin (for example, `https://radio.example.com`). This origin is also allowed for management writes when the proxy connects over HTTP; forwarded headers cannot add trusted origins. Keep authentication enabled. Multi-user roles and a hardened public internet deployment remain future work. Health endpoints reveal only availability and are unauthenticated. Writes require a form token and reject cross-origin requests. Secrets are supplied by environment, never source control.
+The initial management UI is intended for a trusted host/network. Basic authentication over plain HTTP is suitable only for local/private access; use an SSH tunnel for remote administration. Forwarded headers are deliberately not trusted. For an HTTPS reverse proxy, set `-public-url` to the exact external origin (for example, `https://radio.example.com`). This origin is also allowed for management writes when the proxy connects over HTTP; forwarded headers cannot add trusted origins. Set `STATIONOS_ADMIN_PASSWORD` to enable authentication when needed; omitting it gives anyone who can reach the app access to management. Form tokens and cross-origin write checks remain enabled in both modes. Multi-user roles and a hardened public internet deployment remain future work. Health endpoints reveal only availability and are unauthenticated. Writes require a form token and reject cross-origin requests. Secrets are supplied by environment, never source control.
 
 ## Documentation
 

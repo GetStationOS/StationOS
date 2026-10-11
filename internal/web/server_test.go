@@ -338,3 +338,29 @@ func TestCreateStationThroughHTTPSProxy(t *testing.T) {
 		t.Fatal("station was not persisted", stations, err)
 	}
 }
+
+func TestOptionalAuthentication(t *testing.T) {
+	for _, password := range []string{"", "secret"} {
+		t.Run("password="+password, func(t *testing.T) {
+			h, _, _, _ := setupWeb(t, password)
+			for _, credentials := range []struct{ user, password string }{{}, {"admin", "wrong"}, {"other", "secret"}, {"admin", "secret"}} {
+				r := httptest.NewRequest("GET", "/", nil)
+				if credentials.user != "" {
+					r.SetBasicAuth(credentials.user, credentials.password)
+				}
+				w := httptest.NewRecorder()
+				h.ServeHTTP(w, r)
+				want := http.StatusOK
+				if password != "" && (credentials.user != "admin" || credentials.password != password) {
+					want = http.StatusUnauthorized
+				}
+				if w.Code != want {
+					t.Fatalf("user %q: got %d, want %d", credentials.user, w.Code, want)
+				}
+				if want == http.StatusOK && w.Header().Get("WWW-Authenticate") != "" {
+					t.Fatal("unexpected login challenge")
+				}
+			}
+		})
+	}
+}

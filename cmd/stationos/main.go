@@ -90,13 +90,9 @@ func run(args []string, logger *slog.Logger) error {
 		return errors.New("unknown task")
 	}
 	password := os.Getenv("STATIONOS_ADMIN_PASSWORD")
-	host, _, err := net.SplitHostPort(*listen)
+	_, _, err = net.SplitHostPort(*listen)
 	if err != nil {
 		return err
-	}
-	ip := net.ParseIP(host)
-	if (ip == nil || !ip.IsLoopback()) && password == "" {
-		return errors.New("non-loopback listen requires STATIONOS_ADMIN_PASSWORD")
 	}
 	if *publicURL != "" {
 		u, e := url.Parse(*publicURL)

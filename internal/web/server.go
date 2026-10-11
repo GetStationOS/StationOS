@@ -12,6 +12,7 @@ import (
 	"errors"
 	"html/template"
 	"log/slog"
+	"mime"
 	"net/http"
 	"net/url"
 	"stationos.local/stationos/internal/broadcast"
@@ -96,6 +97,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /djs", s.djPage)
 	mux.HandleFunc("GET /djs/new", s.djPage)
 	mux.HandleFunc("GET /djs/{id}", s.djPage)
+	mux.HandleFunc("GET /djs/{id}/photo", s.djPhoto)
 	mux.HandleFunc("GET /djs/{id}/delete", s.djPage)
 	mux.HandleFunc("POST /djs", s.saveDJ)
 	mux.HandleFunc("POST /djs/{id}/delete", s.deleteDJ)
@@ -131,7 +133,7 @@ func (s *Server) protect(next http.Handler) http.Handler {
 		// Native form POSTs can send Origin: null under no-referrer, even to this server.
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 		publicStream := (r.Method == http.MethodGet || r.Method == http.MethodHead) && len(r.URL.Path) > len("/streams/") && strings.HasPrefix(r.URL.Path, "/streams/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
 		if s.d.Password != "" && r.URL.Path != "/healthz" && r.URL.Path != "/readyz" && !publicStream {
 			user, pass, ok := r.BasicAuth()
@@ -159,11 +161,23 @@ func (s *Server) protect(next http.Handler) http.Handler {
 					return
 				}
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-			if err := r.ParseForm(); err != nil {
-				http.Error(w, "invalid or oversized form", 400)
+			kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+			var formErr error
+			if r.URL.Path == "/djs" && kind == "multipart/form-data" {
+				r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
+				formErr = r.ParseMultipartForm(6 << 20)
+				if r.MultipartForm != nil {
+					defer r.MultipartForm.RemoveAll()
+				}
+			} else {
+				r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+				formErr = r.ParseForm()
+			}
+			if formErr != nil {
+				http.Error(w, "The form is too large or unreadable. Choose a photo smaller than 5 MB.", 400)
 				return
 			}
+
 			if subtle.ConstantTimeCompare([]byte(r.PostForm.Get("csrf")), []byte(s.csrf)) != 1 {
 				http.Error(w, "invalid form token; reload the page", 403)
 				return

@@ -5,8 +5,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,8 +125,36 @@ func (r DJs) Save(ctx context.Context, p djs.Profile, k djs.KeyChange) error {
 		}
 		encrypted = r.secret.Seal(nonce, nonce, []byte(k.Value), []byte(p.ID))
 	}
-	_, err := r.DB.ExecContext(ctx, `INSERT INTO djs(id,name,model,voice,prompt,vibe,conversation_speed,background,portrait_url,api_key_cipher) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,model=excluded.model,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url,api_key_cipher=CASE WHEN ? THEN excluded.api_key_cipher ELSE djs.api_key_cipher END`, p.ID, p.Name, p.Model, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL, encrypted, k.Clear || k.Value != "")
-	return err
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if p.Photo != nil {
+		if p.Photo.Clear {
+			p.PortraitURL = ""
+		}
+		if len(p.Photo.Data) > 0 {
+			hash := sha256.Sum256(p.Photo.Data)
+			p.PortraitURL = "/djs/" + url.PathEscape(p.ID) + "/photo?v=" + hex.EncodeToString(hash[:])
+		}
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO djs(id,name,model,voice,prompt,vibe,conversation_speed,background,portrait_url,api_key_cipher) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,model=excluded.model,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url,api_key_cipher=CASE WHEN ? THEN excluded.api_key_cipher ELSE djs.api_key_cipher END`, p.ID, p.Name, p.Model, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL, encrypted, k.Clear || k.Value != "")
+	if err != nil {
+		return err
+	}
+	if p.Photo != nil {
+		if p.Photo.Clear {
+			_, err = tx.ExecContext(ctx, `DELETE FROM dj_photos WHERE dj_id=?`, p.ID)
+		}
+		if len(p.Photo.Data) > 0 {
+			_, err = tx.ExecContext(ctx, `INSERT INTO dj_photos(dj_id,data) VALUES(?,?) ON CONFLICT(dj_id) DO UPDATE SET data=excluded.data`, p.ID, p.Photo.Data)
+		}
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // APIKey is reserved for server-side production adapters; metadata reads never decrypt it.
@@ -159,4 +190,13 @@ func (r DJs) Delete(ctx context.Context, id string) error {
 		return djs.ErrNotFound
 	}
 	return err
+}
+
+func (r DJs) Photo(ctx context.Context, id string) ([]byte, error) {
+	var data []byte
+	err := r.DB.QueryRowContext(ctx, `SELECT data FROM dj_photos WHERE dj_id=?`, id).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = djs.ErrNotFound
+	}
+	return data, err
 }

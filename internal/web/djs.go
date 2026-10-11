@@ -86,13 +86,29 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 	if model == "custom" {
 		model = r.PostForm.Get("custom_model")
 	}
-	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Model: model, Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe"), Background: r.PostForm.Get("background"), PortraitURL: r.PostForm.Get("portrait_url")}
+	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Model: model, Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe"), Background: r.PostForm.Get("background")}
 	p.ConversationSpeed = djs.DefaultConversationSpeed
-	var err error
+	if p.ID != "" {
+		saved, err := s.d.DJs.Get(r.Context(), p.ID)
+		if errors.Is(err, djs.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		p.PortraitURL = saved.PortraitURL
+	}
+	photo, err := s.readDJPhoto(r)
+	p.Photo = photo
 	if raw := r.PostForm.Get("conversation_speed"); raw != "" {
-		p.ConversationSpeed, err = strconv.ParseFloat(raw, 64)
-		if err != nil || p.ConversationSpeed == 0 {
-			err = errors.Join(djs.ErrInvalid, errors.New("choose a conversation speed between 0.25× and 4.00×"))
+		var speedErr error
+		p.ConversationSpeed, speedErr = strconv.ParseFloat(raw, 64)
+		if speedErr != nil || p.ConversationSpeed == 0 {
+			if err == nil {
+				err = errors.Join(djs.ErrInvalid, errors.New("choose a conversation speed between 0.25× and 4.00×"))
+			}
 			p.ConversationSpeed = djs.DefaultConversationSpeed
 		}
 	}
@@ -111,10 +127,15 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, viewErr)
 			return
 		}
+		uploaded := p.Photo != nil && len(p.Photo.Data) > 0
+		p.Photo = nil
 		v.DJ = p
 		v.DJMode = "new"
 		v.Title = "Create DJ"
 		v.DJError = message + " Re-enter an API key if you supplied one."
+		if uploaded {
+			v.DJError += " Choose the photo again before saving."
+		}
 		v.DJVoices = djs.Voices()
 		v.DJModels = djModels()
 		v.ExampleVibe = djs.ExampleVibe

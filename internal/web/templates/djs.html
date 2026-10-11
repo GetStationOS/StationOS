@@ -3,22 +3,32 @@
 {{if .DJs}}<div class="source-list">{{range .DJs}}<article class="source-row">{{if .PortraitURL}}<img class="dj-avatar" src="{{.PortraitURL}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{else}}<span class="station-avatar" aria-hidden="true">♫</span>{{end}}<div class="source-identity"><h2><a href="/djs/{{.ID}}">{{.Name}}</a></h2><span>{{.Model}} · {{.Voice}}</span></div><span class="source-count">{{if .HasKey}}Key saved{{else}}No API key{{end}}</span><a class="button secondary" href="/djs/{{.ID}}">Edit DJ →</a></article>{{end}}</div>{{else}}<section class="empty-state"><h2>No DJs yet</h2><p>Create a fictional presenter with their own prompt and voice direction.</p><a class="button" href="/djs/new">Create DJ</a></section>{{end}}
 {{else if eq .DJMode "delete"}}{{template "delete-dj" .}}
 {{else}}
-<section class="form-panel">{{if .DJError}}<p class="notice error" role="alert">{{.DJError}}</p>{{end}}<form method="post" action="/djs" hx-disabled-elt="find button" data-dj-form>
+<section class="dj-settings">{{if .DJError}}<p class="notice error" role="alert">{{.DJError}}</p>{{end}}
+<form method="post" action="/djs" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.DJ.ID}}">
-<label>Fictional name<input name="name" value="{{.DJ.Name}}" required maxlength="200" placeholder="e.g. The Midnight Archivist" {{if eq .DJMode "new"}}autofocus{{end}}></label>
-{{if .DJ.PortraitURL}}<img class="dj-portrait" src="{{.DJ.PortraitURL}}" alt="Fictional portrait of {{.DJ.Name}}" referrerpolicy="no-referrer">{{end}}
-<label>Profile picture URL <span class="optional">Optional</span><input name="portrait_url" value="{{.DJ.PortraitURL}}" maxlength="2048" placeholder="https://…"><span class="hint">Use an HTTPS image URL, or keep the supplied portrait. Clear to remove it.</span></label>
-<label>Background profile <span class="optional">Optional</span><textarea name="background" rows="8" maxlength="16000" placeholder="Fictional background, musical tastes, interests and recurring observations.">{{.DJ.Background}}</textarea><span class="hint">Used in curation, introductions and between-track chatter. Keep personal stories fictional; artist and recording facts must remain accurate.</span></label>
-<div class="fields"><label>AI model<select name="model" data-dj-model>{{range .DJModels}}<option value="{{.ID}}" {{if eq .ID $.DJ.Model}}selected{{end}}>{{.Label}}</option>{{end}}<option value="custom" {{if .DJCustomModel}}selected{{end}}>Other model…</option></select><span class="hint">For writing and music curation.</span></label>
-<label>Voice<select name="voice" required>{{range .DJVoices}}<option value="{{.ID}}" {{if eq .ID $.DJ.Voice}}selected{{end}}>{{.Name}}</option>{{end}}</select></label></div>
-<label for="conversation-speed">Conversation speed</label>
-<div class="speed-control"><input id="conversation-speed" type="range" name="conversation_speed" min="0.25" max="4" step="0.05" value="{{.DJ.ConversationSpeed}}" aria-describedby="conversation-speed-help" data-conversation-speed><output for="conversation-speed" data-speed-value>{{printf "%.2f" .DJ.ConversationSpeed}}×</output></div>
-<p id="conversation-speed-help" class="hint">1.00× is normal. Higher values make the DJ speak faster. Applies to newly generated speech.</p>
-<label data-custom-model>Model ID<input name="custom_model" maxlength="128" value="{{if .DJCustomModel}}{{.DJ.Model}}{{end}}" placeholder="Your OpenAI model ID"></label>
+<fieldset class="dj-form-group"><legend>Profile</legend>
+<input type="hidden" name="photo_removed" value="" data-photo-removed>
+<div class="dj-profile-header"><div class="dj-photo-preview"><img class="dj-portrait" data-photo-preview {{if .DJ.PortraitURL}}src="{{.DJ.PortraitURL}}"{{else}}hidden{{end}} alt="DJ photo" referrerpolicy="no-referrer"><span class="dj-photo-placeholder" data-photo-placeholder aria-hidden="true" {{if .DJ.PortraitURL}}hidden{{end}}>♫</span><button type="submit" name="clear_photo" value="yes" class="dj-photo-remove" data-remove-photo aria-label="Remove photo" title="Remove photo" {{if not .DJ.PortraitURL}}hidden{{end}}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div class="dj-profile-fields">
+<label>Name<input name="name" value="{{.DJ.Name}}" required maxlength="200" placeholder="e.g. The Midnight Archivist" {{if eq .DJMode "new"}}autofocus{{end}}></label>
+<label>Photo <span class="optional">Optional</span><input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-describedby="photo-help"><span id="photo-help" class="hint">Choose a JPEG or PNG, up to 5 MB. Saved with this profile.</span></label>
+</div></div>
+<label>Background <span class="optional">Optional</span><textarea name="background" rows="6" maxlength="16000" placeholder="Fictional background, musical tastes and interests.">{{.DJ.Background}}</textarea><span class="hint">Give the presenter a fictional history and perspective.</span></label>
+</fieldset>
+<fieldset class="dj-form-group"><legend>Editorial style</legend>
+<label>AI model<select name="model" data-dj-model>{{range .DJModels}}<option value="{{.ID}}" {{if eq .ID $.DJ.Model}}selected{{end}}>{{.Label}}</option>{{end}}<option value="custom" {{if .DJCustomModel}}selected{{end}}>Other model…</option></select><span class="hint">For writing and music curation.</span></label>
+<label data-custom-model {{if not .DJCustomModel}}hidden{{end}}>Model ID<input name="custom_model" maxlength="128" value="{{if .DJCustomModel}}{{.DJ.Model}}{{end}}" placeholder="Your OpenAI model ID" {{if .DJCustomModel}}required{{end}}></label>
+<label>Prompt<textarea name="prompt" rows="6" maxlength="32000" placeholder="Personality, music choices and how to introduce tracks.">{{.DJ.Prompt}}</textarea><span class="hint">Direct the DJ’s selections and on-air commentary.</span></label>
+</fieldset>
+<fieldset class="dj-form-group"><legend>Voice</legend>
+<label>Voice<select name="voice" required>{{range .DJVoices}}<option value="{{.ID}}" {{if eq .ID $.DJ.Voice}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
+<label for="conversation-speed">Conversation speed</label><div class="speed-control"><input id="conversation-speed" type="range" name="conversation_speed" min="0.25" max="4" step="0.05" value="{{.DJ.ConversationSpeed}}" aria-describedby="conversation-speed-help" data-conversation-speed><output for="conversation-speed" data-speed-value>{{printf "%.2f" .DJ.ConversationSpeed}}×</output></div>
+<p id="conversation-speed-help" class="hint">1.00× is normal. Applies to newly generated speech.</p>
+<label>Vibe<textarea name="vibe" rows="4" maxlength="16000" placeholder="e.g. Warm, relaxed, conversational, with clear phrasing.">{{.DJ.Vibe}}</textarea><span class="hint">Voice direction, phrasing and tone.</span></label><button type="button" class="text-button" data-example-vibe>Use example vibe</button>
+</fieldset>
+<fieldset class="dj-form-group"><legend>API access</legend>
 <label>OpenAI API key <span class="optional">{{if .DJ.HasKey}}Saved{{else}}Optional{{end}}</span><input type="password" name="api_key" autocomplete="new-password" maxlength="4096" spellcheck="false" autocapitalize="none" placeholder="{{if .DJ.HasKey}}Leave blank to keep the saved key{{else}}Enter your API key{{end}}"><span class="hint">Stored encrypted. Saved keys are never displayed.</span></label>
 {{if .DJ.HasKey}}<label class="check"><input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
-<label>Prompt<textarea name="prompt" rows="7" maxlength="32000" placeholder="Describe the DJ’s personality, music choices and how they introduce tracks.">{{.DJ.Prompt}}</textarea></label>
-<label>Vibe<textarea name="vibe" rows="8" maxlength="16000" placeholder="{{.ExampleVibe}}">{{.DJ.Vibe}}</textarea><span class="hint">Voice, phrasing, punctuation and tone.</span></label><button type="button" class="text-button" data-example-vibe>Use example vibe</button>
+</fieldset>
 <div class="form-footer">{{if .DJ.ID}}<a class="button danger" href="/djs/{{.DJ.ID}}/delete" hx-get="/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}<div class="form-actions"><a class="button secondary" href="/djs">Cancel</a><button>{{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button></div></div>
 </form></section>
 {{end}}{{end}}

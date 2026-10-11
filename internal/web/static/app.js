@@ -391,3 +391,33 @@ document.body.addEventListener('input', event => {
   event.target.closest('.speed-control').querySelector('[data-speed-value]').textContent = Number(event.target.value).toFixed(2) + '×';
  }
 });
+
+// Photo changes remain local until the profile is saved.
+function previewDJPhoto(form, removed) {
+ const input=form.querySelector('[data-dj-photo]');
+ const image=form.querySelector('[data-photo-preview]');
+ if(!('savedSrc' in image.dataset))image.dataset.savedSrc=image.getAttribute('src')||'';
+ if(image.dataset.previewUrl){URL.revokeObjectURL(image.dataset.previewUrl);delete image.dataset.previewUrl;}
+ form.querySelector('[data-photo-removed]').value=removed?'yes':'';
+ if(removed)input.value='';
+ const file=input.files[0];
+ const src=removed?'':file?URL.createObjectURL(file):image.dataset.savedSrc;
+ if(file&&src)image.dataset.previewUrl=src;
+ if(src)image.src=src;else image.removeAttribute('src');
+ image.hidden=!src;
+ form.querySelector('[data-photo-placeholder]').hidden=!!src;
+ form.querySelector('[data-remove-photo]').hidden=!src;
+}
+document.body.addEventListener('change',event=>{
+ if(event.target.matches('[data-dj-photo]'))previewDJPhoto(event.target.closest('[data-dj-form]'),false);
+});
+document.body.addEventListener('click',event=>{
+ const remove=event.target.closest('[data-remove-photo]');
+ if(!remove)return;
+ event.preventDefault();
+ previewDJPhoto(remove.closest('[data-dj-form]'),true);
+ remove.closest('[data-dj-form]').querySelector('[data-dj-photo]').focus();
+});
+document.body.addEventListener('htmx:beforeCleanupElement',event=>{
+ event.detail.elt.querySelectorAll?.('[data-photo-preview]').forEach(image=>{if(image.dataset.previewUrl)URL.revokeObjectURL(image.dataset.previewUrl);});
+});

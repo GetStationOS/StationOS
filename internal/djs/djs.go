@@ -16,6 +16,7 @@ import (
 var ErrInUse = errors.New("This DJ is used by a scheduled show. Update or remove the show first.")
 var ErrNotFound = errors.New("DJ not found")
 var ErrInvalid = errors.New("invalid DJ settings")
+var photoVersion = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var modelID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$`)
 
 type Profile struct {
@@ -23,6 +24,16 @@ type Profile struct {
 	Background, PortraitURL              string
 	HasKey                               bool
 	ConversationSpeed                    float64
+	Photo                                *PhotoChange `json:"-"`
+}
+
+// PhotoChange is a write-only normalized JPEG replacement; nil keeps the photo.
+type PhotoChange struct {
+	Data  []byte
+	Clear bool
+}
+type PhotoReader interface {
+	Photo(context.Context, string) ([]byte, error)
 }
 
 // KeyChange is write-only. Blank means preserve the saved credential.
@@ -71,11 +82,15 @@ func (p Profile) Validate() error {
 	if len(p.Background) > 16000 {
 		return errors.New("background profile is too long")
 	}
+	if p.Photo != nil && (len(p.Photo.Data) > 1<<20 || (p.Photo.Clear && len(p.Photo.Data) > 0)) {
+		return errors.New("invalid photo replacement")
+	}
 	if p.PortraitURL != "" {
 		u, err := url.Parse(p.PortraitURL)
-		local := p.PortraitURL == "/static/djs/alex-bright.jpg" || p.PortraitURL == "/static/djs/miles-mercer.jpg" || p.PortraitURL == "/static/djs/clara-vale.jpg"
+		uploaded := err == nil && p.ID != "" && strings.HasPrefix(p.PortraitURL, "/djs/"+url.PathEscape(p.ID)+"/photo?v=") && photoVersion.MatchString(u.Query().Get("v"))
+		local := uploaded || p.PortraitURL == "/static/djs/alex-bright.jpg" || p.PortraitURL == "/static/djs/miles-mercer.jpg" || p.PortraitURL == "/static/djs/clara-vale.jpg"
 		if len(p.PortraitURL) > 2048 || err != nil || (!local && (u.Scheme != "https" || u.Hostname() == "" || u.User != nil)) {
-			return errors.New("use an HTTPS profile picture URL or a bundled DJ portrait")
+			return errors.New("invalid saved DJ photo")
 		}
 	}
 	if len(p.Prompt) > 32000 || len(p.Vibe) > 16000 {

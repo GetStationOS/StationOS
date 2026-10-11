@@ -17,7 +17,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -156,6 +156,11 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if version >= 12 {
+				if _, err = db.Exec(`UPDATE djs SET background='Keep background',portrait_url='/static/djs/alex-bright.jpg' WHERE id='dj'`); err != nil {
+					t.Fatal(err)
+				}
+			}
 			db.Close()
 			db, err = Open(ctx, path)
 			if err != nil {
@@ -183,6 +188,13 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 			if err = db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='playlist_order'`).Scan(&legacyOrderTables); err != nil || legacyOrderTables != 0 {
 				t.Fatal("legacy ordering remains", legacyOrderTables, err)
 			}
+			if version >= 12 {
+				var background, portrait string
+				if err = db.QueryRow(`SELECT background,portrait_url FROM djs WHERE id='dj'`).Scan(&background, &portrait); err != nil || background != "Keep background" || portrait != "/static/djs/alex-bright.jpg" {
+					t.Fatal("upgrade changed DJ profile", err)
+				}
+			}
+
 			if version >= 3 {
 				pool, err := (Playlists{DB: db}).Get(ctx, "playlist")
 				if err != nil || pool.Description != "Keep description" {

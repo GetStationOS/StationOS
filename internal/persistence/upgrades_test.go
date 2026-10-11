@@ -17,8 +17,8 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
-		t.Run(string(rune('0'+version)), func(t *testing.T) {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10} {
+		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
 			db, err := sql.Open("sqlite", path)
@@ -206,8 +206,9 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 			}
 			if version >= 6 {
 				var name, voice, prompt, vibe string
+				var speed float64
 				var encrypted []byte
-				if err = db.QueryRow(`SELECT name,voice,prompt,vibe,api_key_cipher FROM djs WHERE id='dj'`).Scan(&name, &voice, &prompt, &vibe, &encrypted); err != nil || name != "Preserved DJ" || voice != "cedar" || prompt != "Keep prompt" || vibe != "Keep vibe" || hex.EncodeToString(encrypted) != "1234" {
+				if err = db.QueryRow(`SELECT name,voice,prompt,vibe,conversation_speed,api_key_cipher FROM djs WHERE id='dj'`).Scan(&name, &voice, &prompt, &vibe, &speed, &encrypted); err != nil || name != "Preserved DJ" || voice != "cedar" || speed != 1 || prompt != "Keep prompt" || vibe != "Keep vibe" || hex.EncodeToString(encrypted) != "1234" {
 					t.Fatal("DJ voice upgrade lost metadata or encrypted credential", err)
 				}
 			}

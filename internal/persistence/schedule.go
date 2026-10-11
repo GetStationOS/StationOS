@@ -11,12 +11,12 @@ import (
 
 type Schedule struct{ DB *sql.DB }
 
-const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,d.model,d.voice,d.prompt,d.vibe,length(d.api_key_cipher)>0`
+const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,d.model,d.voice,d.prompt,d.vibe,d.conversation_speed,length(d.api_key_cipher)>0`
 const showJoin = ` FROM station_shows s JOIN djs d ON d.id=s.dj_id JOIN playlists p ON p.id=s.playlist_id `
 
 func scanShow(row interface{ Scan(...any) error }) (schedule.Show, error) {
 	var v schedule.Show
-	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.HasKey)
+	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.HasKey)
 	v.DJ.ID = v.DJID
 	v.DJ.Name = v.DJName
 	if errors.Is(err, sql.ErrNoRows) {

@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"stationos.local/stationos/internal/djs"
@@ -66,6 +67,7 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 		v.DJMode = "new"
 		v.DJ.Model = "gpt-6.1-sol"
 		v.DJ.Voice = djs.DefaultVoice
+		v.DJ.ConversationSpeed = djs.DefaultConversationSpeed
 	} else {
 		v.DJs, err = s.d.DJs.List(r.Context())
 		if err != nil {
@@ -85,7 +87,18 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		model = r.PostForm.Get("custom_model")
 	}
 	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Model: model, Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe")}
-	_, err := (djs.Service{Repo: s.d.DJs}).Save(r.Context(), p, djs.KeyChange{Value: r.PostForm.Get("api_key"), Clear: r.PostForm.Get("clear_key") == "yes"})
+	p.ConversationSpeed = djs.DefaultConversationSpeed
+	var err error
+	if raw := r.PostForm.Get("conversation_speed"); raw != "" {
+		p.ConversationSpeed, err = strconv.ParseFloat(raw, 64)
+		if err != nil || p.ConversationSpeed == 0 {
+			err = errors.Join(djs.ErrInvalid, errors.New("choose a conversation speed between 0.25× and 4.00×"))
+			p.ConversationSpeed = djs.DefaultConversationSpeed
+		}
+	}
+	if err == nil {
+		_, err = (djs.Service{Repo: s.d.DJs}).Save(r.Context(), p, djs.KeyChange{Value: r.PostForm.Get("api_key"), Clear: r.PostForm.Get("clear_key") == "yes"})
+	}
 	if errors.Is(err, djs.ErrInvalid) {
 		message := strings.TrimPrefix(err.Error(), djs.ErrInvalid.Error()+"\n")
 		if r.Header.Get("HX-Request") == "true" {

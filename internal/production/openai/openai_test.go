@@ -33,7 +33,7 @@ func answer(text string) *http.Response {
 	return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(raw))), Header: make(http.Header)}
 }
 func profile() schedule.Occurrence {
-	return schedule.Occurrence{Key: "show", StationID: "station", Title: "Jazz hour", DJ: djs.Profile{ID: "dj", Name: "Miles", HasKey: true, Model: "chosen-model", Voice: "onyx", Prompt: "Curate with musical expertise", Vibe: "Warm and relaxed"}}
+	return schedule.Occurrence{Key: "show", StationID: "station", Title: "Jazz hour", DJ: djs.Profile{ID: "dj", Name: "Miles", HasKey: true, Model: "chosen-model", Voice: "onyx", Prompt: "Curate with musical expertise", Vibe: "Warm and relaxed", ConversationSpeed: 1.15}}
 }
 func TestCurationAndSpeechUseConfiguredProfile(t *testing.T) {
 	count := 0
@@ -57,7 +57,7 @@ func TestCurationAndSpeechUseConfiguredProfile(t *testing.T) {
 			}
 			return answer(`{"track_ids":["track"],"intro":"Welcome","outro":"Over to Clara"}`), nil
 		}
-		if body["voice"] != "onyx" || body["instructions"] != "Warm and relaxed" || body["response_format"] != "mp3" {
+		if body["speed"] != 1.15 || body["voice"] != "onyx" || body["instructions"] != "Warm and relaxed" || body["response_format"] != "mp3" {
 			t.Fatal(body)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("mp3"))}, nil
@@ -88,6 +88,9 @@ func TestLinksUseCurrentNextAndHandoverWithoutSourceURLs(t *testing.T) {
 				t.Fatal("missing credit instructions", body)
 			}
 			return answer("A lovely performance. Over to Clara."), nil
+		}
+		if body["speed"] != 1.15 {
+			t.Fatal("link speed missing", body)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("speech"))}, nil
 	})}

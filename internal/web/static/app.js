@@ -377,3 +377,10 @@ document.body.addEventListener('htmx:beforeSwap',event=>{
  patchStationNode(target,incoming);
  event.detail.shouldSwap=false;
 });
+
+// Delegation keeps the speed display working after HTMX navigation.
+document.body.addEventListener('input', event => {
+ if(event.target.matches('[data-conversation-speed]')) {
+  event.target.closest('.speed-control').querySelector('[data-speed-value]').textContent = Number(event.target.value).toFixed(2) + '×';
+ }
+});

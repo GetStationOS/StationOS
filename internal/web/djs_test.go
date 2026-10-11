@@ -15,7 +15,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	key := "sk-test-do-not-expose"
-	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "api_key": {key}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}}
+	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "conversation_speed": {"1.15"}, "api_key": {key}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}}
 	if w = request(h, "POST", "/djs", form, nil); w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -39,6 +39,11 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
 	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "dj-saved") {
 		t.Fatal(w.Code, w.Header())
+	}
+	var speed float64
+	st.DB.QueryRow(`SELECT conversation_speed FROM djs WHERE id=?`, id).Scan(&speed)
+	if speed != 1.15 {
+		t.Fatal("conversation speed not saved", speed)
 	}
 	var voice string
 	st.DB.QueryRow(`SELECT voice FROM djs WHERE id=?`, id).Scan(&voice)
@@ -122,5 +127,31 @@ func TestLongAPIKeyAcceptedThroughFormWithoutEcho(t *testing.T) {
 	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
 	if w.Code != 422 || !strings.Contains(w.Body.String(), "Untick Remove saved key") || strings.Contains(w.Body.String(), key) {
 		t.Fatal("conflict not explained safely")
+	}
+}
+
+func TestConversationSpeedValidationRetainsProfile(t *testing.T) {
+	h, st, _, _ := setupWeb(t, "")
+	token := csrf(t, h)
+	form := url.Values{"csrf": {token}, "id": {"default-pop"}, "name": {"Speed DJ"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "conversation_speed": {"1.2"}}
+	if w := request(h, "POST", "/djs", form, nil); w.Code != 303 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	for _, raw := range []string{"0", "-1", "0.2", "4.1", "NaN", "Inf", "quick"} {
+		form.Set("conversation_speed", raw)
+		for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
+			w := request(h, "POST", "/djs", form, headers)
+			if w.Code != 422 {
+				t.Fatal(raw, w.Code, w.Body.String())
+			}
+			var speed float64
+			if err := st.DB.QueryRow(`SELECT conversation_speed FROM djs WHERE id='default-pop'`).Scan(&speed); err != nil || speed != 1.2 {
+				t.Fatal("invalid speed changed profile", speed, err)
+			}
+		}
+	}
+	w := request(h, "GET", "/djs/default-pop", nil, nil)
+	if !strings.Contains(w.Body.String(), `name="conversation_speed"`) || !strings.Contains(w.Body.String(), `value="1.2"`) || !strings.Contains(w.Body.String(), "1.20×") {
+		t.Fatal("saved slider missing", w.Body.String())
 	}
 }

@@ -126,7 +126,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		if strings.TrimSpace(text) == "" {
 			return nil, nil
 		}
-		raw, err := p.call(ctx, "audio/speech", key, map[string]any{"model": "gpt-4o-mini-tts", "voice": show.DJ.Voice, "input": text, "instructions": show.DJ.Vibe, "response_format": "mp3"}, 1<<20)
+		raw, err := p.call(ctx, "audio/speech", key, map[string]any{"model": "gpt-4o-mini-tts", "voice": show.DJ.Voice, "input": text, "instructions": show.DJ.Vibe, "speed": show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
 		if err != nil {
 			return nil, err
 		}
@@ -192,7 +192,7 @@ func (p Producer) Link(parent context.Context, link production.LinkRequest) ([]b
 	if len(spoken) == 0 || len(spoken) > 600 {
 		return nil, errors.New("presenter link exceeds limits")
 	}
-	raw, err = p.call(ctx, "audio/speech", key, map[string]any{"model": "gpt-4o-mini-tts", "voice": link.Show.DJ.Voice, "input": spoken, "instructions": link.Show.DJ.Vibe, "response_format": "mp3"}, 1<<20)
+	raw, err = p.call(ctx, "audio/speech", key, map[string]any{"model": "gpt-4o-mini-tts", "voice": link.Show.DJ.Voice, "input": spoken, "instructions": link.Show.DJ.Vibe, "speed": link.Show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
 	if err != nil {
 		return nil, err
 	}

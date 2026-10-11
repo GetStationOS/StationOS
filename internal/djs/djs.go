@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"math"
 	"regexp"
 	"strings"
 	"unicode"
@@ -19,6 +20,7 @@ var modelID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$`)
 type Profile struct {
 	ID, Name, Model, Voice, Prompt, Vibe string
 	HasKey                               bool
+	ConversationSpeed                    float64
 }
 
 // KeyChange is write-only. Blank means preserve the saved credential.
@@ -37,6 +39,7 @@ type Service struct{ Repo Repository }
 type Voice struct{ ID, Name string }
 
 const DefaultVoice = "cedar"
+const DefaultConversationSpeed = 1.0
 const MaxKeyLength = 4096
 
 // Built-in OpenAI TTS voices; voice direction is stored separately in Vibe.
@@ -44,6 +47,9 @@ func Voices() []Voice {
 	return []Voice{{"alloy", "Alloy"}, {"ash", "Ash"}, {"ballad", "Ballad"}, {"cedar", "Cedar"}, {"coral", "Coral"}, {"echo", "Echo"}, {"fable", "Fable"}, {"marin", "Marin"}, {"nova", "Nova"}, {"onyx", "Onyx"}, {"sage", "Sage"}, {"shimmer", "Shimmer"}, {"verse", "Verse"}}
 }
 func (p Profile) Validate() error {
+	if math.IsNaN(p.ConversationSpeed) || math.IsInf(p.ConversationSpeed, 0) || p.ConversationSpeed < 0.25 || p.ConversationSpeed > 4 {
+		return errors.New("choose a conversation speed between 0.25× and 4.00×")
+	}
 	validVoice := false
 	for _, v := range Voices() {
 		if v.ID == p.Voice {
@@ -66,6 +72,9 @@ func (p Profile) Validate() error {
 	return nil
 }
 func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, error) {
+	if p.ConversationSpeed == 0 {
+		p.ConversationSpeed = DefaultConversationSpeed
+	}
 	if p.Voice == "" {
 		p.Voice = DefaultVoice
 	}

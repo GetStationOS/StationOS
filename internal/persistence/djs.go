@@ -85,14 +85,14 @@ func OpenDJs(ctx context.Context, db *sql.DB, path string) (DJs, error) {
 }
 func (r DJs) Get(ctx context.Context, id string) (djs.Profile, error) {
 	var p djs.Profile
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,model,voice,prompt,vibe,length(api_key_cipher)>0 FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.HasKey)
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,model,voice,prompt,vibe,conversation_speed,length(api_key_cipher)>0 FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.HasKey)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = djs.ErrNotFound
 	}
 	return p, err
 }
 func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,model,voice,prompt,vibe,length(api_key_cipher)>0 FROM djs ORDER BY name COLLATE NOCASE,id`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,model,voice,prompt,vibe,conversation_speed,length(api_key_cipher)>0 FROM djs ORDER BY name COLLATE NOCASE,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
 	out := []djs.Profile{}
 	for rows.Next() {
 		var p djs.Profile
-		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.HasKey); err != nil {
+		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.HasKey); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -122,7 +122,7 @@ func (r DJs) Save(ctx context.Context, p djs.Profile, k djs.KeyChange) error {
 		}
 		encrypted = r.secret.Seal(nonce, nonce, []byte(k.Value), []byte(p.ID))
 	}
-	_, err := r.DB.ExecContext(ctx, `INSERT INTO djs(id,name,model,voice,prompt,vibe,api_key_cipher) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,model=excluded.model,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,api_key_cipher=CASE WHEN ? THEN excluded.api_key_cipher ELSE djs.api_key_cipher END`, p.ID, p.Name, p.Model, p.Voice, p.Prompt, p.Vibe, encrypted, k.Clear || k.Value != "")
+	_, err := r.DB.ExecContext(ctx, `INSERT INTO djs(id,name,model,voice,prompt,vibe,conversation_speed,api_key_cipher) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,model=excluded.model,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,api_key_cipher=CASE WHEN ? THEN excluded.api_key_cipher ELSE djs.api_key_cipher END`, p.ID, p.Name, p.Model, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, encrypted, k.Clear || k.Value != "")
 	return err
 }
 

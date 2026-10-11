@@ -34,8 +34,9 @@ func TestDJCredentialsStayEncryptedAndSurviveEditing(t *testing.T) {
 	}
 	p.Name = "Renamed DJ"
 	p.Prompt = "Keep these instructions"
+	p.ConversationSpeed = 1.15
 	p, err = service.Save(ctx, p, djs.KeyChange{})
-	if err != nil || !p.HasKey {
+	if err != nil || !p.HasKey || p.ConversationSpeed != 1.15 {
 		t.Fatal("blank edit lost credential", err)
 	}
 	key, _ = r.APIKey(ctx, p.ID)

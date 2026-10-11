@@ -34,6 +34,18 @@ func TestScheduleOwnershipOverlapAndDeletion(t *testing.T) {
 	if err = repo.Save(ctx, show); err != nil {
 		t.Fatal(err)
 	}
+	profile, err := dj.Get(ctx, show.DJID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile.ConversationSpeed = 1.15
+	if err = dj.Save(ctx, profile, djs.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := repo.Get(ctx, "s", "show")
+	if err != nil || loaded.DJ.ConversationSpeed != 1.15 {
+		t.Fatal("scheduled DJ lost speed", loaded.DJ, err)
+	}
 	wrong := show
 	wrong.ID = "wrong"
 	wrong.PlaylistID = "other-pool"

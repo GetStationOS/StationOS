@@ -64,7 +64,7 @@
 <div class="producer-body"><div class="producer-programming">
 <div class="card-programme">{{if and .Broadcast.Programme.ShowID .Broadcast.Current.ID}}<span class="eyebrow">ON AIR</span><strong>{{.Broadcast.Programme.Title}}</strong><div class="card-presenter">{{if .Broadcast.Programme.DJ.PortraitURL}}<img class="dj-avatar small" src="{{.Broadcast.Programme.DJ.PortraitURL}}" alt="" referrerpolicy="no-referrer">{{end}}<a href="/djs/{{.Broadcast.Programme.DJ.ID}}">{{.Broadcast.Programme.DJ.Name}}</a>{{if .ProgrammeTime}}<span>{{.ProgrammeTime}}</span>{{end}}</div>{{if .PlaylistName}}<a class="card-pool" href="/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a>{{end}}{{else}}<span class="eyebrow">DEFAULT PLAYLIST</span>{{if .PlaylistName}}<strong><a href="/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a></strong>{{else}}<strong class="card-unassigned">No default playlist</strong>{{end}}{{end}}</div>
 </div>
-<div class="card-tracks">{{template "card-track" .CurrentTrack}}{{template "card-track" .NextTrack}}</div>
+<div class="card-tracks">{{template "card-track" (currentBroadcastTrack .Station.ID .Broadcast)}}{{template "card-track" .NextTrack}}</div>
 </div>
 {{if or .PresenterStatus (and .Broadcast.Current.ID .Broadcast.Following.ShowID)}}<div class="producer-context">{{if .PresenterStatus}}<span class="card-dj-status">{{.PresenterStatus}}</span>{{end}}
 {{if and .Broadcast.Current.ID .Broadcast.Following.ShowID}}<div class="card-handover"><span class="eyebrow">NEXT SHOW{{if .FollowingTime}} · {{.FollowingTime}}{{end}}</span><strong>{{.Broadcast.Following.Title}}</strong>{{if .Broadcast.Following.DJ.Name}}<span>{{.Broadcast.Following.DJ.Name}}</span>{{end}}</div>{{end}}
@@ -203,7 +203,7 @@
 
 {{define "player-track"}}<div class="player-track">{{template "track-art" .}}<div class="player-track-info"><span class="eyebrow">{{.Label}}</span><strong>{{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</strong>{{if .Item.Artist}}<span class="player-track-artist">{{.Item.Artist}}</span>{{end}}</div></div>{{end}}
 
-{{define "player-tracks"}}<div id="player-tracks" class="player-tracks" data-station-logo="{{.Station.LogoURL}}" data-station-name="{{.Station.Name}}">{{template "player-track" (playerCurrentTrack .Station.ID .Broadcast)}}{{template "player-track" (stationTrack .Station.ID "UP NEXT" "Not queued" .Broadcast.Next)}}</div>{{end}}
+{{define "player-tracks"}}<div id="player-tracks" class="player-tracks" data-station-logo="{{.Station.LogoURL}}" data-station-name="{{.Station.Name}}">{{template "player-track" (currentBroadcastTrack .Station.ID .Broadcast)}}{{template "player-track" (stationTrack .Station.ID "UP NEXT" "Not queued" .Broadcast.Next)}}</div>{{end}}
 
 {{define "overview-track"}}<span class="eyebrow">{{.Label}}</span><div class="overview-track">{{template "track-art" .}}<div class="overview-track-info"><h2>{{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</h2>{{if .Item.Artist}}<p>{{.Item.Artist}}</p>{{end}}{{if .Item.Album}}<p class="hint">{{.Item.Album}}</p>{{end}}</div></div>{{end}}
 

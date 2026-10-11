@@ -28,7 +28,7 @@ func stationTrack(stationID, label, empty string, item content.AudioItem) cardTr
 }
 
 // Speech uses the portrait of the presenter actually producing this segment.
-func playerCurrentTrack(stationID string, state broadcast.State) cardTrack {
+func currentBroadcastTrack(stationID string, state broadcast.State) cardTrack {
 	if state.Phase == "chatter" || state.Phase == "handover" {
 		t := cardTrack{Label: "DJ ON AIR", Empty: "Nothing playing", Item: state.Current}
 		if state.Current.ID != "" {

@@ -192,7 +192,7 @@ type stationCard struct {
 	Station                                                                 station.Station
 	Playlists                                                               int
 	PlaylistID, PlaylistName, ProgrammeTime, PresenterStatus, FollowingTime string
-	CurrentTrack, NextTrack                                                 cardTrack
+	NextTrack                                                               cardTrack
 }
 type sourceCard struct {
 	Source sources.Config
@@ -331,7 +331,6 @@ func (s *Server) baseView(r *http.Request) (view, error) {
 			}
 			card.FollowingTime = card.Broadcast.Following.Start.In(loc).Format("Mon 15:04")
 		}
-		card.CurrentTrack = stationTrack(st.ID, "Now playing", "Nothing playing", card.Broadcast.Current)
 		card.NextTrack = stationTrack(st.ID, "Up next", "Not queued", card.Broadcast.Next)
 		v.StationCards = append(v.StationCards, card)
 	}

@@ -124,7 +124,7 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 }
 
 func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
-	templates, err := template.New("pages").Funcs(template.FuncMap{"stationTrack": stationTrack, "playerCurrentTrack": playerCurrentTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	templates, err := template.New("pages").Funcs(template.FuncMap{"stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +151,22 @@ func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
 			var html bytes.Buffer
 			if err := templates.ExecuteTemplate(&html, "player-tracks", view{Station: station.Station{ID: "radio"}, Broadcast: current}); err != nil {
 				t.Fatal(err)
+			}
+			// The homepage must use the same artwork selection as the player.
+			var cards bytes.Buffer
+			if err := templates.ExecuteTemplate(&cards, "station-cards", view{StationCards: []stationCard{{Station: station.Station{ID: "radio", Name: "Radio"}, Broadcast: current, NextTrack: stationTrack("radio", "Up next", "Not queued", next)}}}); err != nil {
+				t.Fatal(err)
+			}
+			cardHTML := strings.SplitN(cards.String(), `<div class="card-tracks">`, 2)[1]
+			if phase == "chatter" || phase == "handover" {
+				if !strings.Contains(cardHTML, `src="`+photo+`"`) || !strings.Contains(cardHTML, "DJ ON AIR") {
+					t.Fatal("station card missing speaking DJ artwork", cardHTML)
+				}
+			} else if strings.Contains(cardHTML, `src="`+photo+`"`) {
+				t.Fatal("station card retained DJ artwork", cardHTML)
+			}
+			if phase == "music" && !strings.Contains(cardHTML, stationTrack("radio", "", "", music).Artwork) {
+				t.Fatal("station card lost music artwork", cardHTML)
 			}
 			result := html.String()
 			if strings.Contains(result, "/static/djs/clara-vale.jpg") {

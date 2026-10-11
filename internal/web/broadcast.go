@@ -8,6 +8,7 @@ import (
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/station"
+	"strings"
 	"time"
 )
 
@@ -44,6 +45,8 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("icy-name", cleanICY(st.Name))
 	w.Header().Set("icy-br", "128")
+	logoURL := strings.TrimSuffix(s.streamURL(r, st.StreamSlug), "/streams/"+st.StreamSlug) + st.LogoURL()
+	w.Header().Set("icy-logo", logoURL)
 	metadata := r.Header.Get("Icy-MetaData") == "1"
 	if metadata {
 		w.Header().Set("icy-metaint", "8192")
@@ -91,7 +94,7 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	rc := http.NewResponseController(w)
 	defer rc.SetWriteDeadline(time.Time{})
 	var output io.Writer = w
-	icy := icyWriter{output: w, remaining: icyInterval}
+	icy := icyWriter{output: w, remaining: icyInterval, logo: logoURL}
 	if metadata {
 		output = &icy
 	}

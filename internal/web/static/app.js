@@ -153,11 +153,28 @@ function setRadioAction(action) {
   control.setAttribute('aria-label', label);
   control.title = label;
 }
+// Supply station branding to browser and phone media controls when supported.
+function updateRadioMediaSession() {
+ if(!('mediaSession' in navigator)||!window.MediaMetadata)return;
+ if(!selectedRadio){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';return;}
+ const tracks=document.getElementById('player-tracks');
+ const current=tracks.querySelector('.player-track');
+ const title=current?.querySelector('strong')?.textContent.trim();
+ const artist=current?.querySelector('.player-track-artist')?.textContent.trim();
+ const stationName=document.getElementById('player-station').textContent||selectedRadio.name;
+ const logo=document.getElementById('player-logo').getAttribute('src')||'/static/station-logo.jpg';
+ navigator.mediaSession.metadata=new MediaMetadata({
+  title:title||stationName,artist:artist||stationName,album:stationName,
+  artwork:[{src:new URL(logo,location.href).href,type:'image/jpeg'}]
+ });
+ navigator.mediaSession.playbackState=radio.paused||radio.error||radio.ended?'paused':'playing';
+}
 function stopRadio() {
   selectedRadio = null;
   radioMetadataEvents?.close();radioMetadataEvents=null;
   radio.pause(); radio.removeAttribute('src'); radio.load();
   player.hidden = true;
+  updateRadioMediaSession();
 }
 async function playRadio(button) {
   switchingRadio = true;
@@ -170,7 +187,9 @@ async function playRadio(button) {
   selectedRadio = {url:streamURL.href,name:button.dataset.stationName,id:button.dataset.stationId};
   startRadioMetadata();
   document.getElementById('player-station').textContent = selectedRadio.name;
+  document.getElementById('player-logo').src=button.dataset.stationLogo||'/static/station-logo.jpg';
   document.getElementById('player-status').textContent = 'Connecting…';
+  updateRadioMediaSession();
   player.hidden = false;
   radio.src = selectedRadio.url;
   try { await radio.play(); } catch (error) { if(selectedRadio) { document.getElementById('player-status').textContent = 'Unable to listen. Check the station playlist and source, then try again.'; setRadioAction('retry'); } }
@@ -191,17 +210,28 @@ document.body.addEventListener('click',event=>{
   }
 });
 if(radio) {
+  if('mediaSession' in navigator){
+   const actions={
+    play:()=>{if(selectedRadio&&(radio.paused||radio.error))player.querySelector('[data-toggle-radio]').click();},
+    pause:()=>{if(selectedRadio&&!radio.paused)radio.pause();},
+    stop:()=>{if(selectedRadio)stopRadio();}
+   };
+   for(const [action,handler] of Object.entries(actions)){
+    try{navigator.mediaSession.setActionHandler(action,handler);}catch{/* Some browsers support only a subset of media actions. */}
+   }
+  }
   document.getElementById('radio-volume').addEventListener('input',event=>{radio.volume=Number(event.target.value);});
-  radio.addEventListener('playing',()=>{document.getElementById('player-status').textContent='Live';setRadioAction('pause');});
+  radio.addEventListener('playing',()=>{document.getElementById('player-status').textContent='Live';setRadioAction('pause');updateRadioMediaSession();});
   radio.addEventListener('waiting',()=>{if(selectedRadio)document.getElementById('player-status').textContent='Buffering…'});
-  radio.addEventListener('error',()=>{if(selectedRadio){document.getElementById('player-status').textContent='Stream unavailable. Check the source and try again.';setRadioAction('retry');}});
-  radio.addEventListener('ended',()=>{if(selectedRadio){radio.removeAttribute('src');radio.load();setRadioAction('play');document.getElementById('player-status').textContent='Stream stopped. Resume to reconnect.';}});
+  radio.addEventListener('error',()=>{if(selectedRadio){document.getElementById('player-status').textContent='Stream unavailable. Check the source and try again.';setRadioAction('retry');updateRadioMediaSession();}});
+  radio.addEventListener('ended',()=>{if(selectedRadio){radio.removeAttribute('src');radio.load();setRadioAction('play');document.getElementById('player-status').textContent='Stream stopped. Resume to reconnect.';updateRadioMediaSession();}});
   radio.addEventListener('pause',()=>{
     if(switchingRadio || !selectedRadio || !radio.paused)return;
     // Release the listener connection while retaining the chosen station for Play.
     radio.removeAttribute('src');radio.load();
     document.getElementById('player-status').textContent='Paused';
     setRadioAction('play');
+    updateRadioMediaSession();
   });
   radio.addEventListener('play',()=>{
     if(selectedRadio && !radio.getAttribute('src')){radio.src=selectedRadio.url;radio.play().catch(()=>{});}
@@ -287,7 +317,13 @@ function startRadioMetadata(){
   const template=document.createElement('template');
   try{template.innerHTML=JSON.parse(event.data);}catch{return;}
   const incoming=template.content.querySelector('#player-tracks');
-  if(incoming)patchStationNode(tracks,incoming);
+  if(incoming){
+   patchStationNode(tracks,incoming);
+   const logo=document.getElementById('player-logo');
+   if(logo.getAttribute('src')!==incoming.dataset.stationLogo)logo.src=incoming.dataset.stationLogo;
+   document.getElementById('player-station').textContent=incoming.dataset.stationName;
+   updateRadioMediaSession();
+  }
  });
 }
 window.addEventListener('pagehide',()=>{radioMetadataEvents?.close();radioMetadataEvents=null;});
@@ -396,17 +432,17 @@ document.body.addEventListener('input', event => {
 function previewDJPhoto(form, removed) {
  const input=form.querySelector('[data-dj-photo]');
  const image=form.querySelector('[data-photo-preview]');
- if(!('savedSrc' in image.dataset))image.dataset.savedSrc=image.getAttribute('src')||'';
+ if(!('savedSrc' in image.dataset)){image.dataset.savedSrc=image.getAttribute('src')||'';image.dataset.savedRemovable=String(!form.querySelector('[data-remove-photo]').hidden);}
  if(image.dataset.previewUrl){URL.revokeObjectURL(image.dataset.previewUrl);delete image.dataset.previewUrl;}
  form.querySelector('[data-photo-removed]').value=removed?'yes':'';
  if(removed)input.value='';
  const file=input.files[0];
- const src=removed?'':file?URL.createObjectURL(file):image.dataset.savedSrc;
+ const src=removed?(image.dataset.defaultSrc||''):file?URL.createObjectURL(file):image.dataset.savedSrc;
  if(file&&src)image.dataset.previewUrl=src;
  if(src)image.src=src;else image.removeAttribute('src');
  image.hidden=!src;
  form.querySelector('[data-photo-placeholder]').hidden=!!src;
- form.querySelector('[data-remove-photo]').hidden=!src;
+ form.querySelector('[data-remove-photo]').hidden=!src||!!image.dataset.defaultSrc&&(removed||!file&&image.dataset.savedRemovable!=='true');
 }
 document.body.addEventListener('change',event=>{
  if(event.target.matches('[data-dj-photo]'))previewDJPhoto(event.target.closest('[data-dj-form]'),false);

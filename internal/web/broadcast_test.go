@@ -77,7 +77,7 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 		t.Fatal(w.Body.String())
 	}
 	metadataHead := request(h, "HEAD", "/streams/jazz-24", nil, map[string]string{"Icy-MetaData": "1"})
-	if metadataHead.Code != 200 || metadataHead.Header().Get("icy-metaint") != "8192" || metadataHead.Body.Len() != 0 || m.State(a.ID).Listeners != 0 {
+	if metadataHead.Header().Get("icy-logo") != "https://radio.example"+a.LogoURL() || metadataHead.Code != 200 || metadataHead.Header().Get("icy-metaint") != "8192" || metadataHead.Body.Len() != 0 || m.State(a.ID).Listeners != 0 {
 		t.Fatal("metadata HEAD started production")
 	}
 	if request(h, "HEAD", "/streams/jazz-24", nil, nil).Code != 200 || m.State(a.ID).Listeners != 0 {
@@ -121,6 +121,7 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer metadataResponse.Body.Close()
 	if metadataResponse.Header.Get("icy-metaint") != "8192" || metadataResponse.Header.Get("icy-name") != "Jazz 24" || metadataResponse.Header.Get("icy-br") != "128" || first.Header.Get("icy-metaint") != "" {
 		t.Fatal("metadata negotiation", metadataResponse.Header, first.Header)
 	}
@@ -136,7 +137,7 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	if _, err := io.ReadFull(metadataResponse.Body, block); err != nil {
 		t.Fatal(err)
 	}
-	if strings.TrimRight(string(block), "\x00") != "StreamTitle='Performer - One';" {
+	if strings.TrimRight(string(block), "\x00") != "StreamTitle='Performer - One';StreamUrl='https://radio.example"+a.LogoURL()+"';" {
 		t.Fatal(string(block))
 	}
 	metadataResponse.Body.Close()

@@ -16,6 +16,9 @@ import (
 )
 
 func photoForm(t *testing.T, h http.Handler, fields url.Values, data []byte, hx bool) *httptest.ResponseRecorder {
+	return imageForm(t, h, "/djs", fields, data, hx)
+}
+func imageForm(t *testing.T, h http.Handler, path string, fields url.Values, data []byte, hx bool) *httptest.ResponseRecorder {
 	t.Helper()
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
@@ -34,7 +37,7 @@ func photoForm(t *testing.T, h http.Handler, fields url.Values, data []byte, hx 
 		part.Write(data)
 	}
 	writer.Close()
-	req := httptest.NewRequest("POST", "/djs", &body)
+	req := httptest.NewRequest("POST", path, &body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	if hx {
 		req.Header.Set("HX-Request", "true")

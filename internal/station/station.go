@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -38,16 +39,41 @@ func Slug(name string) string {
 	return b.String()
 }
 
+// LogoChange is a write-only normalized JPEG replacement. Nil preserves the logo.
+type LogoChange struct {
+	Data  []byte
+	Clear bool
+}
+type LogoReader interface {
+	Logo(context.Context, string) ([]byte, error)
+}
+
+func (s Station) LogoURL() string {
+	if s.ID == "" {
+		return "/static/station-logo.jpg"
+	}
+	path := "/station-logos/" + url.PathEscape(s.ID) + ".jpg"
+	if s.LogoVersion != "" {
+		path += "?v=" + s.LogoVersion
+	}
+	return path
+}
+
 type Station struct {
-	StreamSlug  string `json:"stream_slug"`
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Timezone    string `json:"timezone"`
-	Locale      string `json:"locale"`
+	LogoVersion string      `json:"logo_version,omitempty"`
+	Logo        *LogoChange `json:"-"`
+	StreamSlug  string      `json:"stream_slug"`
+	ID          string      `json:"id"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	Timezone    string      `json:"timezone"`
+	Locale      string      `json:"locale"`
 }
 
 func (s Station) Validate() error {
+	if s.Logo != nil && ((s.Logo.Clear && len(s.Logo.Data) > 0) || (!s.Logo.Clear && (len(s.Logo.Data) == 0 || len(s.Logo.Data) > 5<<20))) {
+		return errors.New("invalid logo replacement")
+	}
 	if s.StreamSlug != "" && (len(s.StreamSlug) > 80 || !slugPattern.MatchString(s.StreamSlug)) {
 		return errors.New("stream address must use lowercase letters, numbers and single hyphens (maximum 80 characters)")
 	}

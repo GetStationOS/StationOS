@@ -17,6 +17,7 @@ type icyWriter struct {
 	output          io.Writer
 	remaining       int
 	title, previous string
+	logo            string
 	sent            bool
 }
 
@@ -37,7 +38,7 @@ func (w *icyWriter) Write(data []byte) (int, error) {
 		if w.remaining == 0 {
 			block := []byte{0}
 			if !w.sent || w.title != w.previous {
-				block = icyBlock(w.title)
+				block = icyArtworkBlock(w.title, w.logo)
 			}
 			count, err = w.output.Write(block)
 			if err != nil {
@@ -92,15 +93,22 @@ func cleanICY(text string) string {
 }
 
 func icyBlock(title string) []byte {
+	return icyArtworkBlock(title, "")
+}
+func icyArtworkBlock(title, logo string) []byte {
 	title = cleanICY(title)
-	const maxTitle = 255*16 - len("StreamTitle='';")
+	suffix := ""
+	if logo != "" && len(logo) <= 2048 {
+		suffix = "StreamUrl='" + cleanICY(logo) + "';"
+	}
+	maxTitle := 255*16 - len("StreamTitle='';") - len(suffix)
 	if len(title) > maxTitle {
 		title = title[:maxTitle]
 		for !utf8.ValidString(title) {
 			title = title[:len(title)-1]
 		}
 	}
-	text := "StreamTitle='" + title + "';"
+	text := "StreamTitle='" + title + "';" + suffix
 	blocks := (len(text) + 15) / 16
 	data := make([]byte, 1+blocks*16)
 	data[0] = byte(blocks)

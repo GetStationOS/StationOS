@@ -80,6 +80,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /stations/events", s.stationEvents)
 	mux.HandleFunc("GET /stations/{id}/player", s.stationEvents)
 	mux.HandleFunc("GET /streams/{id}", s.stream)
+	mux.HandleFunc("GET /station-logos/{image}", s.stationLogo)
 	mux.HandleFunc("GET /stations/{id}/artwork/{item}", s.stationArtwork)
 	mux.HandleFunc("GET /stations/{id}/live", s.liveStation)
 	mux.HandleFunc("POST /stations/{id}/broadcast", s.assignBroadcast)
@@ -135,7 +136,8 @@ func (s *Server) protect(next http.Handler) http.Handler {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 		publicStream := (r.Method == http.MethodGet || r.Method == http.MethodHead) && len(r.URL.Path) > len("/streams/") && strings.HasPrefix(r.URL.Path, "/streams/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
-		if s.d.Password != "" && r.URL.Path != "/healthz" && r.URL.Path != "/readyz" && !publicStream {
+		publicLogo := (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/station-logos/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/station-logos/"), "/")
+		if s.d.Password != "" && r.URL.Path != "/healthz" && r.URL.Path != "/readyz" && !publicStream && !publicLogo {
 			user, pass, ok := r.BasicAuth()
 			want := sha256.Sum256([]byte(s.d.Password))
 			got := sha256.Sum256([]byte(pass))
@@ -163,7 +165,7 @@ func (s *Server) protect(next http.Handler) http.Handler {
 			}
 			kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			var formErr error
-			if r.URL.Path == "/djs" && kind == "multipart/form-data" {
+			if (r.URL.Path == "/djs" || r.URL.Path == "/station") && kind == "multipart/form-data" {
 				r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
 				formErr = r.ParseMultipartForm(6 << 20)
 				if r.MultipartForm != nil {
@@ -239,13 +241,32 @@ func (s *Server) redirect(w http.ResponseWriter, r *http.Request, to string) {
 }
 func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 	v := station.Station{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Description: r.PostForm.Get("description"), Timezone: r.PostForm.Get("timezone"), Locale: r.PostForm.Get("locale"), StreamSlug: r.PostForm.Get("stream_slug")}
-	if err := v.Validate(); err != nil {
-		http.Error(w, err.Error(), 400)
+	if v.ID != "" {
+		existing, err := s.d.Stations.Get(r.Context(), v.ID)
+		if errors.Is(err, station.ErrNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		v.LogoVersion = existing.LogoVersion
+	}
+	change, err := s.readUploadedImage(r, "logo")
+	if change != nil {
+		v.Logo = &station.LogoChange{Data: change.Data, Clear: change.Clear}
+	}
+	if err == nil {
+		err = v.Validate()
+	}
+	if err != nil {
+		s.stationFormError(w, r, v, err)
 		return
 	}
 	saved, err := (station.Service{Repo: s.d.Stations}).Save(r.Context(), v)
 	if errors.Is(err, station.ErrSlugTaken) {
-		http.Error(w, err.Error(), 422)
+		s.stationFormError(w, r, v, err)
 		return
 	}
 	if errors.Is(err, station.ErrNotFound) {

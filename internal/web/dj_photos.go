@@ -10,23 +10,39 @@ import (
 	"io"
 	"net/http"
 	"stationos.local/stationos/internal/djs"
+	"strings"
 )
 
+type imageChange struct {
+	Data  []byte
+	Clear bool
+}
+
 func (s *Server) readDJPhoto(r *http.Request) (*djs.PhotoChange, error) {
-	fail := func(message string) (*djs.PhotoChange, error) {
-		return nil, errors.Join(djs.ErrInvalid, errors.New(message))
+	change, err := s.readUploadedImage(r, "photo")
+	if err != nil {
+		return nil, errors.Join(djs.ErrInvalid, err)
+	}
+	if change == nil {
+		return nil, nil
+	}
+	return &djs.PhotoChange{Data: change.Data, Clear: change.Clear}, nil
+}
+func (s *Server) readUploadedImage(r *http.Request, label string) (*imageChange, error) {
+	fail := func(message string) (*imageChange, error) {
+		return nil, errors.New(strings.ReplaceAll(message, "photo", label))
 	}
 	clear := r.PostForm.Get("clear_photo") == "yes" || r.PostForm.Get("photo_removed") == "yes"
 	if r.MultipartForm == nil {
 		if clear {
-			return &djs.PhotoChange{Clear: true}, nil
+			return &imageChange{Clear: true}, nil
 		}
 		return nil, nil
 	}
 	file, header, err := r.FormFile("photo")
 	if errors.Is(err, http.ErrMissingFile) {
 		if clear {
-			return &djs.PhotoChange{Clear: true}, nil
+			return &imageChange{Clear: true}, nil
 		}
 		return nil, nil
 	}
@@ -80,7 +96,7 @@ func (s *Server) readDJPhoto(r *http.Request) (*djs.PhotoChange, error) {
 	if err = jpeg.Encode(&out, dst, &jpeg.Options{Quality: 85}); err != nil {
 		return fail("The photo could not be saved.")
 	}
-	return &djs.PhotoChange{Data: out.Bytes()}, nil
+	return &imageChange{Data: out.Bytes()}, nil
 }
 func (s *Server) djPhoto(w http.ResponseWriter, r *http.Request) {
 	reader, ok := s.d.DJs.(djs.PhotoReader)

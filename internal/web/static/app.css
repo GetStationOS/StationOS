@@ -291,7 +291,7 @@ textarea{font-weight:400;line-height:1.5}
 /* The compact live player belongs to the stable shell, outside HTMX navigation. */
 .radio-player{position:sticky;bottom:16px;z-index:10;display:grid;grid-template-columns:minmax(110px,.65fr) minmax(0,2fr) auto;align-items:center;gap:18px;padding:14px 18px;margin:20px 38px 16px;max-width:1364px;background:#102d35;color:#fff;border:1px solid #35515a;border-radius:var(--radius,12px);box-shadow:0 8px 30px #102d3530}
 .radio-player[hidden],.radio-player audio{display:none}
-.player-identity{display:flex;flex-direction:column;gap:4px;min-width:0}
+.player-identity{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:10px;min-width:0}.player-identity-text{display:flex;flex-direction:column;gap:4px;min-width:0}
 #player-station{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #player-status{font-size:12px;line-height:1.35;color:#b7cfd3;overflow-wrap:anywhere}
 .player-tracks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;min-width:0}
@@ -322,7 +322,7 @@ textarea{font-weight:400;line-height:1.5}
 }
 @media(max-width:700px){
  .radio-player{bottom:max(8px,env(safe-area-inset-bottom));margin:12px 12px 8px;padding:8px 12px;grid-template-columns:minmax(0,1fr);gap:6px}
- .player-identity{flex-direction:row;align-items:baseline;gap:12px}
+ .player-identity{grid-template-columns:32px minmax(0,1fr);gap:10px}.player-identity>.station-logo{width:32px;height:32px}.player-identity-text{flex-direction:row;align-items:baseline;gap:12px}
  #player-station{flex:1;min-width:0;font-size:13px}
  #player-status{max-width:65%;font-size:11px;text-align:right}
  .player-tracks{grid-column:1;grid-row:2;gap:12px}
@@ -400,3 +400,5 @@ textarea{font-weight:400;line-height:1.5}
 .dj-photo-remove{position:absolute;top:6px;right:6px;display:grid;place-items:center;width:32px;height:32px;min-height:32px;padding:0;border:1px solid #ffffffb3;border-radius:50%;background:#182b35d9;color:white;font-size:24px;line-height:1;box-shadow:0 1px 4px #0003}.dj-photo-remove svg{display:block}.dj-photo-remove:hover{background:#182b35}.dj-photo-remove:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 
 .dj-settings label[for=conversation-speed]{margin-bottom:0}.dj-settings .speed-control{margin-top:6px}.dj-settings .speed-control input[type=range]{margin-top:0}
+
+.station-logo{object-fit:contain;border-radius:8px;flex-shrink:0;background:white}.station-heading{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:12px;min-width:0}.station-heading h1,.station-heading h2{min-width:0;overflow-wrap:anywhere}.station-overview-heading{gap:16px}.dj-photo-preview .station-logo{object-fit:contain}

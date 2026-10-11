@@ -200,6 +200,7 @@ type sourceCard struct {
 	Tracks int
 }
 type view struct {
+	StationError                      string
 	MixerChannels                     []mixerChannel
 	MusicVolume, DJVolume, MixerError string
 	Show                              schedule.Show

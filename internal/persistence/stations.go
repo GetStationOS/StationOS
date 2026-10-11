@@ -2,7 +2,9 @@ package persistence
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -56,12 +58,23 @@ func (r Stations) Save(ctx context.Context, s station.Station) error {
 	if err != nil {
 		return err
 	}
+	if s.Logo != nil {
+		if s.Logo.Clear {
+			_, err = tx.ExecContext(ctx, `DELETE FROM station_logos WHERE station_id=?`, s.ID)
+		} else {
+			hash := sha256.Sum256(s.Logo.Data)
+			_, err = tx.ExecContext(ctx, `INSERT INTO station_logos(station_id,data,version) VALUES(?,?,?) ON CONFLICT(station_id) DO UPDATE SET data=excluded.data,version=excluded.version`, s.ID, s.Logo.Data, hex.EncodeToString(hash[:]))
+		}
+		if err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
 func (r Stations) ByStreamSlug(ctx context.Context, slug string) (station.Station, error) {
 	var s station.Station
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug FROM stations WHERE stream_slug=? AND stream_slug<>''`, slug).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug)
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),'') FROM stations WHERE stream_slug=? AND stream_slug<>''`, slug).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.LogoVersion)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = station.ErrNotFound
 	}
@@ -69,14 +82,14 @@ func (r Stations) ByStreamSlug(ctx context.Context, slug string) (station.Statio
 }
 func (r Stations) Get(ctx context.Context, id string) (station.Station, error) {
 	var s station.Station
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug FROM stations WHERE id=?`, id).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug)
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),'') FROM stations WHERE id=?`, id).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.LogoVersion)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = station.ErrNotFound
 	}
 	return s, err
 }
 func (r Stations) List(ctx context.Context) ([]station.Station, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug FROM stations ORDER BY name,id`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),'') FROM stations ORDER BY name,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +97,7 @@ func (r Stations) List(ctx context.Context) ([]station.Station, error) {
 	out := []station.Station{}
 	for rows.Next() {
 		var s station.Station
-		if err = rows.Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug); err != nil {
+		if err = rows.Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.LogoVersion); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -117,4 +130,13 @@ func (r Stations) Delete(ctx context.Context, id string) error {
 		return station.ErrNotFound
 	}
 	return tx.Commit()
+}
+
+func (r Stations) Logo(ctx context.Context, id string) ([]byte, error) {
+	var data []byte
+	err := r.DB.QueryRowContext(ctx, `SELECT data FROM station_logos WHERE station_id=?`, id).Scan(&data)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = station.ErrNotFound
+	}
+	return data, err
 }

@@ -160,7 +160,7 @@ func TestWriteSecurityAndValidation(t *testing.T) {
 	if w := request(h, "POST", "/station", url.Values{"name": {"Test"}}, nil); w.Code != 403 {
 		t.Fatal(w.Code)
 	}
-	if w := request(h, "POST", "/station", url.Values{"csrf": {token}, "name": {"A"}, "timezone": {"wrong"}}, nil); w.Code != 400 {
+	if w := request(h, "POST", "/station", url.Values{"csrf": {token}, "name": {"A"}, "timezone": {"wrong"}}, nil); w.Code != 422 {
 		t.Fatal(w.Code)
 	}
 	base.Set("id", "missing")
@@ -173,7 +173,7 @@ func TestWriteSecurityAndValidation(t *testing.T) {
 	if w := request(h, "POST", "/sources/missing/sync", url.Values{"csrf": {token}}, nil); w.Code != 404 {
 		t.Fatal(w.Code)
 	}
-	if w := request(h, "POST", "/station", url.Values{"csrf": {token}, "name": {strings.Repeat("x", 20000)}}, nil); w.Code != 400 {
+	if w := request(h, "POST", "/station", url.Values{"csrf": {token}, "name": {strings.Repeat("x", 20000)}}, nil); w.Code != 422 {
 		t.Fatal(w.Code)
 	}
 	for _, path := range []string{"/content?offset=-1", "/content?offset=bad", "/content?q=" + strings.Repeat("x", 201)} {

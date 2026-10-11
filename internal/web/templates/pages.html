@@ -199,11 +199,11 @@
 
 {{define "card-track"}}<div class="card-track">{{template "track-art" .}}<div class="card-track-info"><span class="eyebrow">{{.Label}}</span><strong>{{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</strong>{{if .Item.Artist}}<span class="card-track-artist">{{.Item.Artist}}</span>{{end}}{{if .Item.ID}}<span class="card-track-meta">{{if .Item.Album}}{{.Item.Album}}{{end}}{{if .Item.Duration}}{{if .Item.Album}} · {{end}}{{.Duration}}{{end}}</span>{{end}}</div></div>{{end}}
 
-{{define "track-art"}}<div class="track-art" aria-hidden="true"><span class="art-placeholder">♫</span>{{if .Artwork}}<img src="{{.Artwork}}" alt="" width="80" height="80" loading="lazy" decoding="async" data-track-artwork>{{end}}</div>{{end}}
+{{define "track-art"}}<div class="track-art" aria-hidden="true"><span class="art-placeholder">♫</span>{{if .Artwork}}<img src="{{.Artwork}}" alt="" width="80" height="80" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-track-artwork>{{end}}</div>{{end}}
 
 {{define "player-track"}}<div class="player-track">{{template "track-art" .}}<div class="player-track-info"><span class="eyebrow">{{.Label}}</span><strong>{{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</strong>{{if .Item.Artist}}<span class="player-track-artist">{{.Item.Artist}}</span>{{end}}</div></div>{{end}}
 
-{{define "player-tracks"}}<div id="player-tracks" class="player-tracks" data-station-logo="{{.Station.LogoURL}}" data-station-name="{{.Station.Name}}">{{if or (eq .Broadcast.Phase "chatter") (eq .Broadcast.Phase "handover")}}{{template "player-track" (stationTrack .Station.ID "DJ ON AIR" "Nothing playing" .Broadcast.Current)}}{{else}}{{template "player-track" (stationTrack .Station.ID "NOW PLAYING" "Nothing playing" .Broadcast.Current)}}{{end}}{{template "player-track" (stationTrack .Station.ID "UP NEXT" "Not queued" .Broadcast.Next)}}</div>{{end}}
+{{define "player-tracks"}}<div id="player-tracks" class="player-tracks" data-station-logo="{{.Station.LogoURL}}" data-station-name="{{.Station.Name}}">{{template "player-track" (playerCurrentTrack .Station.ID .Broadcast)}}{{template "player-track" (stationTrack .Station.ID "UP NEXT" "Not queued" .Broadcast.Next)}}</div>{{end}}
 
 {{define "overview-track"}}<span class="eyebrow">{{.Label}}</span><div class="overview-track">{{template "track-art" .}}<div class="overview-track-info"><h2>{{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</h2>{{if .Item.Artist}}<p>{{.Item.Artist}}</p>{{end}}{{if .Item.Album}}<p class="hint">{{.Item.Album}}</p>{{end}}</div></div>{{end}}
 

@@ -2,16 +2,20 @@ package web
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
+	"html/template"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/playlists"
+	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
 	"strings"
@@ -116,5 +120,59 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 		case <-deadline:
 			t.Fatal("player did not get both actual tracks")
 		}
+	}
+}
+
+func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
+	templates, err := template.New("pages").Funcs(template.FuncMap{"stationTrack": stationTrack, "playerCurrentTrack": playerCurrentTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	music := content.AudioItem{ID: "song", Title: "Song", Artist: "Artist", Artwork: "http://source/album.jpg"}
+	next := content.AudioItem{ID: "next", Title: "Next song", Artwork: "http://source/next.jpg"}
+	photo := "/djs/outgoing/photo?v=123"
+	state := broadcast.State{Programme: schedule.Occurrence{DJ: djs.Profile{ID: "outgoing", Name: "Speaking DJ", PortraitURL: photo}}, Following: schedule.Occurrence{DJ: djs.Profile{ID: "incoming", PortraitURL: "/static/djs/clara-vale.jpg"}}, Next: next}
+	for _, phase := range []string{"chatter", "handover", "music", "missing-photo", "empty"} {
+		t.Run(phase, func(t *testing.T) {
+			current := state
+			current.Phase = phase
+			current.Current = content.AudioItem{ID: "speech", Title: "DJ link", Artist: "Speaking DJ", Kind: content.PresenterLink}
+			if phase == "music" {
+				current.Current = music
+			}
+			if phase == "missing-photo" {
+				current.Phase = "chatter"
+				current.Programme.DJ.PortraitURL = ""
+			}
+			if phase == "empty" {
+				current.Phase = "chatter"
+				current.Current = content.AudioItem{}
+			}
+			var html bytes.Buffer
+			if err := templates.ExecuteTemplate(&html, "player-tracks", view{Station: station.Station{ID: "radio"}, Broadcast: current}); err != nil {
+				t.Fatal(err)
+			}
+			result := html.String()
+			if strings.Contains(result, "/static/djs/clara-vale.jpg") {
+				t.Fatal("used incoming DJ before they spoke", result)
+			}
+			if !strings.Contains(result, stationTrack("radio", "", "", next).Artwork) {
+				t.Fatal("lost next album cover", result)
+			}
+			switch phase {
+			case "music":
+				if strings.Contains(result, photo) || !strings.Contains(result, stationTrack("radio", "", "", music).Artwork) || !strings.Contains(result, "NOW PLAYING") {
+					t.Fatal("did not restore music artwork", result)
+				}
+			case "missing-photo", "empty":
+				if strings.Contains(result, photo) || !strings.Contains(result, "art-placeholder") {
+					t.Fatal("missing portrait fallback", result)
+				}
+			default:
+				if !strings.Contains(result, `src="`+photo+`"`) || !strings.Contains(result, "DJ ON AIR") || !strings.Contains(result, "Speaking DJ") {
+					t.Fatal("missing speaking DJ portrait", result)
+				}
+			}
+		})
 	}
 }

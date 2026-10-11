@@ -10,7 +10,7 @@ import (
 	"stationos.local/stationos/internal/station"
 )
 
-// Broadcast stores configuration only; listeners and playback are process state.
+// Broadcast stores assignments and track rotation history; listeners remain process state.
 type Broadcast struct{ DB *sql.DB }
 
 func (r Broadcast) Assignment(ctx context.Context, id string) (string, error) {

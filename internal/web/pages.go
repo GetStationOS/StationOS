@@ -200,6 +200,8 @@ type sourceCard struct {
 	Tracks int
 }
 type view struct {
+	StationRepeatSupplied             bool
+	StationRepeatInput                string
 	StationError                      string
 	MixerChannels                     []mixerChannel
 	MusicVolume, DJVolume, MixerError string

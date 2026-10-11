@@ -59,18 +59,33 @@ func (s Station) LogoURL() string {
 	return path
 }
 
+const DefaultRepeatMinutes = 180
+const MaxRepeatMinutes = 7 * 24 * 60
+
+// RepeatIntervalMinutes supplies the default for new Go configuration values.
+func (s Station) RepeatIntervalMinutes() int {
+	if s.RepeatMinutes == 0 {
+		return DefaultRepeatMinutes
+	}
+	return s.RepeatMinutes
+}
+
 type Station struct {
-	LogoVersion string      `json:"logo_version,omitempty"`
-	Logo        *LogoChange `json:"-"`
-	StreamSlug  string      `json:"stream_slug"`
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Timezone    string      `json:"timezone"`
-	Locale      string      `json:"locale"`
+	RepeatMinutes int         `json:"repeat_minutes"`
+	LogoVersion   string      `json:"logo_version,omitempty"`
+	Logo          *LogoChange `json:"-"`
+	StreamSlug    string      `json:"stream_slug"`
+	ID            string      `json:"id"`
+	Name          string      `json:"name"`
+	Description   string      `json:"description"`
+	Timezone      string      `json:"timezone"`
+	Locale        string      `json:"locale"`
 }
 
 func (s Station) Validate() error {
+	if s.RepeatMinutes < 0 || s.RepeatMinutes > MaxRepeatMinutes {
+		return errors.New("minimum time between plays must be between 1 and 10080 minutes")
+	}
 	if s.Logo != nil && ((s.Logo.Clear && len(s.Logo.Data) > 0) || (!s.Logo.Clear && (len(s.Logo.Data) == 0 || len(s.Logo.Data) > 5<<20))) {
 		return errors.New("invalid logo replacement")
 	}

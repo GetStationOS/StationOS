@@ -19,6 +19,7 @@ import (
 var ErrUnavailable = errors.New("station has no playable music; assign a playlist with available tracks")
 var ErrBusy = errors.New("broadcast capacity reached; try again shortly")
 var ErrClosed = errors.New("broadcast stopped")
+var errHistory = errors.New("track play history could not be saved")
 
 type Repository interface {
 	Assignment(context.Context, string) (string, error)
@@ -31,6 +32,7 @@ type Encoder interface {
 	Open(context.Context, content.AudioItem) (io.ReadCloser, error)
 }
 type State struct {
+	RepeatRelaxed          bool
 	Programme, Following   schedule.Occurrence
 	Phase, PresenterStatus string
 	Status                 string
@@ -40,6 +42,7 @@ type State struct {
 	Error                  string
 }
 type Options struct {
+	History                                 History
 	Mixer                                   mixer.Repository
 	MaxStations, MaxListeners, BufferChunks int
 	StreamBuffer                            time.Duration
@@ -340,7 +343,7 @@ func (m *Manager) play(id string, r *run) {
 					break
 				}
 			}
-			m.last[id] = State{Status: "Unavailable", Error: "Music could not be played. Check the assigned playlist and source."}
+			m.last[id] = State{Status: "Unavailable", Error: "Music could not be played. Check the assigned playlist, source and database."}
 		}
 		m.changedLocked()
 		close(r.done)
@@ -437,8 +440,17 @@ func (m *Manager) playProgramme(id string, r *run) {
 			}
 		}
 	}
+	var rotation Rotation
 	request := func(show, next schedule.Occurrence, pool []content.AudioItem) {
 		if m.options.Producer == nil || show.DJ.ID == "" || !show.DJ.HasKey {
+			return
+		}
+		at := m.now()
+		if show.Start.After(at) {
+			at = show.Start
+		}
+		pool, _ = rotationPool(pool, rotation, at, rotation.LastTrackID)
+		if len(pool) == 0 {
 			return
 		}
 		key := production.CacheKey(show, next)
@@ -464,7 +476,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 	defer audioCleanup.Wait()
 	clock := deliveryClock{lead: m.options.StreamBuffer}
 	playoutNow := func() time.Time { return clock.programmeTime(m.now(), time.Now()) }
-	emit := func(data []byte, state State) bool {
+	emit := func(data []byte, state *State) bool {
 		// Reflect completed preparation while the current track is still playing.
 		// Draining ready results never waits for external generation.
 		drain()
@@ -488,13 +500,16 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if r.ctx.Err() != nil {
 			return false
 		}
+		if state.Started.IsZero() {
+			state.Started = playoutNow()
+		}
 		clock.advance(len(data))
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		changed := !sameRuntimeState(r.state, state)
+		changed := !sameRuntimeState(r.state, *state)
 		beforeListeners := len(r.listeners)
-		r.state = state
-		frame := streamFrame(data, state)
+		r.state = *state
+		frame := streamFrame(data, *state)
 		r.recent.append(frame)
 		for sub := range r.listeners {
 			if !sub.enqueue(frame) {
@@ -560,12 +575,22 @@ func (m *Manager) playProgramme(id string, r *run) {
 				m.logger.Warn("Audio supply stalled", "station_id", id, "track_id", state.Current.ID, "elapsed", elapsed)
 			}
 			if n > 0 {
-				if !started {
-					state.Started = m.now()
-					started = true
-				}
-				if !emit(buf[:n], state) {
+				if !emit(buf[:n], &state) {
 					return started, r.ctx.Err()
+				}
+				if !started {
+					started = true
+					if state.Phase == "music" && m.options.History != nil {
+						// Persist after the first delivered music bytes, even if the last
+						// listener disconnects immediately afterwards. Preparation is not a play.
+						ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 2*time.Second)
+						err := m.options.History.RecordPlay(ctx, id, state.Current.ID, state.Started)
+						cancel()
+						if err != nil {
+							m.logger.Error("Track history could not be saved", "station_id", id, "track_id", state.Current.ID, "error", err)
+							return started, errors.Join(errHistory, err)
+						}
+					}
 				}
 			}
 			if err != nil {
@@ -661,9 +686,20 @@ func (m *Manager) playProgramme(id string, r *run) {
 			plan, ready = prepared[key]
 			introPlayed = false
 			selectedIDs = nil
-			previous = ""
 			// Keep bounded prefetched assets across the boundary; no duplicate API
 			// preparation just because the next show has started.
+		}
+		rotation, err = m.rotation(r.ctx, id, playoutNow())
+		if err != nil {
+			m.logger.Error("Track history unavailable", "station_id", id, "error", err)
+			return
+		}
+		if previous == "" {
+			previous = rotation.LastTrackID
+		}
+		candidates, repeatRelaxed := rotationPool(pool, rotation, playoutNow(), previous)
+		if len(candidates) == 0 {
+			return
 		}
 		playing = timeline.Current
 		m.mu.Lock()
@@ -675,7 +711,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		current := content.AudioItem{}
 		if queuedShow == playing.Key {
-			for _, a := range pool {
+			for _, a := range candidates {
 				if a.ID == queued.ID {
 					current = a
 					break
@@ -692,7 +728,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 			}
 		}
 		if current.ID == "" {
-			current = selectTrack(pool, previous, selectedIDs, remaining)
+			current = selectTrack(candidates, previous, selectedIDs, remaining)
 		}
 		for i, id := range selectedIDs {
 			if id == current.ID {
@@ -731,6 +767,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if !nextTimeline.Current.End.IsZero() {
 			nextRemaining = nextTimeline.Current.End.Sub(predictedEnd)
 		}
+		// Reserve the current choice only for predictions; persistence records
+		// it when music actually starts. Revalidate the queue at the next boundary.
+		if rotation.LastPlayed == nil {
+			rotation.LastPlayed = map[string]time.Time{}
+		}
+		rotation.LastPlayed[current.ID] = playoutNow()
+		rotation.LastTrackID = current.ID
+		nextPool, _ = rotationPool(nextPool, rotation, predictedEnd, current.ID)
 		queued = selectTrack(nextPool, current.ID, selectedIDs, nextRemaining)
 		queuedShow = nextTimeline.Current.Key
 		// Prepare the next DJ in advance while the outgoing programme is playing.
@@ -808,7 +852,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		started := false
 		if err == nil {
-			started, err = stream(audio, State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: current, Next: queued, Phase: "music", PresenterStatus: presenter})
+			started, err = stream(audio, State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: current, Next: queued, Phase: "music", PresenterStatus: presenter, RepeatRelaxed: repeatRelaxed})
+		}
+		if errors.Is(err, errHistory) {
+			return
 		}
 		if started {
 			failures = 0

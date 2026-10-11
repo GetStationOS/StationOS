@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"stationos.local/stationos/internal/broadcast"
+	"strconv"
 	"strings"
 
 	"stationos.local/stationos/internal/catalogue"
@@ -252,6 +253,15 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		v.LogoVersion = existing.LogoVersion
+		v.RepeatMinutes = existing.RepeatMinutes
+	}
+	if input, supplied := r.PostForm["repeat_minutes"]; supplied {
+		minutes, err := strconv.Atoi(input[0])
+		if err != nil || minutes < 1 || minutes > station.MaxRepeatMinutes {
+			s.stationFormError(w, r, v, errors.New("minimum time between plays must be between 1 and 10080 minutes"))
+			return
+		}
+		v.RepeatMinutes = minutes
 	}
 	change, err := s.readUploadedImage(r, "logo")
 	if change != nil {

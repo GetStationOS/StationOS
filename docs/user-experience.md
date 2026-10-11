@@ -103,3 +103,8 @@ DJ creation and editing group Profile, Editorial style, Voice and API access in 
 Station creation and Settings reuse the DJ photo preview, JPEG/PNG chooser and accessible remove X. Local preview changes commit with the form. Empty upload preserves the saved logo; removal restores the bundled radio logo. Limits match DJ photos (5 MB, 12 megapixels). Station cards, Overview and the persistent player show station identity separately from album covers; player identity updates through its existing event connection.
 
 Station names sit beside their logos on listing cards and the station Overview heading, including narrow screens. The floating player uses a dedicated logo column beside its station name/status so branding remains visible without overlapping track metadata. Supported browser and phone media controls receive the selected station logo, actual current title/performer and station name through the Media Session API; metadata follows station/track changes and clears on Stop. Native Play/Pause/Stop actions use the same listener lifecycle as the app controls.
+
+
+## Track repeat interval
+
+Station creation and Settings include Minimum time between plays (minutes), default 180, accepting whole minutes from 1 to 10080. It applies across the station's shows and playlists and survives restarts and listener disconnects. Help text explains that small pools use their least recently played alternative when necessary. Station cards and Overview show a quiet, measured Repeat interval relaxed notice only while that fallback track is being broadcast. Operators manage duplicate recordings through playlist exclusions; StationOS uses exact track identity.

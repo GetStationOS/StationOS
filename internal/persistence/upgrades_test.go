@@ -17,7 +17,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -172,7 +172,7 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 				t.Fatal("upgrade changed station levels", levels, err)
 			}
 			station, err := (Stations{DB: db}).Get(ctx, "station")
-			if err != nil || station.Description != "Identity" || station.StreamSlug != "keep-station" {
+			if err != nil || station.Description != "Identity" || station.StreamSlug != "keep-station" || station.RepeatMinutes != 180 {
 				t.Fatal(station, err)
 			}
 			source, err := (Sources{DB: db}).Get(ctx, "source")

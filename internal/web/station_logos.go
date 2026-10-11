@@ -52,6 +52,8 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 		return
 	}
 	v.Station = st
+	v.StationRepeatInput = r.PostForm.Get("repeat_minutes")
+	v.StationRepeatSupplied = r.PostForm.Has("repeat_minutes")
 	v.StationError = err.Error() + " Choose the logo again if you selected a file."
 	v.Title = "Create station"
 	v.Page = "/stations/new"

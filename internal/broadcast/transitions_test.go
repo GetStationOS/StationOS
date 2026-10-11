@@ -31,6 +31,7 @@ func (r *delayedCleanup) Close() error {
 }
 
 type aheadTestEncoder struct {
+	firstOpen sync.Once
 	fakeEncoder
 	cleanupRelease chan struct{}
 	cleanupStarted chan struct{}
@@ -39,8 +40,10 @@ type aheadTestEncoder struct {
 
 func (e *aheadTestEncoder) Open(ctx context.Context, item content.AudioItem) (io.ReadCloser, error) {
 	audio, err := e.fakeEncoder.Open(ctx, item)
-	if err == nil && e.count.Load() == 1 {
-		audio = &delayedCleanup{ReadCloser: audio, release: e.cleanupRelease, started: e.cleanupStarted}
+	if err == nil {
+		e.firstOpen.Do(func() {
+			audio = &delayedCleanup{ReadCloser: audio, release: e.cleanupRelease, started: e.cleanupStarted}
+		})
 	}
 	return audio, err
 }

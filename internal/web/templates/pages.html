@@ -11,7 +11,21 @@
 <div class="workspace"><span id="global-busy" class="htmx-indicator global-busy" role="status">Working…</span>
 <div id="feedback" class="app-feedback" role="alert" tabindex="-1" hidden></div>
 <main id="main" tabindex="-1" hx-history-elt>{{template "content" .}}</main>
-{{if .BroadcastEnabled}}<aside id="radio-player" class="radio-player" aria-label="Station player" hx-boost="false" hidden><div class="player-identity"><span class="eyebrow">LISTENING TO</span><strong id="player-station"></strong><span id="player-status" role="status"></span></div>{{template "player-tracks" .}}<audio id="station-audio" preload="none"></audio><label class="player-volume">Volume<input id="radio-volume" type="range" min="0" max="1" step="0.05" value="1"></label><button type="button" class="secondary" data-toggle-radio>Pause</button><button type="button" class="secondary" data-stop-radio>Stop</button></aside>{{end}}</div>
+{{if .BroadcastEnabled}}
+<aside id="radio-player" class="radio-player" aria-label="Station player" hx-boost="false" hidden>
+  <div class="player-identity"><strong id="player-station"></strong><span id="player-status" role="status"></span></div>
+  {{template "player-tracks" .}}
+  <audio id="station-audio" preload="none"></audio>
+  <div class="player-controls">
+    <label class="player-volume"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/></svg><input id="radio-volume" aria-label="Volume" type="range" min="0" max="1" step="0.05" value="1"></label>
+    <button type="button" class="player-control player-toggle" data-toggle-radio data-radio-action="pause" aria-label="Pause" title="Pause">
+      <svg class="radio-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3v14H7zm7 0h3v14h-3z"/></svg>
+      <svg class="radio-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg>
+      <svg class="radio-icon-retry" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M19 12a7 7 0 1 0-2 5"/></svg>
+    </button>
+    <button type="button" class="player-control" data-stop-radio aria-label="Stop" title="Stop"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
+  </div>
+</aside>{{end}}</div>
 <dialog id="confirm-dialog" class="modal" aria-labelledby="dialog-heading" aria-describedby="dialog-description"><div id="dialog-body"></div><div class="modal-error" data-modal-error role="alert" tabindex="-1" hidden></div></dialog>
 <dialog id="unsaved-dialog" class="modal" aria-labelledby="unsaved-heading" aria-describedby="unsaved-description"><h2 id="unsaved-heading">Discard changes?</h2><p id="unsaved-description">Your genre and album changes have not been saved.</p><div class="form-actions"><button type="button" class="secondary" data-keep-editing autofocus>Keep editing</button><button type="button" class="danger" data-discard-changes>Discard changes</button></div></dialog>
 </body></html>{{end}}

@@ -146,6 +146,13 @@ const player = document.getElementById('radio-player');
 let selectedRadio = null;
 let radioMetadataEvents=null;
 let switchingRadio = false;
+function setRadioAction(action) {
+  const control = player.querySelector('[data-toggle-radio]');
+  const label = {pause:'Pause',play:'Resume',retry:'Retry'}[action];
+  control.dataset.radioAction = action;
+  control.setAttribute('aria-label', label);
+  control.title = label;
+}
 function stopRadio() {
   selectedRadio = null;
   radioMetadataEvents?.close();radioMetadataEvents=null;
@@ -155,7 +162,7 @@ function stopRadio() {
 async function playRadio(button) {
   switchingRadio = true;
   player.querySelector('[data-toggle-radio]').disabled=true;
-  player.querySelector('[data-toggle-radio]').textContent='Pause';
+  setRadioAction('pause');
   radio.pause(); radio.removeAttribute('src'); radio.load();
   const streamURL = new URL(button.dataset.listenRadio, location.href);
   const listenerID = Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -166,7 +173,7 @@ async function playRadio(button) {
   document.getElementById('player-status').textContent = 'Connecting…';
   player.hidden = false;
   radio.src = selectedRadio.url;
-  try { await radio.play(); } catch (error) { if(selectedRadio) document.getElementById('player-status').textContent = 'Unable to listen. Check the station playlist and source, then try again.'; }
+  try { await radio.play(); } catch (error) { if(selectedRadio) { document.getElementById('player-status').textContent = 'Unable to listen. Check the station playlist and source, then try again.'; setRadioAction('retry'); } }
   switchingRadio = false;
   player.querySelector('[data-toggle-radio]').disabled=false;
 }
@@ -174,7 +181,7 @@ document.body.addEventListener('click',event=>{
   const listen=event.target.closest('[data-listen-radio]');
   if(listen && radio) playRadio(listen);
   if(event.target.closest('[data-stop-radio]') && radio) stopRadio();
-  if(event.target.closest('[data-toggle-radio]') && selectedRadio) {if(radio.paused || radio.error){const control=player.querySelector('[data-toggle-radio]');switchingRadio=true;control.disabled=true;document.getElementById('player-status').textContent='Connecting…';radio.src=selectedRadio.url;radio.play().catch(()=>{if(selectedRadio)document.getElementById('player-status').textContent='Unable to listen. Try Listen again.'}).finally(()=>{switchingRadio=false;control.disabled=false;});}else radio.pause();}
+  if(event.target.closest('[data-toggle-radio]') && selectedRadio) {if(radio.paused || radio.error){const control=player.querySelector('[data-toggle-radio]');switchingRadio=true;control.disabled=true;setRadioAction('pause');document.getElementById('player-status').textContent='Connecting…';radio.src=selectedRadio.url;radio.play().catch(()=>{if(selectedRadio){document.getElementById('player-status').textContent='Unable to listen. Try again.';setRadioAction('retry');}}).finally(()=>{switchingRadio=false;control.disabled=false;});}else radio.pause();}
   const copy=event.target.closest('[data-copy-stream]');
   if(copy) {
     const field=copy.closest('.stream-access').querySelector('input');
@@ -185,16 +192,16 @@ document.body.addEventListener('click',event=>{
 });
 if(radio) {
   document.getElementById('radio-volume').addEventListener('input',event=>{radio.volume=Number(event.target.value);});
-  radio.addEventListener('playing',()=>{document.getElementById('player-status').textContent='Live';player.querySelector('[data-toggle-radio]').textContent='Pause';});
+  radio.addEventListener('playing',()=>{document.getElementById('player-status').textContent='Live';setRadioAction('pause');});
   radio.addEventListener('waiting',()=>{if(selectedRadio)document.getElementById('player-status').textContent='Buffering…'});
-  radio.addEventListener('error',()=>{if(selectedRadio){document.getElementById('player-status').textContent='Stream unavailable. Check the source and try again.';player.querySelector('[data-toggle-radio]').textContent='Retry';}});
-  radio.addEventListener('ended',()=>{if(selectedRadio){radio.removeAttribute('src');radio.load();player.querySelector('[data-toggle-radio]').textContent='Resume';document.getElementById('player-status').textContent='Stream stopped. Resume to reconnect.';}});
+  radio.addEventListener('error',()=>{if(selectedRadio){document.getElementById('player-status').textContent='Stream unavailable. Check the source and try again.';setRadioAction('retry');}});
+  radio.addEventListener('ended',()=>{if(selectedRadio){radio.removeAttribute('src');radio.load();setRadioAction('play');document.getElementById('player-status').textContent='Stream stopped. Resume to reconnect.';}});
   radio.addEventListener('pause',()=>{
     if(switchingRadio || !selectedRadio || !radio.paused)return;
     // Release the listener connection while retaining the chosen station for Play.
     radio.removeAttribute('src');radio.load();
     document.getElementById('player-status').textContent='Paused';
-    player.querySelector('[data-toggle-radio]').textContent='Resume';
+    setRadioAction('play');
   });
   radio.addEventListener('play',()=>{
     if(selectedRadio && !radio.getAttribute('src')){radio.src=selectedRadio.url;radio.play().catch(()=>{});}

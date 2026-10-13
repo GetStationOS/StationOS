@@ -96,7 +96,7 @@ Both DJ curation candidates and current/next chatter inputs use explicit Perform
 
 Broadcast runtime observers use bounded, coalesced notifications for displayed state/listener changes; ordinary audio frames do not notify when state is unchanged. Successful management writes announce committed configuration changes. Observers are independent of audio subscriptions and cannot start a station or change listener counts.
 
-The authenticated `/stations/events` endpoint retains one connection per live homepage, bounds concurrency to 64, resets write deadlines for each flushed message, and releases observers on disconnect. Server-rendered station HTML is hashed so unchanged content emits no data event. A quiet 15-second heartbeat also reconciles changes made outside the process and clock-dependent labels. The browser patches only differing nodes while retaining card identity, unchanged artwork and focused controls; navigation closes the connection and history return opens a fresh one. Station workspace polling remains separate.
+The authenticated `/producer/stations/events` endpoint retains one connection per live homepage, bounds concurrency to 64, resets write deadlines for each flushed message, and releases observers on disconnect. Server-rendered station HTML is hashed so unchanged content emits no data event. A quiet 15-second heartbeat also reconciles changes made outside the process and clock-dependent labels. The browser patches only differing nodes while retaining card identity, unchanged artwork and focused controls; navigation closes the connection and history return opens a fresh one. Station workspace polling remains separate.
 
 
 ### Persistent player metadata
@@ -153,3 +153,107 @@ Migration 15 adds station-owned `repeat_minutes` (default 180, range 1–10080) 
 The broadcast history port reads policy and recent plays atomically at track boundaries, along with the latest track ID for consecutive-repeat avoidance across reconnects. Candidates are filtered before curation, random selection and duration fitting. Current music is provisionally reserved for next-track predictions; queued/preloaded items and cached DJ choices are revalidated against actual history before airtime. Start-to-start intervals use the programme timeline. Only the first music bytes delivered to listeners count as a play, including tracks interrupted afterwards; preparing audio, speech and zero-byte failures do not. Failed history reads/writes stop production rather than broadcasting with an unenforced policy.
 
 When every alternative is too recent, only the least recently played alternatives enter selection. Consecutive repeats are avoided whenever the pool contains another track. A single-track pool continues with an explicit relaxation. Current fallback state is exposed on station cards and Overview and clears with subsequent segments. SQLite reads only history within the configured interval plus the last track identity; storage retains the latest timestamp per station/track, allowing a longer interval to be applied later.
+
+
+## Public station publishing
+
+Migration 16 adds station-owned visibility (`listed`, `unlisted`, `private`), validated in the domain and saved atomically with identity/logo settings. Its Unlisted default preserves existing direct streams without publishing stations in a directory; frozen version 15 upgrade coverage verifies preservation. The same stable stored stream slug identifies `/radio/<slug>` and `/streams/<slug>` independently of station names.
+
+The HTTP edge separates public listening routes from management at `/producer`. Only GET/HEAD listener pages, events, scoped images and static assets bypass configured management authentication; all management writes retain bounded inputs, origin checks and CSRF. Protected legacy management URLs redirect preserving query strings. Existing uploaded `/djs/<id>/photo` references remain authenticated for compatibility. Public presenter-photo proxies require that the presenter belongs to the station schedule, and public track-artwork proxies expose only current/next items through the existing checked source transport. Private page/media access returns 404; private audio preview uses protected `/producer/streams/<slug>`. An explicit transition to Private stops the broadcaster, releasing listeners.
+
+Public templates project listener-visible identity, tracks and programme labels. They do not render credentials, editorial prompts, source addresses, playlist management links or raw producer errors. Public SSE observers share the bounded 64-view admission limit, use change notifications and 15-second reconciliation, hash rendered content and enforce rolling write deadlines. They never subscribe to audio. Publication is rechecked on updates and a revoked station ends public event connections. Public page and player observers patch changed content while audio remains outside the HTMX history region. Runtime state remains process-local and listener-driven.
+
+### Audience participation
+
+Scheduled shows opt into track requests and shout-outs independently. Public
+submissions belong to the next advertised occurrence of an enabled show, including
+its schedule revision. Changing the show expires pending and approved messages;
+submissions never carry into another week's programme. The default is disabled.
+
+`audience.Service` resolves public station policy, occurrences and eligible tracks.
+The SQLite adapter commits submissions with a second policy/revision check, limits
+three submissions per anonymous cookie in ten minutes, caps each station at 200
+active items and removes records older than 30 days during queue activity. Public
+forms use a dedicated HttpOnly, SameSite cookie and HMAC form token; producer
+credentials and form tokens are never exposed. A bounded in-memory address limit
+also controls cookie-reset traffic, using hashed socket addresses rather than
+forwarded headers. Configure the public HTTPS origin behind the proxy.
+
+The existing bounded DJ link worker reviews up to four pending items during a live
+show, using the Decisions API (`gpt-6-luna`) over projected, untrusted listener data.
+Named predicate answers route clearly suitable submissions to approval (probability
+≥ 0.95) and clearly unsuitable ones to dismissal (≤ 0.10). Intermediate estimates
+and refusals enter a separate producer-review state so they cannot block later
+submissions or repeatedly incur AI screening calls. These initial thresholds
+need evaluation against labelled station submissions; they do not establish legal
+status. Screening has a 15-second timeout. A failed/incomplete response leaves items
+pending. Producer decisions win over
+in-flight AI review. No listener means no production or review. AI credentials are
+those of the scheduled DJ; shows without credentials cannot generate spoken request introductions or
+shout-outs. Approved requests wait for a presenter that can introduce them.
+
+Approved requests are considered only from the revalidated rotation pool with a
+known duration fitting the remaining programme time. They do not modify playlist
+membership. Spoken links offer up to three approved shout-outs, or one matching request dedication, and
+validate the model's used IDs. Prepared speech is rechecked immediately before
+playout. Requests are marked used after the first delivered music bytes; shout-outs
+after the first delivered speech bytes. Generation and cancelled preparation never
+consume a submission. A request dedication does not consume the request before its
+track plays. Failures continue normal music selection.
+
+Request introductions bind speech to the exact selected catalogue ID. A matching
+approved request takes precedence over general shout-outs, even without a
+message. Its requester, dedication and authoritative queued recording are supplied
+as untrusted data in the DJ speech prompt. The speech adapter requires an explicit
+acknowledgement of that request ID and rejects another track or an omitted request.
+The broadcaster opens the recording before its introduction, rechecks approval and
+plays that same reader after the link. Only a completed introduction followed by
+actual music bytes fulfils the request; cold starts, omitted introductions and
+producer dismissals do not consume it. Source failures retain the request.
+
+Public contribution GETs project an exact enabled schedule occurrence. The
+`contribute` route offers only its supported types; request/shout-out routes serve
+the form and thank-you state. A `contribution-panel` HTMX target receives a scoped
+fragment, while ordinary navigation and history restores receive the full station
+page. Successful writes use a targeted HX-Location to a GET confirmation; errors
+re-render the submitted occurrence and escaped input without changing its target.
+Existing CSRF, origin, visibility and durable submission validation remain the
+authority for every write.
+
+Migration 18 adds an optional public show description with an empty default;
+frozen version 17 upgrade coverage verifies that existing show identities and
+participation settings survive. Public show pages are station-scoped and respect
+visibility. Their contribution GETs and POSTs additionally verify that the
+occurrence belongs to the show in the path.
+
+The public daily programme projects schedule occurrences onto station-local civil
+days using calendar arithmetic, including daylight-saving changes and overnight
+shows. Day navigation is bounded to today plus six days. Unscheduled gaps appear
+as continuous music, with no fabricated presenter. Participation links use the
+displayed occurrence key and stop when it ends, avoiding accidental next-week
+submissions. The selected day persists through contribution forms and redirects.
+
+Public schedule rows use ordinary links with a cached HTMX
+load of a station-scoped show fragment. Each show owns a separate contribution
+target and track selector, so multiple open shows cannot replace each other's
+forms. Expanded content remains mounted when collapsed. Contribution steps and
+confirmation update that card without pushing URLs or scrolling the page; day
+links replace only the programme region. Full-route fallbacks retain visibility,
+CSRF, occurrence and show ownership validation.
+
+Listener swaps use explicit `show:none`; confirmation HX-Location also disables
+history pushes. Track searches return only their show-scoped selector. Revealed
+show contents remain mounted and carry a loaded marker through HTMX
+history restoration, preventing a restored form from being fetched over again.
+Short height animations are scoped to the changed show region and disabled for
+reduced motion.
+
+Listener track requests search as the user types after a short pause, updating only the show-scoped results. Show up to eight eligible recordings with title, artist and album; provide initial-search and no-match messages. Native radio choices support keyboard and ordinary form submission. Enhanced forms keep the chosen recording in a persistent summary across searches, preserve listener input, and ignore obsolete search responses.
+
+Bare MP3 URLs can receive a tiny `Range: bytes=0-1` media probe before the playback GET. Such probes retain the compatible live-point 200/audio-mpeg response, deliver one initial audio chunk and finish, releasing their subscription. Ordinary/open-ended stream GETs remain continuous and independent; app probes carrying an opaque listener ID retain session replacement. Never merge external listeners by IP address, user agent or shared browser cookies. Verify direct Safari playback after deployment.
+
+The producer audience queue explains that review runs during spoken-link preparation. Its results refresh quietly every five seconds, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-presenter-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
+
+The oldest offered approved shout-out must be acknowledged by the speech adapter, as requests already are; its omission fails preparation and retains approval for a later link. Transport diagnostics identify the OpenAI endpoint, elapsed time and safe failure category without logging raw errors, credentials or listener text. Context cancellation remains identifiable so ordinary playback-boundary cleanup does not generate failure warnings.
+
+Shout-outs are explicitly framed as listener contributions in the DJ prompt. A link offers the three oldest approved shout-outs and requires the oldest; the DJ may include the others in one brief section (up to 75 words for a batch, 45 otherwise). Only unique, offered IDs actually acknowledged in the speech receive playout receipts; omitted messages remain approved. Matching track requests retain their separate required introduction and priority.

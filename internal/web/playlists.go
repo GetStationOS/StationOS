@@ -37,7 +37,7 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.Title = "Playlists"
-	if r.URL.Path == "/playlists/new" {
+	if r.URL.Path == "/producer/playlists/new" {
 		v.Title = "Add playlist"
 	}
 	v.StationID = r.URL.Query().Get("station")
@@ -107,7 +107,7 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, v.PlaylistResult.Total)
-		v.Pagination.ActionURL = "/content?playlist=" + id
+		v.Pagination.ActionURL = "/producer/content?playlist=" + id
 		if page != v.Pagination.Number {
 			v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (v.Pagination.Number-1)*size, size)
 			if err != nil {
@@ -144,12 +144,12 @@ func (s *Server) savePlaylist(w http.ResponseWriter, r *http.Request) {
 func playlistReturn(raw, id string) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.IsAbs() || u.Host != "" || u.User != nil || u.Fragment != "" || strings.ContainsAny(raw, "\r\n") {
-		return "/playlists/" + id
+		return "/producer/playlists/" + id
 	}
-	if u.Path == "/content" || u.Path == "/playlists/"+id || u.Path == "/playlists/"+id+"/tracks" || u.Path == "/playlists/"+id+"/settings" {
+	if u.Path == "/producer/content" || u.Path == "/producer/playlists/"+id || u.Path == "/producer/playlists/"+id+"/tracks" || u.Path == "/producer/playlists/"+id+"/settings" {
 		return u.String()
 	}
-	return "/playlists/" + id
+	return "/producer/playlists/" + id
 }
 func (s *Server) selectItems(w http.ResponseWriter, r *http.Request) {
 	id := r.PostForm.Get("playlist")
@@ -158,7 +158,7 @@ func (s *Server) selectItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	destination, _ := url.Parse(playlistReturn(r.PostForm.Get("return_to"), id))
-	if destination.Path == "/content" {
+	if destination.Path == "/producer/content" {
 		query := destination.Query()
 		query.Set("playlist", id)
 		query.Set("notice", "tracks-added")
@@ -182,7 +182,7 @@ func (s *Server) addRule(w http.ResponseWriter, r *http.Request) {
 		s.playlistError(w, err)
 		return
 	}
-	s.redirect(w, r, "/playlists/"+id)
+	s.redirect(w, r, "/producer/playlists/"+id)
 }
 func (s *Server) removeRule(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -190,7 +190,7 @@ func (s *Server) removeRule(w http.ResponseWriter, r *http.Request) {
 		s.playlistError(w, err)
 		return
 	}
-	s.redirect(w, r, "/playlists/"+id)
+	s.redirect(w, r, "/producer/playlists/"+id)
 }
 func (s *Server) removeItem(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -256,7 +256,7 @@ func (s *Server) replaceRules(w http.ResponseWriter, r *http.Request) {
 		s.playlistError(w, err)
 		return
 	}
-	s.redirect(w, r, "/playlists/"+r.PathValue("id")+"?notice=selections-saved")
+	s.redirect(w, r, "/producer/playlists/"+r.PathValue("id")+"?notice=selections-saved")
 }
 
 func (s *Server) deletePlaylist(w http.ResponseWriter, r *http.Request) {
@@ -276,7 +276,7 @@ func (s *Server) deletePlaylist(w http.ResponseWriter, r *http.Request) {
 	if s.d.Broadcast != nil {
 		s.d.Broadcast.StopPlaylist(p.ID)
 	}
-	s.redirect(w, r, "/playlists?station="+p.StationID+"&notice=playlist-deleted")
+	s.redirect(w, r, "/producer/playlists?station="+p.StationID+"&notice=playlist-deleted")
 }
 
 func (s *Server) defaultPlaylist(w http.ResponseWriter, r *http.Request) {
@@ -319,7 +319,7 @@ func (s *Server) defaultPlaylist(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) defaultPlaylistResponse(w http.ResponseWriter, r *http.Request, p playlists.Playlist, notice string) {
 	if r.Header.Get("HX-Request") != "true" {
-		to := "/playlists/" + p.ID + "/settings"
+		to := "/producer/playlists/" + p.ID + "/settings"
 		if notice != "" {
 			to += "?notice=" + notice
 		}

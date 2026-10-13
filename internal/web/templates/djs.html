@@ -1,10 +1,17 @@
 {{define "djs"}}
 {{if eq .DJMode "list"}}
-{{if .DJs}}<div class="source-list">{{range .DJs}}<article class="source-row">{{if .PortraitURL}}<img class="dj-avatar" src="{{.PortraitURL}}" alt="" loading="lazy" referrerpolicy="no-referrer">{{else}}<span class="station-avatar" aria-hidden="true">♫</span>{{end}}<div class="source-identity"><h2><a href="/djs/{{.ID}}">{{.Name}}</a></h2><span>{{.Model}} · {{.Voice}}</span></div><span class="source-count">{{if .HasKey}}Key saved{{else}}No API key{{end}}</span><a class="button secondary" href="/djs/{{.ID}}">Edit DJ →</a></article>{{end}}</div>{{else}}<section class="empty-state"><h2>No DJs yet</h2><p>Create a fictional presenter with their own prompt and voice direction.</p><a class="button" href="/djs/new">Create DJ</a></section>{{end}}
+{{if .DJCards}}<div class="dj-card-grid">{{range .DJCards}}<article class="dj-profile-card">
+<div class="dj-card-photo-column">{{if .Profile.PortraitURL}}<img class="dj-card-portrait" src="{{.Profile.PortraitURL}}" alt="" width="96" height="96" loading="lazy" referrerpolicy="no-referrer">{{else}}<span class="dj-card-portrait dj-card-placeholder" aria-hidden="true">♫</span>{{end}}<a class="button secondary" href="/producer/djs/{{.Profile.ID}}" aria-label="Edit {{.Profile.Name}}">Edit DJ</a></div>
+<div class="dj-card-content" role="region" aria-labelledby="dj-name-{{.Profile.ID}}" tabindex="0"><header class="dj-card-heading"><h2 id="dj-name-{{.Profile.ID}}"><a href="/producer/djs/{{.Profile.ID}}">{{.Profile.Name}}</a></h2><span class="dj-card-status {{.StatusClass}}" title="{{if eq .StatusClass "ready"}}Required configuration is present; credentials have not been tested{{else if eq .StatusClass "scheduled"}}Assigned to scheduled shows{{else if eq .StatusClass "live"}}Presenter of an active broadcast{{else}}Setup needs attention{{end}}">{{if eq .StatusClass "live"}}<span aria-hidden="true">●</span> {{end}}{{.Status}}</span></header>
+{{if .SetupNote}}<p class="dj-card-setup">{{.SetupNote}}</p>{{end}}
+<section class="dj-card-shows" aria-label="Shows and stations"><span class="eyebrow">SHOWS &amp; STATIONS</span>{{if .LiveStation}}<p class="dj-card-on-air">On air at {{.LiveStation}}</p>{{end}}{{if .Assignments}}<ul>{{range .Assignments}}<li><a href="{{.URL}}">{{.Name}}</a><span>{{.Station}}</span></li>{{end}}</ul>{{if .Next}}<div class="dj-card-next"><span class="hint">Next airing</span><strong>{{.Next}}</strong><span>{{.NextShow}}</span></div>{{end}}{{else}}<p class="hint">No shows assigned</p>{{end}}</section>
+
+</div>
+</article>{{end}}</div>{{else}}<section class="empty-state"><h2>No DJs yet</h2><p>Create a fictional presenter with their own prompt and voice direction.</p><a class="button" href="/producer/djs/new">Create DJ</a></section>{{end}}
 {{else if eq .DJMode "delete"}}{{template "delete-dj" .}}
 {{else}}
 <section class="dj-settings">{{if .DJError}}<p class="notice error" role="alert">{{.DJError}}</p>{{end}}
-<form method="post" action="/djs" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
+<form method="post" action="/producer/djs" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.DJ.ID}}">
 <fieldset class="dj-form-group"><legend>Profile</legend>
 <input type="hidden" name="photo_removed" value="" data-photo-removed>
@@ -29,8 +36,8 @@
 <label>OpenAI API key <span class="optional">{{if .DJ.HasKey}}Saved{{else}}Optional{{end}}</span><input type="password" name="api_key" autocomplete="new-password" maxlength="4096" spellcheck="false" autocapitalize="none" placeholder="{{if .DJ.HasKey}}Leave blank to keep the saved key{{else}}Enter your API key{{end}}"><span class="hint">Stored encrypted. Saved keys are never displayed.</span></label>
 {{if .DJ.HasKey}}<label class="check"><input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
 </fieldset>
-<div class="form-footer">{{if .DJ.ID}}<a class="button danger" href="/djs/{{.DJ.ID}}/delete" hx-get="/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}<div class="form-actions"><a class="button secondary" href="/djs">Cancel</a><button>{{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button></div></div>
+<div class="form-footer">{{if .DJ.ID}}<a class="button danger" href="/producer/djs/{{.DJ.ID}}/delete" hx-get="/producer/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}<div class="form-actions"><a class="button secondary" href="/producer/djs">Cancel</a><button>{{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button></div></div>
 </form></section>
 {{end}}{{end}}
 
-{{define "delete-dj"}}<section class="form-panel"><h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2><p id="dialog-description">This permanently deletes this DJ’s profile and saved API key.</p><form method="post" action="/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="yes"><div class="form-actions"><a class="button secondary" href="/djs/{{.DJ.ID}}" data-close-dialog>Cancel</a><button class="danger">Delete DJ</button></div></form></section>{{end}}
+{{define "delete-dj"}}<section class="form-panel"><h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2><p id="dialog-description">This permanently deletes this DJ’s profile and saved API key.</p><form method="post" action="/producer/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="yes"><div class="form-actions"><a class="button secondary" href="/producer/djs/{{.DJ.ID}}" data-close-dialog>Cancel</a><button class="danger">Delete DJ</button></div></form></section>{{end}}

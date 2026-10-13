@@ -22,7 +22,9 @@ const WeekMinutes = 7 * 24 * 60
 const MaxShows = 200
 
 type Show struct {
+	AcceptRequests, AcceptShoutouts       bool
 	ID, StationID, Name, DJID, PlaylistID string
+	Description                           string
 	Day, Start, End                       int // Monday=0; minutes after midnight. End <= Start means next day.
 	Revision                              int
 	DJName, PlaylistName                  string
@@ -37,7 +39,7 @@ func (s Show) Duration() int {
 	return d
 }
 func (s Show) Validate() error {
-	if s.StationID == "" || strings.TrimSpace(s.Name) == "" || len(s.Name) > 200 || s.DJID == "" || s.PlaylistID == "" || s.Day < 0 || s.Day > 6 || s.Start < 0 || s.Start >= 1440 || s.End < 0 || s.End >= 1440 || s.Start%15 != 0 || s.End%15 != 0 {
+	if s.StationID == "" || strings.TrimSpace(s.Name) == "" || len(s.Name) > 200 || len(s.Description) > 2000 || s.DJID == "" || s.PlaylistID == "" || s.Day < 0 || s.Day > 6 || s.Start < 0 || s.Start >= 1440 || s.End < 0 || s.End >= 1440 || s.Start%15 != 0 || s.End%15 != 0 {
 		return ErrInvalid
 	}
 	return nil
@@ -64,6 +66,7 @@ type Service struct{ Repo Repository }
 
 func (s Service) Save(ctx context.Context, v Show) (Show, error) {
 	v.Name = strings.TrimSpace(v.Name)
+	v.Description = strings.TrimSpace(v.Description)
 	if err := v.Validate(); err != nil {
 		return Show{}, err
 	}
@@ -88,6 +91,7 @@ func (s Service) CreateDays(ctx context.Context, v Show, days []int) error {
 		return ErrInvalid
 	}
 	v.Name = strings.TrimSpace(v.Name)
+	v.Description = strings.TrimSpace(v.Description)
 	shows := make([]Show, 0, len(days))
 	seen := map[int]bool{}
 	for _, day := range days {
@@ -111,6 +115,7 @@ func (s Service) CreateDays(ctx context.Context, v Show, days []int) error {
 }
 
 type Occurrence struct {
+	AcceptRequests, AcceptShoutouts                 bool
 	Key, StationID, Title, PlaylistID, PlaylistName string
 	ShowID                                          string
 	DJ                                              djs.Profile
@@ -170,7 +175,7 @@ func Occurrences(shows []Show, now time.Time, loc *time.Location) []Occurrence {
 			if !end.After(start) {
 				continue
 			}
-			out = append(out, Occurrence{Key: show.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + strconv.Itoa(show.Revision), StationID: show.StationID, ShowID: show.ID, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, Start: start, End: end})
+			out = append(out, Occurrence{AcceptRequests: show.AcceptRequests, AcceptShoutouts: show.AcceptShoutouts, Key: show.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + strconv.Itoa(show.Revision), StationID: show.StationID, ShowID: show.ID, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, Start: start, End: end})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })

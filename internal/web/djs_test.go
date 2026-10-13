@@ -10,20 +10,20 @@ import (
 func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	token := csrf(t, h)
-	w := request(h, "GET", "/djs/new", nil, nil)
+	w := request(h, "GET", "/producer/djs/new", nil, nil)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `type="password"`) || !strings.Contains(w.Body.String(), "Use example vibe") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	key := "sk-test-do-not-expose"
 	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "conversation_speed": {"1.15"}, "api_key": {key}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}, "background": {"Fictional record-shop curator <script>bad</script>"}, "portrait_url": {"/static/djs/alex-bright.jpg"}}
-	if w = request(h, "POST", "/djs", form, nil); w.Code != 303 {
+	if w = request(h, "POST", "/producer/djs", form, nil); w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	var id string
 	if err := st.DB.QueryRow(`SELECT id FROM djs WHERE name='<script>Night DJ</script>'`).Scan(&id); err != nil {
 		t.Fatal(err)
 	}
-	for _, path := range []string{"/djs", "/djs/" + id, "/djs/" + id + "/delete"} {
+	for _, path := range []string{"/producer/djs", "/producer/djs/" + id, "/producer/djs/" + id + "/delete"} {
 		for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
 			w = request(h, "GET", path, nil, headers)
 			if w.Code != 200 || strings.Contains(w.Body.String(), key) || strings.Contains(w.Body.String(), "<script>Night DJ") || strings.Contains(w.Body.String(), "<script>bad</script>") {
@@ -36,7 +36,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	form.Set("api_key", "")
 	form.Set("model", "custom")
 	form.Set("custom_model", "my-model-v2")
-	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	w = request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
 	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "dj-saved") {
 		t.Fatal(w.Code, w.Header())
 	}
@@ -56,7 +56,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 		t.Fatal("blank form erased key")
 	}
 	form.Set("voice", "unsupported")
-	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	w = request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
 	if w.Code != 422 {
 		t.Fatal("unsupported voice accepted")
 	}
@@ -66,28 +66,28 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	}
 	form.Set("voice", "onyx")
 	form.Set("name", "")
-	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	w = request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
 	if w.Code != 422 || strings.Contains(w.Body.String(), key) {
 		t.Fatal("invalid edit accepted")
 	}
-	w = request(h, "POST", "/djs", form, nil)
+	w = request(h, "POST", "/producer/djs", form, nil)
 	if w.Code != 422 || !strings.Contains(w.Body.String(), "Introduce tracks") || !strings.Contains(w.Body.String(), "Re-enter an API key") || strings.Contains(w.Body.String(), key) {
 		t.Fatal("ordinary validation lost input or exposed credential")
 	}
-	if w = request(h, "POST", "/djs/"+id+"/delete", url.Values{"csrf": {token}}, nil); w.Code != 400 {
+	if w = request(h, "POST", "/producer/djs/"+id+"/delete", url.Values{"csrf": {token}}, nil); w.Code != 400 {
 		t.Fatal("unconfirmed deletion")
 	}
-	if w = request(h, "POST", "/djs/"+id+"/delete", url.Values{"confirm": {"yes"}}, nil); w.Code != 403 {
+	if w = request(h, "POST", "/producer/djs/"+id+"/delete", url.Values{"confirm": {"yes"}}, nil); w.Code != 403 {
 		t.Fatal("delete bypasses CSRF")
 	}
-	w = request(h, "GET", "/djs/"+id+"/delete", nil, map[string]string{"HX-Request": "true", "HX-Target": "dialog-body"})
+	w = request(h, "GET", "/producer/djs/"+id+"/delete", nil, map[string]string{"HX-Request": "true", "HX-Target": "dialog-body"})
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `id="dialog-heading"`) || strings.Contains(w.Body.String(), "<!doctype") {
 		t.Fatal("invalid delete dialog")
 	}
-	if w = request(h, "POST", "/djs/"+id+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, nil); w.Code != 303 {
+	if w = request(h, "POST", "/producer/djs/"+id+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, nil); w.Code != 303 {
 		t.Fatal(w.Code)
 	}
-	if w = request(h, "GET", "/djs/"+id, nil, nil); w.Code != 404 {
+	if w = request(h, "GET", "/producer/djs/"+id, nil, nil); w.Code != 404 {
 		t.Fatal("deleted DJ remains")
 	}
 	var count int
@@ -98,7 +98,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 }
 func TestDJsProtectedByManagementAuthentication(t *testing.T) {
 	h, _, _, _ := setupWeb(t, "secret")
-	for _, path := range []string{"/djs", "/djs/new", "/djs/missing"} {
+	for _, path := range []string{"/producer/djs", "/producer/djs/new", "/producer/djs/missing"} {
 		if w := request(h, "GET", path, nil, nil); w.Code != 401 {
 			t.Fatal(path, w.Code)
 		}
@@ -110,7 +110,7 @@ func TestLongAPIKeyAcceptedThroughFormWithoutEcho(t *testing.T) {
 	token := csrf(t, h)
 	key := "sk-proj-" + strings.Repeat("a", 700)
 	form := url.Values{"csrf": {token}, "id": {"default-pop"}, "name": {"Alex Bright"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "api_key": {key[:150] + " \n" + key[150:]}}
-	w := request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	w := request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
 	if w.Code != 204 || strings.Contains(w.Body.String(), key) {
 		t.Fatal(w.Code)
 	}
@@ -119,12 +119,12 @@ func TestLongAPIKeyAcceptedThroughFormWithoutEcho(t *testing.T) {
 	if !saved {
 		t.Fatal("key not saved")
 	}
-	w = request(h, "GET", "/djs/default-pop", nil, nil)
+	w = request(h, "GET", "/producer/djs/default-pop", nil, nil)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `maxlength="4096"`) || strings.Contains(w.Body.String(), key) {
 		t.Fatal("key echoed or truncated by form")
 	}
 	form.Set("clear_key", "yes")
-	w = request(h, "POST", "/djs", form, map[string]string{"HX-Request": "true"})
+	w = request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
 	if w.Code != 422 || !strings.Contains(w.Body.String(), "Untick Remove saved key") || strings.Contains(w.Body.String(), key) {
 		t.Fatal("conflict not explained safely")
 	}
@@ -134,13 +134,13 @@ func TestConversationSpeedValidationRetainsProfile(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	token := csrf(t, h)
 	form := url.Values{"csrf": {token}, "id": {"default-pop"}, "name": {"Speed DJ"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "conversation_speed": {"1.2"}}
-	if w := request(h, "POST", "/djs", form, nil); w.Code != 303 {
+	if w := request(h, "POST", "/producer/djs", form, nil); w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	for _, raw := range []string{"0", "-1", "0.2", "4.1", "NaN", "Inf", "quick"} {
 		form.Set("conversation_speed", raw)
 		for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
-			w := request(h, "POST", "/djs", form, headers)
+			w := request(h, "POST", "/producer/djs", form, headers)
 			if w.Code != 422 {
 				t.Fatal(raw, w.Code, w.Body.String())
 			}
@@ -150,7 +150,7 @@ func TestConversationSpeedValidationRetainsProfile(t *testing.T) {
 			}
 		}
 	}
-	w := request(h, "GET", "/djs/default-pop", nil, nil)
+	w := request(h, "GET", "/producer/djs/default-pop", nil, nil)
 	if !strings.Contains(w.Body.String(), `name="conversation_speed"`) || !strings.Contains(w.Body.String(), `value="1.2"`) || !strings.Contains(w.Body.String(), "1.20×") {
 		t.Fatal("saved slider missing", w.Body.String())
 	}

@@ -70,7 +70,25 @@ func (s Station) RepeatIntervalMinutes() int {
 	return s.RepeatMinutes
 }
 
+type Visibility string
+
+const (
+	Unlisted Visibility = "unlisted"
+	Listed   Visibility = "listed"
+	Private  Visibility = "private"
+)
+
+// Empty values preserve the historical direct-link stream behaviour.
+func (s Station) Publication() Visibility {
+	if s.Visibility == "" {
+		return Unlisted
+	}
+	return s.Visibility
+}
+func (s Station) Public() bool { return s.Publication() != Private }
+
 type Station struct {
+	Visibility    Visibility  `json:"visibility"`
 	RepeatMinutes int         `json:"repeat_minutes"`
 	LogoVersion   string      `json:"logo_version,omitempty"`
 	Logo          *LogoChange `json:"-"`
@@ -83,6 +101,11 @@ type Station struct {
 }
 
 func (s Station) Validate() error {
+	switch s.Publication() {
+	case Listed, Unlisted, Private:
+	default:
+		return errors.New("choose listed, unlisted or private visibility")
+	}
 	if s.RepeatMinutes < 0 || s.RepeatMinutes > MaxRepeatMinutes {
 		return errors.New("minimum time between plays must be between 1 and 10080 minutes")
 	}

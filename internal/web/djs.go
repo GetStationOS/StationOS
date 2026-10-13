@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"stationos.local/stationos/internal/djs"
 )
@@ -62,7 +63,7 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 			v.Title = "Delete DJ"
 			v.DJMode = "delete"
 		}
-	} else if r.URL.Path == "/djs/new" {
+	} else if r.URL.Path == "/producer/djs/new" {
 		v.Title = "Create DJ"
 		v.DJMode = "new"
 		v.DJ.Model = "gpt-6.1-sol"
@@ -70,6 +71,13 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 		v.DJ.ConversationSpeed = djs.DefaultConversationSpeed
 	} else {
 		v.DJs, err = s.d.DJs.List(r.Context())
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+	if v.DJMode == "list" {
+		v.DJCards, err = s.djCards(r.Context(), v.DJs, time.Now())
 		if err != nil {
 			s.fail(w, err)
 			return
@@ -163,7 +171,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	s.redirect(w, r, "/djs?notice=dj-saved")
+	s.redirect(w, r, "/producer/djs?notice=dj-saved")
 }
 func (s *Server) deleteDJ(w http.ResponseWriter, r *http.Request) {
 	if s.d.DJs == nil {
@@ -187,5 +195,5 @@ func (s *Server) deleteDJ(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	s.redirect(w, r, "/djs?notice=dj-deleted")
+	s.redirect(w, r, "/producer/djs?notice=dj-deleted")
 }

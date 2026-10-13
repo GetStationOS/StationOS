@@ -11,10 +11,10 @@ import (
 func TestDeletionConfirmationAndStationScope(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	token := csrf(t, h)
-	request(h, "POST", "/station", url.Values{"csrf": {token}, "name": {"Test station"}, "timezone": {"UTC"}}, nil)
+	request(h, "POST", "/producer/station", url.Values{"csrf": {token}, "name": {"Test station"}, "timezone": {"UTC"}}, nil)
 	stations, _ := st.List(context.Background())
-	stationPath := "/stations/" + stations[0].ID
-	w := request(h, "POST", "/playlists", url.Values{"csrf": {token}, "name": {"Test playlist"}, "station": {stations[0].ID}}, nil)
+	stationPath := "/producer/stations/" + stations[0].ID
+	w := request(h, "POST", "/producer/playlists", url.Values{"csrf": {token}, "name": {"Test playlist"}, "station": {stations[0].ID}}, nil)
 	location, _ := url.Parse(w.Header().Get("Location"))
 	path := location.Path
 	for _, target := range []string{path, stationPath} {
@@ -41,14 +41,14 @@ func TestDeletionConfirmationAndStationScope(t *testing.T) {
 	w = request(h, "POST", path+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, map[string]string{"HX-Request": "true"})
 	var dest struct{ Path string }
 	json.Unmarshal([]byte(w.Header().Get("HX-Location")), &dest)
-	if w.Code != 204 || dest.Path != "/playlists?station="+stations[0].ID+"&notice=playlist-deleted" {
+	if w.Code != 204 || dest.Path != "/producer/playlists?station="+stations[0].ID+"&notice=playlist-deleted" {
 		t.Fatal(w.Code, w.Header())
 	}
 	if w = request(h, "GET", path, nil, nil); w.Code != 404 {
 		t.Fatal("playlist remained")
 	}
 	w = request(h, "POST", stationPath+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, nil)
-	if w.Code != 303 || w.Header().Get("Location") != "/?notice=station-deleted" {
+	if w.Code != 303 || w.Header().Get("Location") != "/producer?notice=station-deleted" {
 		t.Fatal(w.Code, w.Header())
 	}
 	if w = request(h, "GET", stationPath, nil, nil); w.Code != 404 {

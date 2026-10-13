@@ -70,7 +70,7 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := request(h, "GET", "/", nil, nil)
+	w := request(h, "GET", "/producer", nil, nil)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "Jazz Default") || !strings.Contains(w.Body.String(), "Nothing playing") || strings.Contains(w.Body.String(), "Evening sessions") {
 		t.Fatal("dormant card fabricates active programme", w.Body.String())
 	}
@@ -84,7 +84,7 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("stream did not start")
 	}
-	for _, path := range []string{"/", "/stations/live"} {
+	for _, path := range []string{"/producer", "/producer/stations/live"} {
 		w = request(h, "GET", path, nil, nil)
 		html := w.Body.String()
 		for _, want := range []string{"Evening sessions", "Miles Mercer", "Show Pool", "First &lt;song&gt;", "Second song", "The Quartet", "Night music", "3:00", "1 listener", "/artwork/", "hx-indicator=\"this\"", `class="station-card producer-card" hx-target="#main"`} {
@@ -97,7 +97,7 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 		}
 	}
 	state := m.State("radio")
-	for _, path := range []string{"/stations/radio", "/stations/radio/live"} {
+	for _, path := range []string{"/producer/stations/radio", "/producer/stations/radio/live"} {
 		html := request(h, "GET", path, nil, nil).Body.String()
 		if strings.Count(html, `class="overview-track"`) != 2 {
 			t.Fatal("overview missing playback panels", path, html)
@@ -111,12 +111,12 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 			t.Fatal("overview exposes source artwork URL", path)
 		}
 	}
-	path := "/stations/radio/artwork/" + state.Current.ID
+	path := "/producer/stations/radio/artwork/" + state.Current.ID
 	w = request(h, "GET", path, nil, nil)
 	if w.Code != 200 || w.Header().Get("Content-Type") != "image/png" || w.Header().Get("Cache-Control") != "private, max-age=300" {
 		t.Fatal(w.Code, w.Header())
 	}
-	if request(h, "GET", "/stations/radio/artwork/arbitrary?url=http://other.example", nil, nil).Code != 404 {
+	if request(h, "GET", "/producer/stations/radio/artwork/arbitrary?url=http://other.example", nil, nil).Code != 404 {
 		t.Fatal("arbitrary artwork admitted")
 	}
 	deps.Password = "secret"
@@ -142,7 +142,7 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("default music did not start")
 	}
-	w = request(h, "GET", "/stations/live", nil, nil)
+	w = request(h, "GET", "/producer/stations/live", nil, nil)
 	html := w.Body.String()
 	if !strings.Contains(html, "Jazz Default") || !strings.Contains(html, "Second song") || strings.Contains(html, "Evening sessions") || strings.Contains(html, "ON AIR") {
 		t.Fatal("default card mislabels show", html)

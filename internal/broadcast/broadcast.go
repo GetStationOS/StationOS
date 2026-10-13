@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/mixer"
 	"stationos.local/stationos/internal/production"
@@ -42,6 +43,7 @@ type State struct {
 	Error                  string
 }
 type Options struct {
+	Audience                                audience.Repository
 	History                                 History
 	Mixer                                   mixer.Repository
 	MaxStations, MaxListeners, BufferChunks int
@@ -379,10 +381,12 @@ type preparedResult struct {
 	err          error
 }
 type linkResult struct {
-	request production.LinkRequest
-	audio   []byte
-	speech  *preparedSpeech
-	err     error
+	audienceIDs      []string
+	audienceValidIDs []string
+	request          production.LinkRequest
+	audio            []byte
+	speech           *preparedSpeech
+	err              error
 }
 
 func (m *Manager) playProgramme(id string, r *run) {
@@ -528,7 +532,18 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		return true
 	}
-	stream := func(audio io.ReadCloser, state State) (bool, error) {
+	stream := func(audio io.ReadCloser, state State, audienceIDs ...string) (bool, error) {
+		if len(audienceIDs) > 0 && m.options.Audience != nil {
+			ok, err := m.options.Audience.Usable(r.ctx, id, state.Programme.Key, audienceIDs, playoutNow())
+			if err != nil || !ok {
+				if state.Phase == "music" {
+					audienceIDs = nil
+				} else {
+					audio.Close()
+					return false, err
+				}
+			}
+		}
 		if state.Current.Kind == content.PresenterLink {
 			levels, err := m.levels(r.ctx, id)
 			if err != nil {
@@ -580,6 +595,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 				}
 				if !started {
 					started = true
+					if len(audienceIDs) > 0 && m.options.Audience != nil {
+						ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 2*time.Second)
+						err := m.options.Audience.MarkUsed(ctx, id, audienceIDs, state.Started)
+						cancel()
+						if err != nil {
+							m.logger.Warn("Audience broadcast receipt unavailable", "station_id", id, "error", err)
+						}
+					}
 					if state.Phase == "music" && m.options.History != nil {
 						// Persist after the first delivered music bytes, even if the last
 						// listener disconnects immediately afterwards. Preparation is not a play.
@@ -728,6 +751,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 			}
 		}
 		if current.ID == "" {
+			// Audience requests enter the prepared next-track link. A cold start
+			// continues normal music until a request introduction is ready.
 			current = selectTrack(candidates, previous, selectedIDs, remaining)
 		}
 		for i, id := range selectedIDs {
@@ -736,11 +761,47 @@ func (m *Manager) playProgramme(id string, r *run) {
 				break
 			}
 		}
-		if !changing && link != nil && !link.request.Handover && link.request.Show.Key == playing.Key && link.request.Next.ID == current.ID && len(link.audio) > 0 {
+		levels, levelErr := m.levels(r.ctx, id)
+		if levelErr != nil {
+			return
+		}
+		musicCtx := withMusicLevel(r.ctx, levels.Music)
+		var audio io.ReadCloser
+		if ahead != nil {
+			if ahead.show == playing.Key && ahead.music == levels.Music && ahead.item.ID == current.ID {
+				select {
+				case audio = <-ahead.result:
+				default:
+				}
+			}
+			if audio == nil {
+				ahead.cancel()
+			}
+			ahead = nil
+		}
+		var musicErr error
+		if audio == nil {
+			audio, musicErr = m.encoder.Open(musicCtx, current)
+		}
+		var announcedRequestIDs []string
+		linkUsable := true
+		if link != nil && len(link.audienceValidIDs) > 0 && m.options.Audience != nil {
+			linkUsable, _ = m.options.Audience.Usable(r.ctx, id, playing.Key, link.audienceValidIDs, playoutNow())
+		}
+		if musicErr == nil && linkUsable && !changing && link != nil && !link.request.Handover && link.request.Show.Key == playing.Key && link.request.Next.ID == current.ID && len(link.audio) > 0 {
 			cue := content.AudioItem{ID: "link:" + playing.Key + ":" + current.ID, Title: "DJ link", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
-			stream(speechAudio(link.audio, link.speech), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, Phase: "chatter", PresenterStatus: "Speaking"})
+			spoke, speechErr := stream(speechAudio(link.audio, link.speech), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, Phase: "chatter", PresenterStatus: "Speaking"}, link.audienceIDs...)
+			if spoke && speechErr == nil {
+				for _, requestID := range requestIDs(m.approvedAudience(r.ctx, playing, playoutNow()), current.ID) {
+					for _, announcedID := range link.audienceValidIDs {
+						if requestID == announcedID {
+							announcedRequestIDs = append(announcedRequestIDs, requestID)
+						}
+					}
+				}
+			}
 			introPlayed = true
-		} else if ready && !introPlayed && len(plan.Intro) > 0 {
+		} else if musicErr == nil && ready && !introPlayed && len(plan.Intro) > 0 {
 			cue := content.AudioItem{ID: "intro:" + playing.Key, Title: "Show introduction", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
 			stream(speechAudio(plan.Intro, preparedVoices[key].intro), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, Phase: "chatter", PresenterStatus: "Speaking"})
 			introPlayed = true
@@ -775,7 +836,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 		rotation.LastPlayed[current.ID] = playoutNow()
 		rotation.LastTrackID = current.ID
 		nextPool, _ = rotationPool(nextPool, rotation, predictedEnd, current.ID)
-		queued = selectTrack(nextPool, current.ID, selectedIDs, nextRemaining)
+		queued = requestTrack(m.approvedAudience(r.ctx, nextTimeline.Current, playoutNow()), nextPool, nextRemaining)
+		if queued.ID == "" {
+			queued = selectTrack(nextPool, current.ID, selectedIDs, nextRemaining)
+		}
 		queuedShow = nextTimeline.Current.Key
 		// Prepare the next DJ in advance while the outgoing programme is playing.
 		if timeline.Next.DJ.ID != "" && !playing.End.IsZero() && playing.End.Sub(playoutNow()) <= 10*time.Minute {
@@ -805,7 +869,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				go func() {
 					defer linkWorkers.Done()
 					defer func() { <-linkSlots }()
-					audio, err := m.options.Links.Link(linkCtx, req)
+					audio, audienceIDs, audienceValidIDs, err := m.audienceLink(linkCtx, req)
 					var speech *preparedSpeech
 					if err == nil {
 						speech, err = m.prepareSpeech(linkCtx, id, audio)
@@ -814,7 +878,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 						m.logger.Warn("DJ link unavailable", "station_id", id, "error", err)
 					}
 					select {
-					case out <- linkResult{request: req, audio: audio, speech: speech, err: err}:
+					case out <- linkResult{request: req, audio: audio, speech: speech, err: err, audienceIDs: audienceIDs, audienceValidIDs: audienceValidIDs}:
 					case <-linkCtx.Done():
 					}
 				}()
@@ -823,36 +887,15 @@ func (m *Manager) playProgramme(id string, r *run) {
 				// create an unbounded backlog of speech requests.
 			}
 		}
-		levels, levelErr := m.levels(r.ctx, id)
-		if levelErr != nil {
-			return
-		}
-		musicCtx := withMusicLevel(r.ctx, levels.Music)
-		var audio io.ReadCloser
-		if ahead != nil {
-			if ahead.show == playing.Key && ahead.music == levels.Music && ahead.item.ID == current.ID {
-				select {
-				case audio = <-ahead.result:
-				default:
-				}
-			}
-			if audio == nil {
-				ahead.cancel()
-			}
-			ahead = nil
-		}
 		// Keep only the next track primed, shared by every station listener.
 		// Existing next-item eligibility and show revalidation still apply.
 		if preloader, ok := m.encoder.(PreloadingEncoder); ok && queued.ID != "" {
 			ahead = startAudioPreparation(musicCtx, preloader, queued, queuedShow, &audioWorkers)
 		}
-		err = nil
-		if audio == nil {
-			audio, err = m.encoder.Open(musicCtx, current)
-		}
+		err = musicErr
 		started := false
 		if err == nil {
-			started, err = stream(audio, State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: current, Next: queued, Phase: "music", PresenterStatus: presenter, RepeatRelaxed: repeatRelaxed})
+			started, err = stream(audio, State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: current, Next: queued, Phase: "music", PresenterStatus: presenter, RepeatRelaxed: repeatRelaxed}, announcedRequestIDs...)
 		}
 		if errors.Is(err, errHistory) {
 			return

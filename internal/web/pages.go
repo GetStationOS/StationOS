@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
@@ -192,7 +193,7 @@ type stationCard struct {
 	Station                                                                 station.Station
 	Playlists                                                               int
 	PlaylistID, PlaylistName, ProgrammeTime, PresenterStatus, FollowingTime string
-	NextTrack                                                               cardTrack
+	CurrentTrack, NextTrack                                                 cardTrack
 }
 type sourceCard struct {
 	Source sources.Config
@@ -200,21 +201,43 @@ type sourceCard struct {
 	Tracks int
 }
 type view struct {
-	StationRepeatSupplied             bool
-	StationRepeatInput                string
-	StationError                      string
-	MixerChannels                     []mixerChannel
-	MusicVolume, DJVolume, MixerError string
-	Show                              schedule.Show
-	Shows                             []schedule.Show
-	ShowError                         string
-	ScheduleMode, ShowStart, ShowEnd  string
-	ScheduleDays                      []scheduleDay
-	ShowDays                          map[int]bool
-	ScheduleHours                     []scheduleHour
-	ScheduleCards                     []scheduleCard
+	AudienceMode, AudienceKind, AudienceKey                  string
+	AudienceQuery, AudienceToken, AudienceFilter             string
+	AudienceShow                                             schedule.Occurrence
+	AudienceName, AudienceText, AudienceTrack, AudienceError string
+	AudienceConsent                                          bool
+	AudienceShows                                            []schedule.Occurrence
+	AudienceTracks                                           []content.AudioItem
+	AudienceMoreTracks                                       bool
+	AudienceMessages                                         []audience.Message
+	AudienceTotal                                            int
+	AudienceStatuses                                         []audienceStatusChoice
+	AudiencePrevious, AudienceNext, AudienceRefreshURL       string
+	Public                                                   bool
+	PublicDays                                               []publicDay
+	PublicDayLinks                                           []publicDay
+	PublicDate                                               string
+	AudiencePanel                                            string
+	AudienceDay                                              string
+	PublicShow                                               publicShow
+	AudienceBase                                             string
+	PublicCurrent, PublicNext                                cardTrack
+	StationRepeatSupplied                                    bool
+	StationRepeatInput                                       string
+	StationError                                             string
+	MixerChannels                                            []mixerChannel
+	MusicVolume, DJVolume, MixerError                        string
+	Show                                                     schedule.Show
+	Shows                                                    []schedule.Show
+	ShowError                                                string
+	ScheduleMode, ShowStart, ShowEnd                         string
+	ScheduleDays                                             []scheduleDay
+	ShowDays                                                 map[int]bool
+	ScheduleHours                                            []scheduleHour
+	ScheduleCards                                            []scheduleCard
 
 	DJ                                                                                                   djs.Profile
+	DJCards                                                                                              []djCard
 	DJs                                                                                                  []djs.Profile
 	DJVoices                                                                                             []djs.Voice
 	DJModels                                                                                             []djModel
@@ -346,6 +369,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, v view) {
 	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true" {
 		name = "fragment"
 	}
+	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true" && v.AudienceMode == "queue" && r.Header.Get("HX-Target") == "audience-queue-results" {
+		name = "audience-queue-results"
+	}
 	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "dialog-body" {
 		if v.ScheduleMode == "delete" {
 			name = "delete-show"
@@ -355,6 +381,18 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, v view) {
 			name = "delete-playlist"
 		} else if v.Section == "delete" {
 			name = "delete-station"
+		}
+	}
+	if v.Public {
+		name = "public-layout"
+		if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true" {
+			name = "public-fragment"
+			if r.Header.Get("HX-Target") == v.AudiencePanel {
+				name = "audience-form"
+			}
+			if r.Header.Get("HX-Target") == "audience-track-options-"+v.AudiencePanel {
+				name = "audience-tracks"
+			}
 		}
 	}
 	var body strings.Builder
@@ -374,15 +412,15 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
-	case "/":
+	case "/producer":
 		v.Title = "Your stations"
-	case "/station", "/stations/new":
+	case "/producer/station", "/producer/stations/new":
 		v.Title = "Create a station"
-	case "/sources/new":
+	case "/producer/sources/new":
 		v.Title = "Add source"
-	case "/sources":
+	case "/producer/sources":
 		v.Title = "Sources"
-	case "/content":
+	case "/producer/content":
 		v.Title = "Browse tracks"
 	}
 	q, err := catalogueQuery(r.URL.Query())
@@ -417,7 +455,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	v.Direction = r.URL.Query().Get("direction")
 	v.AlbumChoice = r.URL.Query().Get("album_choice")
 	v.SelectedPlaylist = r.URL.Query().Get("playlist")
-	if r.URL.Path == "/content" && v.SelectedPlaylist != "" && s.d.Playlists != nil {
+	if r.URL.Path == "/producer/content" && v.SelectedPlaylist != "" && s.d.Playlists != nil {
 		v.TargetPlaylist, err = s.d.Playlists.Get(r.Context(), v.SelectedPlaylist)
 		if err != nil {
 			s.playlistError(w, err)
@@ -431,7 +469,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		v.StationID = v.Station.ID
 		v.Section = "playlists"
 	}
-	if r.URL.Path == "/sources" {
+	if r.URL.Path == "/producer/sources" {
 		for _, source := range v.Sources {
 			items, err := s.d.Catalogue.Search(r.Context(), catalogue.Query{SourceID: source.ID, Limit: 1})
 			if err != nil {

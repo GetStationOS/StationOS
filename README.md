@@ -140,4 +140,11 @@ The server defaults to `-stream-buffer 5s` (configurable from `0s` to `5s`). The
 
 FFmpeg output is read ahead through a bounded eight-second encoded buffer for the current and queued tracks. This absorbs source/encoder jitter without fetching or storing whole songs. Recent audio is shared per station; slow listeners remain bounded and cannot block others. Extended source outages or a persistently slow network can still exhaust buffers. Logs report `Audio supply stalled` and `Slow stream listener disconnected` for diagnosis.
 
-For Nginx Proxy Manager, leave response caching disabled for the station proxy. StationOS sends `X-Accel-Buffering: no` on streams and live events. If custom proxy settings override this, pass through `/streams/` and `/stations/...` event responses without buffering or compression. To isolate device/network/proxy faults, compare the same station's HTTPS stream with its direct LAN HTTP stream. The management password is not needed for either stream URL.
+For Nginx Proxy Manager, leave response caching disabled for the station proxy. StationOS sends `X-Accel-Buffering: no` on streams and live events. If custom proxy settings override this, pass through `/streams/`, `/radio-events`, `/radio/...` and `/producer/stations/...` event responses without buffering or compression. To isolate device/network/proxy faults, compare the same station's HTTPS stream with its direct LAN HTTP stream. The management password is not needed for either stream URL.
+
+
+### Public radio and producer access
+
+The public homepage is `/`; management is `/producer`. Individual listener pages use `/radio/<stream-address>`, and the existing MP3 feeds stay at `/streams/<stream-address>`. Older management bookmarks redirect to their new producer addresses. Use `STATIONOS_ADMIN_PASSWORD` on an internet-facing deployment and keep `-public-url` set to the public HTTPS origin; leaving the password empty retains the optional unauthenticated management behaviour.
+
+Station Settings → Public visibility controls publication: Listed appears in the directory, Unlisted works through direct page/stream links, and Private is available only through producer preview. Existing and new stations default to Unlisted, so an upgrade does not automatically list stations or break existing public stream URLs. Changing a station name preserves its addresses; changing Stream address deliberately changes both page and feed. Public pages include live player metadata, weekly programmes and a copyable internet-radio URL. Opening a page never starts production.

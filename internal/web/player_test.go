@@ -47,23 +47,23 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	home := request(h, "GET", "/", nil, nil).Body.String()
+	home := request(h, "GET", "/producer", nil, nil).Body.String()
 	if !strings.Contains(home, `id="player-tracks"`) || !strings.Contains(home, `data-station-id="radio"`) {
 		t.Fatal("missing persistent player metadata", home)
 	}
-	if request(h, "GET", "/stations/missing/player", nil, nil).Code != 404 {
+	if request(h, "GET", "/producer/stations/missing/player", nil, nil).Code != 404 {
 		t.Fatal("unknown station accepted")
 	}
 	deps.Password = "secret"
 	protected, _ := New(deps)
-	if request(protected, "GET", "/stations/radio/player", nil, nil).Code != 401 {
+	if request(protected, "GET", "/producer/stations/radio/player", nil, nil).Code != 401 {
 		t.Fatal("metadata bypassed authentication")
 	}
 	server := httptest.NewServer(h)
 	defer server.Close()
 	eventCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(eventCtx, "GET", server.URL+"/stations/radio/player", nil)
+	req, _ := http.NewRequestWithContext(eventCtx, "GET", server.URL+"/producer/stations/radio/player", nil)
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -124,13 +124,13 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 }
 
 func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
-	templates, err := template.New("pages").Funcs(template.FuncMap{"stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	templates, err := template.New("pages").Funcs(template.FuncMap{"producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		t.Fatal(err)
 	}
 	music := content.AudioItem{ID: "song", Title: "Song", Artist: "Artist", Artwork: "http://source/album.jpg"}
 	next := content.AudioItem{ID: "next", Title: "Next song", Artwork: "http://source/next.jpg"}
-	photo := "/djs/outgoing/photo?v=123"
+	photo := "/producer/djs/outgoing/photo?v=123"
 	state := broadcast.State{Programme: schedule.Occurrence{DJ: djs.Profile{ID: "outgoing", Name: "Speaking DJ", PortraitURL: photo}}, Following: schedule.Occurrence{DJ: djs.Profile{ID: "incoming", PortraitURL: "/static/djs/clara-vale.jpg"}}, Next: next}
 	for _, phase := range []string{"chatter", "handover", "music", "missing-photo", "empty"} {
 		t.Run(phase, func(t *testing.T) {
@@ -158,6 +158,40 @@ func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
 				t.Fatal(err)
 			}
 			cardHTML := strings.SplitN(cards.String(), `<div class="card-tracks">`, 2)[1]
+			var directory bytes.Buffer
+			publicStation := station.Station{ID: "radio", StreamSlug: "radio", Name: "Radio"}
+			directoryState := current
+			directoryState.Programme.DJ.PortraitURL = publicPresenterPortrait("/radio/radio", current.Programme.DJ.ID, strings.TrimPrefix(current.Programme.DJ.PortraitURL, "/producer"))
+			if err := templates.ExecuteTemplate(&directory, "public-cards", view{StationCards: []stationCard{{Station: publicStation, Broadcast: directoryState, CurrentTrack: publicTrack(publicStation, currentBroadcastTrack("radio", directoryState)), NextTrack: publicTrack(publicStation, stationTrack("radio", "UP NEXT", "Not queued", next))}}}); err != nil {
+				t.Fatal(err)
+			}
+			directoryHTML := directory.String()
+			if strings.Count(directoryHTML, `class="card-track"`) != 2 || !strings.Contains(directoryHTML, "UP NEXT") || !strings.Contains(directoryHTML, "Next song") || !strings.Contains(directoryHTML, "/radio/radio/artwork/next") {
+				t.Fatal("listener directory missing current/upcoming track details", directoryHTML)
+			}
+			if strings.Contains(directoryHTML, "/producer/") || strings.Contains(directoryHTML, "http://source/") {
+				t.Fatal("listener directory exposed producer or source artwork URLs", directoryHTML)
+			}
+			if (phase == "chatter" || phase == "handover") && (!strings.Contains(directoryHTML, "/radio/radio/presenters/outgoing/photo") || !strings.Contains(directoryHTML, "DJ ON AIR")) {
+				t.Fatal("listener directory missing speaking DJ portrait", directoryHTML)
+			}
+			var overview bytes.Buffer
+			if err := templates.ExecuteTemplate(&overview, "station-live", view{Station: station.Station{ID: "radio"}, Broadcast: current}); err != nil {
+				t.Fatal(err)
+			}
+			overviewHTML := strings.SplitN(overview.String(), `<div class="playout-grid">`, 2)[1]
+			if strings.Contains(overviewHTML, `src="`+photo+`"`) != (phase == "chatter" || phase == "handover") {
+				t.Fatal("overview did not follow the speaking presenter's artwork", overviewHTML)
+			}
+			if phase == "music" && (!strings.Contains(overviewHTML, stationTrack("radio", "", "", music).Artwork) || !strings.Contains(overviewHTML, "NOW PLAYING")) {
+				t.Fatal("overview did not restore music artwork", overviewHTML)
+			}
+			if (phase == "chatter" || phase == "handover") && !strings.Contains(overviewHTML, "DJ ON AIR") {
+				t.Fatal("overview did not label the spoken link", overviewHTML)
+			}
+			if !strings.Contains(overviewHTML, stationTrack("radio", "", "", next).Artwork) || strings.Contains(overviewHTML, "/static/djs/clara-vale.jpg") {
+				t.Fatal("overview changed the upcoming artwork or showed the incoming DJ", overviewHTML)
+			}
 			if phase == "chatter" || phase == "handover" {
 				if !strings.Contains(cardHTML, `src="`+photo+`"`) || !strings.Contains(cardHTML, "DJ ON AIR") {
 					t.Fatal("station card missing speaking DJ artwork", cardHTML)

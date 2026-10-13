@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
@@ -121,6 +123,46 @@ func TestRejectInvalidPlanAndKeepErrorsFreeOfKeys(t *testing.T) {
 	show := profile()
 	show.DJ.HasKey = false
 	if _, err := p.Prepare(context.Background(), show, schedule.Occurrence{}, nil); !errors.Is(err, production.ErrUnavailable) {
+		t.Fatal(err)
+	}
+}
+
+func TestCallIdentifiesStageAndSafeTransportFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		err   error
+		want  string
+		cause error
+	}{
+		{"cancelled", fmt.Errorf("private test-secret: %w", context.Canceled), "cancelled", context.Canceled},
+		{"deadline", fmt.Errorf("private test-secret: %w", context.DeadlineExceeded), "timed out", context.DeadlineExceeded},
+		{"client timeout", &net.DNSError{Err: "test-secret", Name: "private-host", IsTimeout: true}, "timed out", context.DeadlineExceeded},
+		{"dns", &net.DNSError{Err: "test-secret", Name: "private-host"}, "DNS lookup failed", nil},
+		{"connection", errors.New("test-secret private-host"), "connection failed", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, stage := range []string{"responses", "audio/speech", "decisions"} {
+				p := New(testKeys{}, nil, testAudio{})
+				p.Client.Transport = transport(func(*http.Request) (*http.Response, error) { return nil, tc.err })
+				_, err := p.call(context.Background(), stage, "test-secret", map[string]string{}, 100)
+				if err == nil || !strings.Contains(err.Error(), stage) || !strings.Contains(err.Error(), tc.want) || strings.Contains(err.Error(), "test-secret") || strings.Contains(err.Error(), "private-host") {
+					t.Fatal(err)
+				}
+				if tc.cause != nil && !errors.Is(err, tc.cause) {
+					t.Fatal("lost cancellation/timeout cause", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCallIdentifiesHTTPFailureWithoutResponsePayload(t *testing.T) {
+	p := New(testKeys{}, nil, testAudio{})
+	p.Client.Transport = transport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 429, Body: io.NopCloser(strings.NewReader("test-secret private listener text"))}, nil
+	})
+	_, err := p.call(context.Background(), "audio/speech", "test-secret", nil, 100)
+	if err == nil || err.Error() != "OpenAI audio/speech returned HTTP 429" {
 		t.Fatal(err)
 	}
 }

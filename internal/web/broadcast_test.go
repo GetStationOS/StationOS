@@ -72,7 +72,7 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	headers := map[string]string{"Authorization": "Basic YWRtaW46c2VjcmV0"}
-	w := request(h, "GET", "/stations/"+a.ID, nil, headers)
+	w := request(h, "GET", "/producer/stations/"+a.ID, nil, headers)
 	if !strings.Contains(w.Body.String(), "https://radio.example/streams/jazz-24") || !strings.Contains(w.Body.String(), `id="radio-player"`) || !strings.Contains(w.Body.String(), `hx-history-elt`) {
 		t.Fatal(w.Body.String())
 	}
@@ -83,14 +83,14 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	if request(h, "HEAD", "/streams/jazz-24", nil, nil).Code != 200 || m.State(a.ID).Listeners != 0 {
 		t.Fatal("HEAD starts listening")
 	}
-	if request(h, "GET", "/stations/"+a.ID+"/live", nil, nil).Code != 401 {
+	if request(h, "GET", "/producer/stations/"+a.ID+"/live", nil, nil).Code != 401 {
 		t.Fatal("management status exposed")
 	}
 	if request(h, "GET", "/streams/jazz-24", nil, nil).Code != 503 {
 		t.Fatal("unassigned station starts")
 	}
 	token := csrfWithAuth(t, h, headers)
-	w = request(h, "POST", "/stations/"+a.ID+"/broadcast", url.Values{"csrf": {token}, "playlist": {"pool"}}, headers)
+	w = request(h, "POST", "/producer/stations/"+a.ID+"/broadcast", url.Values{"csrf": {token}, "playlist": {"pool"}}, headers)
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -98,8 +98,34 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	srv.Config.WriteTimeout = 50 * time.Millisecond
 	srv.Start()
 	defer srv.Close()
+	// A cold bare-URL probe returns genuine initial audio and releases the
+	// subscription without the client having to close an endless body.
+	checkProbe := func(wantListeners int) {
+		t.Helper()
+		probeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		tiny, _ := http.NewRequestWithContext(probeCtx, "GET", srv.URL+"/streams/jazz-24", nil)
+		tiny.Header.Set("Range", "bytes=0-1")
+		response, err := http.DefaultClient.Do(tiny)
+		if err != nil {
+			t.Fatal(err)
+		}
+		audio, err := io.ReadAll(response.Body)
+		response.Body.Close()
+		if err != nil || response.StatusCode != 200 || len(audio) == 0 || len(audio) > 4096 || !strings.HasPrefix(string(audio), "shared audio") || response.Header.Get("Content-Type") != "audio/mpeg" || response.Header.Get("Content-Range") != "" {
+			t.Fatal("probe must finish with actual MP3-stream bytes", response.StatusCode, len(audio), err)
+		}
+		deadline := time.Now().Add(time.Second)
+		for m.State(a.ID).Listeners != wantListeners && time.Now().Before(deadline) {
+			time.Sleep(time.Millisecond)
+		}
+		if got := m.State(a.ID).Listeners; got != wantListeners {
+			t.Fatal("probe remained a listener", got, wantListeners)
+		}
+	}
+	checkProbe(0)
 	probe, _ := http.NewRequest("GET", srv.URL+"/streams/jazz-24", nil)
-	probe.Header.Set("Range", "bytes=0-1")
+	probe.Header.Set("Range", "bytes=0-")
 	first, err := http.DefaultClient.Do(probe)
 	if err != nil {
 		t.Fatal(err)
@@ -115,6 +141,9 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 	if first.StatusCode != 200 || second.StatusCode != 200 || first.Header.Get("Content-Range") != "" || second.Header.Get("Content-Range") != "" || first.Header.Get("Content-Type") != "audio/mpeg" || first.Header.Get("Accept-Ranges") != "none" || m.State(a.ID).Listeners != 2 {
 		t.Fatal(first.StatusCode, first.Header, m.State(a.ID))
 	}
+	// Probing an already-playing station must not leave a third connection,
+	// and two independent playback clients must continue to count separately.
+	checkProbe(2)
 	metadataRequest, _ := http.NewRequest("GET", srv.URL+"/streams/jazz-24", nil)
 	metadataRequest.Header.Set("Icy-MetaData", "1")
 	metadataResponse, err := http.DefaultClient.Do(metadataRequest)
@@ -208,7 +237,7 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 }
 func csrfWithAuth(t *testing.T, h http.Handler, headers map[string]string) string {
 	t.Helper()
-	w := request(h, "GET", "/station", nil, headers)
+	w := request(h, "GET", "/producer/station", nil, headers)
 	start := strings.Index(w.Body.String(), `name="csrf" value="`)
 	if start < 0 {
 		t.Fatal(w.Body.String())

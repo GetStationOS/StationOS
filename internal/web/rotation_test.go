@@ -11,7 +11,7 @@ import (
 func TestStationRepeatSettings(t *testing.T) {
 	h, repo, _, _ := setupWeb(t, "")
 	token := csrf(t, h)
-	newPage := request(h, "GET", "/stations/new", nil, nil)
+	newPage := request(h, "GET", "/producer/stations/new", nil, nil)
 	if !strings.Contains(newPage.Body.String(), `name="repeat_minutes" value="180"`) {
 		t.Fatal("default missing")
 	}
@@ -20,7 +20,7 @@ func TestStationRepeatSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	form := url.Values{"csrf": {token}, "id": {st.ID}, "name": {"Radio"}, "timezone": {"UTC"}, "repeat_minutes": {"240"}}
-	saved := request(h, "POST", "/station", form, map[string]string{"HX-Request": "true"})
+	saved := request(h, "POST", "/producer/station", form, map[string]string{"HX-Request": "true"})
 	if saved.Code != 204 || saved.Header().Get("HX-Location") == "" {
 		t.Fatal(saved.Code, saved.Body.String())
 	}
@@ -28,12 +28,12 @@ func TestStationRepeatSettings(t *testing.T) {
 	if err != nil || st.RepeatMinutes != 240 {
 		t.Fatal(st, err)
 	}
-	settings := request(h, "GET", "/stations/"+st.ID+"/settings", nil, nil)
+	settings := request(h, "GET", "/producer/stations/"+st.ID+"/settings", nil, nil)
 	if !strings.Contains(settings.Body.String(), `name="repeat_minutes" value="240"`) {
 		t.Fatal("saved interval missing")
 	}
 	form.Set("repeat_minutes", "360")
-	ordinary := request(h, "POST", "/station", form, nil)
+	ordinary := request(h, "POST", "/producer/station", form, nil)
 	if ordinary.Code != 303 {
 		t.Fatal("ordinary save failed", ordinary.Code)
 	}
@@ -43,7 +43,7 @@ func TestStationRepeatSettings(t *testing.T) {
 	}
 	for _, invalid := range []string{"0", "-1", "10081", "bad", ""} {
 		form.Set("repeat_minutes", invalid)
-		response := request(h, "POST", "/station", form, nil)
+		response := request(h, "POST", "/producer/station", form, nil)
 		if response.Code != 422 || !strings.Contains(response.Body.String(), "between 1 and 10080 minutes") {
 			t.Fatal(invalid, response.Code, response.Body.String())
 		}

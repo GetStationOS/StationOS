@@ -19,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/mixer"
@@ -32,6 +33,7 @@ import (
 var assets embed.FS
 
 type Dependencies struct {
+	Audience        audience.Repository
 	Mixer           mixer.Repository
 	ArtworkFactory  sources.Factory
 	Schedule        schedule.Repository
@@ -49,15 +51,16 @@ type Dependencies struct {
 	Password        string
 }
 type Server struct {
-	d            Dependencies
-	t            *template.Template
-	csrf         string
-	artworkSlots chan struct{}
-	eventSlots   chan struct{}
+	audienceRates audienceRateLimiter
+	d             Dependencies
+	t             *template.Template
+	csrf          string
+	artworkSlots  chan struct{}
+	eventSlots    chan struct{}
 }
 
 func New(d Dependencies) (http.Handler, error) {
-	t, err := template.New("pages").Funcs(template.FuncMap{"stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	t, err := template.New("pages").Funcs(template.FuncMap{"producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -73,59 +76,90 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { s.json(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /readyz", s.ready)
 	mux.Handle("GET /static/", http.FileServerFS(assets))
-	mux.HandleFunc("GET /{$}", s.page)
-	mux.HandleFunc("GET /station", s.page)
-	mux.HandleFunc("GET /stations/new", s.page)
-	mux.HandleFunc("GET /stations/{id}", s.stationPage)
-	mux.HandleFunc("GET /stations/live", s.liveCards)
-	mux.HandleFunc("GET /stations/events", s.stationEvents)
-	mux.HandleFunc("GET /stations/{id}/player", s.stationEvents)
-	mux.HandleFunc("GET /streams/{id}", s.stream)
-	mux.HandleFunc("GET /station-logos/{image}", s.stationLogo)
-	mux.HandleFunc("GET /stations/{id}/artwork/{item}", s.stationArtwork)
-	mux.HandleFunc("GET /stations/{id}/live", s.liveStation)
-	mux.HandleFunc("POST /stations/{id}/broadcast", s.assignBroadcast)
-	mux.HandleFunc("GET /stations/{id}/mixer", s.mixerPage)
-	mux.HandleFunc("POST /stations/{id}/mixer", s.saveMixer)
-	mux.HandleFunc("GET /stations/{id}/settings", s.stationPage)
-	mux.HandleFunc("GET /stations/{id}/delete", s.stationPage)
-	mux.HandleFunc("POST /stations/{id}/delete", s.deleteStation)
-	mux.HandleFunc("GET /stations/{id}/schedule", s.schedulePage)
-	mux.HandleFunc("GET /stations/{id}/schedule/new", s.schedulePage)
-	mux.HandleFunc("GET /stations/{id}/schedule/{show}", s.schedulePage)
-	mux.HandleFunc("GET /stations/{id}/schedule/{show}/delete", s.schedulePage)
-	mux.HandleFunc("POST /stations/{id}/schedule", s.saveShow)
-	mux.HandleFunc("POST /stations/{id}/schedule/{show}/delete", s.deleteShow)
-	mux.HandleFunc("GET /djs", s.djPage)
-	mux.HandleFunc("GET /djs/new", s.djPage)
-	mux.HandleFunc("GET /djs/{id}", s.djPage)
+	mux.HandleFunc("GET /producer", s.page)
+	mux.HandleFunc("GET /producer/{$}", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/producer", 308) })
+	mux.HandleFunc("GET /{$}", s.publicPage)
+	mux.HandleFunc("GET /radio-events", s.publicDirectoryEvents)
+	mux.HandleFunc("GET /radio/{slug}", s.publicPage)
+	mux.HandleFunc("GET /radio/{slug}/shows/{show}", s.publicPage)
+	mux.HandleFunc("GET /radio/{slug}/shows/{show}/contribute", s.audienceForm)
+	mux.HandleFunc("GET /radio/{slug}/shows/{show}/requests", s.audienceForm)
+	mux.HandleFunc("POST /radio/{slug}/shows/{show}/requests", s.submitAudience)
+	mux.HandleFunc("GET /radio/{slug}/shows/{show}/shoutouts", s.audienceForm)
+	mux.HandleFunc("POST /radio/{slug}/shows/{show}/shoutouts", s.submitAudience)
+	mux.HandleFunc("GET /radio/{slug}/contribute", s.audienceForm)
+	mux.HandleFunc("GET /radio/{slug}/requests", s.audienceForm)
+	mux.HandleFunc("POST /radio/{slug}/requests", s.submitAudience)
+	mux.HandleFunc("GET /radio/{slug}/shoutouts", s.audienceForm)
+	mux.HandleFunc("POST /radio/{slug}/shoutouts", s.submitAudience)
+	mux.HandleFunc("GET /producer/stations/{id}/audience", s.audiencePage)
+	mux.HandleFunc("POST /producer/stations/{id}/audience/{message}", s.decideAudience)
+	mux.HandleFunc("GET /radio/{slug}/live", s.publicLive)
+	mux.HandleFunc("GET /radio/{slug}/player", s.publicPlayerEvents)
+	mux.HandleFunc("GET /radio/{slug}/artwork/{item}", s.publicArtwork)
+	mux.HandleFunc("GET /radio/{slug}/presenters/{id}/photo", s.publicDJPhoto)
 	mux.HandleFunc("GET /djs/{id}/photo", s.djPhoto)
-	mux.HandleFunc("GET /djs/{id}/delete", s.djPage)
-	mux.HandleFunc("POST /djs", s.saveDJ)
-	mux.HandleFunc("POST /djs/{id}/delete", s.deleteDJ)
-	mux.HandleFunc("GET /sources", s.page)
-	mux.HandleFunc("GET /sources/new", s.page)
-	mux.HandleFunc("GET /sources/{id}", s.sourcePage)
-	mux.HandleFunc("GET /sources/{id}/settings", s.sourcePage)
-	mux.HandleFunc("GET /content", s.page)
-	mux.HandleFunc("GET /api/v1/status", s.status)
-	mux.HandleFunc("GET /playlists", s.playlistPage)
-	mux.HandleFunc("GET /playlists/new", s.playlistPage)
-	mux.HandleFunc("GET /playlists/{id}", s.playlistPage)
-	mux.HandleFunc("GET /playlists/{id}/tracks", s.playlistPage)
-	mux.HandleFunc("GET /playlists/{id}/settings", s.playlistPage)
-	mux.HandleFunc("GET /playlists/{id}/delete", s.playlistPage)
-	mux.HandleFunc("POST /playlists/{id}/delete", s.deletePlaylist)
-	mux.HandleFunc("POST /playlists", s.savePlaylist)
-	mux.HandleFunc("POST /playlists/{id}/default", s.defaultPlaylist)
-	mux.HandleFunc("POST /playlists/select", s.selectItems)
-	mux.HandleFunc("POST /playlists/{id}/rules", s.addRule)
-	mux.HandleFunc("POST /playlists/{id}/selections", s.replaceRules)
-	mux.HandleFunc("POST /playlists/{id}/rules/{rule}/remove", s.removeRule)
-	mux.HandleFunc("POST /playlists/{id}/remove", s.removeItem)
-	mux.HandleFunc("POST /station", s.saveStation)
-	mux.HandleFunc("POST /sources", s.saveSource)
-	mux.HandleFunc("POST /sources/{id}/sync", s.syncSource)
+	for _, path := range []string{"/stations", "/station", "/sources", "/djs", "/content", "/playlists", "/api"} {
+		redirect := func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/producer"+r.URL.RequestURI(), http.StatusTemporaryRedirect)
+		}
+		mux.HandleFunc(path, redirect)
+		mux.HandleFunc(path+"/", redirect)
+	}
+	mux.HandleFunc("GET /producer/station", s.page)
+	mux.HandleFunc("GET /producer/stations/new", s.page)
+	mux.HandleFunc("GET /producer/stations/{id}", s.stationPage)
+	mux.HandleFunc("GET /producer/stations/live", s.liveCards)
+	mux.HandleFunc("GET /producer/stations/events", s.stationEvents)
+	mux.HandleFunc("GET /producer/stations/{id}/player", s.stationEvents)
+	mux.HandleFunc("GET /streams/{id}", s.stream)
+	mux.HandleFunc("GET /producer/streams/{id}", s.stream)
+	mux.HandleFunc("GET /producer/station-logos/{image}", s.stationLogo)
+	mux.HandleFunc("GET /station-logos/{image}", s.stationLogo)
+	mux.HandleFunc("GET /producer/stations/{id}/artwork/{item}", s.stationArtwork)
+	mux.HandleFunc("GET /producer/stations/{id}/live", s.liveStation)
+	mux.HandleFunc("POST /producer/stations/{id}/broadcast", s.assignBroadcast)
+	mux.HandleFunc("GET /producer/stations/{id}/mixer", s.mixerPage)
+	mux.HandleFunc("POST /producer/stations/{id}/mixer", s.saveMixer)
+	mux.HandleFunc("GET /producer/stations/{id}/settings", s.stationPage)
+	mux.HandleFunc("GET /producer/stations/{id}/delete", s.stationPage)
+	mux.HandleFunc("POST /producer/stations/{id}/delete", s.deleteStation)
+	mux.HandleFunc("GET /producer/stations/{id}/schedule", s.schedulePage)
+	mux.HandleFunc("GET /producer/stations/{id}/schedule/new", s.schedulePage)
+	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}", s.schedulePage)
+	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}/delete", s.schedulePage)
+	mux.HandleFunc("POST /producer/stations/{id}/schedule", s.saveShow)
+	mux.HandleFunc("POST /producer/stations/{id}/schedule/{show}/delete", s.deleteShow)
+	mux.HandleFunc("GET /producer/djs", s.djPage)
+	mux.HandleFunc("GET /producer/djs/new", s.djPage)
+	mux.HandleFunc("GET /producer/djs/{id}", s.djPage)
+	mux.HandleFunc("GET /producer/djs/{id}/photo", s.djPhoto)
+	mux.HandleFunc("GET /producer/djs/{id}/delete", s.djPage)
+	mux.HandleFunc("POST /producer/djs", s.saveDJ)
+	mux.HandleFunc("POST /producer/djs/{id}/delete", s.deleteDJ)
+	mux.HandleFunc("GET /producer/sources", s.page)
+	mux.HandleFunc("GET /producer/sources/new", s.page)
+	mux.HandleFunc("GET /producer/sources/{id}", s.sourcePage)
+	mux.HandleFunc("GET /producer/sources/{id}/settings", s.sourcePage)
+	mux.HandleFunc("GET /producer/content", s.page)
+	mux.HandleFunc("GET /producer/api/v1/status", s.status)
+	mux.HandleFunc("GET /producer/playlists", s.playlistPage)
+	mux.HandleFunc("GET /producer/playlists/new", s.playlistPage)
+	mux.HandleFunc("GET /producer/playlists/{id}", s.playlistPage)
+	mux.HandleFunc("GET /producer/playlists/{id}/tracks", s.playlistPage)
+	mux.HandleFunc("GET /producer/playlists/{id}/settings", s.playlistPage)
+	mux.HandleFunc("GET /producer/playlists/{id}/delete", s.playlistPage)
+	mux.HandleFunc("POST /producer/playlists/{id}/delete", s.deletePlaylist)
+	mux.HandleFunc("POST /producer/playlists", s.savePlaylist)
+	mux.HandleFunc("POST /producer/playlists/{id}/default", s.defaultPlaylist)
+	mux.HandleFunc("POST /producer/playlists/select", s.selectItems)
+	mux.HandleFunc("POST /producer/playlists/{id}/rules", s.addRule)
+	mux.HandleFunc("POST /producer/playlists/{id}/selections", s.replaceRules)
+	mux.HandleFunc("POST /producer/playlists/{id}/rules/{rule}/remove", s.removeRule)
+	mux.HandleFunc("POST /producer/playlists/{id}/remove", s.removeItem)
+	mux.HandleFunc("POST /producer/station", s.saveStation)
+	mux.HandleFunc("POST /producer/sources", s.saveSource)
+	mux.HandleFunc("POST /producer/sources/{id}/sync", s.syncSource)
 	return s.protect(mux), nil
 }
 func (s *Server) protect(next http.Handler) http.Handler {
@@ -138,7 +172,7 @@ func (s *Server) protect(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 		publicStream := (r.Method == http.MethodGet || r.Method == http.MethodHead) && len(r.URL.Path) > len("/streams/") && strings.HasPrefix(r.URL.Path, "/streams/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
 		publicLogo := (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/station-logos/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/station-logos/"), "/")
-		if s.d.Password != "" && r.URL.Path != "/healthz" && r.URL.Path != "/readyz" && !publicStream && !publicLogo {
+		if s.d.Password != "" && r.URL.Path != "/healthz" && r.URL.Path != "/readyz" && !publicStream && !publicLogo && !publicRead(r) && !publicAudienceWrite(r) {
 			user, pass, ok := r.BasicAuth()
 			want := sha256.Sum256([]byte(s.d.Password))
 			got := sha256.Sum256([]byte(pass))
@@ -166,14 +200,18 @@ func (s *Server) protect(next http.Handler) http.Handler {
 			}
 			kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			var formErr error
-			if (r.URL.Path == "/djs" || r.URL.Path == "/station") && kind == "multipart/form-data" {
+			if (r.URL.Path == "/producer/djs" || r.URL.Path == "/producer/station") && kind == "multipart/form-data" {
 				r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
 				formErr = r.ParseMultipartForm(6 << 20)
 				if r.MultipartForm != nil {
 					defer r.MultipartForm.RemoveAll()
 				}
 			} else {
-				r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+				limit := int64(1 << 20)
+				if publicAudienceWrite(r) {
+					limit = 8 << 10
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
 				formErr = r.ParseForm()
 			}
 			if formErr != nil {
@@ -181,7 +219,11 @@ func (s *Server) protect(next http.Handler) http.Handler {
 				return
 			}
 
-			if subtle.ConstantTimeCompare([]byte(r.PostForm.Get("csrf")), []byte(s.csrf)) != 1 {
+			token := s.csrf
+			if publicAudienceWrite(r) {
+				token = s.listenerToken(r)
+			}
+			if token == "" || subtle.ConstantTimeCompare([]byte(r.PostForm.Get("csrf")), []byte(token)) != 1 {
 				http.Error(w, "invalid form token; reload the page", 403)
 				return
 			}
@@ -254,6 +296,7 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 		}
 		v.LogoVersion = existing.LogoVersion
 		v.RepeatMinutes = existing.RepeatMinutes
+		v.Visibility = existing.Visibility
 	}
 	if input, supplied := r.PostForm["repeat_minutes"]; supplied {
 		minutes, err := strconv.Atoi(input[0])
@@ -262,6 +305,13 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		v.RepeatMinutes = minutes
+	}
+	if r.PostForm.Has("visibility") {
+		v.Visibility = station.Visibility(r.PostForm.Get("visibility"))
+		if v.Visibility == "" {
+			s.stationFormError(w, r, v, errors.New("choose listed, unlisted or private visibility"))
+			return
+		}
 	}
 	change, err := s.readUploadedImage(r, "logo")
 	if change != nil {
@@ -287,7 +337,10 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	to := "/stations/" + saved.ID
+	if saved.Publication() == station.Private && s.d.Broadcast != nil {
+		s.d.Broadcast.Stop(saved.ID)
+	}
+	to := "/producer/stations/" + saved.ID
 	if v.ID != "" {
 		to += "/settings"
 	}
@@ -312,7 +365,7 @@ func (s *Server) saveSource(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	to := "/sources/" + saved.ID
+	to := "/producer/sources/" + saved.ID
 	if c.ID != "" {
 		to += "/settings"
 	}
@@ -328,8 +381,8 @@ func (s *Server) syncSource(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "source import failed; existing catalogue preserved; check server logs", 502)
 		return
 	}
-	to := "/content"
-	if r.PostForm.Get("return_to") == "/sources/"+r.PathValue("id") {
+	to := "/producer/content"
+	if r.PostForm.Get("return_to") == "/producer/sources/"+r.PathValue("id") {
 		to = r.PostForm.Get("return_to")
 	}
 	s.redirect(w, r, to+"?notice=imported")

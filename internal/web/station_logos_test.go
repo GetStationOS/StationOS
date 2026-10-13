@@ -14,7 +14,7 @@ import (
 func TestStationLogoLifecycle(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	fields := url.Values{"csrf": {csrf(t, h)}, "name": {"Logo Radio"}, "timezone": {"Europe/London"}, "locale": {"en-GB"}}
-	if w := imageForm(t, h, "/station", fields, photoPNG(t, color.White), true); w.Code != 204 {
+	if w := imageForm(t, h, "/producer/station", fields, photoPNG(t, color.White), true); w.Code != 204 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	stations, err := st.List(context.Background())
@@ -28,7 +28,7 @@ func TestStationLogoLifecycle(t *testing.T) {
 	if logo.Code != 200 || format != "jpeg" || cfg.Width != 768 || err != nil {
 		t.Fatal(logo.Code, cfg, format, err)
 	}
-	if w := imageForm(t, h, "/station", fields, nil, false); w.Code != 303 {
+	if w := imageForm(t, h, "/producer/station", fields, nil, false); w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	retained, _ := st.Get(context.Background(), a.ID)
@@ -36,17 +36,17 @@ func TestStationLogoLifecycle(t *testing.T) {
 		t.Fatal("ordinary save erased logo")
 	}
 	fields.Set("timezone", "invalid")
-	if w := imageForm(t, h, "/station", fields, photoPNG(t, color.Black), false); w.Code != 422 || !strings.Contains(w.Body.String(), "Logo Radio") {
+	if w := imageForm(t, h, "/producer/station", fields, photoPNG(t, color.Black), false); w.Code != 422 || !strings.Contains(w.Body.String(), "Logo Radio") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	if got := request(h, "GET", a.LogoURL(), nil, nil); !bytes.Equal(got.Body.Bytes(), logo.Body.Bytes()) {
 		t.Fatal("invalid save changed logo")
 	}
 	fields.Set("timezone", "UTC")
-	if w := imageForm(t, h, "/station", fields, []byte("bad image"), true); w.Code != 422 {
+	if w := imageForm(t, h, "/producer/station", fields, []byte("bad image"), true); w.Code != 422 {
 		t.Fatal(w.Code)
 	}
-	if w := imageForm(t, h, "/station", fields, photoPNG(t, color.Black), true); w.Code != 204 {
+	if w := imageForm(t, h, "/producer/station", fields, photoPNG(t, color.Black), true); w.Code != 204 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	replaced, _ := st.Get(context.Background(), a.ID)
@@ -54,10 +54,10 @@ func TestStationLogoLifecycle(t *testing.T) {
 		t.Fatal("replacement not versioned")
 	}
 	fields.Set("photo_removed", "yes")
-	if w := imageForm(t, h, "/station", fields, photoPNG(t, color.White), true); w.Code != 422 {
+	if w := imageForm(t, h, "/producer/station", fields, photoPNG(t, color.White), true); w.Code != 422 {
 		t.Fatal("conflicting changes accepted", w.Code)
 	}
-	if w := imageForm(t, h, "/station", fields, nil, true); w.Code != 204 {
+	if w := imageForm(t, h, "/producer/station", fields, nil, true); w.Code != 204 {
 		t.Fatal(w.Code)
 	}
 	removed, _ := st.Get(context.Background(), a.ID)
@@ -70,7 +70,7 @@ func TestStationLogoLifecycle(t *testing.T) {
 		t.Fatal("default logo missing")
 	}
 	fields.Del("photo_removed")
-	if w := imageForm(t, h, "/station", fields, photoPNG(t, color.White), true); w.Code != 204 {
+	if w := imageForm(t, h, "/producer/station", fields, photoPNG(t, color.White), true); w.Code != 204 {
 		t.Fatal(w.Code)
 	}
 	if err := st.Delete(context.Background(), a.ID); err != nil {
@@ -100,10 +100,10 @@ func TestStationLogoPublicReadProtectedWrite(t *testing.T) {
 			t.Fatal("HEAD body")
 		}
 	}
-	if w := request(h, "GET", "/stations/"+a.ID+"/settings", nil, nil); w.Code != 401 {
+	if w := request(h, "GET", "/producer/stations/"+a.ID+"/settings", nil, nil); w.Code != 401 {
 		t.Fatal("settings exposed")
 	}
-	if w := imageForm(t, h, "/station", nil, photoPNG(t, color.White), true); w.Code != 401 {
+	if w := imageForm(t, h, "/producer/station", nil, photoPNG(t, color.White), true); w.Code != 401 {
 		t.Fatal("unprotected write")
 	}
 	if w := request(h, "GET", "/station-logos/missing.jpg", nil, nil); w.Code != 404 {

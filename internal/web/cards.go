@@ -11,6 +11,7 @@ import (
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/sources"
+	"stationos.local/stationos/internal/station"
 )
 
 type cardTrack struct {
@@ -22,7 +23,7 @@ func stationTrack(stationID, label, empty string, item content.AudioItem) cardTr
 	t := cardTrack{Label: label, Empty: empty, Item: item, Duration: duration(item.Duration)}
 	if item.ID != "" && item.Artwork != "" {
 		hash := sha256.Sum256([]byte(item.Artwork))
-		t.Artwork = "/stations/" + url.PathEscape(stationID) + "/artwork/" + url.PathEscape(item.ID) + "?v=" + hex.EncodeToString(hash[:8])
+		t.Artwork = "/producer/stations/" + url.PathEscape(stationID) + "/artwork/" + url.PathEscape(item.ID) + "?v=" + hex.EncodeToString(hash[:8])
 	}
 	return t
 }
@@ -117,4 +118,11 @@ func (s *Server) stationArtwork(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", mime)
 	w.Header().Set("Cache-Control", "private, max-age=300")
 	_, _ = w.Write(data)
+}
+
+func producerLogo(st station.Station) string {
+	if st.ID == "" {
+		return st.LogoURL()
+	}
+	return "/producer" + st.LogoURL()
 }

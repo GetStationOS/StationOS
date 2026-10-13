@@ -82,6 +82,7 @@ func ReadBounded(r io.Reader, limit int64) ([]byte, error) {
 const Timeout = 90 * time.Second
 
 type LinkRequest struct {
+	Audience         []AudienceItem
 	Show, Following  schedule.Occurrence
 	Current, Next    content.AudioItem
 	Handover         bool

@@ -105,5 +105,5 @@ func (s *Server) saveMixer(w http.ResponseWriter, r *http.Request) {
 		s.json(w, http.StatusOK, map[string]string{"status": "saved"})
 		return
 	}
-	s.redirect(w, r, "/stations/"+v.Station.ID+"/mixer?notice=mixer-saved")
+	s.redirect(w, r, "/producer/stations/"+v.Station.ID+"/mixer?notice=mixer-saved")
 }

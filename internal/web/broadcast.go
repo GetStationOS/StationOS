@@ -39,6 +39,10 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if !st.Public() && !strings.HasPrefix(r.URL.Path, "/producer/streams/") && !s.adminAuthenticated(r) {
+		http.NotFound(w, r)
+		return
+	}
 	w.Header().Set("Content-Type", "audio/mpeg")
 	w.Header().Set("Accept-Ranges", "none")
 	w.Header().Set("X-Accel-Buffering", "no")
@@ -68,7 +72,8 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	}
 	sub, err := s.d.Broadcast.SubscribeStream(r.Context(), st.ID, clientID)
 	if err != nil {
-		http.Error(w, err.Error(), 503)
+		s.d.Logger.Warn("stream admission failed", "station", st.ID, "error", err)
+		http.Error(w, "station unavailable; please try again shortly", 503)
 		return
 	}
 	defer sub.Close()
@@ -77,16 +82,16 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 	var first []broadcast.StreamFrame
 	select {
 	case <-sub.Done:
-		http.Error(w, "station could not play its music; check the source and try again", 503)
+		http.Error(w, "station could not play its music; please try again shortly", 503)
 		return
 	case <-r.Context().Done():
 		return
 	case <-timer.C:
-		http.Error(w, "station could not start; check the source and try again", 503)
+		http.Error(w, "station could not start; please try again shortly", 503)
 		return
 	case data, ok := <-sub.Frames:
 		if !ok {
-			http.Error(w, "station could not play its music; check the source and try again", 503)
+			http.Error(w, "station could not play its music; please try again shortly", 503)
 			return
 		}
 		first = data
@@ -115,7 +120,17 @@ func (s *Server) stream(w http.ResponseWriter, r *http.Request) {
 		}
 		return rc.Flush() == nil
 	}
+	// A bare URL's tiny media probe must not become another endless listener.
+	// Keep the Safari-compatible 200 MP3 response, but finish after initial
+	// audio. Session-bearing app probes are replaced by their playback request.
+	probe := clientID == "" && strings.TrimSpace(r.Header.Get("Range")) == "bytes=0-1"
+	if probe && len(first) > 1 {
+		first = first[:1]
+	}
 	if !write(first) {
+		return
+	}
+	if probe {
 		return
 	}
 	for {
@@ -153,7 +168,7 @@ func (s *Server) assignBroadcast(w http.ResponseWriter, r *http.Request) {
 	if s.d.Broadcast != nil {
 		s.d.Broadcast.Stop(id)
 	}
-	s.redirect(w, r, "/stations/"+id+"/settings?notice=broadcast-saved")
+	s.redirect(w, r, "/producer/stations/"+id+"/settings?notice=broadcast-saved")
 }
 func (s *Server) liveStation(w http.ResponseWriter, r *http.Request) {
 	st, err := s.d.Stations.Get(r.Context(), r.PathValue("id"))

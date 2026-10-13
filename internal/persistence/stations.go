@@ -51,7 +51,7 @@ func (r Stations) Save(ctx context.Context, s station.Station) error {
 			}
 		}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO stations(id,name,description,timezone,locale,stream_slug,repeat_minutes) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,timezone=excluded.timezone,locale=excluded.locale,stream_slug=excluded.stream_slug,repeat_minutes=excluded.repeat_minutes`, s.ID, s.Name, s.Description, s.Timezone, s.Locale, s.StreamSlug, s.RepeatIntervalMinutes())
+	_, err = tx.ExecContext(ctx, `INSERT INTO stations(id,name,description,timezone,locale,stream_slug,repeat_minutes,visibility) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,description=excluded.description,timezone=excluded.timezone,locale=excluded.locale,stream_slug=excluded.stream_slug,repeat_minutes=excluded.repeat_minutes,visibility=excluded.visibility`, s.ID, s.Name, s.Description, s.Timezone, s.Locale, s.StreamSlug, s.RepeatIntervalMinutes(), s.Publication())
 	if err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: stations.stream_slug") {
 		return station.ErrSlugTaken
 	}
@@ -74,7 +74,7 @@ func (r Stations) Save(ctx context.Context, s station.Station) error {
 
 func (r Stations) ByStreamSlug(ctx context.Context, slug string) (station.Station, error) {
 	var s station.Station
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),'') FROM stations WHERE stream_slug=? AND stream_slug<>''`, slug).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion)
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility FROM stations WHERE stream_slug=? AND stream_slug<>''`, slug).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = station.ErrNotFound
 	}
@@ -82,14 +82,14 @@ func (r Stations) ByStreamSlug(ctx context.Context, slug string) (station.Statio
 }
 func (r Stations) Get(ctx context.Context, id string) (station.Station, error) {
 	var s station.Station
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),'') FROM stations WHERE id=?`, id).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion)
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility FROM stations WHERE id=?`, id).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = station.ErrNotFound
 	}
 	return s, err
 }
 func (r Stations) List(ctx context.Context) ([]station.Station, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),'') FROM stations ORDER BY name,id`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility FROM stations ORDER BY name,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (r Stations) List(ctx context.Context) ([]station.Station, error) {
 	out := []station.Station{}
 	for rows.Next() {
 		var s station.Station
-		if err = rows.Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion); err != nil {
+		if err = rows.Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

@@ -16,7 +16,7 @@ import (
 )
 
 func photoForm(t *testing.T, h http.Handler, fields url.Values, data []byte, hx bool) *httptest.ResponseRecorder {
-	return imageForm(t, h, "/djs", fields, data, hx)
+	return imageForm(t, h, "/producer/djs", fields, data, hx)
 }
 func imageForm(t *testing.T, h http.Handler, path string, fields url.Values, data []byte, hx bool) *httptest.ResponseRecorder {
 	t.Helper()
@@ -123,7 +123,7 @@ func TestDJPhotoUploadReplaceRetainRemoveAndDelete(t *testing.T) {
 	if !hasKey {
 		t.Fatal("photo edit erased credentials")
 	}
-	if w := request(h, "POST", "/djs/"+id+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, nil); w.Code != 303 {
+	if w := request(h, "POST", "/producer/djs/"+id+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, nil); w.Code != 303 {
 		t.Fatal(w.Code)
 	}
 	var count int
@@ -160,13 +160,13 @@ func TestDJPhotoRejectsInvalidOversizedAndUnprotectedWrites(t *testing.T) {
 		t.Fatal("failed upload wrote data")
 	}
 	protected, _, _, _ := setupWeb(t, "secret")
-	if w := request(protected, "GET", "/djs/default-pop/photo", nil, nil); w.Code != 401 {
+	if w := request(protected, "GET", "/producer/djs/default-pop/photo", nil, nil); w.Code != 401 {
 		t.Fatal("photo bypassed authentication")
 	}
 	if w := photoForm(t, protected, fields, nil, true); w.Code != 401 {
 		t.Fatal("upload bypassed authentication")
 	}
-	page := request(h, "GET", "/djs/default-pop", nil, nil).Body.String()
+	page := request(h, "GET", "/producer/djs/default-pop", nil, nil).Body.String()
 	if strings.Contains(page, `name="portrait_url"`) || !strings.Contains(page, `enctype="multipart/form-data"`) {
 		t.Fatal("URL field remains or upload missing")
 	}

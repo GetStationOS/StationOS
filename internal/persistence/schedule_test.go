@@ -30,7 +30,7 @@ func TestScheduleOwnershipOverlapAndDeletion(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	show := schedule.Show{ID: "show", StationID: "s", Name: "Morning", DJID: "default-pop", PlaylistID: "s-pool", Day: 0, Start: 540, End: 600}
+	show := schedule.Show{ID: "show", StationID: "s", Name: "Morning", Description: "Music for your morning", DJID: "default-pop", PlaylistID: "s-pool", Day: 0, Start: 540, End: 600}
 	if err = repo.Save(ctx, show); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestScheduleOwnershipOverlapAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	loaded, err := repo.Get(ctx, "s", "show")
-	if err != nil || loaded.DJ.ConversationSpeed != 1.15 {
+	if err != nil || loaded.DJ.ConversationSpeed != 1.15 || loaded.Description != show.Description {
 		t.Fatal("scheduled DJ lost speed", loaded.DJ, err)
 	}
 	wrong := show

@@ -147,7 +147,18 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 	}
 	start, e2 := parseShowTime(r.PostForm.Get("start"))
 	end, e3 := parseShowTime(r.PostForm.Get("end"))
-	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Start: start, End: end}
+	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), Description: r.PostForm.Get("description"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Start: start, End: end}
+	if r.PostForm.Get("audience_settings") == "yes" {
+		v.AcceptRequests = r.PostForm.Get("accept_requests") == "yes"
+		v.AcceptShoutouts = r.PostForm.Get("accept_shoutouts") == "yes"
+	} else if v.ID != "" {
+		old, err := s.d.Schedule.Get(r.Context(), v.StationID, v.ID)
+		if err != nil {
+			s.scheduleError(w, r, err)
+			return
+		}
+		v.AcceptRequests, v.AcceptShoutouts = old.AcceptRequests, old.AcceptShoutouts
+	}
 	if dayError || len(days) == 0 || (v.ID != "" && len(days) != 1) || e2 != nil || e3 != nil {
 		s.invalidShow(w, r, v, "Choose at least one day and valid quarter-hour start/end times.")
 		return
@@ -169,7 +180,7 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	s.redirect(w, r, "/stations/"+v.StationID+"/schedule?notice="+notice)
+	s.redirect(w, r, "/producer/stations/"+v.StationID+"/schedule?notice="+notice)
 }
 func (s *Server) deleteShow(w http.ResponseWriter, r *http.Request) {
 	if s.d.Schedule == nil {
@@ -184,7 +195,7 @@ func (s *Server) deleteShow(w http.ResponseWriter, r *http.Request) {
 		s.scheduleError(w, r, err)
 		return
 	}
-	s.redirect(w, r, "/stations/"+r.PathValue("id")+"/schedule?notice=show-deleted")
+	s.redirect(w, r, "/producer/stations/"+r.PathValue("id")+"/schedule?notice=show-deleted")
 }
 
 func (s *Server) invalidShow(w http.ResponseWriter, r *http.Request, show schedule.Show, message string) {

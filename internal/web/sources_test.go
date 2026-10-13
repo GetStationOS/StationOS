@@ -21,8 +21,8 @@ func TestSourceWorkspace(t *testing.T) {
 	if err := cat.Replace(ctx, source, []content.AudioItem{item}); err != nil {
 		t.Fatal(err)
 	}
-	path := "/sources/" + source.ID
-	w := request(h, "GET", "/sources", nil, nil)
+	path := "/producer/sources/" + source.ID
+	w := request(h, "GET", "/producer/sources", nil, nil)
 	if w.Code != 200 || !strings.Contains(w.Body.String(), path) || !strings.Contains(w.Body.String(), "1 tracks") || strings.Contains(w.Body.String(), "Connection settings") {
 		t.Fatal("source index mixes settings", w.Code, w.Body.String())
 	}
@@ -39,11 +39,11 @@ func TestSourceWorkspace(t *testing.T) {
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `name="endpoint"`) || strings.Contains(w.Body.String(), "Refresh library") {
 		t.Fatal("settings mixes overview")
 	}
-	w = request(h, "POST", "/sources", url.Values{"csrf": {token}, "id": {source.ID}, "name": {"Updated"}, "endpoint": {source.Endpoint}}, nil)
+	w = request(h, "POST", "/producer/sources", url.Values{"csrf": {token}, "id": {source.ID}, "name": {"Updated"}, "endpoint": {source.Endpoint}}, nil)
 	if w.Code != 303 || w.Header().Get("Location") != path+"/settings?notice=source-saved" {
 		t.Fatal("source save lost context", w.Code, w.Header())
 	}
-	if w = request(h, "GET", "/sources/missing", nil, nil); w.Code != 404 {
+	if w = request(h, "GET", "/producer/sources/missing", nil, nil); w.Code != 404 {
 		t.Fatal(w.Code)
 	}
 }

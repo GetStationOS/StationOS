@@ -17,7 +17,7 @@ func TestMixerPageSaveValidationAndFallback(t *testing.T) {
 	if err := st.Save(ctx, station.Station{ID: "one", Name: "One", Timezone: "UTC"}); err != nil {
 		t.Fatal(err)
 	}
-	path := "/stations/one/mixer"
+	path := "/producer/stations/one/mixer"
 	token := csrf(t, h)
 	for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
 		w := request(h, "GET", path, nil, headers)
@@ -52,7 +52,7 @@ func TestMixerPageSaveValidationAndFallback(t *testing.T) {
 	if w.Code != 403 {
 		t.Fatal("missing token accepted", w.Code)
 	}
-	w = request(h, "GET", "/stations/missing/mixer", nil, nil)
+	w = request(h, "GET", "/producer/stations/missing/mixer", nil, nil)
 	if w.Code != 404 {
 		t.Fatal(w.Code)
 	}
@@ -64,7 +64,7 @@ func TestMixerAutosaveCommitsWithoutRedirectOrFormSwap(t *testing.T) {
 	if err := st.Save(ctx, station.Station{ID: "auto", Name: "Automatic", Timezone: "UTC"}); err != nil {
 		t.Fatal(err)
 	}
-	path := "/stations/auto/mixer"
+	path := "/producer/stations/auto/mixer"
 	token := csrf(t, h)
 	page := request(h, "GET", path, nil, nil)
 	if strings.Contains(page.Body.String(), "Save mix") || strings.Contains(page.Body.String(), ">Cancel</a>") || strings.Contains(page.Body.String(), "data-mixer-unsaved") {

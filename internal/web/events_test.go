@@ -29,15 +29,15 @@ func TestStationEventsOnlySendChangedViewsAndKeepAuthentication(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	home := request(h, "GET", "/", nil, nil).Body.String()
-	if strings.Contains(home, `hx-trigger="every 3s"`) || !strings.Contains(home, `data-station-events="/stations/events"`) {
+	home := request(h, "GET", "/producer", nil, nil).Body.String()
+	if strings.Contains(home, `hx-trigger="every 3s"`) || !strings.Contains(home, `data-station-events="/producer/stations/events"`) {
 		t.Fatal("cards still poll", home)
 	}
 	server := httptest.NewServer(h)
 	defer server.Close()
 	eventCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	req, _ := http.NewRequestWithContext(eventCtx, "GET", server.URL+"/stations/events", nil)
+	req, _ := http.NewRequestWithContext(eventCtx, "GET", server.URL+"/producer/stations/events", nil)
 	response, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestStationEventsOnlySendChangedViewsAndKeepAuthentication(t *testing.T) {
 	}
 	deps.Password = "secret"
 	protected, _ := New(deps)
-	if request(protected, "GET", "/stations/events", nil, nil).Code != http.StatusUnauthorized {
+	if request(protected, "GET", "/producer/stations/events", nil, nil).Code != http.StatusUnauthorized {
 		t.Fatal("events bypass authentication")
 	}
 }

@@ -4,13 +4,13 @@ Status: adopted, 9 October 2026. Apply these rules to every new operator-facing 
 
 ## Product hierarchy
 
-Stations are the top-level domain. `/` is the station overview, with one card per station and a clear Create station action. Opening a card leads to that station's workspace. Overview, Playlists and Settings retain the station identity and breadcrumb. New scheduling, presenters, output and reporting screens must join this station workspace instead of becoming unrelated global pages.
+Stations are the top-level domain. `/producer` is the station overview, with one card per station and a clear Create station action. Opening a card leads to that station's workspace. Overview, Playlists and Settings retain the station identity and breadcrumb. New scheduling, presenters, output and reporting screens must join this station workspace instead of becoming unrelated global pages.
 
 Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, writing/curation model, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. API-key fields are write-only: leave blank to retain, enter a replacement or explicitly remove. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
 
 ## Status and information
 
-Show a small number of useful, current facts on station cards. Playlist counts are measured; listener counts come from active broadcast subscriptions, including the app player. Browser probe and playback requests from one app listening session count once; separate app players and external device connections remain independent. Dormant stations have a measured zero. Never use zero to represent unknown, invent listener numbers, show a playlist's first track as now playing, or label a station on air without an active output.
+Show a small number of useful, current facts on station cards. Playlist counts are measured; listener counts come from active broadcast subscriptions, including the app player. Browser probe and playback requests from one app listening session count once. Tiny bare-stream media probes finish after initial audio instead of remaining as duplicate listeners; separate app players and external playback connections remain independent. Dormant stations have a measured zero. Never use zero to represent unknown, invent listener numbers, show a playlist's first track as now playing, or label a station on air without an active output.
 
 Station Overview separates current playback, upcoming programme, listeners and stream health. Playback is listener-driven; weekly schedules select the active programme at track boundaries. Show current/next only from the actual producer, with Dormant, Starting, Broadcasting, Retrying and Unavailable states. When those systems exist, render their actual state through their own service contracts. Use HTMX polling or server events for the status region only; do not repeatedly replace an editing form or reset its scroll/focus. Distinguish offline, loading, stale, failed and unknown states with text as well as colour.
 
@@ -108,3 +108,129 @@ Station names sit beside their logos on listing cards and the station Overview h
 ## Track repeat interval
 
 Station creation and Settings include Minimum time between plays (minutes), default 180, accepting whole minutes from 1 to 10080. It applies across the station's shows and playlists and survives restarts and listener disconnects. Help text explains that small pools use their least recently played alternative when necessary. Station cards and Overview show a quiet, measured Repeat interval relaxed notice only while that fallback track is being broadcast. Operators manage duplicate recordings through playlist exclusions; StationOS uses exact track identity.
+
+
+## Public radio pages
+
+The public homepage `/` lists only stations explicitly set to Listed. Each station has a direct page at `/radio/<stream-address>` with its logo, description, Play action, actual current/next tracks, running show/presenter, weekly schedule and a copyable MP3 stream URL. Show times use the station timezone, and overnight shows label their next-day end. Scheduled names are programme listings, never an assertion that a presenter is currently on air.
+
+Station creation and Settings offer Listed, Unlisted and Private visibility. New and upgraded stations start Unlisted: existing direct streams remain available but stations do not appear in the directory until the producer chooses Listed. Private stations have no public page, stream or logo; the protected producer player can preview them. Switching to Private disconnects the existing broadcast. Names can change without changing public page/stream addresses; editing the stream address deliberately changes both.
+
+The public shell contains listening controls and no management forms. Its persistent player survives HTMX navigation between public pages, with Pause/Resume, volume and Stop. Public status observers never start broadcasting or count as listeners. Changed content is patched without replacing unchanged artwork or focused controls. Play starts audio explicitly; Pause releases the connection. Public failures use generic listening messages, without source or credential details. Ordinary page navigation and a direct Open stream link remain usable without JavaScript.
+
+Management navigation and writes live under `/producer`, with unchanged authentication/CSRF policy. Producer sign in opens that separate shell through full navigation. Old management bookmarks redirect to their corresponding producer URLs; existing `/streams/<address>` URLs remain unchanged.
+
+### Requests and shout-outs
+
+A public station links to dedicated request and shout-out pages. Listeners choose
+an enabled upcoming show, search that show's playable music for a request, and
+optionally give a nickname. Shout-outs and dedications are limited to 400 characters;
+explicit consent allows the name and message to be read on air. The confirmation
+says the submission was sent for review, without promising airtime. If no show
+accepts participation, the page says so and offers a route back to the station.
+
+Show settings independently enable requests and shout-outs; existing shows default
+to neither. The station's Audience tab provides a filtered, paginated queue with
+pending, needs producer review, approved, dismissed, broadcast and expired states. AI review happens
+automatically while the selected show is on air. Producers can approve or dismiss
+active submissions. Show edits invalidate its outstanding submissions.
+
+The Audience queue has a dedicated Selected recording column with the exact
+requested title and artist. Live Up next and Playing now labels come from the
+broadcast state. The DJ's request introduction names the listener, incorporates an
+optional dedication, thanks them and leads into that exact recording. Location and
+other personal details are never invented. A request is fulfilled only after its
+introduction and the start of its recording; producers can dismiss it before airtime.
+
+### Public contribution workflow
+
+Each scheduled show unfolds in its own card. HTMX loads details on first opening
+and updates a panel inside that card: selected show and airing date, supported
+contribution type, form, then a separate thank-you step. The player and live
+programme stay in place. Request and shout-out choices are independently enabled
+by the show; unavailable future interactions are not displayed. Direct links,
+refresh and history restoration render the complete station page at the selected
+step. Old or changed occurrences close explicitly rather than selecting another
+show. Validation retains listener input. Track searches update only the track
+selector, keeping the dedication and name intact. Ordinary links and forms remain
+usable without JavaScript.
+
+Opening a show reveals its optional producer-written public description, presenter
+photo and airing details in place. The contribution flow stays inside that card and targets the chosen airing, with only the enabled
+request/shout-out types. Producer show editing labels the description as public;
+DJ editorial prompts and background configuration are never used as public copy.
+
+The public station programme defaults to today in the station timezone. A single
+row of day links offers Today, Tomorrow and the following five calendar days. Each
+day shows the full programme in time order, including continuous-music gaps and
+shows continuing across midnight. Past airings remain visible without contribution
+actions. Show details and contribution links retain the selected date and exact
+airing. Expansions and contribution steps keep the station URL and scroll position;
+day navigation updates only the programme region. Collapsing a show retains its
+loaded content and any entered form values. Direct show URLs remain usable as
+fallbacks.
+
+All listener HTMX swaps explicitly disable automatic scrolling. Day controls
+remain mounted while only the dated programme beneath them changes. Show cards
+unfold with a brief animation; contribution steps animate only their own height.
+Reduced-motion preferences disable these animations. Searching music returns only
+the selector and leaves the station title, URL and other form fields intact.
+
+### Listener schedule preference
+
+The user dislikes arrow dropdowns. Keep every show's time, title and presenter
+visible in the full daily schedule. Clicking the show row toggles its details and
+contribution workflow directly underneath, with a plus/minus indicator on the right.
+Click the row again to close it; omit a separate close button and retain entered
+values when reopened.
+Use separately spaced time/title/presenter columns on desktop and spaced lines on
+phones. Do not use details/summary or chevrons for these show rows.
+
+Use one outer programme panel. Keep day content, schedule rows and revealed show
+information unbordered, separated by spacing. Give the contribution workflow one
+quiet bordered container with comfortable padding, retained across choices, forms
+and confirmation. Card outlines should group distinct tasks, rather than every
+content layer. The active show row and expanded details share a soft tinted
+background and generous padding to establish the main content area. When a
+show has no available interactions, omit the participation section entirely;
+retain the show in the schedule and allow its information to be revealed.
+
+Public show details use the presenter photo on the left and description on the right on desktop, stacking on mobile. Bundled and external portraits use their configured image URL; uploaded portraits use the station-scoped public photo route. Clicking the show row toggles its details with a plus/minus indicator, retaining mounted forms. The listener stream card shows the address as one keyboard-accessible copy control with an inline clipboard icon. Clicking anywhere on it copies the address; a checkmark and live confirmation appear only after the clipboard write succeeds. If copying is unavailable, select the address and give manual-copy guidance.
+
+Schedule rows show a compact circular DJ portrait alongside the presenter name, using the same public image address as the expanded details. Omit the photo when none is configured; continuous music has no invented presenter.
+
+Listener track requests search as the user types after a short pause, updating only the show-scoped results. Show up to eight eligible recordings with title, artist and album; provide initial-search and no-match messages. Native radio choices support keyboard and ordinary form submission. Enhanced forms keep the chosen recording in a persistent summary across searches, preserve listener input, and ignore obsolete search responses.
+
+The active contribution workflow has a top-right X labelled Cancel contribution (Close confirmation after submission). It resets only that show’s contribution area to its initial invitation, preserving the expanded show and page position; it never retracts a submitted message.
+
+Within an expanded show, align the contribution area beneath the description column on desktop, stacking it beneath the content on mobile. The initial “Be part of the show” invitation is unbordered and shares the description’s text alignment; the active choices, forms and confirmation retain their padded card.
+
+Schedule show titles keep the same position when opened or closed. Desktop rows share the presenter-column width, gap and horizontal padding with the expanded details, aligning titles, descriptions and contribution invitations. Preserve that alignment even when a presenter has no photo; mobile uses the shared stacked-content left edge.
+
+The producer audience queue explains that review runs during spoken-link preparation. Its results refresh quietly every five seconds, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-presenter-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
+
+The producer Audience tab uses one bordered table with clear submission types, status badges and accessible icon actions. Status checkboxes refresh only its results on change, defaulting to pending, producer review and approved; clearing every checkbox shows an empty table. Filters remain selected during polling, pagination and review actions, with no page jump. Ordinary GET submission remains available without JavaScript.
+
+### Producer DJ cards
+
+The shared DJ directory uses two presenter cards per row on wide desktop screens,
+stacking on smaller screens. Show a substantial portrait and linked show/station assignments and the earliest future airing in its
+station timezone. Repeated weekly instances of the same show share one assignment
+row. Voice, speech speed, voice direction, model and editorial prompts belong
+on the DJ detail screen; omit the Voice & Production section from directory cards.
+
+Each card displays one derived status: Draft for missing required production
+configuration, Ready for configured but unassigned profiles, Scheduled for assigned
+profiles, or a red On air badge when measured broadcasting state has a current
+track and names that DJ. Configuration problems remain visible even on an active
+card. Ready confirms saved configuration, not a tested API credential. These
+statuses reflect state when the directory is loaded; assignment alone never
+implies a live broadcast. Remove Key saved from the directory, retaining credential
+management in the DJ edit form.
+
+DJ cards share a fixed height at each viewport size. Keep the portrait and Edit DJ
+action fixed in the left column; long assignment content scrolls in
+the right column, which is keyboard focusable and labelled by the DJ name. Align
+the name and status lozenge on the same top row, wrapping naturally on narrow screens.
+
+Keep the biography on the DJ detail screen; omit it from directory cards.

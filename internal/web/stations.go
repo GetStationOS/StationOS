@@ -64,5 +64,5 @@ func (s *Server) deleteStation(w http.ResponseWriter, r *http.Request) {
 	if s.d.Broadcast != nil {
 		s.d.Broadcast.Stop(r.PathValue("id"))
 	}
-	s.redirect(w, r, "/?notice=station-deleted")
+	s.redirect(w, r, "/producer?notice=station-deleted")
 }

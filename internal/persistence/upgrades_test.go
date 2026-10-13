@@ -17,7 +17,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -161,18 +161,29 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if version >= 17 {
+				if _, err = db.Exec(`INSERT INTO station_shows(id,station_id,name,weekday,start_minute,end_minute,dj_id,playlist_id,accept_requests,accept_shoutouts) VALUES('legacy-show','station','Preserved show',0,540,600,'dj','playlist',1,1)`); err != nil {
+					t.Fatal(err)
+				}
+			}
 			db.Close()
 			db, err = Open(ctx, path)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer db.Close()
+			if version >= 17 {
+				show, err := (Schedule{DB: db}).Get(ctx, "station", "legacy-show")
+				if err != nil || show.Description != "" || !show.AcceptRequests || !show.AcceptShoutouts || show.Name != "Preserved show" {
+					t.Fatal("show description migration changed existing policy", show, err)
+				}
+			}
 			levels, err := (Mixer{DB: db}).Get(ctx, "station")
 			if err != nil || levels != mixer.Default() {
 				t.Fatal("upgrade changed station levels", levels, err)
 			}
 			station, err := (Stations{DB: db}).Get(ctx, "station")
-			if err != nil || station.Description != "Identity" || station.StreamSlug != "keep-station" || station.RepeatMinutes != 180 {
+			if err != nil || station.Description != "Identity" || station.StreamSlug != "keep-station" || station.RepeatMinutes != 180 || station.Publication() != "unlisted" {
 				t.Fatal(station, err)
 			}
 			source, err := (Sources{DB: db}).Get(ctx, "source")

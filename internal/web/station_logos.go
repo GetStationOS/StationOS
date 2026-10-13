@@ -24,6 +24,10 @@ func (s *Server) stationLogo(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	if !st.Public() && !strings.HasPrefix(r.URL.Path, "/producer/station-logos/") && !s.adminAuthenticated(r) {
+		http.NotFound(w, r)
+		return
+	}
 	data, err := assets.ReadFile("static/station-logo.jpg")
 	if st.LogoVersion != "" {
 		reader, ok := s.d.Stations.(station.LogoReader)
@@ -39,6 +43,9 @@ func (s *Server) stationLogo(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, no-cache")
+	if !st.Public() || strings.HasPrefix(r.URL.Path, "/producer/") {
+		w.Header().Set("Cache-Control", "private, no-cache")
+	}
 	http.ServeContent(w, r, "logo.jpg", time.Time{}, bytes.NewReader(data))
 }
 func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st station.Station, err error) {
@@ -56,9 +63,9 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 	v.StationRepeatSupplied = r.PostForm.Has("repeat_minutes")
 	v.StationError = err.Error() + " Choose the logo again if you selected a file."
 	v.Title = "Create station"
-	v.Page = "/stations/new"
+	v.Page = "/producer/stations/new"
 	if st.ID != "" {
-		v.Page = "/stations/" + st.ID + "/settings"
+		v.Page = "/producer/stations/" + st.ID + "/settings"
 		v.Section = "settings"
 		v.Title = "Station settings"
 	}

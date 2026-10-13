@@ -211,6 +211,13 @@ func TestPublicAudienceConsentCSRFPolicyAndQueue(t *testing.T) {
 	if err = pl.SetIncluded(ctx, "p", ids, true); err != nil {
 		t.Fatal(err)
 	}
+	// Being playable in another playlist must not make a catalogue recording requestable here.
+	if err = pl.Save(ctx, playlists.Playlist{ID: "other-pool", StationID: "s", Name: "Other playlist"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = pl.SetIncluded(ctx, "other-pool", []string{foreign.ID}, true); err != nil {
+		t.Fatal(err)
+	}
 	searchBase := "/radio/radio/shows/show/requests?show=" + url.QueryEscape(key)
 	searchHX := map[string]string{"HX-Request": "true", "HX-Target": "audience-track-options-contribution-show"}
 	for _, tc := range []struct {
@@ -279,9 +286,11 @@ func TestPublicAudienceConsentCSRFPolicyAndQueue(t *testing.T) {
 		t.Fatal("application stylesheet was overwritten")
 	}
 	// Requests cannot nominate tracks outside the show's current eligibility pool.
-	requestForm := url.Values{"csrf": {token}, "show": {occurrences[0].Key}, "track": {"foreign-track"}, "consent": {"yes"}}
-	if got := request(h, "POST", "/radio/radio/requests", requestForm, headers); got.Code != 422 {
-		t.Fatal("foreign requested track", got.Code, got.Body.String())
+	requestForm := url.Values{"csrf": {token}, "show": {occurrences[0].Key}, "track": {foreign.ID}, "consent": {"yes"}}
+	for _, endpoint := range []string{"/radio/radio/requests", "/radio/radio/shows/show/requests"} {
+		if got := request(h, "POST", endpoint, requestForm, headers); got.Code != 422 {
+			t.Fatal("another playlist's recording accepted", endpoint, got.Code, got.Body.String())
+		}
 	}
 	if got := request(h, "POST", path, url.Values{"csrf": {token}, "show": {occurrences[0].Key}, "message": {strings.Repeat("a", 401)}, "consent": {"yes"}}, headers); got.Code != 422 {
 		t.Fatal("oversized message", got.Code)

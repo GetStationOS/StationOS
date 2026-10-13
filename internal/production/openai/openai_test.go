@@ -144,7 +144,7 @@ func TestCallIdentifiesStageAndSafeTransportFailure(t *testing.T) {
 			for _, stage := range []string{"responses", "audio/speech", "decisions"} {
 				p := New(testKeys{}, nil, testAudio{})
 				p.Client.Transport = transport(func(*http.Request) (*http.Response, error) { return nil, tc.err })
-				_, err := p.call(context.Background(), stage, "test-secret", map[string]string{}, 100)
+				_, err := p.callOnce(context.Background(), stage, "test-secret", map[string]string{}, 100)
 				if err == nil || !strings.Contains(err.Error(), stage) || !strings.Contains(err.Error(), tc.want) || strings.Contains(err.Error(), "test-secret") || strings.Contains(err.Error(), "private-host") {
 					t.Fatal(err)
 				}
@@ -164,5 +164,52 @@ func TestCallIdentifiesHTTPFailureWithoutResponsePayload(t *testing.T) {
 	_, err := p.call(context.Background(), "audio/speech", "test-secret", nil, 100)
 	if err == nil || err.Error() != "OpenAI audio/speech returned HTTP 429" {
 		t.Fatal(err)
+	}
+}
+
+func TestCallRetriesTemporaryFailuresOnly(t *testing.T) {
+	for _, tc := range []struct {
+		name               string
+		code               int
+		failures, attempts int
+	}{
+		{"service recovers", 503, 1, 2}, {"rate limit recovers", 429, 1, 2}, {"bounded failures", 503, 9, 3}, {"invalid credentials", 401, 9, 1}, {"invalid request", 400, 9, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			p := New(testKeys{}, nil, testAudio{})
+			p.Client.Transport = transport(func(*http.Request) (*http.Response, error) {
+				calls++
+				code := 200
+				if calls <= tc.failures {
+					code = tc.code
+				}
+				return &http.Response{StatusCode: code, Body: io.NopCloser(strings.NewReader("audio"))}, nil
+			})
+			_, err := p.call(context.Background(), "audio/speech", "secret", nil, 100)
+			if calls != tc.attempts || (err == nil) != (tc.failures < tc.attempts) {
+				t.Fatal(calls, err)
+			}
+		})
+	}
+}
+func TestCallCancelsRetryWait(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	called := make(chan struct{})
+	p := New(testKeys{}, nil, testAudio{})
+	p.Client.Transport = transport(func(*http.Request) (*http.Response, error) { close(called); return nil, context.DeadlineExceeded })
+	go func() { <-called; cancel() }()
+	_, err := p.call(ctx, "audio/speech", "secret", nil, 100)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+}
+func TestIncompleteErrorDoesNotLeakUnknownReason(t *testing.T) {
+	if !strings.Contains(incompleteError("DJ preparation", "max_output_tokens").Error(), "output token limit") {
+		t.Fatal("missing diagnosis")
+	}
+	if strings.Contains(incompleteError("DJ preparation", "private message secret").Error(), "secret") {
+		t.Fatal("untrusted reason leaked")
 	}
 }

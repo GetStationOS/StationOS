@@ -229,8 +229,10 @@ implies a live broadcast. Remove Key saved from the directory, retaining credent
 management in the DJ edit form.
 
 DJ cards share a fixed height at each viewport size. Keep the portrait and Edit DJ
-action fixed in the left column; long assignment content scrolls in
-the right column, which is keyboard focusable and labelled by the DJ name. Align
+action fixed in the left column. Keep the DJ name, badge and setup notices fixed
+in the right column. Shows & Stations fills its remaining height, with a fixed
+section label and a keyboard-accessible internal scroll area for assignments and
+next airing, labelled by the DJ and section names. Align
 the name and status lozenge on the same top row, wrapping naturally on narrow screens.
 
 Keep the biography on the DJ detail screen; omit it from directory cards.

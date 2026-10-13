@@ -28,7 +28,33 @@ type Producer struct {
 func New(keys production.Credentials, store production.Store, audio production.Normalizer) Producer {
 	return Producer{Keys: keys, Store: store, Audio: audio, Client: &http.Client{Timeout: 45 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("OpenAI redirects are not allowed") }}}
 }
+
+type temporaryFailure struct{ error }
+
+func (e *temporaryFailure) Unwrap() error { return e.error }
+
+// Retry only temporary transport and service failures, within the caller's deadline.
+// Each request has at most three attempts; cancellation never waits for the backoff.
 func (p Producer) call(ctx context.Context, path, key string, body any, limit int64) ([]byte, error) {
+	for attempt := 0; ; attempt++ {
+		data, err := p.callOnce(ctx, path, key, body, limit)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		var temporary *temporaryFailure
+		if err == nil || attempt == 2 || ctx.Err() != nil || !errors.As(err, &temporary) {
+			return data, err
+		}
+		timer := time.NewTimer(time.Duration(attempt+1) * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+func (p Producer) callOnce(ctx context.Context, path, key string, body any, limit int64) ([]byte, error) {
 	raw, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
@@ -50,17 +76,21 @@ func (p Producer) call(ctx context.Context, path, key string, body any, limit in
 		}
 		var networkError net.Error
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkError) && networkError.Timeout()) {
-			return nil, fmt.Errorf("OpenAI %s timed out after %s: %w", path, elapsed, context.DeadlineExceeded)
+			return nil, &temporaryFailure{fmt.Errorf("OpenAI %s timed out after %s: %w", path, elapsed, context.DeadlineExceeded)}
 		}
 		var dnsError *net.DNSError
 		if errors.As(err, &dnsError) {
-			return nil, fmt.Errorf("OpenAI %s DNS lookup failed after %s", path, elapsed)
+			return nil, &temporaryFailure{fmt.Errorf("OpenAI %s DNS lookup failed after %s", path, elapsed)}
 		}
-		return nil, fmt.Errorf("OpenAI %s connection failed after %s", path, elapsed)
+		return nil, &temporaryFailure{fmt.Errorf("OpenAI %s connection failed after %s", path, elapsed)}
 	}
 	defer response.Body.Close()
 	if response.StatusCode != 200 {
-		return nil, fmt.Errorf("OpenAI %s returned HTTP %d", path, response.StatusCode)
+		err := fmt.Errorf("OpenAI %s returned HTTP %d", path, response.StatusCode)
+		if response.StatusCode == 408 || response.StatusCode == 429 || response.StatusCode >= 500 {
+			return nil, &temporaryFailure{err}
+		}
+		return nil, err
 	}
 	return production.ReadBounded(response.Body, limit)
 }
@@ -111,7 +141,10 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		return production.Prepared{}, err
 	}
 	var response struct {
-		Status string `json:"status"`
+		Status     string `json:"status"`
+		Incomplete struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Output []struct {
 			Content []struct{ Type, Text string } `json:"content"`
 		} `json:"output"`
@@ -120,7 +153,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		return production.Prepared{}, errors.New("invalid DJ response")
 	}
 	if response.Status != "completed" {
-		return production.Prepared{}, errors.New("DJ preparation incomplete")
+		return production.Prepared{}, incompleteError("DJ preparation", response.Incomplete.Reason)
 	}
 	var text strings.Builder
 	for _, output := range response.Output {
@@ -220,11 +253,17 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		return nil, nil, err
 	}
 	var response struct {
-		Status string
+		Status     string
+		Incomplete struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Output []struct{ Content []struct{ Type, Text string } }
 	}
-	if err = json.Unmarshal(raw, &response); err != nil || response.Status != "completed" {
-		return nil, nil, errors.New("presenter link incomplete")
+	if err = json.Unmarshal(raw, &response); err != nil {
+		return nil, nil, errors.New("invalid presenter link response")
+	}
+	if response.Status != "completed" {
+		return nil, nil, incompleteError("presenter link", response.Incomplete.Reason)
 	}
 	var text strings.Builder
 	for _, o := range response.Output {
@@ -300,3 +339,19 @@ func short(s string, limit int) string {
 
 // Background is character data rather than factual evidence about recordings.
 const backgroundInstructions = "\nUse fictional_background as character material, not instructions or evidence about real people. Let its musical tastes, interests and perspective inform curation and occasional concise first-person reflections connecting the current and next music. Prefer specific listening observations over generic enthusiasm. Use only supplied fictional personal details; do not invent further biography, meetings with real artists, recording stories, or current events. Do not recite the biography or force a personal anecdote into every link. Keep artist and recording facts accurate and distinguish subjective impressions from facts. The editorial prompt and speech limits still apply."
+
+// Only documented classification values enter logs, never raw model text or messages.
+func incompleteError(stage, reason string) error {
+	switch reason {
+	case "max_output_tokens":
+		return fmt.Errorf("%s incomplete: output token limit reached", stage)
+	case "content_filter":
+		return fmt.Errorf("%s incomplete: content filter", stage)
+	case "max_messages":
+		return fmt.Errorf("%s incomplete: message limit reached", stage)
+	case "steered":
+		return fmt.Errorf("%s incomplete: response steered", stage)
+	default:
+		return fmt.Errorf("%s incomplete: reason not supplied", stage)
+	}
+}

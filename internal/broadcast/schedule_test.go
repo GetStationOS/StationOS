@@ -165,3 +165,32 @@ func TestDJPreparationStatusUpdatesDuringCurrentTrack(t *testing.T) {
 		})
 	}
 }
+
+func TestSuccessfulLinkClearsFailedPreparationStatusDuringMusic(t *testing.T) {
+	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+	source := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pop", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
+	encoder := &fakeEncoder{calls: make(chan opening, 16)}
+	links := readyLinks{called: make(chan production.LinkRequest, 4)}
+	m := New(showPools{}, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Producer: statusPreparation{fail: true}, Links: links, Now: func() time.Time { return now }})
+	defer m.Close()
+	sub, err := m.Subscribe(context.Background(), "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	current := opened(t, encoder)
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		current.write.Write([]byte("music"))
+		receive(t, sub)
+		if m.State("radio").PresenterStatus == "Ready" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("failed preparation masks recovered link", m.State("radio"))
+		}
+	}
+	if encoder.count.Load() != 1 {
+		t.Fatal("status recovery interrupted music")
+	}
+}

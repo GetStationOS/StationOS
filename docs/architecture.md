@@ -257,3 +257,12 @@ The producer audience queue explains that review runs during spoken-link prepara
 The oldest offered approved shout-out must be acknowledged by the speech adapter, as requests already are; its omission fails preparation and retains approval for a later link. Transport diagnostics identify the OpenAI endpoint, elapsed time and safe failure category without logging raw errors, credentials or listener text. Context cancellation remains identifiable so ordinary playback-boundary cleanup does not generate failure warnings.
 
 Shout-outs are explicitly framed as listener contributions in the DJ prompt. A link offers the three oldest approved shout-outs and requires the oldest; the DJ may include the others in one brief section (up to 75 words for a batch, 45 otherwise). Only unique, offered IDs actually acknowledged in the speech receive playout receipts; omitted messages remain approved. Matching track requests retain their separate required introduction and priority.
+
+DJ production retries temporary OpenAI transport failures and HTTP 408/429/5xx
+responses at most twice, waiting one then two seconds within the existing caller
+deadline. Authentication, request validation and incomplete model output are not
+blindly retried. Retrying speech reuses the generated text; it does not regenerate
+the DJ script. Cancellation at playback boundaries stops retry waits. Music never
+waits for these workers. Presenter status follows the latest link preparation
+result, so an earlier failed show plan cannot mask a subsequently ready link.
+Incomplete response logs use known reason classifications without model content.

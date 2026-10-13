@@ -380,6 +380,8 @@ type preparedResult struct {
 	intro, outro *preparedSpeech
 	err          error
 }
+type linkStatus struct{ show, status string }
+
 type linkResult struct {
 	audienceIDs      []string
 	audienceValidIDs []string
@@ -394,6 +396,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 	defer cancel()
 	requests := make(chan prepareRequest, 2)
 	results := make(chan preparedResult, 2)
+	linkUpdates := make(chan linkStatus, 2)
+	linkStates := map[string]string{}
 	prepDone := make(chan struct{})
 	go func() {
 		defer close(prepDone)
@@ -439,6 +443,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 					}
 					m.logger.Warn("DJ preparation unavailable", "station_id", id, "error", result.err)
 				}
+			case update := <-linkUpdates:
+				// Keep state bounded and ignore older shows when updating playout.
+				clear(linkStates)
+				linkStates[update.show] = update.status
 			default:
 				return
 			}
@@ -486,7 +494,9 @@ func (m *Manager) playProgramme(id string, r *run) {
 		drain()
 		if state.Phase == "music" && state.Programme.DJ.HasKey {
 			key := production.CacheKey(state.Programme, state.Following)
-			if _, ok := prepared[key]; ok {
+			if status := linkStates[state.Programme.Key]; status != "" {
+				state.PresenterStatus = status
+			} else if _, ok := prepared[key]; ok {
 				state.PresenterStatus = "Ready"
 			} else if failed[key] {
 				state.PresenterStatus = "Unavailable"
@@ -860,6 +870,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if m.options.Links != nil && playing.DJ.HasKey {
 			select {
 			case linkSlots <- struct{}{}:
+				clear(linkStates)
+				linkStates[playing.Key] = "Preparing"
 				linkCtx, c := context.WithCancel(r.ctx)
 				linkCancel = c
 				out := make(chan linkResult, 1)
@@ -876,6 +888,16 @@ func (m *Manager) playProgramme(id string, r *run) {
 					}
 					if err != nil && !errors.Is(err, context.Canceled) {
 						m.logger.Warn("DJ link unavailable", "station_id", id, "error", err)
+					}
+					status := "Ready"
+					if err != nil {
+						status = "Unavailable"
+					}
+					if linkCtx.Err() == nil {
+						select {
+						case linkUpdates <- linkStatus{req.Show.Key, status}:
+						case <-linkCtx.Done():
+						}
 					}
 					select {
 					case out <- linkResult{request: req, audio: audio, speech: speech, err: err, audienceIDs: audienceIDs, audienceValidIDs: audienceValidIDs}:

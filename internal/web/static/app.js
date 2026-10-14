@@ -30,11 +30,20 @@ function refreshTracks(form) {
   const button = form.querySelector('button');
   if (button) button.disabled = count === 0 || !form.querySelector('select[name="playlist"]').value;
 }
+function syncAssistant() {
+ const form=document.querySelector('[data-assistant-compose]');
+ if (!form) return;
+ const status=document.querySelector('[data-assistant-running]');
+ const running=status?.dataset.assistantRunning === 'true';
+ form.querySelector('button').disabled=form.dataset.assistantEnabled !== 'true' || running;
+ document.querySelectorAll('[data-assistant-badge]').forEach(badge => {if (badge.dataset.assistantBadge === status?.dataset.assistantConversation) badge.textContent=running ? 'Working…' : '';});
+}
 function initialise() {
+  syncAssistant();
   syncStationEvents();
   document.querySelectorAll('[data-audience-request]').forEach(initialiseAudienceRequest);
   const path = document.querySelector(".screen")?.dataset.page || location.pathname;
-  const active = path.startsWith('/producer/djs') ? 'djs' : path.startsWith('/producer/sources') ? 'sources' : path === '/producer/content' && !document.querySelector('.breadcrumbs') ? 'sources' : 'stations';
+  const active = path.startsWith('/producer/assistant') ? 'assistant' : path.startsWith('/producer/djs') ? 'djs' : path.startsWith('/producer/sources') ? 'sources' : path === '/producer/content' && !document.querySelector('.breadcrumbs') ? 'sources' : 'stations';
   document.querySelectorAll('[data-nav]').forEach(link => {
     if (link.dataset.nav === active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
@@ -84,6 +93,7 @@ document.body.addEventListener('htmx:confirm', event => {
 window.addEventListener('beforeunload', event => { if (unsavedSelections()) { event.preventDefault(); event.returnValue = ''; } });
 document.body.addEventListener('htmx:afterSwap', event => {
   const target = event.detail.target || event.detail.elt || event.target;
+  if (target.id === 'assistant-messages') { syncAssistant(); return; }
   if (target.id === 'audience-queue-results') return;
   const feedback = document.getElementById('feedback'); feedback.hidden = true;
   if (target.id === 'dialog-body') {
@@ -602,3 +612,13 @@ async function copyStreamURL(control) {
 document.body.addEventListener('htmx:beforeSwap', event => {
  if (event.detail.target?.id==='audience-queue-results' && event.detail.target.contains(document.activeElement)) event.detail.shouldSwap=false;
 });
+
+// A failed status refresh must not leave a stale Working label looking authoritative.
+for (const eventName of ['htmx:responseError', 'htmx:sendError', 'htmx:timeout']) {
+  document.addEventListener(eventName, event => {
+    if (event.detail?.elt?.id === 'assistant-messages') {
+      const warning = document.querySelector('.assistant-poll-error');
+      if (warning) warning.hidden = false;
+    }
+  });
+}

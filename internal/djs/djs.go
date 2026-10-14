@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
-	"unicode"
 )
 
 var ErrInUse = errors.New("This DJ is used by a scheduled show. Update or remove the show first.")
@@ -36,7 +35,7 @@ type PhotoReader interface {
 	Photo(context.Context, string) ([]byte, error)
 }
 
-// KeyChange is write-only. Blank means preserve the saved credential.
+// KeyChange remains for adapter compatibility. DJ saves accept only the zero value; credentials belong to shared Assistant settings.
 type KeyChange struct {
 	Value string
 	Clear bool
@@ -109,35 +108,11 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 	p.Model = strings.TrimSpace(p.Model)
 	p.Background = strings.TrimSpace(p.Background)
 	p.PortraitURL = strings.TrimSpace(p.PortraitURL)
-	k.Value = strings.TrimSpace(k.Value)
-	// Clipboard wrapping is not part of an OpenAI key. Only normalize a single
-	// recognizable key; never join two pasted credentials.
-	parts := strings.Fields(k.Value)
-	multipleKeys := false
-	for _, part := range parts[min(1, len(parts)):] {
-		if strings.HasPrefix(part, "sk-") {
-			multipleKeys = true
-		}
-	}
-	if strings.HasPrefix(k.Value, "sk-") && !multipleKeys {
-		k.Value = strings.Map(func(r rune) rune {
-			if unicode.IsSpace(r) {
-				return -1
-			}
-			return r
-		}, k.Value)
+	if k.Value != "" || k.Clear {
+		return Profile{}, errors.Join(ErrInvalid, errors.New("Manage the shared OpenAI API key in Assistant settings."))
 	}
 	if err := p.Validate(); err != nil {
 		return Profile{}, errors.Join(ErrInvalid, err)
-	}
-	if k.Clear && k.Value != "" {
-		return Profile{}, errors.Join(ErrInvalid, errors.New("Untick Remove saved key to save a replacement key."))
-	}
-	if len(k.Value) > MaxKeyLength {
-		return Profile{}, errors.Join(ErrInvalid, errors.New("API key is too long; paste the key itself without other text."))
-	}
-	if strings.IndexFunc(k.Value, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 || multipleKeys {
-		return Profile{}, errors.Join(ErrInvalid, errors.New("Paste one API key without other text."))
 	}
 	if p.ID == "" {
 		var b [16]byte

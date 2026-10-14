@@ -27,7 +27,7 @@ The core packages do not import HTTP handlers, SQLite, UPnP XML types or each ot
 
 **Playlists** owns station-specific identity, description, dynamic genre/album rules, individual inclusions/exclusions. Rules resolve as a union against the shared catalogue; exclusions win and overlaps are deduplicated. Album identity is currently source plus exact album title, so same-title editions in a source are grouped. Genre identity is the exact imported value. New rule matches join automatically on the next catalogue import. Manual selections save content snapshots without foreign keys to disposable catalogue rows, so missing items remain visibly unavailable. A playlist is an unordered eligibility pool for human/AI curation. Sorting by title/ID supplies stable browsing pages and implies no broadcast priority. Resolution and mutations are transactional and bounded (100 rules, 10,000 entries). Playlist definition is separate from a future timed programme log or playback engine.
 
-**DJs** owns reusable fictional presenter profiles (name, model, selected voice, editorial prompt and voice-direction vibe) independently of stations. The domain owns validation and repository ports; no OpenAI calls occur in configuration flows. Persistence stores API keys using AES-256-GCM with fresh nonces and DJ identity as associated data. Metadata reads expose only a saved-key flag; decryption is a separate server-side adapter method. A private 0600 secrets-key sidecar is created beside the database; missing keys with existing encrypted credentials fail startup. Back up the database and sidecar together. Station assignment, script generation and speech production remain separate future boundaries.
+**DJs** owns reusable fictional presenter profiles (name, per-profile curation/writing model, selected voice, editorial prompt and voice-direction vibe) independently of stations. Credential management belongs to shared AI settings in the producer domain. Profile metadata reads derive only a shared-key-present flag; DJ saves cannot set or clear credentials. The encrypted shared key uses AES-256-GCM with independent associated data and the database's existing 0600 `.secrets-key` sidecar. Back up the database and sidecar together. Missing sidecars with encrypted credentials fail startup.
 
 **Persistence** uses modernc SQLite, one connection per process, WAL, foreign keys and a five-second busy timeout. This intentionally serialises database work for the initial deployment. Count and search results use one read transaction. Versioned SQL migrations run transactionally, verify applied checksums and reject unsupported newer schemas. Migrations are immutable once released. Frozen versions 1 through 10 fixtures verify upgrades to version 11, preserved identities/metadata, checksum validation and foreign-key integrity. Migration 2 removes source station ownership; migration 3 introduces authoritative station playlists; migration 4 removes saved ordering while preserving playlist membership. Migration 7 adds the selected voice, defaulting existing DJ profiles to Cedar without changing encrypted credentials. Migration 6 adds shared DJ profiles and encrypted credentials. Migration 5 introduces station broadcast assignment and unique editable stream slugs. Its immutable Go backfill runs inside the migration transaction and derives addresses from existing station names. The integrity command checks SQLite storage and foreign keys.
 
@@ -42,7 +42,7 @@ The core packages do not import HTTP handlers, SQLite, UPnP XML types or each ot
 | stations | Operator configuration | Preserved |
 | sources and revisions | Operator configuration | Preserved |
 | playlists, playlist_rules, playlist_selections | Operator choices per station | Preserved |
-| djs | Shared operator presenter configuration and encrypted credentials | Preserved |
+| djs | Shared operator presenter configuration | Preserved |
 | station_broadcast | Assigned station playlist | Preserved |
 | schema_migrations | Schema history | Never cleared |
 | catalogue_items and indexes | Reproducible source metadata | Clearable and replaceable |
@@ -132,7 +132,7 @@ Migration 12 adds background and portrait_url to operator-owned DJ configuration
 
 ## Admin-managed DJ photos
 
-Migration 13 adds a bounded `dj_photos` blob table, referencing DJ identity with cascading deletion. The web adapter accepts authenticated, CSRF-protected multipart profile forms, bounds request/file sizes and image dimensions, decodes JPEG/PNG, flattens transparency, strips metadata and scales to at most 768 pixels. The domain carries a write-only photo change; persistence saves profile, encrypted-key changes and image atomically. Versioned same-origin photo URLs are generated internally, work with existing scheduled DJ snapshots and are served through authenticated management routes. No directory mounts, filesystem paths or remote URL entry are needed by the admin. Existing supplied portraits are preserved until replaced or removed. Photos are part of normal SQLite backups.
+Migration 13 adds a bounded `dj_photos` blob table, referencing DJ identity with cascading deletion. The web adapter accepts authenticated, CSRF-protected multipart profile forms, bounds request/file sizes and image dimensions, decodes JPEG/PNG, flattens transparency, strips metadata and scales to at most 768 pixels. The domain carries a write-only photo change; persistence saves profile and image atomically; credentials are managed separately in shared settings. Versioned same-origin photo URLs are generated internally, work with existing scheduled DJ snapshots and are served through authenticated management routes. No directory mounts, filesystem paths or remote URL entry are needed by the admin. Existing supplied portraits are preserved until replaced or removed. Photos are part of normal SQLite backups.
 
 
 ## External radio metadata
@@ -189,7 +189,7 @@ need evaluation against labelled station submissions; they do not establish lega
 status. Screening has a 15-second timeout. A failed/incomplete response leaves items
 pending. Producer decisions win over
 in-flight AI review. No listener means no production or review. AI credentials are
-those of the scheduled DJ; shows without credentials cannot generate spoken request introductions or
+the shared key in Assistant settings; without that key, shows cannot generate spoken request introductions or
 shout-outs. Approved requests wait for a presenter that can introduce them.
 
 Approved requests are considered only from the revalidated rotation pool with a
@@ -252,7 +252,7 @@ Listener track requests search as the user types after a short pause, updating o
 
 Bare MP3 URLs can receive a tiny `Range: bytes=0-1` media probe before the playback GET. Such probes retain the compatible live-point 200/audio-mpeg response, deliver one initial audio chunk and finish, releasing their subscription. Ordinary/open-ended stream GETs remain continuous and independent; app probes carrying an opaque listener ID retain session replacement. Never merge external listeners by IP address, user agent or shared browser cookies. Verify direct Safari playback after deployment.
 
-The producer audience queue explains that review runs during spoken-link preparation. Its results refresh quietly every five seconds, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-presenter-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
+The producer audience queue explains that review runs during spoken-link preparation. Its results refresh quietly every five seconds, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-shared-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
 
 The oldest offered approved shout-out must be acknowledged by the speech adapter, as requests already are; its omission fails preparation and retains approval for a later link. Transport diagnostics identify the OpenAI endpoint, elapsed time and safe failure category without logging raw errors, credentials or listener text. Context cancellation remains identifiable so ordinary playback-boundary cleanup does not generate failure warnings.
 
@@ -266,3 +266,110 @@ the DJ script. Cancellation at playback boundaries stops retry waits. Music neve
 waits for these workers. Presenter status follows the latest link preparation
 result, so an earlier failed show plan cannot mask a subsequently ready link.
 Incomplete response logs use known reason classifications without model content.
+
+## Internal producer assistant
+
+`internal/producer` owns the conversational runner and a transport-independent
+capability registry. Each capability has a name, description, JSON Schema input,
+mutation flag and typed dispatcher returning structured data, an outcome and an
+optional producer-page link. The registry calls existing application services and
+repository ports; it does not call HTTP handlers or execute SQL. A future MCP
+adapter can expose `Registry.List` / `Registry.Call` without duplicating producer
+behaviour. No MCP server or external tool-execution endpoint is registered.
+
+`internal/producer/openai` adapts the Responses API. Returned provider items,
+including reasoning, are carried forward within each batch. At batch boundaries,
+completed calls become ordinary text/results; unanswered calls are never replayed.
+Requests use `store: false`, fixed endpoints, bounded responses, blocked redirects
+and a one-minute HTTP timeout. Four conversations may run concurrently, with one
+run per conversation and up to eight calls per model response. There is no fixed
+24-round or five-minute request cutoff: every 24 rounds the runner compacts context
+and continues the same task. Twelve consecutive rounds without new successful
+results or changed task progress pause the run. The producer can stop it explicitly.
+Tools retain their own deadlines and bounds; whole requests are not one transaction.
+
+Migration 19 stores settings, conversations, message/action history and submitted
+turn identifiers. Migration 20 adds durable task progress. The runner's private
+`save_task_progress` tool records the brief, completed steps, actionable remaining
+steps and blockers. Progress and completed call results are checkpointed after
+each action. Every human request is retrieved independently of the UI's last 100
+messages, preserving original schedule details even in legacy failed conversations.
+Compaction keeps human instructions plus recent results, with the task checklist
+supplied independently. A failed response preserves these checkpoints. Startup
+marks interrupted runs failed without clearing context; Continue saved request
+resumes from the brief, checklist and recorded outcomes after checking current state.
+Successful creations are deduplicated within a run, including across batch changes.
+A crash between a write and its outcome record can still leave an uncertain Started
+action: resume must inspect current configuration before repeating it.
+
+Migration 21 centralizes AI configuration. The single encrypted key in
+`producer_settings` serves producer chat, DJ curation/writing, speech and audience
+review. Producer, default DJ, speech and audience models are independently configured;
+individual DJ curation/writing overrides remain. Model-only edits preserve the key.
+Speech model changes alter prepared-audio cache keys. DJ rows never receive new
+credentials. Existing shared credentials take precedence and remove old DJ copies.
+If no shared key exists and all legacy DJ keys have one distinct value, startup
+re-encrypts that value into shared settings and clears the copies. Ambiguous legacy
+keys remain inactive until a producer chooses the shared key; saving it clears them.
+The sidecar cannot be silently replaced while any encrypted credential exists.
+
+All assistant routes remain under `/producer` with existing optional authentication,
+origin validation and CSRF checks. Producer authority applies to requested changes
+across stations; station context is a default rather than an access restriction.
+There is no extra approval queue or MCP endpoint. Source metadata, DJ prompts and
+listener text remain untrusted data. Keys are managed only in Assistant settings
+and are absent from tool schemas and model inputs. New DJs immediately use the
+shared credential; they never require individual key configuration. Missing shared
+credentials do not block ordinary station, playlist or schedule configuration.
+
+The UI displays the latest 30 conversations in the current context and the last
+100 messages, with older conversations retained at their URLs. Polling updates only
+messages/progress and preserves compose controls, draft text, focus and scroll.
+Interrupted runs offer Continue saved request; active runs offer Stop assistant.
+
+Producer model HTTP 429 errors inspect bounded code/type fields and never display
+raw provider error bodies. Billing/quota errors pause without retry. Only explicit
+temporary rate rejections retry the same unexecuted model request, at most three
+times, with cancellable backoff and provider Retry-After. Delays over 30 seconds
+pause rather than retry early. Transport failures remain non-retryable. Successful
+Responses usage is shown live and recorded at the end of a run; counts include
+cached input and do not imply a monetary cost. Rejected requests with no usage
+report cannot be included in those measured counts.
+
+Producer DJ selection assesses existing shared profiles before creating presenters.
+DJ list summaries retain bounded background/voice direction, with get_dj providing
+full profiles. The shared tool registry serializes DJ saves and rejects colliding
+names (case/spacing/dash variants and known station suffixes), including renames.
+Existing legacy profiles remain editable without renaming; name collisions never
+silently update or replace a profile. Suitability remains an editorial model
+judgment; new presenters must use original names when existing DJs do not fit.
+
+Producer playlist selection inspects the requested station’s existing rules and
+resolved tracks before creating another pool. Suitable pools are reused by ID
+without changing their definitions. Assistant playlist saves serialize name checks
+and reject same-station collisions, including case/spacing and station-suffix
+variants. Names may repeat across stations; cross-station playlist assignments
+remain invalid. Suitability depends on actual eligibility and availability and
+remains the assistant’s editorial judgment.
+
+Failed live show preparation is retried at the next song boundary, without an
+application retry timer. Boundary admission is non-blocking: music continues
+while preparation runs. Pending or successful plans are not requested again.
+Success clears the failure state, with the ready plan used at a subsequent music
+boundary. Upcoming DJ preparation also retries through boundary prefetching;
+expired shows are not retried. Requests remain listener-driven and stop with the
+broadcast. This permits recovery when API credits or availability change after
+the initial attempt; external funding is not directly observable by the app.
+
+The producer registry exposes generate_station_logo and generate_dj_photo through
+an injected image-generation port. Station/DJ creation generates one artwork asset
+automatically; the runner records/checkpoints the entity ID before image work.
+Failed images return artwork_error alongside the committed creation, never an
+ambiguous creation failure. Standalone artwork tools preserve current assets unless
+replacement is requested and re-read metadata before saving. Raster validation,
+metadata removal and JPEG resizing happen before existing logo/photo persistence.
+One image job runs at a time. The OpenAI image adapter uses the shared encrypted
+key and independent image model, a four-minute deadline, one low-quality square
+JPEG per request, bounded base64 responses and no automatic billable retries.
+Image usage is included when reported; token counts do not estimate image cost.
+No image bytes or arbitrary image-fetch URLs enter the assistant tool transcript.

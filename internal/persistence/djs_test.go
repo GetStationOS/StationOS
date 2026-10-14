@@ -7,78 +7,81 @@ import (
 	"os"
 	"path/filepath"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/producer"
 	"strings"
 	"testing"
 )
 
-func TestDJCredentialsStayEncryptedAndSurviveEditing(t *testing.T) {
+func TestDJsUseOneSharedCredentialAndEditsCannotChangeIt(t *testing.T) {
 	db := database(t)
 	ctx := context.Background()
-	r, err := NewDJs(db, bytes.Repeat([]byte{1}, 32))
-	if err != nil {
-		t.Fatal(err)
+	r, e := NewDJs(db, bytes.Repeat([]byte{1}, 32))
+	if e != nil {
+		t.Fatal(e)
+	}
+	shared := NewProducer(r)
+	if e = shared.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "sk-shared-test"}); e != nil {
+		t.Fatal(e)
 	}
 	service := djs.Service{Repo: r}
-	p, err := service.Save(ctx, djs.Profile{Name: "The Archivist", Model: "gpt-6.1-sol", Prompt: "Introduce music", Vibe: djs.ExampleVibe}, djs.KeyChange{Value: "sk-test-not-a-real-key"})
-	if err != nil {
-		t.Fatal(err)
+	p, e := service.Save(ctx, djs.Profile{Name: "The Archivist", Model: "chosen-model", Prompt: "Introduce music"}, djs.KeyChange{})
+	if e != nil {
+		t.Fatal(e)
 	}
-	var raw []byte
-	db.QueryRow(`SELECT api_key_cipher FROM djs WHERE id=?`, p.ID).Scan(&raw)
-	if bytes.Contains(raw, []byte("sk-test")) || !p.HasKey || p.Voice != "cedar" {
-		t.Fatal("credential stored in plaintext or metadata status missing")
+	other, e := service.Save(ctx, djs.Profile{Name: "Night DJ", Model: "different-model"}, djs.KeyChange{})
+	if e != nil {
+		t.Fatal(e)
 	}
-	key, err := r.APIKey(ctx, p.ID)
-	if err != nil || key != "sk-test-not-a-real-key" {
-		t.Fatal("credential failed round trip", err)
+	for _, id := range []string{p.ID, other.ID} {
+		key, e := r.APIKey(ctx, id)
+		if e != nil || key != "sk-shared-test" {
+			t.Fatal("DJ did not use shared key", e)
+		}
+		var cipher []byte
+		_ = db.QueryRow(`SELECT api_key_cipher FROM djs WHERE id=?`, id).Scan(&cipher)
+		if len(cipher) > 0 {
+			t.Fatal("key duplicated in DJ row")
+		}
 	}
 	p.Name = "Renamed DJ"
 	p.Prompt = "Keep these instructions"
 	p.ConversationSpeed = 1.15
-	p, err = service.Save(ctx, p, djs.KeyChange{})
-	if err != nil || !p.HasKey || p.ConversationSpeed != 1.15 {
-		t.Fatal("blank edit lost credential", err)
+	p, e = service.Save(ctx, p, djs.KeyChange{})
+	if e != nil || !p.HasKey || p.ConversationSpeed != 1.15 {
+		t.Fatal("profile edit lost shared setup", e)
 	}
-	key, _ = r.APIKey(ctx, p.ID)
-	if key != "sk-test-not-a-real-key" {
-		t.Fatal("blank edit replaced key")
+	if _, e = service.Save(ctx, p, djs.KeyChange{Value: "another-key"}); !errors.Is(e, djs.ErrInvalid) {
+		t.Fatal("DJ accepted its own key", e)
 	}
-	_, err = service.Save(ctx, p, djs.KeyChange{Value: "new-key", Clear: true})
-	if !errors.Is(err, djs.ErrInvalid) {
-		t.Fatal("conflicting key changes accepted")
+	if e = shared.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "replacement-key"}); e != nil {
+		t.Fatal(e)
 	}
-	p, err = service.Save(ctx, p, djs.KeyChange{Value: "replacement-key"})
-	if err != nil {
-		t.Fatal(err)
+	for _, id := range []string{p.ID, other.ID} {
+		key, e := r.APIKey(ctx, id)
+		if e != nil || key != "replacement-key" {
+			t.Fatal("shared replacement not used", e)
+		}
 	}
-	key, _ = r.APIKey(ctx, p.ID)
-	if key != "replacement-key" {
-		t.Fatal("replacement not saved")
+	if e = shared.SaveSettings(ctx, "test-model", producer.KeyChange{Clear: true}); e != nil {
+		t.Fatal(e)
 	}
-	// Binding ciphertext to identity rejects swapped credential rows.
-	_, err = db.Exec(`INSERT INTO djs(id,name,model,api_key_cipher) SELECT 'other','Other','gpt-6.1-sol',api_key_cipher FROM djs WHERE id=?`, p.ID)
-	if err != nil {
-		t.Fatal(err)
+	for _, id := range []string{p.ID, other.ID} {
+		profile, e := r.Get(ctx, id)
+		if e != nil || profile.HasKey {
+			t.Fatal("shared removal not reflected", e)
+		}
 	}
-	if _, err = r.APIKey(ctx, "other"); err == nil {
-		t.Fatal("ciphertext can be transplanted between DJs")
+	if e = (Catalogue{DB: db}).Clear(ctx, ""); e != nil {
+		t.Fatal(e)
 	}
-	r.Delete(ctx, "other")
-	p, err = service.Save(ctx, p, djs.KeyChange{Clear: true})
-	if err != nil || p.HasKey {
-		t.Fatal("key removal failed", err)
+	p, e = r.Get(ctx, p.ID)
+	if e != nil || p.Prompt != "Keep these instructions" {
+		t.Fatal("catalogue rebuild lost profile", e)
 	}
-	if err = (Catalogue{DB: db}).Clear(ctx, ""); err != nil {
-		t.Fatal(err)
+	if e = r.Delete(ctx, p.ID); e != nil {
+		t.Fatal(e)
 	}
-	p, err = r.Get(ctx, p.ID)
-	if err != nil || p.Prompt != "Keep these instructions" {
-		t.Fatal("catalogue rebuild lost DJ", err)
-	}
-	if err = r.Delete(ctx, p.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = r.Get(ctx, p.ID); !errors.Is(err, djs.ErrNotFound) {
+	if _, e = r.Get(ctx, p.ID); !errors.Is(e, djs.ErrNotFound) {
 		t.Fatal("delete left profile")
 	}
 }
@@ -94,7 +97,10 @@ func TestDJSecretFileCreationReuseAndLoss(t *testing.T) {
 	if info.Mode().Perm() != 0600 {
 		t.Fatal("credential file is not private")
 	}
-	p, err := (djs.Service{Repo: r}).Save(ctx, djs.Profile{Name: "Night DJ", Model: "gpt-6-luna"}, djs.KeyChange{Value: "sk-test"})
+	if err = NewProducer(r).SaveSettings(ctx, "test-model", producer.KeyChange{Value: "sk-test"}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := (djs.Service{Repo: r}).Save(ctx, djs.Profile{Name: "Night DJ", Model: "gpt-6-luna"}, djs.KeyChange{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,15 +132,15 @@ func TestPastedLongAndWrappedKeys(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := djs.Service{Repo: repo}
+	shared := NewProducer(repo)
 	p, err := repo.Get(ctx, "default-pop")
 	if err != nil {
 		t.Fatal(err)
 	}
 	key := "sk-proj-" + strings.Repeat("a", 350) + "sk-" + strings.Repeat("a", 350)
 	for _, input := range []string{key, " \n" + key + "\r\n", key[:150] + "\n \t\u00a0" + key[150:]} {
-		saved, err := service.Save(ctx, p, djs.KeyChange{Value: input})
-		if err != nil || !saved.HasKey {
+		err := shared.SaveSettings(ctx, "test-model", producer.KeyChange{Value: input})
+		if err != nil {
 			t.Fatal("valid pasted key rejected", err)
 		}
 		got, err := repo.APIKey(ctx, p.ID)
@@ -143,7 +149,7 @@ func TestPastedLongAndWrappedKeys(t *testing.T) {
 		}
 	}
 	for _, input := range []string{"sk-first sk-second", "two tokens", strings.Repeat("x", djs.MaxKeyLength+1), "sk-proj-invalid\x00"} {
-		if _, err := service.Save(ctx, p, djs.KeyChange{Value: input}); !errors.Is(err, djs.ErrInvalid) {
+		if err := shared.SaveSettings(ctx, "test-model", producer.KeyChange{Value: input}); err == nil {
 			t.Fatal("invalid key accepted")
 		}
 		got, _ := repo.APIKey(ctx, p.ID)
@@ -151,7 +157,7 @@ func TestPastedLongAndWrappedKeys(t *testing.T) {
 			t.Fatal("invalid submission changed saved credential")
 		}
 	}
-	if _, err := service.Save(ctx, p, djs.KeyChange{Value: key, Clear: true}); !errors.Is(err, djs.ErrInvalid) || !strings.Contains(err.Error(), "Untick") {
+	if err := shared.SaveSettings(ctx, "test-model", producer.KeyChange{Value: key, Clear: true}); err == nil || !strings.Contains(err.Error(), "Untick") {
 		t.Fatal("ambiguous conflict message", err)
 	}
 }
@@ -169,7 +175,10 @@ func TestBackgroundAndPortraitPreserveCredentialsAndReachSchedule(t *testing.T) 
 	}
 	p.ConversationSpeed = 1.25
 	p.Background = "Fictional record-shop curator"
-	if err = r.Save(ctx, p, djs.KeyChange{Value: "sk-test"}); err != nil {
+	if err = NewProducer(r).SaveSettings(ctx, "test-model", producer.KeyChange{Value: "sk-test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = r.Save(ctx, p, djs.KeyChange{}); err != nil {
 		t.Fatal(err)
 	}
 	p.Background = "Changed fictional background"

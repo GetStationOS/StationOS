@@ -4,6 +4,8 @@ package openai
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +25,7 @@ type Producer struct {
 	Store  production.Store
 	Audio  production.Normalizer
 	Client *http.Client
+	Models production.ModelSettings
 }
 
 func New(keys production.Credentials, store production.Store, audio production.Normalizer) Producer {
@@ -104,7 +107,11 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil || key == "" {
 		return production.Prepared{}, production.ErrUnavailable
 	}
-	cacheKey := production.CacheKey(show, next)
+	speechModel, err := p.model(ctx, "speech", "gpt-4o-mini-tts")
+	if err != nil {
+		return production.Prepared{}, err
+	}
+	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel)
 	if p.Store != nil {
 		if prepared, err := p.Store.Get(ctx, cacheKey); err == nil && production.Validate(prepared.Plan, pool) == nil {
 			return prepared, nil
@@ -176,7 +183,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		if strings.TrimSpace(text) == "" {
 			return nil, nil
 		}
-		raw, err := p.call(ctx, "audio/speech", key, map[string]any{"model": "gpt-4o-mini-tts", "voice": show.DJ.Voice, "input": text, "instructions": show.DJ.Vibe, "speed": show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
+		raw, err := p.call(ctx, "audio/speech", key, map[string]any{"model": speechModel, "voice": show.DJ.Voice, "input": text, "instructions": show.DJ.Vibe, "speed": show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
 		if err != nil {
 			return nil, err
 		}
@@ -221,6 +228,10 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	key, err := p.Keys.APIKey(ctx, link.Show.DJ.ID)
 	if err != nil || key == "" {
 		return nil, nil, production.ErrUnavailable
+	}
+	speechModel, err := p.model(ctx, "speech", "gpt-4o-mini-tts")
+	if err != nil {
+		return nil, nil, err
 	}
 	type song struct {
 		Title, Performers, Composer, AlbumArtist, Conductor, Creator, Album, Genre string
@@ -317,7 +328,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if len(spoken) == 0 || len(spoken) > maxSpeechBytes {
 		return nil, nil, errors.New("presenter link exceeds limits")
 	}
-	raw, err = p.call(ctx, "audio/speech", key, map[string]any{"model": "gpt-4o-mini-tts", "voice": link.Show.DJ.Voice, "input": spoken, "instructions": link.Show.DJ.Vibe, "speed": link.Show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
+	raw, err = p.call(ctx, "audio/speech", key, map[string]any{"model": speechModel, "voice": link.Show.DJ.Voice, "input": spoken, "instructions": link.Show.DJ.Vibe, "speed": link.Show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -354,4 +365,15 @@ func incompleteError(stage, reason string) error {
 	default:
 		return fmt.Errorf("%s incomplete: reason not supplied", stage)
 	}
+}
+
+func (p Producer) model(ctx context.Context, role, fallback string) (string, error) {
+	if p.Models == nil {
+		return fallback, nil
+	}
+	return p.Models.Model(ctx, role)
+}
+func modelCacheKey(base, model string) string {
+	sum := sha256.Sum256([]byte(base + "\nspeech_model=" + model))
+	return hex.EncodeToString(sum[:])
 }

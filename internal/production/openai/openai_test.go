@@ -213,3 +213,38 @@ func TestIncompleteErrorDoesNotLeakUnknownReason(t *testing.T) {
 		t.Fatal("untrusted reason leaked")
 	}
 }
+
+type configuredModels map[string]string
+
+func (m configuredModels) Model(_ context.Context, role string) (string, error) { return m[role], nil }
+func TestSpeechUsesRoleModelAndProfileUsesItsOwnModel(t *testing.T) {
+	p := New(testKeys{}, nil, testAudio{})
+	p.Models = configuredModels{"speech": "speech-role-model"}
+	p.Client = &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Authorization") != "Bearer test-secret" {
+			t.Fatal("different service credential")
+		}
+		var body map[string]any
+		if e := json.NewDecoder(r.Body).Decode(&body); e != nil {
+			t.Fatal(e)
+		}
+		if r.URL.Path == "/v1/responses" {
+			if body["model"] != "chosen-model" {
+				t.Fatal("DJ override lost", body)
+			}
+			return answer(`{"track_ids":["track"],"intro":"Welcome","outro":"Goodbye"}`), nil
+		}
+		if body["model"] != "speech-role-model" {
+			t.Fatal("speech model not used", body)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("mp3"))}, nil
+	})}
+	d := time.Minute
+	_, e := p.Prepare(context.Background(), profile(), schedule.Occurrence{}, []content.AudioItem{{ID: "track", Title: "Track", Duration: &d}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if modelCacheKey("same-show", "speech-a") == modelCacheKey("same-show", "speech-b") {
+		t.Fatal("speech model change reuses cached audio")
+	}
+}

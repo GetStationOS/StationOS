@@ -11,7 +11,7 @@ import (
 
 type Schedule struct{ DB *sql.DB }
 
-const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,d.model,d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,length(d.api_key_cipher)>0,s.accept_requests,s.accept_shoutouts,s.description`
+const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,d.model,d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,(SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description`
 const showJoin = ` FROM station_shows s JOIN djs d ON d.id=s.dj_id JOIN playlists p ON p.id=s.playlist_id `
 
 func scanShow(row interface{ Scan(...any) error }) (schedule.Show, error) {

@@ -32,12 +32,9 @@
 <p id="conversation-speed-help" class="hint">1.00× is normal. Applies to newly generated speech.</p>
 <label>Vibe<textarea name="vibe" rows="4" maxlength="16000" placeholder="e.g. Warm, relaxed, conversational, with clear phrasing.">{{.DJ.Vibe}}</textarea><span class="hint">Voice direction, phrasing and tone.</span></label><button type="button" class="text-button" data-example-vibe>Use example vibe</button>
 </fieldset>
-<fieldset class="dj-form-group"><legend>API access</legend>
-<label>OpenAI API key <span class="optional">{{if .DJ.HasKey}}Saved{{else}}Optional{{end}}</span><input type="password" name="api_key" autocomplete="new-password" maxlength="4096" spellcheck="false" autocapitalize="none" placeholder="{{if .DJ.HasKey}}Leave blank to keep the saved key{{else}}Enter your API key{{end}}"><span class="hint">Stored encrypted. Saved keys are never displayed.</span></label>
-{{if .DJ.HasKey}}<label class="check"><input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
-</fieldset>
+<p class="hint">All DJs use the shared OpenAI key in <a href="/producer/assistant/settings">Assistant settings</a>. Each DJ keeps its own curation and writing model.</p>
 <div class="form-footer">{{if .DJ.ID}}<a class="button danger" href="/producer/djs/{{.DJ.ID}}/delete" hx-get="/producer/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}<div class="form-actions"><a class="button secondary" href="/producer/djs">Cancel</a><button>{{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button></div></div>
 </form></section>
 {{end}}{{end}}
 
-{{define "delete-dj"}}<section class="form-panel"><h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2><p id="dialog-description">This permanently deletes this DJ’s profile and saved API key.</p><form method="post" action="/producer/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="yes"><div class="form-actions"><a class="button secondary" href="/producer/djs/{{.DJ.ID}}" data-close-dialog>Cancel</a><button class="danger">Delete DJ</button></div></form></section>{{end}}
+{{define "delete-dj"}}<section class="form-panel"><h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2><p id="dialog-description">This permanently deletes this DJ’s profile.</p><form method="post" action="/producer/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="yes"><div class="form-actions"><a class="button secondary" href="/producer/djs/{{.DJ.ID}}" data-close-dialog>Cancel</a><button class="danger">Delete DJ</button></div></form></section>{{end}}

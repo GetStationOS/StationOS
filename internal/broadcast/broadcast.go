@@ -436,6 +436,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 					if attempted[result.key] {
 						prepared[result.key] = result.prepared
 						preparedVoices[result.key] = result
+						delete(failed, result.key)
 					}
 				} else {
 					if attempted[result.key] {
@@ -457,6 +458,15 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if m.options.Producer == nil || show.DJ.ID == "" || !show.DJ.HasKey {
 			return
 		}
+		if !show.End.IsZero() && !m.now().Before(show.End) {
+			return
+		}
+		key := production.CacheKey(show, next)
+		// This admission point is called at song boundaries. A failed plan can
+		// be tried again; successful and still-pending work must not be repeated.
+		if attempted[key] && !failed[key] {
+			return
+		}
 		at := m.now()
 		if show.Start.After(at) {
 			at = show.Start
@@ -465,12 +475,12 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if len(pool) == 0 {
 			return
 		}
-		key := production.CacheKey(show, next)
-		if attempted[key] {
-			return
-		}
 		select {
 		case requests <- prepareRequest{show, next, pool}:
+			delete(failed, key)
+			if attempted[key] {
+				return
+			}
 			attempted[key] = true
 			recent = append(recent, key)
 			if len(recent) > 8 {
@@ -500,6 +510,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 				state.PresenterStatus = "Ready"
 			} else if failed[key] {
 				state.PresenterStatus = "Unavailable"
+			} else if attempted[key] {
+				state.PresenterStatus = "Preparing"
 			}
 		}
 		if delay := clock.delay(time.Now()); delay > 0 {

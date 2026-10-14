@@ -2,7 +2,10 @@ module stationos.local/stationos
 
 go 1.23
 
-require modernc.org/sqlite v1.34.5
+require (
+	github.com/yuin/goldmark v1.7.17
+	modernc.org/sqlite v1.34.5
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

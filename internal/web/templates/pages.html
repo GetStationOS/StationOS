@@ -6,7 +6,7 @@
 </head><body hx-boost="true" hx-target="#main" hx-swap="innerHTML show:window:top" hx-indicator="#global-busy">
 <a class="skip-link" href="#main" hx-boost="false">Skip to content</a>
 <aside class="sidebar"><a class="brand" href="/producer">Station<span>OS</span></a>
-<nav aria-label="Main navigation"><a href="/producer" data-nav="stations"><span aria-hidden="true">◉</span> Stations</a><a href="/producer/sources" data-nav="sources"><span aria-hidden="true">↗</span> Sources</a><a href="/producer/djs" data-nav="djs"><span aria-hidden="true">♫</span> DJs</a></nav>
+<nav aria-label="Main navigation"><a href="/producer" data-nav="stations"><span aria-hidden="true">◉</span> Stations</a><a href="/producer/sources" data-nav="sources"><span aria-hidden="true">↗</span> Sources</a><a href="/producer/djs" data-nav="djs"><span aria-hidden="true">♫</span> DJs</a><a href="/producer/assistant" data-nav="assistant"><span aria-hidden="true">✦</span> Assistant</a></nav>
 </aside>
 <div class="workspace"><span id="global-busy" class="htmx-indicator global-busy" role="status">Working…</span>
 <div id="feedback" class="app-feedback" role="alert" tabindex="-1" hidden></div>
@@ -25,6 +25,7 @@
 {{if and .DJMode (ne .DJMode "list")}}<div class="breadcrumbs"><a href="/producer/djs">DJs</a><span aria-hidden="true">/</span><span>{{.Title}}</span></div>{{end}}
 <div class="page-heading"><div class="title-line"><h1>{{.Title}}</h1>{{if and .Playlist.ID (ne .PlaylistTab "delete")}}<span class="playlist-meta">{{.PlaylistResult.Total}} tracks · {{.PlaylistDuration}}{{if .PlaylistResult.UnknownDurations}} · {{.PlaylistResult.UnknownDurations}} durations unknown{{end}}</span>{{end}}{{if eq .ScheduleMode "list"}}<span class="playlist-meta">Repeats weekly · {{.Station.Timezone}}</span>{{end}}</div>{{if and (eq .Page "/producer/playlists") .Stations}}<a class="button" href="/producer/playlists/new{{if .Station.ID}}?station={{.Station.ID}}{{end}}">+ Add playlist</a>{{end}}{{if eq .ScheduleMode "list"}}<a class="button" href="/producer/stations/{{.Station.ID}}/schedule/new">+ Add show</a>{{end}}{{if eq .DJMode "list"}}<a class="button" href="/producer/djs/new">+ Create DJ</a>{{end}}{{if eq .Page "/producer"}}<a class="button" href="/producer/stations/new">+ Create station</a>{{end}}</div>
 {{end}}
+{{if .AssistantMode}}{{template "assistant" .}}{{end}}
 {{if .DJMode}}{{template "djs" .}}{{end}}
 {{if .ScheduleMode}}{{template "schedule" .}}{{end}}{{if eq .AudienceMode "queue"}}{{template "audience-queue" .}}{{end}}
 {{if eq .Page "/producer"}}{{template "station-cards" .}}{{end}}

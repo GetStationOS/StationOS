@@ -67,6 +67,15 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 		v.Title = "Create DJ"
 		v.DJMode = "new"
 		v.DJ.Model = "gpt-6.1-sol"
+		if s.d.Assistant != nil {
+			settings, e := s.d.Assistant.Store.Settings(r.Context())
+			if e != nil {
+				s.fail(w, e)
+				return
+			}
+			v.DJ.Model = settings.CurationModel
+			v.DJCustomModel = !knownDJModel(v.DJ.Model)
+		}
 		v.DJ.Voice = djs.DefaultVoice
 		v.DJ.ConversationSpeed = djs.DefaultConversationSpeed
 	} else {
@@ -121,7 +130,11 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err == nil {
-		_, err = (djs.Service{Repo: s.d.DJs}).Save(r.Context(), p, djs.KeyChange{Value: r.PostForm.Get("api_key"), Clear: r.PostForm.Get("clear_key") == "yes"})
+		if r.PostForm.Get("api_key") != "" || r.PostForm.Get("clear_key") == "yes" {
+			err = errors.Join(djs.ErrInvalid, errors.New("Manage the shared OpenAI API key in Assistant settings."))
+		} else {
+			_, err = (djs.Service{Repo: s.d.DJs}).Save(r.Context(), p, djs.KeyChange{})
+		}
 	}
 	if errors.Is(err, djs.ErrInvalid) {
 		message := strings.TrimPrefix(err.Error(), djs.ErrInvalid.Error()+"\n")
@@ -140,7 +153,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		v.DJ = p
 		v.DJMode = "new"
 		v.Title = "Create DJ"
-		v.DJError = message + " Re-enter an API key if you supplied one."
+		v.DJError = message
 		if uploaded {
 			v.DJError += " Choose the photo again before saving."
 		}

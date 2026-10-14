@@ -187,3 +187,23 @@ func TestRequestIntroductionCannotOmitRequestOrNameAnotherRecording(t *testing.T
 		t.Fatal("omitted request reached TTS", err, calls)
 	}
 }
+
+func TestAudienceReviewUsesIndependentModelAndSharedCredential(t *testing.T) {
+	p := New(testKeys{}, nil, testAudio{})
+	p.Models = configuredModels{"audience": "review-role-model"}
+	p.Client = &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Authorization") != "Bearer test-secret" {
+			t.Fatal("review used another key")
+		}
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if body["model"] != "review-role-model" {
+			t.Fatal("review model not applied", body)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"answers":[{"type":"predicate","name":"a","probability":0.99}]}`))}, nil
+	})}
+	result, e := p.Review(context.Background(), profile(), []production.AudienceItem{{ID: "a", Kind: audience.Shoutout, Text: "Hello"}})
+	if e != nil || len(result) != 1 || !result[0].Approve {
+		t.Fatal(result, e)
+	}
+}

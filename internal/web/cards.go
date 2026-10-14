@@ -51,7 +51,7 @@ func programmeDetails(state broadcast.State, timezone string, now time.Time) (st
 	times := state.Programme.Start.In(loc).Format("15:04") + "–" + state.Programme.End.In(loc).Format("15:04")
 	status := map[string]string{"Preparing": "Preparing DJ", "Ready": "DJ ready", "Music only": "Music only", "Speaking": "DJ speaking", "Unavailable": "DJ unavailable · music continues"}[state.PresenterStatus]
 	if status == "Music only" && !state.Programme.DJ.HasKey {
-		status = "Music only · no DJ key"
+		status = "Music only · shared API key missing"
 	}
 	if !state.Programme.End.IsZero() && !now.Before(state.Programme.End) && state.Current.Kind == content.Track {
 		status = "Finishing current track"

@@ -24,6 +24,7 @@ import (
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/mixer"
 	"stationos.local/stationos/internal/playlists"
+	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
@@ -33,6 +34,7 @@ import (
 var assets embed.FS
 
 type Dependencies struct {
+	Assistant       *producer.Service
 	Audience        audience.Repository
 	Mixer           mixer.Repository
 	ArtworkFactory  sources.Factory
@@ -77,6 +79,14 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /readyz", s.ready)
 	mux.Handle("GET /static/", http.FileServerFS(assets))
 	mux.HandleFunc("GET /producer", s.page)
+	mux.HandleFunc("GET /producer/assistant", s.assistantPage)
+	mux.HandleFunc("GET /producer/assistant/settings", s.assistantSettings)
+	mux.HandleFunc("POST /producer/assistant/settings", s.assistantSettings)
+	mux.HandleFunc("POST /producer/assistant/conversations", s.newConversation)
+	mux.HandleFunc("POST /producer/assistant/messages", s.assistantSend)
+	mux.HandleFunc("GET /producer/assistant/{id}/messages", s.assistantMessages)
+	mux.HandleFunc("POST /producer/assistant/{id}/stop", s.assistantStop)
+	mux.HandleFunc("POST /producer/assistant/{id}/continue", s.assistantContinue)
 	mux.HandleFunc("GET /producer/{$}", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/producer", 308) })
 	mux.HandleFunc("GET /{$}", s.publicPage)
 	mux.HandleFunc("GET /radio-events", s.publicDirectoryEvents)

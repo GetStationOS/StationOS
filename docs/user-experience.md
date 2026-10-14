@@ -6,7 +6,7 @@ Status: adopted, 9 October 2026. Apply these rules to every new operator-facing 
 
 Stations are the top-level domain. `/producer` is the station overview, with one card per station and a clear Create station action. Opening a card leads to that station's workspace. Overview, Playlists and Settings retain the station identity and breadcrumb. New scheduling, presenters, output and reporting screens must join this station workspace instead of becoming unrelated global pages.
 
-Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, writing/curation model, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. API-key fields are write-only: leave blank to retain, enter a replacement or explicitly remove. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
+Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, writing/curation model, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. The shared API-key field in Assistant settings is write-only: leave blank to retain, enter a replacement or explicitly remove. DJ forms contain no credential fields. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
 
 ## Status and information
 
@@ -227,8 +227,8 @@ profiles, or a red On air badge when measured broadcasting state has a current
 track and names that DJ. Configuration problems remain visible even on an active
 card. Ready confirms saved configuration, not a tested API credential. These
 statuses reflect state when the directory is loaded; assignment alone never
-implies a live broadcast. Remove Key saved from the directory, retaining credential
-management in the DJ edit form.
+implies a live broadcast. Remove Key saved from the directory, keeping credential
+management in Assistant settings.
 
 DJ cards share a fixed height at each viewport size. Keep the portrait and Edit DJ
 action fixed in the left column. Keep the DJ name, badge and setup notices fixed
@@ -238,3 +238,63 @@ next airing, labelled by the DJ and section names. Align
 the name and status lozenge on the same top row, wrapping naturally on narrow screens.
 
 Keep the biography on the DJ detail screen; omit it from directory cards.
+
+### Producer assistant
+
+Assistant is available in the main producer navigation, outside the station submenu.
+A conversation opened with station context inherits that station without requiring another selection;
+it can still manage other stations when explicitly requested. Global conversations
+support discovery and station creation. Keep saved conversations, clear New
+conversation and Assistant settings actions, and direct links to created/edited
+entities. Use the current producer's authority for requested changes without an
+extra assistant approval step. Ask for missing information or ambiguous intent.
+
+Keep the compose form mounted while polling only the messages/status region.
+Polling must preserve draft text, focus and scroll and must not display the global
+Working indicator. Disable Send while the conversation is running; navigating away
+does not stop a run. Successful sends get a fresh submission identifier, preventing
+repeated form delivery from replaying a turn. Normal forms, direct URLs, refresh
+and history navigation remain supported.
+
+Show concrete saved outcomes and failed actions in the conversation. Never claim
+that the whole request rolled back when some actions succeeded. Interrupted runs
+remain visible and are not replayed. Assistant settings owns one shared OpenAI key for every AI service and independent producer, default DJ, speech and audience model choices. The key field is write-only; blank preserves it. DJ forms retain per-profile curation/writing model choices and link to shared settings. Do not expose credentials
+in conversation history or model tools. Saved configuration is not a tested key.
+
+Assistant responses support Markdown paragraphs, headings, emphasis, lists, links,
+quotes, code blocks and tables. Keep message headings below the page's h1 and
+contain wide code/tables within the response on small screens. Render stored
+Markdown on the server for both normal navigation and status fragments. Raw HTML
+and dangerous link destinations are omitted; image descriptions are rendered as
+text. Human messages and action records retain escaped plain text.
+
+Long requests continue automatically across model batches. Keep a saved task brief,
+completed steps, actionable remaining work and genuine blockers visible in the
+conversation. A batch boundary is not a completion or a reason to ask the producer
+to repeat requirements. On failure, stop or server restart, offer Continue saved
+request with the original instructions intact. Active runs expose Stop assistant.
+Incomplete requests must not be presented as complete. Finish actionable configuration
+before requesting input needed only for blocked work.
+
+The conversation status explicitly says Working, Finished, Needs your input or
+Paused. Active requests show the current activity, total running time, time in
+that activity and count of finished checks/actions, including catalogue reads.
+A failed live refresh displays a reconnect warning. A saved running request with
+no active worker is reported as stopped unexpectedly; Stop makes its saved
+checkpoint resumable. Completion means the assistant ended its turn; the reply
+and saved checklist remain the evidence of the requested outcome.
+
+Show measured AI input/output token counts while a run is active and keep a
+usage record in its action history when it ends or pauses. Counts include cached
+input and are not a cost estimate. Quota/billing errors explain what requires
+attention rather than suggesting immediate retry. Confirmed temporary rate limits
+show a cancellable wait and resume automatically within a short bounded retry
+window; longer provider waits remain paused.
+
+New assistant-created stations get a generated logo; new fictional DJs get a
+portrait informed by their background and voice direction. Existing artwork is
+preserved during reuse and ordinary edits. The conversation shows creation first,
+then artwork activity and its outcome. If generation fails, identify the missing
+artwork while keeping the saved entity and its link; retry artwork by ID rather
+than creating another profile. Assistant settings offers an independent Artwork
+model using the shared key and explains automatic low-quality image generation.

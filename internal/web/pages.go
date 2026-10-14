@@ -15,6 +15,7 @@ import (
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/playlists"
+	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
@@ -201,6 +202,14 @@ type sourceCard struct {
 	Tracks int
 }
 type view struct {
+	AssistantMessages                                  []assistantMessage
+	AssistantState, AssistantActivity, AssistantTiming string
+
+	AssistantMode, AssistantError, AssistantInput, AssistantRequestID string
+	AssistantSettings                                                 producer.Settings
+	Conversation                                                      producer.Conversation
+	Conversations                                                     []producer.Conversation
+
 	AudienceMode, AudienceKind, AudienceKey                  string
 	AudienceQuery, AudienceToken, AudienceFilter             string
 	AudienceShow                                             schedule.Occurrence

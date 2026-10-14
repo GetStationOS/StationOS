@@ -1,0 +1,37 @@
+{{define "assistant"}}
+{{if eq .AssistantMode "settings"}}
+<section class="form-panel"><p>The producer assistant acts on your behalf across StationOS. Configure the shared OpenAI key and choose models for each AI role here.</p>
+{{if .AssistantError}}<p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
+<form method="post" action="/producer/assistant/settings" hx-disabled-elt="find button">
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Producer assistant model<input name="model" value="{{.AssistantSettings.Model}}" required maxlength="128"><span class="hint">Use a model that supports Responses API function tools.</span></label>
+<label>Default DJ curation and writing model<input name="curation_model" value="{{.AssistantSettings.CurationModel}}" required maxlength="128"><span class="hint">Used for new DJs. Individual DJ model choices remain editable.</span></label>
+<label>Speech model<input name="speech_model" value="{{.AssistantSettings.SpeechModel}}" required maxlength="128"><span class="hint">Used for presenter speech through the audio speech API.</span></label>
+<label>Audience review model<input name="audience_model" value="{{.AssistantSettings.AudienceModel}}" required maxlength="128"><span class="hint">Use a model that supports the Decisions API.</span></label>
+<label>Artwork model<input name="image_model" value="{{.AssistantSettings.ImageModel}}" required maxlength="128"><span class="hint">Creates station logos and fictional DJ portraits. New stations and DJs get one image automatically, using low quality to limit image-generation costs.</span></label>
+<label>Shared OpenAI API key<input name="api_key" type="password" autocomplete="new-password" maxlength="4096"><span class="hint">{{if .AssistantSettings.HasKey}}A key is saved. Leave blank to keep it.{{else}}Enter a key to enable the assistant.{{end}} Used by all AI services. Stored encrypted and never shown in conversations.</span></label>
+{{if .AssistantSettings.HasKey}}<label class="choice"><input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
+<div class="form-actions"><a class="button secondary" href="/producer/assistant">Cancel</a><button>Save changes</button></div>
+</form></section>
+{{else}}
+<div class="assistant-toolbar"><form method="post" action="/producer/assistant/conversations" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="station" value="{{.StationID}}"><button class="secondary">New conversation</button></form><a href="/producer/assistant/settings">Assistant settings</a></div>
+{{if not .AssistantSettings.HasKey}}<p class="notice">Add an API key in <a href="/producer/assistant/settings">Assistant settings</a> to get started.</p>{{end}}
+<div class="assistant-workspace">
+{{if .Conversations}}<nav class="assistant-conversations" aria-label="Conversations">{{range .Conversations}}<a href="/producer/assistant?conversation={{.ID}}" {{if eq .ID $.Conversation.ID}}aria-current="page"{{end}}>{{.Title}} <span class="hint" data-assistant-badge="{{.ID}}">{{if eq .Status "running"}}Working…{{end}}</span></a>{{end}}</nav>{{end}}
+<section class="assistant-chat" aria-label="Producer conversation">
+{{template "assistant-messages" .}}
+{{if .AssistantError}}<p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
+<form class="assistant-compose" data-assistant-compose data-assistant-enabled="{{.AssistantSettings.HasKey}}" method="post" action="/producer/assistant/messages" hx-disabled-elt="find button" hx-swap="innerHTML show:none">
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="conversation" value="{{.Conversation.ID}}"><input type="hidden" name="station" value="{{.StationID}}"><input type="hidden" name="request_id" value="{{.AssistantRequestID}}">
+<label>Message<textarea name="message" required maxlength="12000" rows="4" placeholder="Explore my music library, create a station, or update its programming…">{{.AssistantInput}}</textarea></label>
+<div class="form-actions"><button {{if or (not .AssistantSettings.HasKey) (eq .Conversation.Status "running")}}disabled{{end}}>Send message</button></div>
+<p class="hint">The assistant can make changes on your behalf. Enter API keys only in secure settings. Changes and links appear above.</p>
+</form></section></div>
+{{end}}{{end}}
+{{define "assistant-messages"}}
+<div id="assistant-messages" class="assistant-messages" data-assistant-running="{{eq .Conversation.Status "running"}}" data-assistant-conversation="{{.Conversation.ID}}" {{if eq .Conversation.Status "running"}}hx-get="/producer/assistant/{{.Conversation.ID}}/messages" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML show:none" hx-indicator="this"{{end}}>
+{{if .AssistantState}}<section class="notice assistant-status" data-state="{{.AssistantState}}" role="status" aria-label="Assistant status"><strong>{{.AssistantState}}</strong><p>{{.AssistantActivity}}</p>{{if .AssistantTiming}}<p class="hint">{{.AssistantTiming}}</p>{{end}}<p class="hint assistant-poll-error" role="alert" hidden>Live updates have disconnected. Reload this page to check the assistant’s current state.</p></section>{{end}}
+{{if .Conversation.Task.Brief}}<section class="assistant-task" aria-label="Saved task progress"><h2>Task progress</h2><p>{{.Conversation.Task.Brief}}</p>{{if .Conversation.Task.Completed}}<h3>Completed</h3><ul>{{range .Conversation.Task.Completed}}<li>{{.}}</li>{{end}}</ul>{{end}}{{if .Conversation.Task.Remaining}}<h3>Remaining</h3><ul>{{range .Conversation.Task.Remaining}}<li>{{.}}</li>{{end}}</ul>{{end}}{{if .Conversation.Task.Blockers}}<h3>Needs your input</h3><ul>{{range .Conversation.Task.Blockers}}<li>{{.}}</li>{{end}}</ul>{{end}}</section>{{end}}
+{{if .AssistantMessages}}<ol aria-label="Conversation history">{{range .AssistantMessages}}<li class="assistant-message assistant-{{.Role}}"><strong>{{if eq .Role "user"}}You{{else if eq .Role "action"}}Action{{else}}Producer assistant{{end}}</strong>{{if eq .Role "assistant"}}<div class="assistant-markdown">{{.HTML}}</div>{{else}}<p>{{.Text}}</p>{{end}}{{if .URL}}<a href="{{.URL}}">View in StationOS →</a>{{end}}</li>{{end}}</ol>{{else}}<p class="hint">Describe what you want to produce. The assistant can explore your music and manage stations, playlists, DJs and schedules.</p>{{end}}
+{{if eq .Conversation.Status "running"}}<p class="hint">You can navigate away and return while the assistant works.</p><form method="post" action="/producer/assistant/{{.Conversation.ID}}/stop" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="secondary">Stop assistant</button></form>{{else if eq .Conversation.Status "failed"}}<form method="post" action="/producer/assistant/{{.Conversation.ID}}/continue" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="request_id" value="{{.AssistantRequestID}}"><button {{if not .AssistantSettings.HasKey}}disabled{{end}}>Continue saved request</button></form>{{end}}
+</div>{{end}}

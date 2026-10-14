@@ -91,3 +91,8 @@ type LinkRequest struct {
 type LinkProducer interface {
 	Link(context.Context, LinkRequest) ([]byte, error)
 }
+
+// ModelSettings supplies independently configured models for AI service roles.
+type ModelSettings interface {
+	Model(context.Context, string) (string, error)
+}

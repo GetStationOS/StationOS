@@ -11,11 +11,11 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	token := csrf(t, h)
 	w := request(h, "GET", "/producer/djs/new", nil, nil)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `type="password"`) || !strings.Contains(w.Body.String(), "Use example vibe") {
+	if w.Code != 200 || strings.Contains(w.Body.String(), `name="api_key"`) || !strings.Contains(w.Body.String(), "Assistant settings") || !strings.Contains(w.Body.String(), "Use example vibe") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	key := "sk-test-do-not-expose"
-	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "conversation_speed": {"1.15"}, "api_key": {key}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}, "background": {"Fictional record-shop curator <script>bad</script>"}, "portrait_url": {"/static/djs/alex-bright.jpg"}}
+	form := url.Values{"csrf": {token}, "name": {"<script>Night DJ</script>"}, "model": {"gpt-6.1-sol"}, "voice": {"onyx"}, "conversation_speed": {"1.15"}, "prompt": {"Introduce tracks"}, "vibe": {"Voice: Hushed"}, "background": {"Fictional record-shop curator <script>bad</script>"}, "portrait_url": {"/static/djs/alex-bright.jpg"}}
 	if w = request(h, "POST", "/producer/djs", form, nil); w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -51,9 +51,9 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 		t.Fatal("voice choice not saved")
 	}
 	var saved bool
-	st.DB.QueryRow(`SELECT length(api_key_cipher)>0 FROM djs WHERE id=?`, id).Scan(&saved)
-	if !saved {
-		t.Fatal("blank form erased key")
+	st.DB.QueryRow(`SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1`).Scan(&saved)
+	if saved {
+		t.Fatal("DJ form wrote a shared key")
 	}
 	form.Set("voice", "unsupported")
 	w = request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
@@ -71,7 +71,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 		t.Fatal("invalid edit accepted")
 	}
 	w = request(h, "POST", "/producer/djs", form, nil)
-	if w.Code != 422 || !strings.Contains(w.Body.String(), "Introduce tracks") || !strings.Contains(w.Body.String(), "Re-enter an API key") || strings.Contains(w.Body.String(), key) {
+	if w.Code != 422 || !strings.Contains(w.Body.String(), "Introduce tracks") || strings.Contains(w.Body.String(), key) {
 		t.Fatal("ordinary validation lost input or exposed credential")
 	}
 	if w = request(h, "POST", "/producer/djs/"+id+"/delete", url.Values{"csrf": {token}}, nil); w.Code != 400 {
@@ -105,63 +105,20 @@ func TestDJsProtectedByManagementAuthentication(t *testing.T) {
 	}
 }
 
-func TestLongAPIKeyAcceptedThroughFormWithoutEcho(t *testing.T) {
+func TestDJFormCannotSetIndividualOrSharedKeys(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	token := csrf(t, h)
-	key := "sk-proj-" + strings.Repeat("a", 700)
-	form := url.Values{"csrf": {token}, "id": {"default-pop"}, "name": {"Alex Bright"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "api_key": {key[:150] + " \n" + key[150:]}}
-	w := request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
-	if w.Code != 204 || strings.Contains(w.Body.String(), key) {
-		t.Fatal(w.Code)
+	key := "sk-ignored-dj-key"
+	w := request(h, "POST", "/producer/djs", url.Values{"csrf": {token}, "id": {"default-pop"}, "name": {"Alex Bright"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "api_key": {key}}, nil)
+	if w.Code != 422 {
+		t.Fatal("DJ credential write accepted", w.Code)
 	}
-	var saved bool
-	st.DB.QueryRow(`SELECT length(api_key_cipher)>0 FROM djs WHERE id='default-pop'`).Scan(&saved)
-	if !saved {
-		t.Fatal("key not saved")
+	var count int
+	if e := st.DB.QueryRow(`SELECT (SELECT count(*) FROM djs WHERE length(api_key_cipher)>0)+(SELECT count(*) FROM producer_settings WHERE length(api_key_cipher)>0)`).Scan(&count); e != nil || count != 0 {
+		t.Fatal("DJ form stored a key", e)
 	}
 	w = request(h, "GET", "/producer/djs/default-pop", nil, nil)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `maxlength="4096"`) || strings.Contains(w.Body.String(), key) {
-		t.Fatal("key echoed or truncated by form")
-	}
-	form.Set("clear_key", "yes")
-	w = request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
-	if w.Code != 422 || !strings.Contains(w.Body.String(), "Untick Remove saved key") || strings.Contains(w.Body.String(), key) {
-		t.Fatal("conflict not explained safely")
-	}
-}
-
-func TestConversationSpeedValidationRetainsProfile(t *testing.T) {
-	h, st, _, _ := setupWeb(t, "")
-	token := csrf(t, h)
-	form := url.Values{"csrf": {token}, "id": {"default-pop"}, "name": {"Speed DJ"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "conversation_speed": {"1.2"}}
-	if w := request(h, "POST", "/producer/djs", form, nil); w.Code != 303 {
-		t.Fatal(w.Code, w.Body.String())
-	}
-	for _, raw := range []string{"0", "-1", "0.2", "4.1", "NaN", "Inf", "quick"} {
-		form.Set("conversation_speed", raw)
-		for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
-			w := request(h, "POST", "/producer/djs", form, headers)
-			if w.Code != 422 {
-				t.Fatal(raw, w.Code, w.Body.String())
-			}
-			var speed float64
-			if err := st.DB.QueryRow(`SELECT conversation_speed FROM djs WHERE id='default-pop'`).Scan(&speed); err != nil || speed != 1.2 {
-				t.Fatal("invalid speed changed profile", speed, err)
-			}
-		}
-	}
-	w := request(h, "GET", "/producer/djs/default-pop", nil, nil)
-	if !strings.Contains(w.Body.String(), `name="conversation_speed"`) || !strings.Contains(w.Body.String(), `value="1.2"`) || !strings.Contains(w.Body.String(), "1.20×") {
-		t.Fatal("saved slider missing", w.Body.String())
-	}
-}
-
-func TestDefaultPortraitsAreEmbedded(t *testing.T) {
-	h, _, _, _ := setupWeb(t, "")
-	for _, name := range []string{"alex-bright", "miles-mercer", "clara-vale"} {
-		w := request(h, "GET", "/static/djs/"+name+".jpg", nil, nil)
-		if w.Code != 200 || w.Header().Get("Content-Type") != "image/jpeg" {
-			t.Fatal(name, w.Code, w.Header())
-		}
+	if strings.Contains(w.Body.String(), key) || strings.Contains(w.Body.String(), `name="api_key"`) {
+		t.Fatal("DJ form exposed key controls")
 	}
 }

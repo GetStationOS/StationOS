@@ -109,15 +109,15 @@ Management remains password protected when configured; GET/HEAD `/streams/<addre
 
 ## DJs
 
-Choose **DJs → Create DJ** to save a fictional name, AI model, voice, prompt and voice-direction vibe. **Use example vibe** inserts the sample voice/phrasing/punctuation/tone directions. Model presets follow the [OpenAI model catalogue](https://developers.openai.com/api/docs/models); **Other model…** accepts a model ID available to your API account. The model is for writing and curation. Speech uses `gpt-4o-mini-tts` with the selected voice, vibe and conversation speed. The speed slider ranges from 0.25× to 4.00×, defaults to 1.00× and affects newly generated introductions, sign-offs and track links. Saving profiles makes no API requests; listening to a scheduled show with a configured key starts background OpenAI preparation and may incur API charges.
+Choose **DJs → Create DJ** to save a fictional name, AI model, voice, prompt and voice-direction vibe. **Use example vibe** inserts the sample voice/phrasing/punctuation/tone directions. Model presets follow the [OpenAI model catalogue](https://developers.openai.com/api/docs/models); **Other model…** accepts a model ID available to your API account. The model is for writing and curation. Speech uses the model selected in Assistant settings (default `gpt-4o-mini-tts`) with the DJ’s selected voice, vibe and conversation speed. The speed slider ranges from 0.25× to 4.00×, defaults to 1.00× and affects newly generated introductions, sign-offs and track links. Saving profiles makes no API requests; listening to a scheduled show with a configured key starts background OpenAI preparation and may incur API charges.
 
-API keys are optional while configuring profiles. Saved keys are encrypted and never displayed: a blank edit keeps the current key; enter another to replace it or select **Remove saved key**. Keep the database and its `.secrets-key` file together when backing up/restoring. The sidecar is generated automatically with owner-only permissions on server startup and must remain private. Encryption does not protect against access to both files or the running server. Startup refuses to create a replacement sidecar if encrypted keys already exist. Profiles are preserved when rebuilding the catalogue.
+The shared OpenAI key is configured once in Assistant settings. It is encrypted and never displayed: a blank edit keeps it; enter another to replace it or select **Remove saved key**. DJ profile edits cannot change credentials. Keep the database and its `.secrets-key` file together when backing up/restoring. The sidecar is generated automatically with owner-only permissions on server startup and must remain private. Encryption does not protect against access to both files or the running server. Startup refuses to create a replacement sidecar if encrypted keys already exist. Profiles are preserved when rebuilding the catalogue.
 
 ## Weekly schedule and DJ curation
 
 In a station, choose **Schedule → Add show**. Select a weekday, start/end times in 15-minute steps, a shared DJ, and one of that station’s playlists. Shows repeat weekly in the station’s timezone; an end time at or before the start finishes the following day. Overlapping shows are rejected, including Sunday-to-Monday overlaps. Use the scrollable weekly calendar or **Show list** to edit a slot. A DJ or playlist used by a show must be replaced in that show before it can be deleted.
 
-Three editable starter DJs are added once: **Alex Bright** (upbeat Pop, Coral voice), **Miles Mercer** (relaxed, informed Jazz, Onyx voice), and **Clara Vale** (warm, thoughtful Classical, Sage voice). Each has a curation/chatter prompt and voice-direction vibe. Keys are blank; add a key in the DJ profile to enable AI curation and speech. Upgrades preserve existing profiles; restarting preserves edits and deletions of the defaults.
+Three editable starter DJs are added once: **Alex Bright** (upbeat Pop, Coral voice), **Miles Mercer** (relaxed, informed Jazz, Onyx voice), and **Clara Vale** (warm, thoughtful Classical, Sage voice). Each has a curation/chatter prompt and voice-direction vibe. Add the shared key in Assistant settings to enable AI curation and speech for every DJ. Upgrades preserve existing profiles; restarting preserves edits and deletions of the defaults.
 
 The first listener activates the current show. Music continues from the station’s default playlist during gaps; assign a playable default to keep these gaps covered. The current track finishes before handover, and the same open MP3 connection carries the outgoing presenter, next show and music for every listener. A show that ended while a long track played is skipped. Schedule edits take effect at track boundaries. Stopping the last listener cancels production and fetching.
 
@@ -148,3 +148,31 @@ For Nginx Proxy Manager, leave response caching disabled for the station proxy. 
 The public homepage is `/`; management is `/producer`. Individual listener pages use `/radio/<stream-address>`, and the existing MP3 feeds stay at `/streams/<stream-address>`. Older management bookmarks redirect to their new producer addresses. Use `STATIONOS_ADMIN_PASSWORD` on an internet-facing deployment and keep `-public-url` set to the public HTTPS origin; leaving the password empty retains the optional unauthenticated management behaviour.
 
 Station Settings → Public visibility controls publication: Listed appears in the directory, Unlisted works through direct page/stream links, and Private is available only through producer preview. Existing and new stations default to Unlisted, so an upgrade does not automatically list stations or break existing public stream URLs. Changing a station name preserves its addresses; changing Stream address deliberately changes both page and feed. Public pages include live player metadata, weekly programmes and a copyable internet-radio URL. Opening a page never starts production.
+
+### Producer assistant
+
+Open **Assistant** inside `/producer`, or a station's **Assistant** tab. In
+**Assistant settings**, choose a Responses-compatible model and supply the
+shared OpenAI API key. It serves every AI service and is encrypted with the
+database's existing `.secrets-key` sidecar. Choose independent models for producer
+chat, default DJ curation/writing, speech and audience review. Individual DJ
+curation/writing model choices remain editable.
+
+The assistant can explore imported music and manage sources, stations, playlists,
+DJs, weekly shows, default playlists, mixer levels and audience decisions on the
+current producer's behalf. It uses the same optional login and protected form
+writes as the producer app. Changes appear as saved action records with links;
+conversations survive navigation and restart. Long requests continue automatically in batches and checkpoint their brief and
+remaining work. Completed actions stay saved if a later response fails. Use
+**Continue saved request** to resume an interrupted request without repeating its
+requirements; **Stop assistant** cancels an active run. New DJs use the shared key.
+
+No external MCP endpoint is enabled. Producer capabilities and their schemas are
+shared independently of the UI and model adapter, ready for a future MCP adapter.
+
+The producer assistant automatically creates station logos and fictional DJ portraits
+for new entities. Its artwork model is configured in Assistant settings and uses the
+same shared OpenAI key. Each asset uses one square image at low generation quality;
+image generation is separately billable. Existing artwork stays in place unless a
+replacement is requested. A failed image does not undo station/DJ creation, and
+missing artwork can be retried on the existing entity.

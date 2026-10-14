@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"hash/crc32"
 	"image"
@@ -11,6 +12,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"stationos.local/stationos/internal/persistence"
+	"stationos.local/stationos/internal/producer"
 	"strings"
 	"testing"
 )
@@ -62,8 +65,15 @@ func photoPNG(t *testing.T, c color.Color) []byte {
 }
 func TestDJPhotoUploadReplaceRetainRemoveAndDelete(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
+	keys, e := persistence.NewDJs(st.DB, make([]byte, 32))
+	if e != nil {
+		t.Fatal(e)
+	}
+	if e = persistence.NewProducer(keys).SaveSettings(context.Background(), "test-model", producer.KeyChange{Value: "sk-shared-test"}); e != nil {
+		t.Fatal(e)
+	}
 	token := csrf(t, h)
-	fields := url.Values{"csrf": {token}, "name": {"Upload DJ"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}, "api_key": {"sk-test-photo"}}
+	fields := url.Values{"csrf": {token}, "name": {"Upload DJ"}, "model": {"gpt-6.1-sol"}, "voice": {"coral"}}
 	if w := photoForm(t, h, fields, photoPNG(t, color.RGBA{R: 200, A: 255}), true); w.Code != 204 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -119,9 +129,9 @@ func TestDJPhotoUploadReplaceRetainRemoveAndDelete(t *testing.T) {
 		t.Fatal(w.Code)
 	}
 	var hasKey bool
-	st.DB.QueryRow(`SELECT length(api_key_cipher)>0 FROM djs WHERE id=?`, id).Scan(&hasKey)
+	st.DB.QueryRow(`SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1`).Scan(&hasKey)
 	if !hasKey {
-		t.Fatal("photo edit erased credentials")
+		t.Fatal("photo edit erased the shared credential")
 	}
 	if w := request(h, "POST", "/producer/djs/"+id+"/delete", url.Values{"csrf": {token}, "confirm": {"yes"}}, nil); w.Code != 303 {
 		t.Fatal(w.Code)

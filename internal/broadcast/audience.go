@@ -12,7 +12,7 @@ import (
 
 func (m *Manager) reviewAudience(ctx context.Context, show schedule.Occurrence) {
 	reviewer, ok := m.options.Links.(production.AudienceReviewer)
-	if !ok || m.options.Audience == nil || show.ShowID == "" || !show.DJ.HasKey {
+	if !ok || m.options.Audience == nil || show.ShowID == "" || !(show.DJ.HasKey || show.DJ.TextReady) {
 		return
 	}
 	at := m.now()

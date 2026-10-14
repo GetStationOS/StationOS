@@ -82,3 +82,12 @@ func TestStatusWatchEndsWhenManagerStops(t *testing.T) {
 		t.Fatal("closed manager admitted watcher")
 	}
 }
+
+func TestCurationChangeNotifiesEvenWhenSpeechStatusIsUnchanged(t *testing.T) {
+	before := State{PresenterStatus: "Ready", CurationStatus: "Preparing"}
+	after := before
+	after.CurationStatus = "Unavailable"
+	if sameRuntimeState(before, after) {
+		t.Fatal("curation failure did not invalidate the live display")
+	}
+}

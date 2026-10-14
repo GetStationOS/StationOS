@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/schedule"
@@ -207,6 +209,12 @@ type view struct {
 
 	AssistantMode, AssistantError, AssistantInput, AssistantRequestID string
 	AssistantSettings                                                 producer.Settings
+	AIConnections                                                     []ai.Connection
+	AIConnection                                                      ai.Connection
+	AICheck                                                           inference.Check
+	AIRoles                                                           []aiRoleView
+	AIConnectionMode                                                  bool
+	AIConnectionSaved                                                 bool
 	Conversation                                                      producer.Conversation
 	Conversations                                                     []producer.Conversation
 
@@ -249,10 +257,8 @@ type view struct {
 	DJCards                                                                                              []djCard
 	DJs                                                                                                  []djs.Profile
 	DJVoices                                                                                             []djs.Voice
-	DJModels                                                                                             []djModel
 	DJError                                                                                              string
 	DJMode, ExampleVibe                                                                                  string
-	DJCustomModel                                                                                        bool
 	Broadcast                                                                                            broadcast.State
 	BroadcastPlaylist, StreamURL                                                                         string
 	BroadcastEnabled                                                                                     bool
@@ -382,7 +388,9 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, v view) {
 		name = "audience-queue-results"
 	}
 	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "dialog-body" {
-		if v.ScheduleMode == "delete" {
+		if v.AssistantMode == "delete-connection" {
+			name = "delete-ai"
+		} else if v.ScheduleMode == "delete" {
 			name = "delete-show"
 		} else if v.DJMode == "delete" {
 			name = "delete-dj"

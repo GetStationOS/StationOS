@@ -62,7 +62,7 @@ type Server struct {
 }
 
 func New(d Dependencies) (http.Handler, error) {
-	t, err := template.New("pages").Funcs(template.FuncMap{"producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	t, err := template.New("pages").Funcs(template.FuncMap{"presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +80,10 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.Handle("GET /static/", http.FileServerFS(assets))
 	mux.HandleFunc("GET /producer", s.page)
 	mux.HandleFunc("GET /producer/assistant", s.assistantPage)
+	mux.HandleFunc("GET /producer/assistant/providers/{id}/delete", s.deleteAIPage)
+	mux.HandleFunc("GET /producer/assistant/providers/{id}/models", s.discoverModels)
+	mux.HandleFunc("GET /producer/assistant/endpoints", s.assistantSettings)
+	mux.HandleFunc("POST /producer/assistant/endpoints", s.assistantSettings)
 	mux.HandleFunc("GET /producer/assistant/settings", s.assistantSettings)
 	mux.HandleFunc("POST /producer/assistant/settings", s.assistantSettings)
 	mux.HandleFunc("POST /producer/assistant/conversations", s.newConversation)

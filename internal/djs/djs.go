@@ -16,14 +16,18 @@ var ErrInUse = errors.New("This DJ is used by a scheduled show. Update or remove
 var ErrNotFound = errors.New("DJ not found")
 var ErrInvalid = errors.New("invalid DJ settings")
 var photoVersion = regexp.MustCompile(`^[a-f0-9]{64}$`)
-var modelID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$`)
 
 type Profile struct {
-	ID, Name, Model, Voice, Prompt, Vibe string
-	Background, PortraitURL              string
-	HasKey                               bool
-	ConversationSpeed                    float64
-	Photo                                *PhotoChange `json:"-"`
+	ID, Name, Voice, Prompt, Vibe string
+	// Model is the effective global curation/writing model, projected on reads.
+	// Saving a profile cannot override it.
+	Model                   string
+	Background, PortraitURL string
+	HasKey                  bool
+	TextReady               bool
+	AIRevision              int64
+	ConversationSpeed       float64
+	Photo                   *PhotoChange `json:"-"`
 }
 
 // PhotoChange is a write-only normalized JPEG replacement; nil keeps the photo.
@@ -75,9 +79,7 @@ func (p Profile) Validate() error {
 	if strings.TrimSpace(p.Name) == "" || len(p.Name) > 200 {
 		return errors.New("enter a fictional name (up to 200 characters)")
 	}
-	if !modelID.MatchString(p.Model) {
-		return errors.New("choose an AI model or enter a valid model ID")
-	}
+
 	if len(p.Background) > 16000 {
 		return errors.New("background profile is too long")
 	}
@@ -105,7 +107,6 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 		p.Voice = DefaultVoice
 	}
 	p.Name = strings.TrimSpace(p.Name)
-	p.Model = strings.TrimSpace(p.Model)
 	p.Background = strings.TrimSpace(p.Background)
 	p.PortraitURL = strings.TrimSpace(p.PortraitURL)
 	if k.Value != "" || k.Clear {

@@ -34,5 +34,5 @@ func (m *Manager) changedLocked() {
 }
 
 func sameRuntimeState(a, b State) bool {
-	return a.RepeatRelaxed == b.RepeatRelaxed && a.Status == b.Status && a.Phase == b.Phase && a.PresenterStatus == b.PresenterStatus && a.Error == b.Error && a.Current.ID == b.Current.ID && a.Next.ID == b.Next.ID && a.Programme.Key == b.Programme.Key && a.Following.Key == b.Following.Key && a.Started.Equal(b.Started)
+	return a.CurationStatus == b.CurationStatus && a.AINotice == b.AINotice && a.RepeatRelaxed == b.RepeatRelaxed && a.Status == b.Status && a.Phase == b.Phase && a.PresenterStatus == b.PresenterStatus && a.Error == b.Error && a.Current.ID == b.Current.ID && a.Next.ID == b.Next.ID && a.Programme.Key == b.Programme.Key && a.Following.Key == b.Following.Key && a.Started.Equal(b.Started)
 }

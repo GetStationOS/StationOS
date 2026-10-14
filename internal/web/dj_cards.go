@@ -66,8 +66,8 @@ func presenterCard(p djs.Profile, stations []djStation, now time.Time) djCard {
 	if !p.HasKey {
 		card.SetupNote = "Add the shared API key in Assistant settings."
 	}
-	if p.Model == "" || p.Voice == "" {
-		card.SetupNote = "Complete the model and voice settings."
+	if p.Voice == "" {
+		card.SetupNote = "Choose a voice for this DJ."
 	}
 	seen := map[string]bool{}
 	var next time.Time

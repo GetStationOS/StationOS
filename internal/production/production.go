@@ -7,11 +7,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/schedule"
 	"time"
 )
+
+var ErrUnknownTrack = errors.New("DJ selected an unavailable track")
+var ErrDuplicateTrack = errors.New("DJ repeated a track in its curation")
 
 var ErrUnavailable = errors.New("DJ preparation unavailable; continuing with music")
 
@@ -61,9 +65,12 @@ func Validate(p Plan, pool []content.AudioItem) error {
 		allowed[track.ID] = true
 	}
 	seen := map[string]bool{}
-	for _, id := range p.TrackIDs {
-		if !allowed[id] || seen[id] {
-			return errors.New("DJ selected unavailable or duplicate music")
+	for i, id := range p.TrackIDs {
+		if !allowed[id] {
+			return fmt.Errorf("%w (choice %d)", ErrUnknownTrack, i+1)
+		}
+		if seen[id] {
+			return fmt.Errorf("%w (choice %d)", ErrDuplicateTrack, i+1)
 		}
 		seen[id] = true
 	}
@@ -95,4 +102,15 @@ type LinkProducer interface {
 // ModelSettings supplies independently configured models for AI service roles.
 type ModelSettings interface {
 	Model(context.Context, string) (string, error)
+}
+
+type inferenceNoticeKey struct{}
+
+func WithInferenceNotice(ctx context.Context, notify func(string)) context.Context {
+	return context.WithValue(ctx, inferenceNoticeKey{}, notify)
+}
+func ReportInference(ctx context.Context, notice string) {
+	if notify, ok := ctx.Value(inferenceNoticeKey{}).(func(string)); ok {
+		notify(notice)
+	}
 }

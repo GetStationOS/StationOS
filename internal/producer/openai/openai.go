@@ -20,11 +20,18 @@ func New() Model {
 	return Model{Client: &http.Client{Timeout: 60 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("OpenAI redirects are not allowed") }}}
 }
 func (m Model) Respond(ctx context.Context, model, key, instructions string, input []producer.Item, tools []producer.Tool) (producer.Response, error) {
+	return m.RespondStructured(ctx, model, key, instructions, input, tools, nil)
+}
+func (m Model) RespondStructured(ctx context.Context, model, key, instructions string, input []producer.Item, tools []producer.Tool, schema json.RawMessage) (producer.Response, error) {
 	functions := []any{}
 	for _, t := range tools {
 		functions = append(functions, map[string]any{"type": "function", "name": t.Name, "description": t.Description, "parameters": t.Parameters, "strict": false})
 	}
-	body, e := json.Marshal(map[string]any{"model": model, "instructions": instructions, "input": input, "tools": functions, "parallel_tool_calls": false, "max_output_tokens": 6000, "store": false})
+	payload := map[string]any{"model": model, "instructions": instructions, "input": input, "tools": functions, "parallel_tool_calls": false, "max_output_tokens": 6000, "store": false}
+	if len(schema) > 0 {
+		payload["text"] = map[string]any{"format": map[string]any{"type": "json_schema", "name": "stationos", "strict": true, "schema": schema}}
+	}
+	body, e := json.Marshal(payload)
 	if e != nil {
 		return producer.Response{}, e
 	}

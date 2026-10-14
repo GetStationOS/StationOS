@@ -21,6 +21,7 @@ import (
 	_ "time/tzdata"
 
 	"stationos.local/stationos/internal/catalogue"
+	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/producer"
 	producerAI "stationos.local/stationos/internal/producer/openai"
@@ -125,12 +126,14 @@ func run(args []string, logger *slog.Logger) error {
 	if err = sharedAI.AdoptLegacyKey(ctx); err != nil {
 		return err
 	}
+	textProviders := inference.New(sharedAI, producerAI.New())
 	presenter := ai.New(persistence.ProducerKeys{Producer: sharedAI}, persistence.PresenterAssets{DB: db}, production.FFmpeg{Path: ffmpeg})
 	presenter.Models = sharedAI
+	presenter.Text = textProviders
 	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Audience: audienceRepo})
 	defer broadcasts.Close()
 	playlistsRepo := persistence.Playlists{DB: db}
-	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Images: producerAI.NewImages(sharedAI), Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), producerAI.New())
+	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Images: producerAI.NewImages(sharedAI), Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), textProviders)
 	if err != nil {
 		return err
 	}

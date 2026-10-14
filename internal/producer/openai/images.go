@@ -36,8 +36,8 @@ func (g Images) Generate(parent context.Context, brief producer.ImageRequest) (p
 	if err != nil {
 		return producer.Image{}, err
 	}
-	if key == "" || !settings.HasKey {
-		return producer.Image{}, producer.ErrUnavailable
+	if key == "" {
+		return producer.Image{}, errors.New("Artwork is unavailable because the selected artwork connection has no saved key. Configure it in Assistant settings; the entity remains saved.")
 	}
 	direction := "Create an original square radio station logo. Use a clear distinctive symbol and concise legible station name, strong contrast and generous margins, suitable at small sizes. Opaque background. No mockup, framing, watermark or existing brand marks."
 	if brief.Kind == "dj" {
@@ -62,7 +62,7 @@ func (g Images) Generate(parent context.Context, brief producer.ImageRequest) (p
 		case 429:
 			return producer.Image{}, limitError(response)
 		case 401, 403:
-			return producer.Image{}, errors.New("OpenAI rejected artwork access. Check the shared key’s permissions and image-model access in Assistant settings")
+			return producer.Image{}, errors.New("OpenAI rejected artwork access. Check the selected artwork connection’s permissions and image-model access in Assistant settings")
 		case 400, 404:
 			return producer.Image{}, errors.New("OpenAI rejected the artwork model or image settings. Check the artwork model in Assistant settings")
 		default:

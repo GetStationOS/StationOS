@@ -66,7 +66,7 @@ func (m *fullStationModel) Respond(ctx context.Context, model, key, prompt strin
 		m.playlist = resultID(input)
 		return responseCall(n, "add_playlist_rule", map[string]any{"playlist_id": m.playlist, "rule": map[string]string{"kind": "genre", "value": "Jazz"}}), nil
 	case n == 34:
-		return responseCall(n, "save_dj", map[string]string{"name": "Maya Night", "model": "test-model"}), nil
+		return responseCall(n, "save_dj", map[string]string{"name": "Maya Night"}), nil
 	case n == 35:
 		m.dj = resultID(input)
 		return responseCall(n, "create_shows", map[string]any{"show": map[string]any{"station_id": m.station, "name": "Late Jazz", "dj_id": m.dj, "playlist_id": m.playlist, "start": 1320, "end": 60}, "days": []int{4, 6}}), nil

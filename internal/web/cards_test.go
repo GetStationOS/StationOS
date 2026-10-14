@@ -161,3 +161,19 @@ func TestProgrammeDetailsUsesStationTimezoneAndFinishPolicy(t *testing.T) {
 		t.Fatal(status)
 	}
 }
+
+func TestSpeechReadinessDoesNotHideCurationFailure(t *testing.T) {
+	state := broadcast.State{PresenterStatus: "Ready", CurationStatus: "Unavailable"}
+	label := presenterStatus(state)
+	if label != "Speech ready · Curation unavailable · music continues" || strings.Contains(label, "DJ ready") {
+		t.Fatal("speech readiness hid failed curation", label)
+	}
+	state.CurationStatus = "Preparing"
+	if label = presenterStatus(state); label != "Speech ready · Preparing curation" {
+		t.Fatal(label)
+	}
+	state.CurationStatus = "Ready"
+	if label = presenterStatus(state); label != "Speech ready · Curation ready" {
+		t.Fatal(label)
+	}
+}

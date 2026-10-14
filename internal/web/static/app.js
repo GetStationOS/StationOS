@@ -40,6 +40,9 @@ function syncAssistant() {
 }
 function initialise() {
   syncAssistant();
+  discoverFeatureModels();
+  showEndpointModels();
+  document.querySelectorAll("[data-provider-type]").forEach(select => providerAddressHelp(select,false));
   syncStationEvents();
   document.querySelectorAll('[data-audience-request]').forEach(initialiseAudienceRequest);
   const path = document.querySelector(".screen")?.dataset.page || location.pathname;
@@ -51,17 +54,11 @@ function initialise() {
   document.querySelectorAll('[data-selection-form]').forEach(form => { form.dataset.initial = selectionState(form); refreshChoices(form); });
   document.querySelectorAll('[data-track-form]').forEach(refreshTracks);
   document.querySelectorAll('[data-mixer-form]').forEach(initialiseMixer);
-  document.querySelectorAll('[data-dj-model]').forEach(refreshDJModel);
   document.querySelectorAll('.calendar-scroll:not([data-positioned])').forEach(calendar => {
     const cards = Array.from(calendar.querySelectorAll('.calendar-show'));
     if (cards.length) calendar.scrollTop = Math.max(0, Math.min(...cards.map(card => card.offsetTop)) - 106);
     calendar.dataset.positioned = 'true';
   });
-}
-function refreshDJModel(select) {
- const field = select.closest('form').querySelector('[data-custom-model]');
- field.hidden = select.value !== 'custom';
- field.querySelector('input').required = select.value === 'custom';
 }
 function mixerState(form) { return JSON.stringify(Array.from(form.querySelectorAll('[data-mixer-level]'), field => [field.name, field.value])); }
 function refreshMixer(form) {
@@ -121,7 +118,6 @@ document.body.addEventListener('htmx:responseError', event => {
 });
 document.body.addEventListener('htmx:sendError', () => showError('Cannot reach StationOS. Your changes have not been saved. Check the connection and try again.'));
 document.body.addEventListener('change', event => {
-  if(event.target.matches('[data-dj-model]')) refreshDJModel(event.target);
   const form = event.target.closest('form');
   if (!form) return;
   if (form.matches('[data-selection-form]')) refreshChoices(form);
@@ -608,9 +604,21 @@ async function copyStreamURL(control) {
  } finally { control.disabled=false; }
 }
 
-// Quiet queue updates must not replace the action a keyboard user is using.
+// Queue refreshes retain the column being read, including on touch screens.
+const audienceScrollPositions=new WeakMap();
 document.body.addEventListener('htmx:beforeSwap', event => {
- if (event.detail.target?.id==='audience-queue-results' && event.detail.target.contains(document.activeElement)) event.detail.shouldSwap=false;
+ const target=event.detail.target;
+ if (target?.id!=='audience-queue-results') return;
+ const automatic=event.detail.requestConfig?.elt?.id==='audience-queue-results';
+ if (automatic && target.contains(document.activeElement)) {event.detail.shouldSwap=false;return;}
+ const scroller=target.querySelector('.table-scroll');
+ if (scroller && event.detail.xhr) audienceScrollPositions.set(event.detail.xhr,scroller.scrollLeft);
+});
+document.body.addEventListener('htmx:afterSwap', event => {
+ if (!event.detail.xhr || !audienceScrollPositions.has(event.detail.xhr)) return;
+ const scroller=document.querySelector('#audience-queue-results .table-scroll');
+ if (scroller) scroller.scrollLeft=audienceScrollPositions.get(event.detail.xhr);
+ audienceScrollPositions.delete(event.detail.xhr);
 });
 
 // A failed status refresh must not leave a stale Working label looking authoritative.
@@ -622,3 +630,65 @@ for (const eventName of ['htmx:responseError', 'htmx:sendError', 'htmx:timeout']
     }
   });
 }
+
+// Provider changes offer a matching address while preserving custom server values.
+function providerAddressHelp(select, changed) {
+ const defaults={ollama:'http://your-server:11434',compatible:'https://your-provider/v1',openai:'https://api.openai.com/v1',anthropic:'https://api.anthropic.com/v1',gemini:'https://generativelanguage.googleapis.com/v1beta'};
+ const field=select.form?.querySelector('[name="address"]');
+ if (!field) return;
+ field.placeholder=defaults[select.value];
+ if (changed && (!field.value || Object.values(defaults).includes(field.value)) && ['openai','anthropic','gemini'].includes(select.value)) field.value=defaults[select.value];
+ const help=select.form.querySelector('[data-provider-address-help]');
+ if (help) help.textContent=(select.value==='ollama'?'Use the server address without /api. ':select.value==='compatible'?'Use the API base, usually ending /v1. ':'Use the provider API address shown above. ')+'The address must be reachable from StationOS. Localhost refers to its computer or container.';
+}
+document.addEventListener('change',event=>{if(event.target.matches('[data-provider-type]'))providerAddressHelp(event.target,true);});
+
+async function endpointModels(url, options) {
+ const response=await fetch(url,options);
+ const result=await response.json().catch(()=>({error:'Could not discover models. Check the endpoint details and try again.'}));
+ if (!response.ok) throw new Error(result.error || 'Could not discover models. Enter a model ID manually.');
+ return result.models || [];
+}
+function discoverFeatureModels() {
+ const requests=new Map();
+ document.querySelectorAll('[data-feature-provider]').forEach(select=>{
+  const id=select.value, role=select.dataset.featureProvider;
+  const list=document.getElementById('models-'+role);
+  const status=document.querySelector('[data-feature-model-status="'+role+'"]');
+  if (!list || !status) return;
+  list.replaceChildren();status.textContent='Finding available models…';
+  const picker=document.querySelector('[data-model-picker="'+role+'"]'),choice=document.querySelector('[data-model-choice="'+role+'"]'),manual=document.querySelector('[data-model-manual="'+role+'"]'),input=document.querySelector('[data-feature-model="'+role+'"]');
+  picker.hidden=true;manual.hidden=false;
+  if (!requests.has(id)) requests.set(id,endpointModels('/producer/assistant/providers/'+encodeURIComponent(id)+'/models'));
+  requests.get(id).then(models=>{
+   if (!select.isConnected || select.value!==id) return;
+   models.forEach(model=>{const option=document.createElement('option');option.value=model;list.append(option);});
+   if (models.length) {
+    choice.replaceChildren();
+    const values=models.includes(input.value)?models:[input.value,...models];
+    values.forEach(model=>{if(!model)return;const option=document.createElement('option');option.value=model;option.textContent=model;option.selected=model===input.value;choice.append(option);});
+    const custom=document.createElement('option');custom.value='__manual';custom.textContent='Enter a model ID…';choice.append(custom);
+    picker.hidden=false;manual.hidden=!!input.value;if(!input.value)choice.value='__manual';
+   }
+   status.textContent=models.length ? models.length+' models available.' : 'No models listed. Enter a model ID manually.';
+  }).catch(error=>{if(select.isConnected && select.value===id)status.textContent=error.message;});
+ });
+}
+document.addEventListener('change',event=>{if(event.target.matches('[data-feature-provider]'))discoverFeatureModels();});
+function showEndpointModels() {
+ const region=document.querySelector('[data-endpoint-models]');if(!region)return;
+ const status=region.querySelector('[data-model-status]'),list=region.querySelector('[data-model-list]');
+ status.textContent='Finding available models…';
+ endpointModels('/producer/assistant/providers/'+encodeURIComponent(region.dataset.savedEndpoint)+'/models').then(models=>{
+  if(!region.isConnected)return;
+  models.forEach(model=>{const item=document.createElement('li');item.textContent=model;list.append(item);});list.hidden=!models.length;
+  status.textContent=models.length ? models.length+' models available.' : 'Endpoint connected. No models are listed.';
+ }).catch(error=>{if(region.isConnected)status.textContent=error.message;});
+}
+
+document.addEventListener('change',event=>{
+ const choice=event.target.closest('[data-model-choice]');if(!choice)return;
+ const role=choice.dataset.modelChoice,input=document.querySelector('[data-feature-model="'+role+'"]'),manual=document.querySelector('[data-model-manual="'+role+'"]');
+ manual.hidden=choice.value!=='__manual';
+ if(choice.value==='__manual')input.focus();else input.value=choice.value;
+});

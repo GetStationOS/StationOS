@@ -43,7 +43,7 @@ func OpenDJs(ctx context.Context, db *sql.DB, path string) (DJs, error) {
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		var count int
-		if err = db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM djs WHERE length(api_key_cipher)>0)+(SELECT count(*) FROM producer_settings WHERE length(api_key_cipher)>0)`).Scan(&count); err != nil {
+		if err = db.QueryRowContext(ctx, `SELECT (SELECT count(*) FROM djs WHERE length(api_key_cipher)>0)+(SELECT count(*) FROM producer_settings WHERE length(api_key_cipher)>0)+(SELECT count(*) FROM ai_connections WHERE length(api_key_cipher)>0)`).Scan(&count); err != nil {
 			return DJs{}, err
 		}
 		if count > 0 {
@@ -88,14 +88,14 @@ func OpenDJs(ctx context.Context, db *sql.DB, path string) (DJs, error) {
 }
 func (r DJs) Get(ctx context.Context, id string) (djs.Profile, error) {
 	var p djs.Profile
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,model,voice,prompt,vibe,conversation_speed,background,portrait_url,(SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey)
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1) FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = djs.ErrNotFound
 	}
 	return p, err
 }
 func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,model,voice,prompt,vibe,conversation_speed,background,portrait_url,(SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) FROM djs ORDER BY name COLLATE NOCASE,id`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1) FROM djs ORDER BY name COLLATE NOCASE,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
 	out := []djs.Profile{}
 	for rows.Next() {
 		var p djs.Profile
-		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey); err != nil {
+		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -134,7 +134,7 @@ func (r DJs) Save(ctx context.Context, p djs.Profile, k djs.KeyChange) error {
 			p.PortraitURL = "/djs/" + url.PathEscape(p.ID) + "/photo?v=" + hex.EncodeToString(hash[:])
 		}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO djs(id,name,model,voice,prompt,vibe,conversation_speed,background,portrait_url) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,model=excluded.model,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url`, p.ID, p.Name, p.Model, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL)
+	_, err = tx.ExecContext(ctx, `INSERT INTO djs(id,name,voice,prompt,vibe,conversation_speed,background,portrait_url) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url`, p.ID, p.Name, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL)
 	if err != nil {
 		return err
 	}

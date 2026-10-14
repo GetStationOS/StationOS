@@ -33,6 +33,8 @@ type Encoder interface {
 	Open(context.Context, content.AudioItem) (io.ReadCloser, error)
 }
 type State struct {
+	AINotice               string
+	CurationStatus         string
 	RepeatRelaxed          bool
 	Programme, Following   schedule.Occurrence
 	Phase, PresenterStatus string
@@ -398,6 +400,9 @@ func (m *Manager) playProgramme(id string, r *run) {
 	results := make(chan preparedResult, 2)
 	linkUpdates := make(chan linkStatus, 2)
 	linkStates := map[string]string{}
+	type inferenceNotice struct{ show, message string }
+	inferenceNotices := make(chan inferenceNotice, 8)
+	noticeStates := map[string]string{}
 	prepDone := make(chan struct{})
 	go func() {
 		defer close(prepDone)
@@ -406,7 +411,13 @@ func (m *Manager) playProgramme(id string, r *run) {
 			case <-prepCtx.Done():
 				return
 			case req := <-requests:
-				prepared, err := m.options.Producer.Prepare(prepCtx, req.show, req.next, req.pool)
+				workCtx := production.WithInferenceNotice(prepCtx, func(message string) {
+					select {
+					case inferenceNotices <- inferenceNotice{req.show.Key, message}:
+					default:
+					}
+				})
+				prepared, err := m.options.Producer.Prepare(workCtx, req.show, req.next, req.pool)
 				var intro, outro *preparedSpeech
 				if err == nil {
 					intro, err = m.prepareSpeech(prepCtx, id, prepared.Intro)
@@ -444,6 +455,11 @@ func (m *Manager) playProgramme(id string, r *run) {
 					}
 					m.logger.Warn("DJ preparation unavailable", "station_id", id, "error", result.err)
 				}
+			case update := <-inferenceNotices:
+				if len(noticeStates) >= 8 && noticeStates[update.show] == "" {
+					clear(noticeStates)
+				}
+				noticeStates[update.show] = update.message
 			case update := <-linkUpdates:
 				// Keep state bounded and ignore older shows when updating playout.
 				clear(linkStates)
@@ -455,7 +471,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 	}
 	var rotation Rotation
 	request := func(show, next schedule.Occurrence, pool []content.AudioItem) {
-		if m.options.Producer == nil || show.DJ.ID == "" || !show.DJ.HasKey {
+		if m.options.Producer == nil || show.DJ.ID == "" || !(show.DJ.HasKey || show.DJ.TextReady) {
 			return
 		}
 		if !show.End.IsZero() && !m.now().Before(show.End) {
@@ -502,7 +518,18 @@ func (m *Manager) playProgramme(id string, r *run) {
 		// Reflect completed preparation while the current track is still playing.
 		// Draining ready results never waits for external generation.
 		drain()
-		if state.Phase == "music" && state.Programme.DJ.HasKey {
+		state.AINotice = noticeStates[state.Programme.Key]
+		key := production.CacheKey(state.Programme, state.Following)
+		state.CurationStatus = ""
+		if _, ok := prepared[key]; ok {
+			state.CurationStatus = "Ready"
+		} else if failed[key] {
+			state.CurationStatus = "Unavailable"
+		} else if attempted[key] {
+			state.CurationStatus = "Preparing"
+		}
+
+		if state.Phase == "music" && (state.Programme.DJ.HasKey || state.Programme.DJ.TextReady) {
 			key := production.CacheKey(state.Programme, state.Following)
 			if status := linkStates[state.Programme.Key]; status != "" {
 				state.PresenterStatus = status
@@ -873,13 +900,13 @@ func (m *Manager) playProgramme(id string, r *run) {
 			}
 		}
 		presenter := "Music only"
-		if playing.DJ.ID != "" && playing.DJ.HasKey {
+		if playing.DJ.ID != "" && (playing.DJ.HasKey || playing.DJ.TextReady) {
 			presenter = "Preparing"
 			if ready {
 				presenter = "Ready"
 			}
 		}
-		if m.options.Links != nil && playing.DJ.HasKey {
+		if m.options.Links != nil && (playing.DJ.HasKey || playing.DJ.TextReady) {
 			select {
 			case linkSlots <- struct{}{}:
 				clear(linkStates)
@@ -893,7 +920,12 @@ func (m *Manager) playProgramme(id string, r *run) {
 				go func() {
 					defer linkWorkers.Done()
 					defer func() { <-linkSlots }()
-					audio, audienceIDs, audienceValidIDs, err := m.audienceLink(linkCtx, req)
+					audio, audienceIDs, audienceValidIDs, err := m.audienceLink(production.WithInferenceNotice(linkCtx, func(message string) {
+						select {
+						case inferenceNotices <- inferenceNotice{req.Show.Key, message}:
+						default:
+						}
+					}), req)
 					var speech *preparedSpeech
 					if err == nil {
 						speech, err = m.prepareSpeech(linkCtx, id, audio)

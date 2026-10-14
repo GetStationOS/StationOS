@@ -10,20 +10,6 @@ import (
 	"stationos.local/stationos/internal/djs"
 )
 
-type djModel struct{ ID, Label string }
-
-// Presets checked against https://developers.openai.com/api/docs/models on 2026-10-09.
-func djModels() []djModel {
-	return []djModel{{"gpt-6.1-sol", "GPT-6.1 Sol"}, {"gpt-6-luna", "GPT-6 Luna"}, {"gpt-6-astra", "GPT-6 Astra"}}
-}
-func knownDJModel(id string) bool {
-	for _, m := range djModels() {
-		if m.ID == id {
-			return true
-		}
-	}
-	return false
-}
 func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 	if s.d.DJs == nil {
 		http.Error(w, "DJs unavailable", 503)
@@ -34,10 +20,16 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	if s.d.Assistant != nil {
+		v.AssistantSettings, err = s.d.Assistant.Store.Settings(r.Context())
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
 	v.Title = "DJs"
 	v.DJMode = "list"
 	v.DJVoices = djs.Voices()
-	v.DJModels = djModels()
 	v.ExampleVibe = djs.ExampleVibe
 	switch r.URL.Query().Get("notice") {
 	case "dj-saved":
@@ -58,7 +50,6 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 		}
 		v.Title = v.DJ.Name
 		v.DJMode = "edit"
-		v.DJCustomModel = !knownDJModel(v.DJ.Model)
 		if strings.HasSuffix(r.URL.Path, "/delete") {
 			v.Title = "Delete DJ"
 			v.DJMode = "delete"
@@ -66,15 +57,13 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 	} else if r.URL.Path == "/producer/djs/new" {
 		v.Title = "Create DJ"
 		v.DJMode = "new"
-		v.DJ.Model = "gpt-6.1-sol"
 		if s.d.Assistant != nil {
 			settings, e := s.d.Assistant.Store.Settings(r.Context())
 			if e != nil {
 				s.fail(w, e)
 				return
 			}
-			v.DJ.Model = settings.CurationModel
-			v.DJCustomModel = !knownDJModel(v.DJ.Model)
+			v.AssistantSettings = settings
 		}
 		v.DJ.Voice = djs.DefaultVoice
 		v.DJ.ConversationSpeed = djs.DefaultConversationSpeed
@@ -99,11 +88,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "DJs unavailable", 503)
 		return
 	}
-	model := r.PostForm.Get("model")
-	if model == "custom" {
-		model = r.PostForm.Get("custom_model")
-	}
-	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Model: model, Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe"), Background: r.PostForm.Get("background")}
+	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe"), Background: r.PostForm.Get("background")}
 	p.ConversationSpeed = djs.DefaultConversationSpeed
 	if p.ID != "" {
 		saved, err := s.d.DJs.Get(r.Context(), p.ID)
@@ -158,9 +143,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 			v.DJError += " Choose the photo again before saving."
 		}
 		v.DJVoices = djs.Voices()
-		v.DJModels = djModels()
 		v.ExampleVibe = djs.ExampleVibe
-		v.DJCustomModel = !knownDJModel(p.Model)
 		if p.ID != "" {
 			saved, getErr := s.d.DJs.Get(r.Context(), p.ID)
 			if getErr != nil {

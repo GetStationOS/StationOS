@@ -109,9 +109,9 @@ Management remains password protected when configured; GET/HEAD `/streams/<addre
 
 ## DJs
 
-Choose **DJs → Create DJ** to save a fictional name, AI model, voice, prompt and voice-direction vibe. **Use example vibe** inserts the sample voice/phrasing/punctuation/tone directions. Model presets follow the [OpenAI model catalogue](https://developers.openai.com/api/docs/models); **Other model…** accepts a model ID available to your API account. The model is for writing and curation. Speech uses the model selected in Assistant settings (default `gpt-4o-mini-tts`) with the DJ’s selected voice, vibe and conversation speed. The speed slider ranges from 0.25× to 4.00×, defaults to 1.00× and affects newly generated introductions, sign-offs and track links. Saving profiles makes no API requests; listening to a scheduled show with a configured key starts background OpenAI preparation and may incur API charges.
+Choose **DJs → Create DJ** to save a fictional name, voice, prompt and voice-direction vibe. All DJs use the curation/writing provider and model selected centrally in **Assistant settings**; DJ forms have no model overrides. **Use example vibe** inserts sample voice directions. Speech independently uses the model selected in Assistant settings (default `gpt-4o-mini-tts`) with each DJ's voice, vibe and conversation speed. The speed slider ranges from 0.25× to 4.00× and defaults to 1.00×. Saving profiles makes no inference requests; listening starts background preparation through the selected providers. Upgrading removes old DJ model overrides while preserving global model choices, profiles, artwork and schedules.
 
-The shared OpenAI key is configured once in Assistant settings. It is encrypted and never displayed: a blank edit keeps it; enter another to replace it or select **Remove saved key**. DJ profile edits cannot change credentials. Keep the database and its `.secrets-key` file together when backing up/restoring. The sidecar is generated automatically with owner-only permissions on server startup and must remain private. Encryption does not protect against access to both files or the running server. Startup refuses to create a replacement sidecar if encrypted keys already exist. Profiles are preserved when rebuilding the catalogue.
+The shared OpenAI key is configured once under **Assistant → Manage endpoints → OpenAI**. It is encrypted and never displayed: a blank edit keeps it; enter another to replace it or select **Remove saved key**. DJ profile edits cannot change credentials. Keep the database and its `.secrets-key` file together when backing up/restoring. The sidecar is generated automatically with owner-only permissions on server startup and must remain private. Encryption does not protect against access to both files or the running server. Startup refuses to create a replacement sidecar if encrypted keys already exist. Profiles are preserved when rebuilding the catalogue.
 
 ## Weekly schedule and DJ curation
 
@@ -155,8 +155,8 @@ Open **Assistant** inside `/producer`, or a station's **Assistant** tab. In
 **Assistant settings**, choose a Responses-compatible model and supply the
 shared OpenAI API key. It serves every AI service and is encrypted with the
 database's existing `.secrets-key` sidecar. Choose independent models for producer
-chat, default DJ curation/writing, speech and audience review. Individual DJ
-curation/writing model choices remain editable.
+chat, DJ curation/writing, speech and audience review. The DJ model applies to
+every presenter and is managed only here.
 
 The assistant can explore imported music and manage sources, stations, playlists,
 DJs, weekly shows, default playlists, mixer levels and audience decisions on the
@@ -176,3 +176,71 @@ same shared OpenAI key. Each asset uses one square image at low generation quali
 image generation is separately billable. Existing artwork stays in place unless a
 replacement is requested. A failed image does not undo station/DJ creation, and
 missing artwork can be retried on the existing entity.
+
+
+## Local and privately hosted AI
+
+In **Producer → Assistant → Manage endpoints**, add a named endpoint, then select its models under **Models for features**. Choose
+native Ollama, OpenAI-compatible chat completions, native Anthropic Messages or
+native Gemini generateContent. Existing OpenAI settings survive upgrades. Other
+services work through their compatible protocol; a new wire protocol requires an
+adapter. StationOS executes its own validated tools, not a provider-hosted agent's
+remote actions.
+
+For Ollama use its server origin, such as `http://your-mac:11434`, without `/api`.
+For a compatible server use its API base, commonly `http://your-server:port/v1`.
+Anthropic's public API base is `https://api.anthropic.com/v1`; Gemini's is
+`https://generativelanguage.googleapis.com/v1beta`. Credentials are optional for
+private services and are stored encrypted once per connection. OpenAI credentials
+are never reused for another provider. Back up the database and `.secrets-key`
+together, including when using private-provider credentials only.
+
+Choose the provider and exact model independently for producer, DJ and audience
+text; keep OpenAI selected for speech and artwork. Enter `gemma4:12b` manually
+only if that exact model is installed on your Ollama server. Discovery confirms
+the provider’s available model IDs. StationOS never downloads
+models or silently substitutes global model choices. All DJs use the global
+curation/writing provider and model; historical profile overrides are removed
+on upgrade without changing the selected global model.
+
+The initial context/output budgets are 16384/2048, with one concurrent inference
+request and a bounded queue. These are conservative application bounds, not a
+promise that a model fits 18 GB of memory. Reduce the context budget if memory
+pressure occurs; a large producer request may then pause rather than discard its
+requirements. Prompt token counts are estimated before sending and provider
+limits/capabilities vary. Live DJ work takes priority over queued producer work;
+slow or unreachable inference leaves music running with existing boundary retries.
+
+Each AI feature uses only its selected endpoint and model. Provider failures never switch to another endpoint or cloud service. Historical fallback configuration is ignored.
+
+The address must be reachable **from the Debian Docker container**. Its `localhost`
+is not your Mac. Use a stable private LAN/VPN address or hostname, keep Ollama
+behind your private network, and allow access only from the StationOS host. Do not
+publish Ollama through the public station proxy. Configure Ollama's listening
+address through its supported setup for your installation; StationOS does not
+change network listeners, firewalls, model installations or running services.
+
+For guided Mac/network setup or deployment, proceed one step at a time and verify
+each result before continuing. Connection checks run in StationOS's execution
+environment, so they are the final evidence of container connectivity.
+
+
+Private inference connections have a configurable **Response deadline** (15–600
+seconds; default 180). The timer starts after admission to the single inference
+slot; producer queue waiting is separately bounded at 30 seconds. Live DJ work may
+wait up to the saved response deadline; stale links are cancelled at song boundaries.
+Queued short links and audience review take priority over show planning. Music continues during
+slow inference, and failed preparation remains eligible for the next song-boundary
+retry. Logs distinguish queue expiry from a response timeout. A timeout never
+silently triggers cloud fallback or replays an ambiguous request.
+
+For Ollama DJ text and local audience review, StationOS reads the model's thinking
+metadata and requests `think:false` only when that value is advertised. This avoids
+unnecessary reasoning before a short spoken link; producer assistant requests
+retain the model default. Spoken links and audience reviews use at most 512 output
+tokens, bounded further by the saved connection limit. These controls improve
+resource bounds but do not guarantee that a model finishes before a song ends.
+
+DJ status reports speech and music curation separately. “Speech ready” can appear alongside “Curation unavailable · music continues”; prepared chatter still plays at the track boundary. Local curation uses short track references and makes one bounded correction attempt when a completed plan selects unavailable or repeated tracks.
+
+Assistant uses horizontal tabs: **Chats**, **Models for features** and **Manage endpoints**. Enter an endpoint’s provider/address and save it. StationOS checks the connection and discovers its models automatically before saving; failures display an error and preserve the existing configuration. Then assign providers and discovered models to each feature; manual IDs remain available. Discovery does not generate or download models.

@@ -22,8 +22,6 @@
 <label>Background <span class="optional">Optional</span><textarea name="background" rows="6" maxlength="16000" placeholder="Fictional background, musical tastes and interests.">{{.DJ.Background}}</textarea><span class="hint">Give the presenter a fictional history and perspective.</span></label>
 </fieldset>
 <fieldset class="dj-form-group"><legend>Editorial style</legend>
-<label>AI model<select name="model" data-dj-model>{{range .DJModels}}<option value="{{.ID}}" {{if eq .ID $.DJ.Model}}selected{{end}}>{{.Label}}</option>{{end}}<option value="custom" {{if .DJCustomModel}}selected{{end}}>Other model…</option></select><span class="hint">For writing and music curation.</span></label>
-<label data-custom-model {{if not .DJCustomModel}}hidden{{end}}>Model ID<input name="custom_model" maxlength="128" value="{{if .DJCustomModel}}{{.DJ.Model}}{{end}}" placeholder="Your OpenAI model ID" {{if .DJCustomModel}}required{{end}}></label>
 <label>Prompt<textarea name="prompt" rows="6" maxlength="32000" placeholder="Personality, music choices and how to introduce tracks.">{{.DJ.Prompt}}</textarea><span class="hint">Direct the DJ’s selections and on-air commentary.</span></label>
 </fieldset>
 <fieldset class="dj-form-group"><legend>Voice</legend>
@@ -32,7 +30,7 @@
 <p id="conversation-speed-help" class="hint">1.00× is normal. Applies to newly generated speech.</p>
 <label>Vibe<textarea name="vibe" rows="4" maxlength="16000" placeholder="e.g. Warm, relaxed, conversational, with clear phrasing.">{{.DJ.Vibe}}</textarea><span class="hint">Voice direction, phrasing and tone.</span></label><button type="button" class="text-button" data-example-vibe>Use example vibe</button>
 </fieldset>
-<p class="hint">All DJs use the shared OpenAI key in <a href="/producer/assistant/settings">Assistant settings</a>. Each DJ keeps its own curation and writing model.</p>
+<p class="hint">All DJs use the curation and writing provider and model configured in <a href="/producer/assistant/settings">Assistant settings</a>. Current model: {{.AssistantSettings.CurationModel}}. Speech uses the independent speech connection.</p>
 <div class="form-footer">{{if .DJ.ID}}<a class="button danger" href="/producer/djs/{{.DJ.ID}}/delete" hx-get="/producer/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}<div class="form-actions"><a class="button secondary" href="/producer/djs">Cancel</a><button>{{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button></div></div>
 </form></section>
 {{end}}{{end}}

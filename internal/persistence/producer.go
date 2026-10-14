@@ -26,6 +26,14 @@ var _ producer.Store = Producer{}
 func (p Producer) Settings(ctx context.Context) (producer.Settings, error) {
 	var s producer.Settings
 	e := p.DB.QueryRowContext(ctx, `SELECT model,curation_model,speech_model,audience_model,image_model,length(api_key_cipher)>0 FROM producer_settings WHERE id=1`).Scan(&s.Model, &s.CurationModel, &s.SpeechModel, &s.AudienceModel, &s.ImageModel, &s.HasKey)
+	if e == nil {
+		s.Routes, e = p.Routes(ctx)
+		if e == nil {
+			c, err := p.Connection(ctx, s.Routes.Assistant.Connection)
+			e = err
+			s.TextReady = err == nil && (c.Type != "openai" || c.HasKey)
+		}
+	}
 	return s, e
 }
 
@@ -52,6 +60,10 @@ func (p Producer) Configure(ctx context.Context, settings producer.Settings, k p
 			return e
 		}
 	}
+	if e := p.validateRoutes(ctx, settings.Routes); e != nil {
+		return e
+	}
+	routesJSON, _ := json.Marshal(settings.Routes)
 	encrypted := []byte{}
 	if k.Value != "" {
 		nonce := make([]byte, p.secret.NonceSize())
@@ -65,7 +77,7 @@ func (p Producer) Configure(ctx context.Context, settings producer.Settings, k p
 		return e
 	}
 	defer tx.Rollback()
-	if _, e = tx.ExecContext(ctx, `UPDATE producer_settings SET model=?,curation_model=?,speech_model=?,audience_model=?,image_model=?,api_key_cipher=CASE WHEN ? THEN ? ELSE api_key_cipher END WHERE id=1`, settings.Model, settings.CurationModel, settings.SpeechModel, settings.AudienceModel, settings.ImageModel, k.Clear || k.Value != "", encrypted); e != nil {
+	if _, e = tx.ExecContext(ctx, `UPDATE producer_settings SET model=?,curation_model=?,speech_model=?,audience_model=?,image_model=?,provider_routes=?,ai_revision=ai_revision+1,api_key_cipher=CASE WHEN ? THEN ? ELSE api_key_cipher END WHERE id=1`, settings.Model, settings.CurationModel, settings.SpeechModel, settings.AudienceModel, settings.ImageModel, string(routesJSON), k.Clear || k.Value != "", encrypted); e != nil {
 		return e
 	}
 	if k.Clear || k.Value != "" {
@@ -80,7 +92,11 @@ func (p Producer) Configure(ctx context.Context, settings producer.Settings, k p
 type ProducerKeys struct{ Producer Producer }
 
 func (p ProducerKeys) APIKey(ctx context.Context, _ string) (string, error) {
-	return p.Producer.APIKey(ctx)
+	r, e := p.Producer.Routes(ctx)
+	if e != nil {
+		return "", e
+	}
+	return p.Producer.Credential(ctx, r.Speech.Connection)
 }
 func (p Producer) Model(ctx context.Context, role string) (string, error) {
 	settings, e := p.Settings(ctx)
@@ -149,6 +165,13 @@ func (p Producer) AdoptLegacyKey(ctx context.Context) error {
 	return nil
 }
 func (p Producer) APIKey(ctx context.Context) (string, error) {
+	r, e := p.Routes(ctx)
+	if e != nil {
+		return "", e
+	}
+	return p.Credential(ctx, r.Image.Connection)
+}
+func (p Producer) legacyKey(ctx context.Context) (string, error) {
 	var b []byte
 	e := p.DB.QueryRowContext(ctx, `SELECT api_key_cipher FROM producer_settings WHERE id=1`).Scan(&b)
 	if e != nil || len(b) == 0 {

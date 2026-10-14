@@ -60,7 +60,7 @@ func TestExistingPlaylistSupportsMultipleShowsAndDefaultWithoutCopying(t *testin
 	if len(rules) != 1 || rules[0].Value != "Jazz" {
 		t.Fatal("cannot inspect eligibility", details)
 	}
-	dj := call(t, registry, "save_dj", map[string]string{"name": "Rowan Ellis", "model": "model"}).Data.(djs.Profile)
+	dj := call(t, registry, "save_dj", map[string]string{"name": "Rowan Ellis"}).Data.(djs.Profile)
 	call(t, registry, "create_shows", map[string]any{"show": map[string]any{"station_id": owner.ID, "name": "Evening Jazz", "dj_id": dj.ID, "playlist_id": pool.ID, "start": 1200, "end": 1320}, "days": []int{4, 6}})
 	call(t, registry, "assign_default_playlist", map[string]string{"station_id": owner.ID, "playlist_id": pool.ID})
 	all, _ := repo.List(ctx, owner.ID)

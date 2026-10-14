@@ -49,7 +49,7 @@ func programmeDetails(state broadcast.State, timezone string, now time.Time) (st
 		loc = time.UTC
 	}
 	times := state.Programme.Start.In(loc).Format("15:04") + "–" + state.Programme.End.In(loc).Format("15:04")
-	status := map[string]string{"Preparing": "Preparing DJ", "Ready": "DJ ready", "Music only": "Music only", "Speaking": "DJ speaking", "Unavailable": "DJ unavailable · music continues"}[state.PresenterStatus]
+	status := presenterStatus(state)
 	if status == "Music only" && !state.Programme.DJ.HasKey {
 		status = "Music only · shared API key missing"
 	}
@@ -125,4 +125,20 @@ func producerLogo(st station.Station) string {
 		return st.LogoURL()
 	}
 	return "/producer" + st.LogoURL()
+}
+
+// Speech preparation and validated music curation have independent outcomes.
+func presenterStatus(state broadcast.State) string {
+	speech := map[string]string{"Preparing": "Preparing speech", "Ready": "Speech ready", "Music only": "Music only", "Speaking": "DJ speaking", "Unavailable": "Speech unavailable"}[state.PresenterStatus]
+	curation := map[string]string{"Preparing": "Preparing curation", "Ready": "Curation ready", "Unavailable": "Curation unavailable · music continues"}[state.CurationStatus]
+	if curation != "" {
+		if speech != "" {
+			return speech + " · " + curation
+		}
+		return curation
+	}
+	if state.PresenterStatus == "Unavailable" {
+		return "Speech unavailable · music continues"
+	}
+	return speech
 }

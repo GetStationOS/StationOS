@@ -550,6 +550,8 @@ textarea{font-weight:400;line-height:1.5}
 .audience-status-choice { display:flex; align-items:center; gap:9px; margin:0; padding:9px 12px; border:1px solid var(--line); border-radius:8px; background:var(--surface); cursor:pointer; font-size:13px; }
 .audience-status-choice:has(input:checked) { background:var(--tint); border-color:#9ccbc4; color:var(--accent-dark); }
 .audience-status-choice input { width:17px; height:17px; min-height:17px; margin:0; padding:0; accent-color:var(--accent); }
+.audience-table-panel .table-scroll { max-width:100%; overflow-x:auto; overscroll-behavior-x:contain; -webkit-overflow-scrolling:touch; }
+.audience-table-panel .table-scroll:focus-visible { outline:3px solid #58b8ae; outline-offset:-3px; }
 .audience-table-panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
 .audience-queue-table { width:100%; min-width:850px; table-layout:fixed; margin:0; border:0; }
 .audience-queue-table th { background:#f0f5f6; padding:13px 16px; color:var(--muted); font-size:12px; font-weight:650; text-align:left; }
@@ -708,3 +710,7 @@ textarea{font-weight:400;line-height:1.5}
 .assistant-status[data-state="Finished"]{background:var(--tint)}
 .assistant-status p{margin:4px 0 0}
 .assistant-status[data-state="Paused"],.assistant-status[data-state="Needs your input"],.assistant-status[data-state="Stopped unexpectedly"]{background:#fff5df}
+
+/* AI setup uses the same horizontal task tabs as station workspaces. */
+.assistant-tabs{overflow-x:auto;white-space:nowrap}.assistant-tabs a{flex-shrink:0}.endpoint-advanced{margin:24px 0}.endpoint-advanced[open]>summary{margin-bottom:20px}
+.discovered-models{max-height:220px;overflow:auto;padding-left:24px;overflow-wrap:anywhere}

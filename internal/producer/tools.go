@@ -205,7 +205,6 @@ type playlistPatch struct {
 type djPatch struct {
 	ID                string   `json:"id"`
 	Name              *string  `json:"name"`
-	Model             *string  `json:"model"`
 	Voice             *string  `json:"voice"`
 	Prompt            *string  `json:"prompt"`
 	Vibe              *string  `json:"vibe"`
@@ -575,7 +574,7 @@ func NewRegistry(d Dependencies) *Registry {
 	})
 	register(r, "get_dj", "Read a DJ profile before editing. No credentials are returned.", false, func(ctx context.Context, a entityID) (Result, error) { v, e := d.DJs.Get(ctx, a.ID); return read(v, e) })
 	register(r, "list_voices", "List supported DJ speech voices.", false, func(ctx context.Context, _ empty) (Result, error) { return read(djs.Voices(), nil) })
-	register(r, "save_dj", "Create or update supplied fields of a shared fictional DJ. First assess existing DJs using list_djs/get_dj and reuse a suitable presenter in shows. Create only when none is suitable, using an original name, never an existing name with a station suffix. Duplicate names are rejected. Defaults: cedar voice, speed 1. Model is required for creation. New DJs automatically receive a generated fictional portrait. artwork_error means the DJ was saved but the photo failed; retry only the artwork using its returned ID. All DJs use the shared key in Assistant settings; no DJ credential is needed.", true, func(ctx context.Context, a djPatch) (Result, error) {
+	register(r, "save_dj", "Create or update supplied fields of a shared fictional DJ. First assess existing DJs using list_djs/get_dj and reuse a suitable presenter in shows. Create only when none is suitable, using an original name, never an existing name with a station suffix. Duplicate names are rejected. Defaults: cedar voice, speed 1. All DJs use the global curation/writing provider and model in Assistant settings; DJ profiles cannot override model selection. New DJs automatically receive a generated fictional portrait. artwork_error means the DJ was saved but the photo failed; retry only the artwork using its returned ID. All DJs use the shared key in Assistant settings; no DJ credential is needed.", true, func(ctx context.Context, a djPatch) (Result, error) {
 		r.djMu.Lock()
 		defer r.djMu.Unlock()
 		v := djs.Profile{}
@@ -588,7 +587,6 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		originalName := v.Name
 		set(&v.Name, a.Name)
-		set(&v.Model, a.Model)
 		set(&v.Voice, a.Voice)
 		set(&v.Prompt, a.Prompt)
 		set(&v.Vibe, a.Vibe)

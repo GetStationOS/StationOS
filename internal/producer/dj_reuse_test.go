@@ -35,7 +35,7 @@ func TestAssistantRejectsDuplicateDJIdentities(t *testing.T) {
 	}
 	before, _ := repo.List(ctx)
 	for _, name := range []string{"Clara Vale", "  CLARA   VALE ", "Clara Vale - The Listening Room", "Clara Vale — The Listening Room", "Clara Vale – The Listening Room", "Clara Vale (The Listening Room)"} {
-		raw, _ := json.Marshal(map[string]string{"name": name, "model": "different-model", "prompt": "Unrequested replacement"})
+		raw, _ := json.Marshal(map[string]string{"name": name, "prompt": "Unrequested replacement"})
 		result := registry.Call(ctx, "save_dj", raw)
 		if result.Error == "" || !strings.Contains(result.Error, original.ID) {
 			t.Fatalf("accepted or failed to identify duplicate %q: %+v", name, result)
@@ -56,7 +56,7 @@ func TestAssistantRejectsDuplicateDJIdentities(t *testing.T) {
 	if !found {
 		t.Fatal("suitability information missing", summary)
 	}
-	newDJ := call(t, registry, "save_dj", map[string]string{"name": "Elena Brooks", "model": "model", "background": "Electronic music journalist"}).Data.(djs.Profile)
+	newDJ := call(t, registry, "save_dj", map[string]string{"name": "Elena Brooks", "background": "Electronic music journalist"}).Data.(djs.Profile)
 	if newDJ.ID == original.ID {
 		t.Fatal("original presenter replaced existing DJ")
 	}
@@ -71,7 +71,7 @@ func TestAssistantRejectsDuplicateDJIdentities(t *testing.T) {
 func TestAssistantDJsRemainSharedAcrossStations(t *testing.T) {
 	_, registry, _, _, shows, repo := fixture(t)
 	ctx := context.Background()
-	presenter := call(t, registry, "save_dj", map[string]string{"name": "Sofia Grant", "model": "model"}).Data.(djs.Profile)
+	presenter := call(t, registry, "save_dj", map[string]string{"name": "Sofia Grant"}).Data.(djs.Profile)
 	before, _ := repo.List(ctx)
 	for _, name := range []string{"Jazz Room", "Night Radio"} {
 		st := call(t, registry, "save_station", map[string]string{"name": name}).Data.(station.Station)
@@ -84,7 +84,7 @@ func TestAssistantDJsRemainSharedAcrossStations(t *testing.T) {
 		if err != nil || len(scheduled) != 1 || scheduled[0].DJID != presenter.ID {
 			t.Fatal(scheduled, err)
 		}
-		raw, _ := json.Marshal(map[string]string{"name": "New Presenter - " + name, "model": "model"})
+		raw, _ := json.Marshal(map[string]string{"name": "New Presenter - " + name})
 		if registry.Call(ctx, "save_dj", raw).Error == "" {
 			t.Fatal("accepted station-specific DJ name")
 		}
@@ -105,7 +105,7 @@ func TestConcurrentAssistantDJCreationsCannotDuplicate(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results <- registry.Call(ctx, "save_dj", []byte(`{"name":"Arden West","model":"model"}`))
+			results <- registry.Call(ctx, "save_dj", []byte(`{"name":"Arden West"}`))
 		}()
 	}
 	wg.Wait()

@@ -4,9 +4,9 @@ Status: adopted, 9 October 2026. Apply these rules to every new operator-facing 
 
 ## Product hierarchy
 
-Stations are the top-level domain. `/producer` is the station overview, with one card per station and a clear Create station action. Opening a card leads to that station's workspace. Overview, Playlists and Settings retain the station identity and breadcrumb. New scheduling, presenters, output and reporting screens must join this station workspace instead of becoming unrelated global pages.
+Stations are the top-level domain. `/producer` is the station overview, with one card per station and a clear Create station action. Opening a card leads to that station's workspace. All station screens retain station identity. Overview uses its station heading and tabs without a redundant breadcrumb; deeper station screens retain breadcrumbs for returning to their parent. New scheduling, presenters, output and reporting screens must join this station workspace instead of becoming unrelated global pages.
 
-Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, writing/curation model, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. The shared API-key field in Assistant settings is write-only: leave blank to retain, enter a replacement or explicitly remove. DJ forms contain no credential fields. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
+Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. The shared API-key field in Assistant settings is write-only: leave blank to retain, enter a replacement or explicitly remove. DJ forms contain no credential fields. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
 
 ## Status and information
 
@@ -96,7 +96,7 @@ DJ edit forms include an optional Background profile and uploaded photo, with a 
 
 ### DJ profile photos and settings
 
-DJ creation and editing group Profile, Editorial style, Voice and API access in one form with a single Save footer. Profile includes a compact photo preview, labelled JPEG/PNG file chooser and an accessible remove X on the image. The file chooser uses the standard 42px height without a nested input border. The admin never enters a URL or server path. Selecting a file previews it locally; upload, replacement and removal commit with the other settings. Empty file selection preserves the saved photo. JPEG/PNG inputs are limited to 5 MB and 12 megapixels and normalized for display. Uploaded photos live with the profile and are included in database backups. Invalid uploads retain the existing photo and form; ordinary form errors explain when an upload must be selected again. Settings follow one bounded reading column on desktop and mobile, with quiet separators between groups. Background, prompt and vibe text areas have a consistent fixed 160px height with internal scrolling and no resize handle, keeping the form stable. Conversation speed uses the same 6px label-to-control gap as other fields. Custom model ID appears directly below its model selector only when Other model is selected.
+DJ creation and editing group Profile, Editorial style, Voice and API access in one form with a single Save footer. Profile includes a compact photo preview, labelled JPEG/PNG file chooser and an accessible remove X on the image. The file chooser uses the standard 42px height without a nested input border. The admin never enters a URL or server path. Selecting a file previews it locally; upload, replacement and removal commit with the other settings. Empty file selection preserves the saved photo. JPEG/PNG inputs are limited to 5 MB and 12 megapixels and normalized for display. Uploaded photos live with the profile and are included in database backups. Invalid uploads retain the existing photo and form; ordinary form errors explain when an upload must be selected again. Settings follow one bounded reading column on desktop and mobile, with quiet separators between groups. Background, prompt and vibe text areas have a consistent fixed 160px height with internal scrolling and no resize handle, keeping the form stable. Conversation speed uses the same 6px label-to-control gap as other fields. Model and provider selection belong exclusively in Assistant settings; DJ forms show the current global model and a settings link.
 
 ## Station logos
 
@@ -218,7 +218,7 @@ The producer Audience tab uses one bordered table with clear submission types, s
 The shared DJ directory uses two presenter cards per row on wide desktop screens,
 stacking on smaller screens. Show a substantial portrait and linked show/station assignments and the earliest future airing in its
 station timezone. Repeated weekly instances of the same show share one assignment
-row. Voice, speech speed, voice direction, model and editorial prompts belong
+row. Voice, speech speed, voice direction and editorial prompts belong
 on the DJ detail screen; omit the Voice & Production section from directory cards.
 
 Each card displays one derived status: Draft for missing required production
@@ -258,7 +258,7 @@ and history navigation remain supported.
 
 Show concrete saved outcomes and failed actions in the conversation. Never claim
 that the whole request rolled back when some actions succeeded. Interrupted runs
-remain visible and are not replayed. Assistant settings owns one shared OpenAI key for every AI service and independent producer, default DJ, speech and audience model choices. The key field is write-only; blank preserves it. DJ forms retain per-profile curation/writing model choices and link to shared settings. Do not expose credentials
+remain visible and are not replayed. Assistant settings owns centrally managed provider connections and independent provider/model choices for producer, DJ, speech, audience and artwork roles. Existing OpenAI settings remain preserved. The key field is write-only; blank preserves it. DJ forms have no model override; all DJs use the global curation/writing provider and model and link to Assistant settings. Do not expose credentials
 in conversation history or model tools. Saved configuration is not a tested key.
 
 Assistant responses support Markdown paragraphs, headings, emphasis, lists, links,
@@ -298,3 +298,46 @@ then artwork activity and its outcome. If generation fails, identify the missing
 artwork while keeping the saved entity and its link; retry artwork by ID rather
 than creating another profile. Assistant settings offers an independent Artwork
 model using the shared key and explains automatic low-quality image generation.
+
+
+### Provider settings
+
+Assistant settings lists named connections and offers dedicated connection editing
+pages. Each page has provider type, execution-environment server address, optional
+write-only credential and bounded context/output budgets. Save never runs inference.
+Delete uses the shared styled dialog, with Delete on the left of the form footer
+and Cancel/Save on the right. An endpoint selected for a feature cannot be removed.
+Blank credentials preserve saved values; removing one affects only that connection.
+
+Group each role's provider and model. Do not offer cloud fallback; each feature uses only its selected endpoint. Speech and artwork retain
+OpenAI choices independently of local text. Local text remains enabled without an
+OpenAI key; show specific missing-speech/artwork limitations, preserving unrelated
+configuration work. All existing and new DJ profiles use the same global curation/writing model.
+Changing it affects all DJs at song boundaries; the current track continues.
+
+Connection checks distinguish server reachability, the exact selected model's
+presence in the discovery list, and successful tool/structured-JSON tests. Discovered
+IDs assist manual entry; they never replace selected IDs or download models.
+Discovery reads model lists without generating or downloading models. Feature model fields offer discovered IDs automatically and retain manual entry when discovery is unavailable. Omit diagnostic capability tests from the setup workflow. Discovery alone never establishes capability.
+The producer station overview displays missing-speech notices;
+public listener pages do not show provider configuration.
+
+
+Provider connection editing includes a response deadline in seconds (15–600),
+defaulting to 180 for private inference. Explain that the response timer starts
+when inference is admitted; producer queue waiting is bounded at 30 seconds, while live DJ work may wait up to the selected response deadline. Stale spoken links are cancelled at song boundaries.
+Do not imply a longer deadline guarantees a model's speed. DJ requests disable
+thinking only when the provider advertises that option. No deadline or thinking
+change starts a broadcast, downloads a model or silently enables cloud fallback.
+
+Show speech and curation readiness separately on station cards and the producer overview. Use “Speech ready” for a prepared spoken link, and “Curation unavailable · music continues” when the music plan failed. A curation failure must not hide ready speech or claim the whole DJ is ready.
+
+### Assistant navigation and setup
+
+Group Chats, Models for features and Manage endpoints, in that order, in a horizontal Assistant submenu using the station-tab component. Keep Assistant as a single main-menu item. Preserve the active tab through HTMX navigation and history. Endpoints use the standard list, top-right Add action and dedicated form; keep advanced budgets collapsed. Show server addresses and write-only credentials on endpoint pages. Save validates the connection and discovers models automatically; failed discovery leaves the form open with an error and does not save the changes. Do not show a Discover models button. Feature models get a separate form with one labelled group per role and exact model IDs, keeping credentials out of that form. Preserve selections when saving only credentials. Sources places Add source alongside its page heading at the top right.
+
+The Audience queue table scrolls horizontally inside its bordered panel on small screens, with a labelled keyboard-focusable scrolling region. Keep pagination outside that region. Preserve the horizontal position through quiet refreshes, filtering and review actions; focused keyboard actions pause automatic replacement, while explicit reviews still update their result.
+
+The AI endpoint directory contains navigation and summaries only. All endpoint configuration, including the built-in OpenAI key, belongs on that endpoint’s dedicated management screen. Key saves and validation errors remain in OpenAI management.
+
+Chats places its primary New conversation action at the top right beside the page heading, using the shared creation-button style.

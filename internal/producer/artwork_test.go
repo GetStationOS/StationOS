@@ -53,7 +53,7 @@ func TestNewAssistantEntitiesAutomaticallySaveArtworkAndReuseIt(t *testing.T) {
 	images := &testImages{}
 	registry := producer.NewRegistry(producer.Dependencies{Stations: stations, DJs: repo, Images: images})
 	st := call(t, registry, "save_station", map[string]string{"name": "Logo Radio", "description": "Late-night jazz"}).Data.(station.Station)
-	dj := call(t, registry, "save_dj", map[string]string{"name": "Morgan Field", "model": "model", "background": "Fictional jazz historian", "vibe": "Relaxed and reflective"}).Data.(djs.Profile)
+	dj := call(t, registry, "save_dj", map[string]string{"name": "Morgan Field", "background": "Fictional jazz historian", "vibe": "Relaxed and reflective"}).Data.(djs.Profile)
 	if st.LogoVersion == "" || !strings.HasPrefix(dj.PortraitURL, "/djs/"+dj.ID+"/photo?v=") {
 		t.Fatal("artwork was not attached", st, dj)
 	}

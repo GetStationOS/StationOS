@@ -17,7 +17,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -166,6 +166,11 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if version >= 23 {
+				if _, err = db.Exec(`UPDATE producer_settings SET curation_model='gemma4:12b',provider_routes='{"Curation":{"Connection":"local"}}'; INSERT INTO ai_connections(id,name,provider_type,address,api_key_cipher) VALUES('local','My Mac','ollama','http://localhost:11434',X'5678')`); err != nil {
+					t.Fatal(err)
+				}
+			}
 			db.Close()
 			db, err = Open(ctx, path)
 			if err != nil {
@@ -222,6 +227,21 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 				var selections int
 				if err = db.QueryRow(`SELECT count(*) FROM playlist_selections WHERE playlist_id='playlist' AND included=1`).Scan(&selections); err != nil || selections != 1 {
 					t.Fatal("selection lost", selections, err)
+				}
+			}
+			var modelColumn int
+			if err = db.QueryRow(`SELECT count(*) FROM pragma_table_info('djs') WHERE name='model'`).Scan(&modelColumn); err != nil || modelColumn != 0 {
+				t.Fatal("DJ override column survived upgrade", err)
+			}
+			if version >= 23 {
+				var curation, routes string
+				if err = db.QueryRow(`SELECT curation_model,provider_routes FROM producer_settings`).Scan(&curation, &routes); err != nil || curation != "gemma4:12b" || routes != `{"Curation":{"Connection":"local"}}` {
+					t.Fatal("upgrade changed global DJ configuration", curation, routes, err)
+				}
+				var cipher []byte
+				var seconds int
+				if err = db.QueryRow(`SELECT api_key_cipher,request_timeout_seconds FROM ai_connections WHERE id='local'`).Scan(&cipher, &seconds); err != nil || hex.EncodeToString(cipher) != "5678" || seconds != 180 {
+					t.Fatal("private provider upgrade lost credentials or deadline", err)
 				}
 			}
 			var djCount int

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/station"
 )
@@ -215,13 +216,41 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.AssistantMode = "settings"
-	v.Title = "Assistant settings"
+	v.Title = "Models for features"
+	if r.URL.Path == "/producer/assistant/endpoints" || r.URL.Query().Get("connection") != "" || r.PostForm.Get("connection_action") != "" {
+		v.AssistantMode = "endpoints"
+		v.Title = "AI endpoints"
+	}
 	v.AssistantSettings, e = s.d.Assistant.Store.Settings(r.Context())
 	if e != nil {
 		s.fail(w, e)
 		return
 	}
+	if providers, ok := s.d.Assistant.Store.(ai.Store); ok {
+		v.AIConnections, e = providers.Connections(r.Context())
+		if e != nil {
+			s.fail(w, e)
+			return
+		}
+		if id := r.URL.Query().Get("connection"); id != "" && r.Method != http.MethodPost {
+			v.AIConnectionMode = true
+			if id == "new" {
+				v.AIConnection = ai.Connection{ID: producer.ID(), Type: "ollama", ContextTokens: 16384, OutputTokens: 2048, RequestTimeoutSeconds: 180}
+			} else {
+				v.AIConnectionSaved = true
+				v.AIConnection, e = providers.Connection(r.Context(), id)
+				if e != nil {
+					s.fail(w, e)
+					return
+				}
+			}
+		}
+	}
 	if r.Method == http.MethodPost {
+		if r.PostForm.Get("connection_action") != "" {
+			s.aiConnection(w, r, v)
+			return
+		}
 		model := strings.TrimSpace(r.PostForm.Get("model"))
 		k := producer.KeyChange{Value: strings.TrimSpace(r.PostForm.Get("api_key")), Clear: r.PostForm.Get("clear_key") == "yes"}
 		e = producer.ValidateSettings(model, k)
@@ -240,6 +269,9 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 			if r.PostForm.Has("audience_model") {
 				settings.AudienceModel = strings.TrimSpace(r.PostForm.Get("audience_model"))
 			}
+			if r.PostForm.Has("assistant_connection") {
+				settings.Routes = routesFromForm(r)
+			}
 			v.AssistantSettings = settings
 			e = s.d.Assistant.Store.Configure(r.Context(), settings, k)
 		}
@@ -252,8 +284,21 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if r.URL.Query().Get("notice") == "assistant-saved" {
-		v.Notice = "Assistant settings saved."
+		v.Notice = "Feature models saved."
 	}
+	if v.AIConnectionMode {
+		v.Title = "Add AI endpoint"
+		if v.AIConnection.Name != "" {
+			v.Title = v.AIConnection.Name
+		}
+	}
+	if r.URL.Query().Get("notice") == "endpoint-saved" {
+		v.Notice = "AI endpoint saved."
+	}
+	if r.URL.Query().Get("notice") == "key-saved" {
+		v.Notice = "OpenAI key saved."
+	}
+	v.AIRoles = roleViews(v.AssistantSettings)
 	s.render(w, r, v)
 }
 

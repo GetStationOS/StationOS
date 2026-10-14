@@ -78,7 +78,7 @@ func TestAssistantProducerJourneyAndDuplicateFirstMessage(t *testing.T) {
 	ctx := context.Background()
 	token := csrf(t, h)
 	home := request(h, "GET", "/producer/assistant", nil, nil)
-	if home.Code != 200 || !strings.Contains(home.Body.String(), "Assistant settings") {
+	if home.Code != 200 || !strings.Contains(home.Body.String(), "Manage endpoints") {
 		t.Fatal(home.Code, home.Body.String())
 	}
 	secret := "test-private-key"
@@ -86,7 +86,7 @@ func TestAssistantProducerJourneyAndDuplicateFirstMessage(t *testing.T) {
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	settings := request(h, "GET", "/producer/assistant/settings", nil, nil)
+	settings := request(h, "GET", "/producer/assistant/endpoints?connection=openai", nil, nil)
 	if strings.Contains(settings.Body.String(), secret) || !strings.Contains(settings.Body.String(), "A key is saved") {
 		t.Fatal("credential in settings", settings.Body.String())
 	}
@@ -197,7 +197,7 @@ func TestAssistantSettingsAcceptWrappedKeyWithoutEchoingIt(t *testing.T) {
 	if e != nil || key != "sk-proj-example-wrapped-key" {
 		t.Fatal("wrong credential saved", e)
 	}
-	settings := request(h, "GET", "/producer/assistant/settings", nil, nil)
+	settings := request(h, "GET", "/producer/assistant/endpoints?connection=openai", nil, nil)
 	if strings.Contains(settings.Body.String(), key) {
 		t.Fatal("credential echoed in settings")
 	}

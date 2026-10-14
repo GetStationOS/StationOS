@@ -49,3 +49,25 @@ func TestImageFailuresDoNotExposeBodiesOrAutomaticallyRetry(t *testing.T) {
 		t.Fatal(err, calls)
 	}
 }
+
+type separateImageSettings struct{}
+
+func (separateImageSettings) Settings(context.Context) (producer.Settings, error) {
+	return producer.Settings{ImageModel: "chosen-art-model", HasKey: false}, nil
+}
+func (separateImageSettings) APIKey(context.Context) (string, error) {
+	return "artwork-connection-key", nil
+}
+func TestArtworkUsesSelectedConnectionWithoutLegacyKey(t *testing.T) {
+	g := NewImages(separateImageSettings{})
+	g.Client = &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
+		if r.Header.Get("Authorization") != "Bearer artwork-connection-key" {
+			t.Error("wrong artwork credential")
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"data":[{"b64_json":"aW1hZ2U="}]}`))}, nil
+	})}
+	_, err := g.Generate(context.Background(), producer.ImageRequest{Kind: "station"})
+	if err != nil {
+		t.Fatal("artwork incorrectly required the legacy key", err)
+	}
+}

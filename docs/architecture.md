@@ -27,7 +27,7 @@ The core packages do not import HTTP handlers, SQLite, UPnP XML types or each ot
 
 **Playlists** owns station-specific identity, description, dynamic genre/album rules, individual inclusions/exclusions. Rules resolve as a union against the shared catalogue; exclusions win and overlaps are deduplicated. Album identity is currently source plus exact album title, so same-title editions in a source are grouped. Genre identity is the exact imported value. New rule matches join automatically on the next catalogue import. Manual selections save content snapshots without foreign keys to disposable catalogue rows, so missing items remain visibly unavailable. A playlist is an unordered eligibility pool for human/AI curation. Sorting by title/ID supplies stable browsing pages and implies no broadcast priority. Resolution and mutations are transactional and bounded (100 rules, 10,000 entries). Playlist definition is separate from a future timed programme log or playback engine.
 
-**DJs** owns reusable fictional presenter profiles (name, per-profile curation/writing model, selected voice, editorial prompt and voice-direction vibe) independently of stations. Credential management belongs to shared AI settings in the producer domain. Profile metadata reads derive only a shared-key-present flag; DJ saves cannot set or clear credentials. The encrypted shared key uses AES-256-GCM with independent associated data and the database's existing 0600 `.secrets-key` sidecar. Back up the database and sidecar together. Missing sidecars with encrypted credentials fail startup.
+**DJs** owns reusable fictional presenter profiles (name, selected voice, editorial prompt and voice-direction vibe) independently of stations. Credential management belongs to shared AI settings in the producer domain. Profile metadata reads derive only a shared-key-present flag; DJ saves cannot set or clear credentials. The encrypted shared key uses AES-256-GCM with independent associated data and the database's existing 0600 `.secrets-key` sidecar. Back up the database and sidecar together. Missing sidecars with encrypted credentials fail startup.
 
 **Persistence** uses modernc SQLite, one connection per process, WAL, foreign keys and a five-second busy timeout. This intentionally serialises database work for the initial deployment. Count and search results use one read transaction. Versioned SQL migrations run transactionally, verify applied checksums and reject unsupported newer schemas. Migrations are immutable once released. Frozen versions 1 through 10 fixtures verify upgrades to version 11, preserved identities/metadata, checksum validation and foreign-key integrity. Migration 2 removes source station ownership; migration 3 introduces authoritative station playlists; migration 4 removes saved ordering while preserving playlist membership. Migration 7 adds the selected voice, defaulting existing DJ profiles to Cedar without changing encrypted credentials. Migration 6 adds shared DJ profiles and encrypted credentials. Migration 5 introduces station broadcast assignment and unique editable stream slugs. Its immutable Go backfill runs inside the migration transaction and derives addresses from existing station names. The integrity command checks SQLite storage and foreign keys.
 
@@ -273,9 +273,7 @@ Incomplete response logs use known reason classifications without model content.
 capability registry. Each capability has a name, description, JSON Schema input,
 mutation flag and typed dispatcher returning structured data, an outcome and an
 optional producer-page link. The registry calls existing application services and
-repository ports; it does not call HTTP handlers or execute SQL. A future MCP
-adapter can expose `Registry.List` / `Registry.Call` without duplicating producer
-behaviour. No MCP server or external tool-execution endpoint is registered.
+repository ports; it does not call HTTP handlers or execute SQL. The registry remains authoritative for model-proposed actions. No MCP server or external tool-execution endpoint is registered.
 
 `internal/producer/openai` adapts the Responses API. Returned provider items,
 including reasoning, are carried forward within each batch. At batch boundaries,
@@ -302,10 +300,10 @@ Successful creations are deduplicated within a run, including across batch chang
 A crash between a write and its outcome record can still leave an uncertain Started
 action: resume must inspect current configuration before repeating it.
 
-Migration 21 centralizes AI configuration. The single encrypted key in
+Migration 21 originally centralized AI configuration. Its encrypted key in
 `producer_settings` serves producer chat, DJ curation/writing, speech and audience
 review. Producer, default DJ, speech and audience models are independently configured;
-individual DJ curation/writing overrides remain. Model-only edits preserve the key.
+migration 24 makes DJ curation/writing model selection exclusively global. Model-only edits preserve the key.
 Speech model changes alter prepared-audio cache keys. DJ rows never receive new
 credentials. Existing shared credentials take precedence and remove old DJ copies.
 If no shared key exists and all legacy DJ keys have one distinct value, startup
@@ -373,3 +371,105 @@ key and independent image model, a four-minute deadline, one low-quality square
 JPEG per request, bounded base64 responses and no automatic billable retries.
 Image usage is included when reported; token counts do not estimate image cost.
 No image bytes or arbitrary image-fetch URLs enter the assistant tool transcript.
+
+
+## Provider connections and portable text execution
+
+Migration 23 adds operator-owned `ai_connections` and role routing, without
+changing released migrations or existing OpenAI settings. The frozen version 22
+fixture verifies the upgrade. Existing connections, keys and model selections
+continue to use OpenAI. `internal/ai` defines configuration and text ports;
+`internal/inference` implements routing and native Ollama `/api/chat`, Anthropic
+Messages and Gemini generateContent, plus generic OpenAI-compatible chat
+completions. Services implementing a different protocol need an adapter, not a
+base-URL substitution. Any compatible service can be configured, but its selected
+model must actually support tools and structured output. Provider-hosted agents,
+remote tool execution and external MCP endpoints are not exposed.
+
+Assistant, DJ curation/writing, audience review, speech and artwork each choose a
+connection and model. Speech/artwork currently use OpenAI connections. Every DJ
+uses the global curation/writing provider and model. Migration 24 removes the
+obsolete DJ model column without altering profiles, schedules, credentials or
+global choices. DJ reads and scheduled snapshots project the global model and include an AI configuration revision, so provider
+and model changes invalidate pending and prepared work at song boundaries. Connections hold one credential, encrypted with
+AES-GCM and associated data bound to connection ID, using the existing sidecar.
+The historical OpenAI credential stays in its original encrypted location and is
+not copied into local connections. Metadata and readiness flags contain no secrets.
+A missing sidecar fails startup if *any* connection holds an encrypted credential.
+
+The text port separates show planning and link writing from speech synthesis.
+Local curation can produce an eligible validated plan without speech credentials;
+music continues and a producer runtime notice explains missing speech. Native
+Ollama uses function arguments as JSON objects, named tool results, a JSON schema
+in `format`, and bounded `num_ctx`/`num_predict`. Compatible services use string
+function arguments, tool-call identifiers and JSON-schema response format.
+Anthropic uses tool-use/result blocks and a forced schema tool for structured
+text. Gemini uses function calls/results and response JSON Schema. Gemini tool
+signatures survive only the current live protocol exchange, not recovery.
+Curation, listener acknowledgements and audience decisions remain validated by
+StationOS. Local/private audience review uses explicit approve/dismiss/uncertain
+JSON decisions, with exact-ID and full-batch validation. OpenAI retains Decisions.
+
+One shared local/native inference gate admits one active request and eight queued
+requests, across connections. Queued short live links and audience review have priority over show planning,
+which takes priority over producer work; running work is not preempted. Capability checks
+share that gate. Queue waiting is separate from generation: live work can wait up to the
+connection response deadline for an admitted request to finish, while producer
+work has a 30-second admission limit. Each admitted request then has
+a configurable 15–600 second response deadline (180 seconds for private/native
+connections; existing OpenAI requests retain their 60-second limit), cancellation, a 1 MiB response bound, and configured context/output
+budgets (default 16384/2048, context range 2048–32768). Input token counts are
+estimated at three UTF-8 bytes per token, including tools; essential requirements
+are never trimmed to fit. Overflow pauses explicitly with original requests saved.
+Ollama responses at the reserved input boundary are rejected before tool execution.
+Exact tokenizer-independent preflight counts are not available for every provider.
+Local curation offers at most 64 compact candidates per preparation, identified by short request-local references. The response schema enumerates exactly these references; validation rejects unavailable or repeated choices before mapping them back to catalogue IDs. A completed local plan with invalid choices receives at most one corrective text request within the existing preparation deadline. Transport failures, incomplete responses and invalid JSON are not replayed, and speech starts only after validation. Music reads
+never acquire the inference gate, and existing pending/success deduplication and
+song-boundary preparation retry remain authoritative.
+
+Durable checkpoints normalize completed results and assistant text. Recovery
+removes provider-private reasoning and unfinished protocol calls, independently
+supplies all original human requests and the saved checklist, and retains recent
+Started/outcome records for uncertain mutations. Admitted assistant runs pin role
+routing; resumed runs use newly saved selections. Provider failures never directly
+replay a mutation. Registry validation and duplicate protections remain unchanged.
+
+Each role uses only its selected endpoint and model. Provider failures remain failures; StationOS never switches to a cloud endpoint. Historical fallback fields in saved JSON are ignored and omitted from subsequent saves.
+
+Connection endpoints are configured through protected producer settings, never
+model tools or chat. Deliberately configured loopback/private HTTP(S) addresses
+are supported; URL credentials, query strings and fragments are rejected. Every
+redirect is blocked, including injected clients. Credentials use only their
+connection and protocol header; errors never contain response bodies, raw URLs
+or credentials. Discovery lists models without generation, download or substitution.
+Reachability, listing membership and explicit tool/JSON tests are separate results.
+
+
+Migration 25 adds `request_timeout_seconds` to provider connections. Production
+budgets include queueing, the selected response deadline and a separate bounded
+speech allowance; legacy direct OpenAI preparation retains its original deadline.
+Music delivery never waits for these budgets. Logs distinguish queue expiry before
+request dispatch from a slow/ambiguous provider response; timeouts never trigger
+cloud fallback. For DJ planning, spoken-link writing and local audience review,
+Ollama's bounded, cached `/api/show` metadata determines whether `think:false` is
+supported. It is sent only when explicitly advertised; other thinking controls
+are never guessed. Spoken-link/review output is capped at 512 tokens or the smaller
+connection limit. Producer assistant thinking remains at the selected model's
+default. Frozen version 23 and 24 fixtures verify both historical upgrades.
+
+
+Live inference admission is sized against the same bounded connection deadline
+as the active request, rather than expiring every queued link after 30 seconds.
+The production budget includes this wait, a full generation deadline and speech.
+Song-boundary cancellation removes stale queued links without dispatching them;
+last-listener cancellation releases all outstanding work. Within the eight-ticket
+queue, short spoken links and audience review are admitted before show preparation,
+then producer conversations. Running calls are never preempted or automatically
+replayed, and music never waits for the inference slot. Queue expiration logs include
+the actual wait limit; a shorter parent deadline can still end an admission early.
+
+Speech readiness and curation readiness are separate broadcast state fields. A ready spoken link remains playable when show curation fails; both statuses and AI notices participate in live update comparison.
+
+The Assistant navigation separates endpoint management at `/producer/assistant/endpoints`, feature routing at `/producer/assistant/settings`, and chats at `/producer/assistant`. Historical settings connection URLs continue to render endpoint forms. Endpoint credential changes preserve all role routes and model IDs, using the existing encrypted configuration store and CSRF/origin protections.
+
+Model discovery uses read-only provider listings with a ten-second deadline. The CSRF-protected endpoint save validates its configuration and model-list response before committing. Failed discovery cannot modify the saved endpoint or credential. OpenAI credential replacement also validates discovery before saving; explicit credential removal remains available. Saved endpoint pages and feature model fields fetch lists automatically. Feature model fields fetch suggestions from saved endpoints and keep manually entered selections. Discovery never invokes capability tests, inference, downloads, or model substitution.

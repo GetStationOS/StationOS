@@ -36,10 +36,15 @@ func (p *fundedPreparation) Prepare(ctx context.Context, _ schedule.Occurrence, 
 	}
 	return production.Prepared{Plan: production.Plan{TrackIDs: []string{pool[0].ID}}}, nil
 }
-func recoveryBroadcast(t *testing.T, p *fundedPreparation, seconds *atomic.Int64) (*Manager, *fakeEncoder, *Subscription, opening) {
+func recoveryBroadcast(t *testing.T, p *fundedPreparation, seconds *atomic.Int64, local ...bool) (*Manager, *fakeEncoder, *Subscription, opening) {
 	t.Helper()
 	start := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
-	source := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pop", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
+	profile := djs.Profile{ID: "dj", HasKey: true}
+	if len(local) > 0 && local[0] {
+		profile.HasKey = false
+		profile.TextReady = true
+	}
+	source := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pop", DJ: profile}}}
 	encoder := &fakeEncoder{calls: make(chan opening, 16)}
 	manager := New(showPools{}, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Producer: p, Now: func() time.Time { return start.Add(time.Duration(seconds.Load()) * time.Second) }})
 	t.Cleanup(manager.Close)
@@ -156,4 +161,68 @@ func TestSongBoundariesDoNotRepeatPendingDJPreparation(t *testing.T) {
 	// The blocked provider must still be cancelled when listening stops.
 	sub.Close()
 	manager.Close()
+}
+
+func TestLocalPreparationRecoversWithoutCloudKeyAtSongBoundary(t *testing.T) {
+	p := &fundedPreparation{called: make(chan int, 8)}
+	var seconds atomic.Int64
+	manager, encoder, sub, current := recoveryBroadcast(t, p, &seconds, true)
+	preparationAttempt(t, p, 1)
+	musicStatus(t, manager, sub, current, "Unavailable")
+	p.available.Store(true)
+	for range 3 {
+		musicStatus(t, manager, sub, current, "Unavailable")
+	}
+	if p.attempts.Load() != 1 {
+		t.Fatal("local inference retried during music")
+	}
+	current.write.Close()
+	next := opened(t, encoder)
+	preparationAttempt(t, p, 2)
+	musicStatus(t, manager, sub, next, "Ready")
+	next.write.Close()
+	third := opened(t, encoder)
+	musicStatus(t, manager, sub, third, "Ready")
+	if p.attempts.Load() != 2 {
+		t.Fatal("local success duplicated")
+	}
+}
+
+func TestReadyLinkRetainsFailedCurationAndStillPlays(t *testing.T) {
+	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+	source := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pop", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
+	encoder := &fakeEncoder{calls: make(chan opening, 16)}
+	links := readyLinks{called: make(chan production.LinkRequest, 8)}
+	manager := New(showPools{}, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Producer: statusPreparation{fail: true}, Links: links, Now: func() time.Time { return now }})
+	defer manager.Close()
+	sub, err := manager.Subscribe(context.Background(), "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	first := opened(t, encoder)
+	until := time.Now().Add(2 * time.Second)
+	for {
+		first.write.Write([]byte("MUSIC"))
+		if string(receive(t, sub)) != "MUSIC" {
+			t.Fatal("music interrupted")
+		}
+		state := manager.State("radio")
+		if state.PresenterStatus == "Ready" && state.CurationStatus == "Unavailable" {
+			break
+		}
+		if time.Now().After(until) {
+			t.Fatal("ready speech masked curation failure", state)
+		}
+	}
+	first.write.Close()
+	next := opened(t, encoder)
+	// The ready spoken link is still emitted despite failed show curation.
+	if string(receive(t, sub)) != "HANDOVER" {
+		t.Fatal("ready link was suppressed by failed curation")
+	}
+	next.write.Write([]byte("NEXT"))
+	if string(receive(t, sub)) != "NEXT" {
+		t.Fatal("next music did not continue")
+	}
 }

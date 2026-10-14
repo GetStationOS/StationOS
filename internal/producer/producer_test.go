@@ -61,7 +61,7 @@ func TestProducerToolsCreateAndManageStation(t *testing.T) {
 	if e != nil || configured != p.ID {
 		t.Fatal("default was changed", configured, e)
 	}
-	presenter := call(t, r, "save_dj", map[string]string{"name": "Maya Night", "model": "test-model"}).Data.(djs.Profile)
+	presenter := call(t, r, "save_dj", map[string]string{"name": "Maya Night"}).Data.(djs.Profile)
 	if presenter.HasKey {
 		t.Fatal("agent assigned a key")
 	}

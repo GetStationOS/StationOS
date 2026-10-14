@@ -163,8 +163,10 @@ DJ editorial prompts and background configuration are never used as public copy.
 The public station programme defaults to today in the station timezone. A single
 row of day links offers Today, Tomorrow and the following five calendar days. Each
 day shows the full programme in time order, including continuous-music gaps and
-shows continuing across midnight. Past airings remain visible without contribution
-actions. Show details and contribution links retain the selected date and exact
+shows continuing across midnight. On today’s schedule, completed airings and completed continuous-music gaps are
+omitted. The currently scheduled show opens by default with its details and optional
+contribution invitation; clicking its title still closes and reopens the mounted
+content. Future dates retain the full day with shows initially closed. Show details and contribution links retain the selected date and exact
 airing. Expansions and contribution steps keep the station URL and scroll position;
 day navigation updates only the programme region. Collapsing a show retains its
 loaded content and any entered form values. Direct show URLs remain usable as

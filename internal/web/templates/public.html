@@ -22,13 +22,13 @@
 
 {{define "public-show-expanded"}}{{template "public-show-information" .}}{{if .PublicShow.ContributionURL}}<section id="{{.AudiencePanel}}" class="show-contribution" tabindex="-1" aria-label="Contribute to {{.PublicShow.Name}}" hx-boost="true" hx-target="this" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#busy-{{.AudiencePanel}}">{{template "audience-form" .}}</section>{{end}}{{end}}
 
-{{define "public-programme-day"}}<div id="public-day-programme" data-programme-day="{{.AudienceDay}}"><div class="public-days">{{range .PublicDays}}<section><h3>{{.Name}}</h3>{{range .Shows}}{{if .URL}}<article class="public-show public-show-card">
-<a class="public-show-row" href="{{.URL}}" data-open-show aria-expanded="false" aria-controls="show-details-{{.ID}}" hx-get="{{.URL}}" hx-boost="false" hx-target="#show-details-{{.ID}}" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#show-busy-{{.ID}}">
+{{define "public-programme-day"}}<div id="public-day-programme" data-programme-day="{{.AudienceDay}}"><div class="public-days">{{range .PublicDays}}<section><h3>{{.Name}}</h3>{{range .Shows}}{{if .URL}}<article class="public-show public-show-card{{if .Expanded}} show-open{{end}}"{{if .Expanded}} data-show-loaded="true"{{end}}>
+<a class="public-show-row" href="{{.URL}}" data-open-show aria-expanded="{{if .Expanded}}true{{else}}false{{end}}" aria-controls="show-details-{{.ID}}" hx-get="{{.URL}}" hx-boost="false" hx-target="#show-details-{{.ID}}" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#show-busy-{{.ID}}">
 <span class="public-show-time">{{.Time}}</span>
 <span class="public-show-title"><strong class="public-show-name">{{.Name}}</strong>{{if .Next}}<span class="public-show-airing">{{.NextLabel}}: {{.Next}}</span>{{end}}</span>
 {{if .Presenter}}<span class="public-show-presenter"><span>with {{.Presenter}}</span>{{if .Portrait}}<img class="schedule-presenter-photo" src="{{.Portrait}}" alt="" width="40" height="40" loading="lazy" referrerpolicy="no-referrer">{{end}}</span>{{else}}<span></span>{{end}}
 <span class="show-expansion-indicator" aria-hidden="true"></span>
 </a>
 <span id="show-busy-{{.ID}}" class="show-busy htmx-indicator" role="status">Loading show…</span>
-<div id="show-details-{{.ID}}" class="public-show-body" tabindex="-1" hidden></div>
+<div id="show-details-{{.ID}}" class="public-show-body" tabindex="-1"{{if not .Expanded}} hidden{{end}}>{{if .Expanded}}{{template "public-show-expanded" .Details}}{{end}}</div>
 </article>{{else}}<div class="public-show"><span>{{.Time}}</span><strong>{{.Name}}</strong></div>{{end}}{{end}}</section>{{else}}<p>Continuous music throughout the day.</p>{{end}}</div></div>{{end}}

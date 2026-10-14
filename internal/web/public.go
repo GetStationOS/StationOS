@@ -17,7 +17,10 @@ import (
 	"stationos.local/stationos/internal/station"
 )
 
-type publicShow struct{ ID, Name, Presenter, Time, ContributionURL, URL, Description, Next, NextLabel, Portrait string }
+type publicShow struct {
+	ID, Name, Presenter, Time, ContributionURL, URL, Description, Next, NextLabel, Portrait string
+	Expanded                                                                                bool
+}
 type publicDay struct {
 	Name    string
 	URL     string
@@ -355,14 +358,19 @@ func publicScheduleDays(now time.Time, loc *time.Location, raw, base string) ([]
 	return days, selected
 }
 
-// Project every part of the selected civil day, including overnight shows and
-// unscheduled music. Contribution links always identify the displayed airing.
+// Today contains only unfinished programme; future civil days remain complete.
+// Contribution links always identify the displayed airing.
 func publicDayProgramme(shows []schedule.Show, now, date time.Time, loc *time.Location, base string, participation bool) []publicShow {
+	today := date.In(loc).Format("2006-01-02") == now.In(loc).Format("2006-01-02")
+	descriptions := map[string]string{}
+	for _, show := range shows {
+		descriptions[show.ID] = show.Description
+	}
 	end := date.AddDate(0, 0, 1)
 	cursor := date
 	out := []publicShow{}
 	music := func(start, finish time.Time) {
-		if !finish.After(start) {
+		if !finish.After(start) || (today && !finish.After(now)) {
 			return
 		}
 		label := finish.Format("15:04")
@@ -382,6 +390,10 @@ func publicDayProgramme(shows []schedule.Show, now, date time.Time, loc *time.Lo
 		if finish.After(end) {
 			finish = end
 		}
+		if today && !o.End.After(now) {
+			cursor = finish
+			continue
+		}
 		music(cursor, start)
 		times := start.Format("15:04") + "–" + finish.Format("15:04")
 		if finish.Equal(end) {
@@ -389,13 +401,15 @@ func publicDayProgramme(shows []schedule.Show, now, date time.Time, loc *time.Lo
 		}
 		query := "?show=" + url.QueryEscape(o.Key) + "&day=" + date.Format("2006-01-02")
 		item := publicShow{ID: o.ShowID, Name: o.Title, Presenter: o.DJ.Name, Portrait: publicPresenterPortrait(base, o.DJ.ID, o.DJ.PortraitURL), Time: times, URL: base + "/shows/" + url.PathEscape(o.ShowID) + query}
+		item.Description = descriptions[o.ShowID]
+		item.Expanded = today && !o.Start.After(now) && o.End.After(now)
 		item.NextLabel = "Next airing"
 		if !o.Start.After(now) {
 			item.NextLabel = "This airing"
 		}
 		item.Next = o.Start.Format("Mon 2 Jan, 15:04 MST")
 		if participation && o.End.After(now) && !o.Start.After(now.Add(7*24*time.Hour)) && (o.AcceptRequests || o.AcceptShoutouts) {
-			item.ContributionURL = base + "/contribute" + query
+			item.ContributionURL = base + "/shows/" + url.PathEscape(o.ShowID) + "/contribute" + query
 		}
 		out = append(out, item)
 		cursor = finish
@@ -410,4 +424,9 @@ func publicPresenterPortrait(base, id, portrait string) string {
 		return base + "/presenters/" + url.PathEscape(id) + "/photo"
 	}
 	return portrait
+}
+
+// Default expansion reuses the same details and invitation as an HTMX opening.
+func (show publicShow) Details() view {
+	return view{PublicShow: show, AudiencePanel: "contribution-" + show.ID}
 }

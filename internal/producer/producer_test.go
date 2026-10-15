@@ -65,6 +65,14 @@ func TestProducerToolsCreateAndManageStation(t *testing.T) {
 	if presenter.HasKey {
 		t.Fatal("agent assigned a key")
 	}
+	invalid := r.Call(ctx, "create_shows", []byte(`{"show":[{"name":"Late Jazz"}],"days":[4,6]}`))
+	if !strings.Contains(invalid.Error, "Never put an array in show") || !strings.Contains(invalid.Error, "No shows were created") {
+		t.Fatalf("missing recovery guidance: %+v", invalid)
+	}
+	before, err := sh.List(ctx, v.ID)
+	if err != nil || len(before) != 0 {
+		t.Fatal("malformed batch created shows", before, err)
+	}
 	call(t, r, "create_shows", map[string]any{"show": map[string]any{"station_id": v.ID, "name": "Late Jazz", "dj_id": presenter.ID, "playlist_id": p.ID, "start": 1320, "end": 60}, "days": []int{4, 6}})
 	shows, e := sh.List(ctx, v.ID)
 	if e != nil || len(shows) != 2 {

@@ -119,6 +119,9 @@ func TestLocalAIResumesLargeHistoryAndBuildsApprovedWeeklyStation(t *testing.T) 
 			tool = "save_task_progress"
 			args = producer.Task{Brief: brief + " " + plan, Completed: []string{"Created station, five eligible Jazz pools, Julian Vance, 27 scheduled shows and default playlist"}}
 		default:
+			if n >= 24 && (!strings.Contains(text, "Mandatory schedule readback") || !strings.Contains(text, "Saturday") || !strings.Contains(text, "Sunday")) {
+				t.Error("completion accepted without measured schedule readback")
+			}
 			json.NewEncoder(w).Encode(map[string]any{"done": true, "message": map[string]any{"content": "Configured Velvet Notes with all approved shows."}})
 			return
 		}
@@ -168,6 +171,14 @@ func TestLocalAIResumesLargeHistoryAndBuildsApprovedWeeklyStation(t *testing.T) 
 	savedShows, _ := shows.List(ctx, savedStations[0].ID)
 	if len(savedPools) != 5 || len(savedShows) != 27 {
 		t.Fatal("missing or duplicate configuration", len(savedPools), len(savedShows))
+	}
+	if next < 25 {
+		t.Fatal("final answer was accepted before schedule verification", next)
+	}
+	for _, show := range savedShows {
+		if (show.Name == "Saturday Soirée" && show.Day != 5) || (show.Name == "Sunday Sanctuary" && show.Day != 6) {
+			t.Fatal("weekend special on wrong day", show)
+		}
 	}
 	if strings.Contains(string(conversation.Transcript), "old catalogue detail") {
 		t.Fatal("catalogue details remained after summary")

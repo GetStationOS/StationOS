@@ -254,7 +254,7 @@ Polling must preserve draft text, focus and scroll and must not display the glob
 Working indicator. Disable Send while the conversation is running; navigating away
 does not stop a run. Successful sends get a fresh submission identifier, preventing
 repeated form delivery from replaying a turn. Normal forms, direct URLs, refresh
-and history navigation remain supported.
+and history navigation remain supported. Links in conversation messages, including View in StationOS, navigate the main workspace and update browser history; they must not inherit the message polling target.
 
 Show concrete saved outcomes and failed actions in the conversation. Never claim
 that the whole request rolled back when some actions succeeded. Interrupted runs
@@ -343,3 +343,5 @@ The AI endpoint directory contains navigation and summaries only. All endpoint c
 Chats places its primary New conversation action at the top right beside the page heading, using the shared creation-button style.
 
 Large assistant requests remain one user task. Explore libraries through measured database summaries and small targeted searches; do not require users to enumerate recordings or split an approved station configuration into separate prompts. Older catalogue detail leaves working context after a summary; preserve the approved plan and completed-action references. Continue saved request reuses the original requirements.
+
+When configuring a full weekly schedule, the assistant plans a varied presenter lineup across distinct programmes and keeps presenter continuity for recurring editions. It assesses shared DJs per programme, creates original profiles for unmet editorial needs, honours explicit single-presenter or named assignments, and verifies saved assignments before reporting completion.

@@ -100,6 +100,9 @@ func register[T any](r *Registry, name, description string, write bool, fn func(
 		d := json.NewDecoder(bytes.NewReader(raw))
 		d.DisallowUnknownFields()
 		if err := d.Decode(&args); err != nil {
+			if name == "create_shows" {
+				return Result{}, errors.New("Invalid create_shows arguments. Supply one show object and a days array, for example {\"show\":{\"station_id\":\"existing station ID\",\"name\":\"The Morning Brew\",\"dj_id\":\"existing DJ ID\",\"playlist_id\":\"existing playlist ID\",\"start\":480,\"end\":660},\"days\":[0,1,2,3,4]}. Never put an array in show. Call separately for each distinct programme. No shows were created by this call.")
+			}
 			return Result{}, errors.New("Invalid tool arguments: " + err.Error())
 		}
 		if err := d.Decode(new(any)); err != io.EOF {
@@ -111,6 +114,9 @@ func register[T any](r *Registry, name, description string, write bool, fn func(
 func schema(t reflect.Type) any {
 	if t.Kind() == reflect.Pointer {
 		return schema(t.Elem())
+	}
+	if t == reflect.TypeOf(station.Visibility("")) {
+		return map[string]any{"type": "string", "enum": []string{string(station.Listed), string(station.Unlisted), string(station.Private)}, "description": "Listed appears in the public directory; unlisted allows direct links; private allows producer preview only. Omit to keep the current value or use unlisted for a new station."}
 	}
 	switch t.Kind() {
 	case reflect.Struct:
@@ -469,7 +475,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(map[string]any{"playlist": v, "rules": rules, "tracks": out, "total": items.Total, "unavailable": items.Unavailable, "seconds": items.Duration.Seconds(), "unknown_durations": items.UnknownDurations}, nil)
 	})
-	register(r, "save_playlist", "Create or update a station-owned playlist. First inspect existing playlists in the requested station and reuse a suitable pool by ID. Create only if none fits or a distinct pool was explicitly requested. Duplicate names in the same station are rejected; the same name may exist in different stations. Supply station_id when creating; omitted fields on edits are preserved.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
+	register(r, "save_playlist", "Create or update a station-owned playlist. First inspect existing playlists in the requested station and reuse a suitable pool by ID. Create only if none fits or a distinct pool was explicitly requested. Duplicate names in the same station are rejected; the same name may exist in different stations. Supply station_id when creating; omitted fields on edits are preserved. For a new show pool, use the programme name or musical identity, describe its intended music, and reuse it across recurring days; avoid day-only or generic time-slot names.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
 		r.playlistMu.Lock()
 		defer r.playlistMu.Unlock()
 		v := playlists.Playlist{StationID: a.StationID}
@@ -577,7 +583,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(nil, "Updated default playlist", "/producer/stations/"+a.StationID)
 	})
-	register(r, "list_djs", "List shared fictional DJ profiles with brief background and voice-direction summaries. Inspect suitable candidates with get_dj and reuse their IDs in shows before considering a new presenter. HasKey means configured, not tested. No credentials are returned.", false, func(ctx context.Context, _ empty) (Result, error) {
+	register(r, "list_djs", "List shared fictional DJ profiles with brief background and voice-direction summaries. Inspect suitable candidates with get_dj for each programme and reuse their IDs where appropriate. Plan a varied lineup across distinct programmes in a full weekly schedule, with the same presenter for recurring editions; honour explicit single-presenter requests. HasKey means configured, not tested. No credentials are returned.", false, func(ctx context.Context, _ empty) (Result, error) {
 		v, e := d.DJs.List(ctx)
 		for i := range v {
 			v[i].Prompt = ""
@@ -588,7 +594,7 @@ func NewRegistry(d Dependencies) *Registry {
 	})
 	register(r, "get_dj", "Read a DJ profile before editing. No credentials are returned.", false, func(ctx context.Context, a entityID) (Result, error) { v, e := d.DJs.Get(ctx, a.ID); return read(v, e) })
 	register(r, "list_voices", "List supported DJ speech voices.", false, func(ctx context.Context, _ empty) (Result, error) { return read(djs.Voices(), nil) })
-	register(r, "save_dj", "Create or update supplied fields of a shared fictional DJ. First assess existing DJs using list_djs/get_dj and reuse a suitable presenter in shows. Create only when none is suitable, using an original name, never an existing name with a station suffix. Duplicate names are rejected. Defaults: cedar voice, speed 1. All DJs use the global curation/writing provider and model in Assistant settings; DJ profiles cannot override model selection. New DJs automatically receive a generated fictional portrait. artwork_error means the DJ was saved but the photo failed; retry only the artwork using its returned ID. All DJs use the shared key in Assistant settings; no DJ credential is needed.", true, func(ctx context.Context, a djPatch) (Result, error) {
+	register(r, "save_dj", "Create or update supplied fields of a shared fictional DJ. First assess existing DJs using list_djs/get_dj and reuse a suitable presenter in shows. Create when existing profiles do not cover a programme’s needs or the distinct identities needed for a varied weekly lineup, or when an original presenter is explicitly requested. Use an original name, never an existing name with a station suffix. Duplicate names are rejected. Defaults: cedar voice, speed 1. All DJs use the global curation/writing provider and model in Assistant settings; DJ profiles cannot override model selection. New DJs automatically receive a generated fictional portrait. artwork_error means the DJ was saved but the photo failed; retry only the artwork using its returned ID. All DJs use the shared key in Assistant settings; no DJ credential is needed.", true, func(ctx context.Context, a djPatch) (Result, error) {
 		r.djMu.Lock()
 		defer r.djMu.Unlock()
 		v := djs.Profile{}
@@ -641,12 +647,12 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(nil, "Deleted DJ: "+v.Name, "/producer/djs")
 	})
-	register(r, "list_shows", "Read a station's weekly shows. Monday=0. Start/end are local minutes after midnight. End<=start means next day.", false, func(ctx context.Context, a stationID) (Result, error) {
+	register(r, "list_shows", "Read the saved weekly shows to verify actual configuration. Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6. Results include day_name and local start_time/end_time. Compare every requested day and broadcast window with the original brief. End<=start means next day.", false, func(ctx context.Context, a stationID) (Result, error) {
 		v, e := d.Schedule.List(ctx, a.StationID)
 		for i := range v {
 			v[i].DJ = djs.Profile{}
 		}
-		return read(v, e)
+		return read(namedSchedule(v), e)
 	})
 	register(r, "save_show", "Create or update supplied show fields. Provide station_id; days Monday=0..Sunday=6; start/end are minutes after midnight, multiples of 15. Overlaps are rejected.", true, func(ctx context.Context, a showPatch) (Result, error) {
 		v, e := a.merge(ctx, d)
@@ -659,7 +665,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(v, "Saved show: "+v.Name, "/producer/stations/"+v.StationID+"/schedule/"+v.ID)
 	})
-	register(r, "create_shows", "Create independent weekly shows on selected days, atomically. No shows are created if any selected day conflicts. Show uses the same fields as save_show, with no ID.", true, func(ctx context.Context, a struct {
+	register(r, "create_shows", "Create ONE programme on multiple selected days, atomically. Arguments: show is ONE object (never an array), days is an integer array with Monday=0 through Sunday=6. Call separately for each distinct programme. Example: {\"show\":{\"station_id\":\"existing station ID\",\"name\":\"The Morning Brew\",\"dj_id\":\"existing DJ ID\",\"playlist_id\":\"existing playlist ID\",\"start\":480,\"end\":660},\"days\":[0,1,2,3,4]}. No shows are created if any selected day conflicts. Show uses the same fields as save_show, with no ID.", true, func(ctx context.Context, a struct {
 		Show showPatch `json:"show"`
 		Days []int     `json:"days"`
 	}) (Result, error) {

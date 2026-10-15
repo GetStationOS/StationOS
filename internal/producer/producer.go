@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"regexp"
 	"stationos.local/stationos/internal/ai"
+	"stationos.local/stationos/internal/station"
 	"strings"
 	"sync"
 	"time"
@@ -380,6 +381,35 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		raw, _ := json.Marshal(compactHistory(input))
 		return s.Store.Checkpoint(ctx, id, raw, task)
 	}
+	reviewStations := conversationStations(c)
+	if c.Task.Brief != "" && len(reviewStations) > 0 {
+		review, err := s.scheduleReview(ctx, reviewStations, true)
+		if err != nil {
+			fail("The saved configuration could not be read before resuming. Completed work remains saved; retry when storage is available.")
+			return
+		}
+		input = append(input, review)
+	}
+	recoverProgress := func(count int) bool {
+		if count != 3 && count != 8 {
+			return true
+		}
+		s.activity(id, "Checking saved configuration and remaining work", false)
+		if len(reviewStations) > 0 {
+			review, err := s.scheduleReview(ctx, reviewStations, true)
+			if err != nil {
+				fail("The saved configuration could not be checked during recovery. Completed work remains saved.")
+				return false
+			}
+			input = append(input, review)
+		}
+		input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Progress recovery: recent replies have not advanced the task. Use the fresh measured configuration above and original human brief to choose ONE concrete unfinished step. Empty show pools need verified music rules or tracks; unscheduled requested evenings and weekend hours need shows. Inspect only the specific missing information needed, then perform the next authorised correction. Reuse saved IDs. Do not repeat failed arguments, unchanged reads, completed creations or the full plan. A checklist edit alone does not configure the station. If genuinely blocked, save the exact blocker and finish other possible work."}))
+		if err := checkpoint(); err != nil {
+			fail("The recovery checkpoint could not be saved. Completed work remains saved.")
+			return false
+		}
+		return true
+	}
 	noProgress := 0
 	outputRecoveries := 0
 	batchRecoveries := 0
@@ -441,6 +471,9 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		if len(response.Calls) == 0 {
 			if len(task.Remaining) > 0 {
 				noProgress++
+				if !recoverProgress(noProgress) {
+					return
+				}
 				if noProgress >= MaxNoProgressRounds {
 					fail("The assistant stopped making progress. The original brief and remaining checklist are saved; use Continue to resume.")
 					return
@@ -454,7 +487,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 				return
 			}
 			if len(schedulesToReview) > 0 {
-				review, err := s.scheduleReview(ctx, schedulesToReview)
+				review, err := s.scheduleReview(ctx, schedulesToReview, false)
 				if err != nil {
 					fail("The saved schedule could not be checked. Completed actions remain saved; use Continue to retry verification.")
 					return
@@ -536,6 +569,12 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			if result.Error == "" {
 				if stationID := changedScheduleStation(call); stationID != "" {
 					schedulesToReview[stationID] = true
+					reviewStations[stationID] = true
+				}
+				if call.Name == "save_station" {
+					if value, ok := result.Data.(station.Station); ok {
+						reviewStations[value.ID] = true
+					}
 				}
 			}
 			if result.Error == "" && isCreation(call) {
@@ -593,6 +632,9 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			noProgress = 0
 		} else {
 			noProgress++
+		}
+		if !recoverProgress(noProgress) {
+			return
 		}
 		if noProgress >= MaxNoProgressRounds {
 			fail("The assistant stopped making progress. Completed actions, the original brief and remaining work are saved; use Continue to resume.")

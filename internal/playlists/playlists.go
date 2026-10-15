@@ -75,6 +75,13 @@ type Result struct {
 	Duration         time.Duration
 	UnknownDurations int
 }
+
+// Availability counts eligibility without transferring recording metadata.
+type Availability struct{ Total, Unavailable int }
+type AvailabilityRepository interface {
+	Availability(context.Context, string) (Availability, error)
+}
+
 type Repository interface {
 	Save(context.Context, Playlist) error
 	Delete(context.Context, string) error

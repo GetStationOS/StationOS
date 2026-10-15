@@ -44,11 +44,12 @@ type registered struct {
 	invoke func(context.Context, json.RawMessage) (Result, error)
 }
 type Registry struct {
-	artwork    func(context.Context, string, json.RawMessage, Result) Result
-	tools      map[string]registered
-	changed    func()
-	djMu       sync.Mutex
-	playlistMu sync.Mutex
+	availability func(context.Context, string) (playlists.Availability, error)
+	artwork      func(context.Context, string, json.RawMessage, Result) Result
+	tools        map[string]registered
+	changed      func()
+	djMu         sync.Mutex
+	playlistMu   sync.Mutex
 }
 
 func (r *Registry) List() []Tool {
@@ -329,6 +330,13 @@ func music(a content.AudioItem) recording {
 }
 func NewRegistry(d Dependencies) *Registry {
 	r := &Registry{tools: map[string]registered{}}
+	r.availability = func(ctx context.Context, id string) (playlists.Availability, error) {
+		if repo, ok := d.Playlists.(playlists.AvailabilityRepository); ok {
+			return repo.Availability(ctx, id)
+		}
+		result, err := d.Playlists.Resolve(ctx, id, 0, 1)
+		return playlists.Availability{Total: result.Total, Unavailable: result.Unavailable}, err
+	}
 	registerArtwork(r, d)
 	if d.Runtime != nil {
 		r.changed = d.Runtime.Changed

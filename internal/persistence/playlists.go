@@ -306,3 +306,28 @@ func (r Playlists) Delete(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// Availability aggregates the same membership as Resolve inside SQLite, without
+// decoding up to thousands of recordings merely to check whether a pool is empty.
+func (r Playlists) Availability(ctx context.Context, id string) (playlists.Availability, error) {
+	var counts playlists.Availability
+	tx, err := r.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return counts, err
+	}
+	defer tx.Rollback()
+	if err = requirePlaylist(ctx, tx, id); err != nil {
+		return counts, err
+	}
+	err = tx.QueryRowContext(ctx, `WITH candidates AS (
+ SELECT 1 AS available FROM catalogue_items i
+ WHERE (EXISTS(SELECT 1 FROM playlist_selections p WHERE p.playlist_id=? AND p.content_id=i.id AND p.included=1)
+ OR EXISTS(SELECT 1 FROM playlist_rules r WHERE r.playlist_id=? AND ((r.kind='genre' AND r.value=json_extract(i.metadata,'$.genre')) OR (r.kind='album' AND r.value=i.album AND r.source_id=i.source_id))))
+ AND NOT EXISTS(SELECT 1 FROM playlist_selections x WHERE x.playlist_id=? AND x.content_id=i.id AND x.included=0)
+ UNION ALL SELECT 0 FROM playlist_selections p LEFT JOIN catalogue_items i ON i.id=p.content_id WHERE p.playlist_id=? AND p.included=1 AND i.id IS NULL
+ ) SELECT count(*),coalesce(sum(1-available),0) FROM candidates`, id, id, id, id).Scan(&counts.Total, &counts.Unavailable)
+	if err != nil {
+		return counts, err
+	}
+	return counts, tx.Commit()
+}

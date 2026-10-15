@@ -42,7 +42,7 @@ Place actions at the end of the form. Existing entities with deletion use one fo
 
 ## Visual system and accessibility
 
-Use tokens in `internal/web/static/app.css`: neutral canvas, white panels, teal primary actions, quiet borders, a consistent radius and spacing scale. Dark playback panels establish priority; use accent colours sparingly. Shared classes cover headings, cards, metrics, notices, buttons, forms, checkbox groups and pagination. Extend those components before adding page-specific variants.
+Use tokens in `internal/web/static/app.css`: neutral canvas, white panels, navy text (#10243A), cyan primary actions (#00B9E8) with navy labels and darker cyan links, quiet borders, a consistent radius and spacing scale. The Open Modules logo uses four rounded tiles with a cyan top-right tile; use the shared StationOS SVG wordmark and favicon in both shells. Dark navy playback panels establish priority; use accent colours sparingly. Shared classes cover headings, cards, metrics, notices, buttons, forms, checkbox groups and pagination. Extend those components before adding page-specific variants.
 
 Use system fonts, restrained typography, descriptive headings and plain language. Remove repeated station names, redundant headings, workspace slogans and explanations of planned features. Keep optional help collapsed; show unsaved text only when changes exist. Primary actions are visually prominent; secondary actions are quieter. Desktop navigation stays consistent; small screens use compact top navigation, stacked cards/forms and horizontally scrollable data tables. Long titles and metadata must wrap without breaking the layout.
 

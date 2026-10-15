@@ -1,11 +1,11 @@
 {{define "layout"}}
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{.Title}} · StationOS</title><link rel="stylesheet" href="/static/app.css">
+<title>{{.Title}} · StationOS</title><meta name="theme-color" content="#10243A"><link rel="icon" href="/static/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/static/app.css">
 <script src="/static/htmx.min.js" defer></script><script src="/static/app.js" defer></script>
 </head><body hx-boost="true" hx-target="#main" hx-swap="innerHTML show:window:top" hx-indicator="#global-busy">
 <a class="skip-link" href="#main" hx-boost="false">Skip to content</a>
-<aside class="sidebar"><a class="brand" href="/producer">Station<span>OS</span></a>
+<aside class="sidebar"><a class="brand" href="/producer" aria-label="StationOS home"><img src="/static/stationos-logo.svg" alt="StationOS" width="530" height="100"></a>
 <nav aria-label="Main navigation"><a href="/producer" data-nav="stations"><span aria-hidden="true">◉</span> Stations</a><a href="/producer/sources" data-nav="sources"><span aria-hidden="true">↗</span> Sources</a><a href="/producer/djs" data-nav="djs"><span aria-hidden="true">♫</span> DJs</a><a href="/producer/assistant" data-nav="assistant"><span aria-hidden="true">✦</span> Assistant</a></nav>
 </aside>
 <div class="workspace"><span id="global-busy" class="htmx-indicator global-busy" role="status">Working…</span>

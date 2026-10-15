@@ -717,21 +717,47 @@ document.body.addEventListener('submit', event => {
  form.elements.namedItem('name').focus({preventScroll:true});
 }, true);
 
+// Reconcile chat turns by their server-rendered position, never by shared CSS
+// classes. Explicitly placing each turn also repairs an already scrambled list.
+// Keep unchanged bubbles mounted so selection and open reasoning survive polls.
+function patchAssistantMessages(current,next) {
+ const list=current.querySelector(':scope > ol');
+ const incoming=next.querySelector(':scope > ol');
+ if(list && incoming){
+  const turns=new Map(Array.from(list.children).map(turn=>[turn.dataset.assistantTurn,turn]));
+  const ordered=Array.from(incoming.children).map(turn=>{
+   const existing=turns.get(turn.dataset.assistantTurn);
+   if(!existing)return turn.cloneNode(true);
+   patchStationNode(existing,turn);
+   return existing;
+  });
+  ordered.forEach((turn,index)=>{
+   if(list.children[index]!==turn)list.insertBefore(turn,list.children[index]||null);
+  });
+  while(list.children.length>ordered.length)list.lastElementChild.remove();
+ }else if(!current.isEqualNode(next)){
+  current.replaceChildren(...Array.from(next.childNodes).map(node=>node.cloneNode(true)));
+ }
+ for(const attr of Array.from(current.attributes))if(!next.hasAttribute(attr.name))current.removeAttribute(attr.name);
+ for(const attr of Array.from(next.attributes))if(current.getAttribute(attr.name)!==attr.value)current.setAttribute(attr.name,attr.value);
+}
+
 // Patch quiet chat refreshes in place: keep focus, selection and open reasoning.
 document.body.addEventListener('htmx:beforeSwap', event => {
  const target=event.detail.target;
  if (target?.id !== 'assistant-messages' || !event.detail.shouldSwap) return;
  const incoming=new DOMParser().parseFromString(event.detail.serverResponse,'text/html').getElementById('assistant-messages');
- if (!incoming || incoming.dataset.assistantConversation !== target.dataset.assistantConversation) return;
+ // A late poll must never replace a newer page or a different conversation.
+ event.detail.shouldSwap=false;
+ if (target!==document.getElementById('assistant-messages') || !incoming || incoming.dataset.assistantConversation !== target.dataset.assistantConversation) return;
  const follow=window.innerHeight+window.scrollY >= document.documentElement.scrollHeight-140;
  const before=target.textContent;
  target.querySelectorAll('details[data-assistant-detail][open]').forEach(detail=>{
   const match=Array.from(incoming.querySelectorAll('details[data-assistant-detail]')).find(next=>next.dataset.assistantDetail===detail.dataset.assistantDetail);
   if(match)match.open=true;
  });
- patchStationNode(target,incoming);
+ patchAssistantMessages(target,incoming);
  htmx.process(target);
- event.detail.shouldSwap=false;
  syncAssistant();
  if(follow && before!==target.textContent) document.querySelector('[data-assistant-compose]')?.scrollIntoView({block:'end',behavior:'instant'});
 });

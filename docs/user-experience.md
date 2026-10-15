@@ -249,6 +249,10 @@ conversation and Assistant settings actions, and direct links to created/edited
 entities. Use the current producer's authority for requested changes without an
 extra assistant approval step. Ask for missing information or ambiguous intent.
 
+Keep the live status, task summary and recovery controls above the response log.
+Append new chatter, reasoning and action records at the bottom of that log in
+chronological order; growing replies must not insert content above the summary.
+
 Keep the compose form mounted while polling only the messages/status region.
 Polling must preserve draft text, focus and scroll and must not display the global
 Working indicator. Disable Send while the conversation is running; navigating away

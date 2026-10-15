@@ -718,7 +718,7 @@ document.body.addEventListener('submit', event => {
 }, true);
 
 // Saved message IDs keep reasoning, chatter and action records anchored within
-// a response. New records go after earlier records, before the live status footer.
+// a response. New records append below earlier records and the live summary.
 function patchAssistantParts(current,next) {
  const parts=current.querySelector('[data-assistant-parts]');
  const incoming=next.querySelector('[data-assistant-parts]');

@@ -42,7 +42,7 @@ func TestChatTurnsContainActionsReasoningAndLatestStatus(t *testing.T) {
 			t.Fatal("turn grouping", body)
 		}
 		previous := -1
-		for _, value := range []string{"First question", "First reasoning &lt;script&gt;", "First action", "First answer", "Second question", "Second reasoning", "Second answer", "<strong>Finished</strong>"} {
+		for _, value := range []string{"First question", "First reasoning &lt;script&gt;", "First action", "First answer", "Second question", "<strong>Finished</strong>", "Second reasoning", "Second answer"} {
 			at := strings.Index(body, value)
 			if at <= previous {
 				t.Fatalf("%s out of order: %s", value, body)
@@ -196,6 +196,53 @@ func TestChatPartsKeepSavedIdentityAcrossLiveRefreshes(t *testing.T) {
 		previousIDs = nil
 		for _, saved := range conversation.Messages {
 			previousIDs = append(previousIDs, saved.ID)
+		}
+	}
+}
+
+func TestChatAppendsNewContentBelowLiveSummary(t *testing.T) {
+	h, store, _ := setupAssistant(t, "", &assistantModel{})
+	ctx := context.Background()
+	id := producer.ID()
+	if err := store.Create(ctx, producer.Conversation{ID: id, Title: "Love Songs"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Begin(ctx, id, producer.ID(), "Create a Love Songs playlist"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Checkpoint(ctx, id, []byte(`[]`), producer.Task{Brief: "Create Love Songs", Remaining: []string{"Select suitable tracks"}}); err != nil {
+		t.Fatal(err)
+	}
+	records := []producer.Message{
+		{Role: "action", Text: "Started: save playlist"},
+		{Role: "action", Text: "Saved playlist: Love Songs"},
+		{Role: "assistant", Text: "I am selecting suitable songs."},
+		{Role: "action", Text: "Updated 4 track selections"},
+	}
+	for step := 0; step <= len(records); step++ {
+		if step > 0 {
+			if err := store.Append(ctx, id, records[step-1]); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, path := range []string{assistantURL(id), "/producer/assistant/" + id + "/messages"} {
+			response := request(h, "GET", path, nil, map[string]string{"HX-Request": "true"})
+			body := response.Body.String()
+			parts := strings.LastIndex(body, `data-assistant-parts`)
+			for _, summary := range []string{`aria-label="Assistant status"`, `Task progress`, `Stop assistant`} {
+				at := strings.Index(body, summary)
+				if at < 0 || at >= parts {
+					t.Fatalf("step %d: %s must precede appended content: %s", step, summary, body)
+				}
+			}
+			previous := parts
+			for _, record := range records[:step] {
+				at := strings.Index(body, record.Text)
+				if at <= previous {
+					t.Fatalf("step %d: %s was not appended at bottom: %s", step, record.Text, body)
+				}
+				previous = at
+			}
 		}
 	}
 }

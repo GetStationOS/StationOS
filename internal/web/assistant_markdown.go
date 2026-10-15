@@ -14,6 +14,8 @@ import (
 type assistantMessage struct {
 	Role, Text, URL string
 	HTML            template.HTML
+	Parts           []assistantMessage
+	Latest          bool
 }
 
 // Only this renderer may promote assistant text to trusted template HTML.

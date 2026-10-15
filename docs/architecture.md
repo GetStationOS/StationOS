@@ -536,3 +536,23 @@ An irreducible context failure is typed and occurs before dispatch. The producer
 Recovery with no usable station/checklist binding offers only `select_work_step` and task progress, rather than reopening the full discovery tool set. The selector resolves the exact existing station name or ID through repositories, supplies measured configuration and restricts tools to one explicit work area. It never changes station configuration. Unknown or ambiguous names fail without creating a station; only the station-creation area may retain a new name for a subsequent explicit create. Selected areas remain active across writes until task progress closes them or the assistant selects another area. Read-only requests can select a review area without gaining write tools.
 
 Observation-only rounds are bounded even in fresh project-wide conversations without a saved checklist. Recovery does not replenish read allowances without a saved configuration write. Successful selections seed an unfinished task if needed, and tool results are delivered before subsequent developer readbacks to preserve provider protocol ordering. Playlist snapshots include pool names, and playlist work can create a requested new pool. The selector reports that release-year metadata is unavailable but explicitly permits musical knowledge plus verified artist/album/track matches. A missing year field alone is not a blocker. Exact album rules or individual track selections can implement era programming; editions and compilation/reissue extras must be assessed, and unavailable music or uncertain release knowledge must be reported honestly.
+
+### Conversational assistant presentation
+
+The web adapter groups consecutive non-user records into one agent turn after
+its human request, preserving stored chronology. Live activity, task progress,
+actions, recovery controls and readable provider reasoning belong inside that
+turn. Polls patch the message region while retaining the composer, focus,
+selection and expanded reasoning; they follow the conversation only near the
+page bottom. Successful submission returns the canonical conversation URL and
+focuses the composer. Ordinary forms remain supported.
+
+Provider adapters expose a bounded display-only Reasoning field from Ollama
+thinking, compatible reasoning_content, Anthropic thinking, Gemini thought text
+and Responses summary_text. Opaque reasoning items, encrypted content and
+signatures are never displayed. No extra reasoning request is made. Readable
+reasoning and intermediate commentary are saved as message records; reasoning
+is excluded from reconstructed recovery prompts. Existing migrations are unchanged.
+Providers return completed responses, so reasoning appears after each model
+request completes, rather than token by token. History retains the existing
+100-record display window; full human requirements remain independently saved.

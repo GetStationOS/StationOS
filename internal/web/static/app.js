@@ -114,9 +114,10 @@ function showError(message) {
   feedback.textContent = message; feedback.hidden = false; feedback.focus({preventScroll:false});
 }
 document.body.addEventListener('htmx:responseError', event => {
+  if (event.detail?.elt?.id === 'assistant-messages') return;
   showError(event.detail.xhr.status === 401 ? 'Your session needs authentication. Reload to sign in.' : event.detail.xhr.responseText);
 });
-document.body.addEventListener('htmx:sendError', () => showError('Cannot reach StationOS. Your changes have not been saved. Check the connection and try again.'));
+document.body.addEventListener('htmx:sendError', event => { if (event.detail?.elt?.id !== 'assistant-messages') showError('Cannot reach StationOS. Your changes have not been saved. Check the connection and try again.'); });
 document.body.addEventListener('change', event => {
   const form = event.target.closest('form');
   if (!form) return;
@@ -715,3 +716,40 @@ document.body.addEventListener('submit', event => {
  form.querySelector('[data-source-selected]').textContent='Server selected. Review its details, then add the source.';
  form.elements.namedItem('name').focus({preventScroll:true});
 }, true);
+
+// Patch quiet chat refreshes in place: keep focus, selection and open reasoning.
+document.body.addEventListener('htmx:beforeSwap', event => {
+ const target=event.detail.target;
+ if (target?.id !== 'assistant-messages' || !event.detail.shouldSwap) return;
+ const incoming=new DOMParser().parseFromString(event.detail.serverResponse,'text/html').getElementById('assistant-messages');
+ if (!incoming || incoming.dataset.assistantConversation !== target.dataset.assistantConversation) return;
+ const follow=window.innerHeight+window.scrollY >= document.documentElement.scrollHeight-140;
+ const before=target.textContent;
+ target.querySelectorAll('details[data-assistant-detail][open]').forEach(detail=>{
+  const match=Array.from(incoming.querySelectorAll('details[data-assistant-detail]')).find(next=>next.dataset.assistantDetail===detail.dataset.assistantDetail);
+  if(match)match.open=true;
+ });
+ patchStationNode(target,incoming);
+ htmx.process(target);
+ event.detail.shouldSwap=false;
+ syncAssistant();
+ if(follow && before!==target.textContent) document.querySelector('[data-assistant-compose]')?.scrollIntoView({block:'end',behavior:'instant'});
+});
+let assistantSubmission=false;
+document.body.addEventListener('htmx:beforeRequest',event=>{
+ if(event.detail.elt?.matches('[data-assistant-compose]'))assistantSubmission=true;
+});
+document.body.addEventListener('htmx:afterSwap',event=>{
+ if(!assistantSubmission || event.detail.target?.id!=='main')return;
+ assistantSubmission=false;
+ const input=document.getElementById('assistant-message-input');
+ input?.focus({preventScroll:true});
+ input?.scrollIntoView({block:'nearest',behavior:'instant'});
+});
+for(const name of ['htmx:sendError','htmx:responseError','htmx:timeout']){
+ document.body.addEventListener(name,event=>{if(event.detail.elt?.matches('[data-assistant-compose]'))assistantSubmission=false;});
+}
+
+document.body.addEventListener('htmx:timeout', event => {
+ if(event.detail.elt?.matches('[data-assistant-compose]')) showError('The request timed out. Your draft is retained. Reload to check whether it was received before sending again.');
+});

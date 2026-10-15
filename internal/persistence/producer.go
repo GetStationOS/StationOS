@@ -294,6 +294,9 @@ func (p Producer) Begin(ctx context.Context, id, requestID, text string) error {
 				rows.Close()
 				return e
 			}
+			if role == "reasoning" {
+				continue
+			}
 			if role == "user" {
 				b, _ := json.Marshal(map[string]any{"role": "user", "content": value})
 				items = append(items, b)
@@ -313,7 +316,7 @@ func (p Producer) Begin(ctx context.Context, id, requestID, text string) error {
 	}
 	if status == "failed" {
 		// Include recent intent/outcome records even if a process died before its next checkpoint.
-		rows, e := tx.QueryContext(ctx, `SELECT role,text,url FROM (SELECT id,role,text,url FROM producer_messages WHERE conversation_id=? AND role!='user' ORDER BY id DESC LIMIT 30) ORDER BY id`, id)
+		rows, e := tx.QueryContext(ctx, `SELECT role,text,url FROM (SELECT id,role,text,url FROM producer_messages WHERE conversation_id=? AND role NOT IN ('user','reasoning') ORDER BY id DESC LIMIT 30) ORDER BY id`, id)
 		if e != nil {
 			return e
 		}

@@ -78,10 +78,11 @@ func (m Model) RespondStructured(ctx context.Context, model, key, instructions s
 	var text strings.Builder
 	for _, item := range v.Output {
 		var part struct {
-			Type      string `json:"type"`
-			ID        string `json:"call_id"`
-			Name      string `json:"name"`
-			Arguments string `json:"arguments"`
+			Type      string                        `json:"type"`
+			ID        string                        `json:"call_id"`
+			Name      string                        `json:"name"`
+			Arguments string                        `json:"arguments"`
+			Summary   []struct{ Type, Text string } `json:"summary"`
 			Content   []struct {
 				Type string `json:"type"`
 				Text string `json:"text"`
@@ -89,6 +90,13 @@ func (m Model) RespondStructured(ctx context.Context, model, key, instructions s
 		}
 		if e = json.Unmarshal(item, &part); e != nil {
 			return producer.Response{}, errors.New("Invalid assistant response")
+		}
+		if part.Type == "reasoning" {
+			for _, summary := range part.Summary {
+				if summary.Type == "summary_text" {
+					out.Reasoning += summary.Text + "\n"
+				}
+			}
 		}
 		if part.Type == "function_call" {
 			out.Calls = append(out.Calls, producer.Call{ID: part.ID, Name: part.Name, Arguments: []byte(part.Arguments)})
@@ -102,7 +110,7 @@ func (m Model) RespondStructured(ctx context.Context, model, key, instructions s
 		}
 	}
 	out.Text = text.String()
-	if len(out.Text) > 32000 {
+	if len(out.Text) > 32000 || len(out.Reasoning) > 32000 {
 		return producer.Response{}, errors.New("Assistant answer exceeds the limit")
 	}
 	return out, nil

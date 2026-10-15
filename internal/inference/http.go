@@ -90,6 +90,8 @@ func (c *Client) request(ctx context.Context, conn ai.Connection, key, method, p
 }
 
 type message struct {
+	Thinking   string     `json:"thinking,omitempty"`
+	Reasoning  string     `json:"reasoning_content,omitempty"`
 	Role       string     `json:"role"`
 	Content    string     `json:"content"`
 	ToolCalls  []wireCall `json:"tool_calls,omitempty"`
@@ -325,7 +327,11 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	if len(m.Content) > 32000 {
 		return producer.Response{}, errors.New("Provider answer exceeds limits")
 	}
-	out := producer.Response{Text: m.Content, Usage: usage}
+	reasoning := strings.Join(nonempty(m.Thinking, m.Reasoning), "\n\n")
+	if len(reasoning) > 32000 {
+		return producer.Response{}, errors.New("Provider reasoning exceeds limits")
+	}
+	out := producer.Response{Text: m.Content, Reasoning: reasoning, Usage: usage}
 	if m.Content != "" {
 		b, _ := json.Marshal(map[string]any{"role": "assistant", "content": m.Content})
 		out.Items = append(out.Items, b)
@@ -361,4 +367,14 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 		return producer.Response{}, errors.New("Provider returned no answer or tools")
 	}
 	return out, nil
+}
+
+func nonempty(values ...string) []string {
+	out := []string{}
+	for _, value := range values {
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
 }

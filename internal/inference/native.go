@@ -84,8 +84,8 @@ func (c *Client) anthropic(ctx context.Context, conn ai.Connection, key, model s
 	var v struct {
 		Stop    string `json:"stop_reason"`
 		Content []struct {
-			Type, ID, Name, Text string
-			Input                json.RawMessage
+			Type, ID, Name, Text, Thinking string
+			Input                          json.RawMessage
 		}
 		Usage producer.Usage
 	}
@@ -96,9 +96,12 @@ func (c *Client) anthropic(ctx context.Context, conn ai.Connection, key, model s
 		return producer.Response{}, errors.New("Anthropic response incomplete or refused")
 	}
 	text := ""
+	reasoning := ""
 	calls := []producer.Call{}
 	for _, b := range v.Content {
 		switch b.Type {
+		case "thinking":
+			reasoning += b.Thinking
 		case "text":
 			text += b.Text
 		case "tool_use":
@@ -112,7 +115,12 @@ func (c *Client) anthropic(ctx context.Context, conn ai.Connection, key, model s
 			}
 		}
 	}
-	return result(text, calls, v.Usage)
+	out, err := result(text, calls, v.Usage)
+	if len(reasoning) > 32000 {
+		return producer.Response{}, errors.New("Provider reasoning exceeds limits")
+	}
+	out.Reasoning = reasoning
+	return out, err
 }
 func (c *Client) gemini(ctx context.Context, conn ai.Connection, key, model string, messages []message, tools []producer.Tool, schema json.RawMessage) (producer.Response, error) {
 	system := []string{}
@@ -200,10 +208,12 @@ func (c *Client) gemini(ctx context.Context, conn ai.Connection, key, model stri
 		return producer.Response{}, errors.New("Gemini response incomplete or refused")
 	}
 	text := ""
+	reasoning := ""
 	signatures := map[string]string{}
 	calls := []producer.Call{}
 	for _, part := range v.Candidates[0].Content.Parts {
 		if part.Thought {
+			reasoning += part.Text
 			continue
 		}
 		text += part.Text
@@ -214,6 +224,10 @@ func (c *Client) gemini(ctx context.Context, conn ai.Connection, key, model stri
 		}
 	}
 	out, err := result(text, calls, producer.Usage{Input: v.Usage.Input, Output: v.Usage.Output})
+	if len(reasoning) > 32000 {
+		return producer.Response{}, errors.New("Provider reasoning exceeds limits")
+	}
+	out.Reasoning = reasoning
 	for i, raw := range out.Items {
 		var item map[string]any
 		_ = json.Unmarshal(raw, &item)

@@ -355,3 +355,13 @@ The server also manages action batch size. Valid batches run sequentially and sa
 A resumed producer setup should recover from measured saved configuration, including missing requested schedule periods and empty music pools. Producers should not have to diagnose repeated tool reads or restate saved requirements. Recovery remains bounded and must preserve completed shows and music choices; unresolved blockers must remain visible.
 
 A producer may name a station in a project-wide assistant chat without first selecting its workspace. Recovery must bind that station and requested work area rather than cycle through global discovery. Use available album titles and artist/track matches with musical knowledge for era requests; absence of a year field alone must not block setup. Report genuinely unavailable music or uncertain matches clearly.
+
+### Assistant conversation
+
+Show human messages on the right and agent responses on the left, oldest first.
+Keep actions, returned provider reasoning, task progress and measured activity
+inside the corresponding agent response. Provider reasoning uses an accessible
+expandable section; never infer missing reasoning or display opaque provider
+payloads. Background updates preserve the composer, focus and reading position;
+follow new content only when the reader is already near the bottom. Submission
+retains input on errors and returns focus to the composer after the response.

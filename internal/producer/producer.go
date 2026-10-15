@@ -125,6 +125,17 @@ func (s *Service) respondWithOptions(ctx context.Context, id, model, key, prompt
 			}
 		}
 		if err == nil {
+			if response.Reasoning != "" {
+				if e := s.Store.Append(ctx, id, Message{Role: "reasoning", Text: response.Reasoning}); e != nil {
+					return Response{}, e
+				}
+			}
+			// Intermediate commentary belongs to the same visible agent turn.
+			if len(response.Calls) > 0 && response.Text != "" {
+				if e := s.Store.Append(ctx, id, Message{Role: "assistant", Text: response.Text}); e != nil {
+					return Response{}, e
+				}
+			}
 			return response, nil
 		}
 		var temporary interface {
@@ -247,11 +258,13 @@ type Usage struct {
 	Output int `json:"output_tokens"`
 }
 type Response struct {
-	Notice string
-	Usage  Usage
-	Items  []Item
-	Calls  []Call
-	Text   string
+	// Reasoning contains only readable reasoning explicitly returned by the provider.
+	Reasoning string
+	Notice    string
+	Usage     Usage
+	Items     []Item
+	Calls     []Call
+	Text      string
 }
 type Model interface {
 	Respond(context.Context, string, string, string, []Item, []Tool) (Response, error)

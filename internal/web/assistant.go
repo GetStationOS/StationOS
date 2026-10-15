@@ -98,7 +98,7 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 			v.AssistantActivity = "The assistant has finished the work it can do. Reply with the information requested below."
 		} else if len(v.Conversation.Messages) > 0 {
 			v.AssistantState = "Finished"
-			v.AssistantActivity = "The assistant has finished this request. Review its reply and the completed actions below."
+			v.AssistantActivity = "The assistant has finished this request. Review the reply and completed actions in this response."
 		}
 	}
 	for _, message := range v.Conversation.Messages {
@@ -106,7 +106,22 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 		if message.Role == "assistant" {
 			rendered.HTML = assistantMarkdown(message.Text)
 		}
-		v.AssistantMessages = append(v.AssistantMessages, rendered)
+		if message.Role == "user" {
+			v.AssistantMessages = append(v.AssistantMessages, rendered)
+		} else {
+			last := len(v.AssistantMessages) - 1
+			if last < 0 || v.AssistantMessages[last].Role == "user" {
+				v.AssistantMessages = append(v.AssistantMessages, assistantMessage{Role: "assistant"})
+				last++
+			}
+			v.AssistantMessages[last].Parts = append(v.AssistantMessages[last].Parts, rendered)
+		}
+	}
+	if len(v.AssistantMessages) > 0 {
+		if v.AssistantMessages[len(v.AssistantMessages)-1].Role == "user" && v.AssistantState != "" {
+			v.AssistantMessages = append(v.AssistantMessages, assistantMessage{Role: "assistant"})
+		}
+		v.AssistantMessages[len(v.AssistantMessages)-1].Latest = true
 	}
 	if r.PathValue("id") != "" {
 		// Poll only the messages/status region, preserving the compose form and focus.
@@ -154,12 +169,17 @@ func (s *Server) assistantSend(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.PostForm.Get("conversation")
 	text := r.PostForm.Get("message")
+	requestID := r.PostForm.Get("request_id")
+	if !regexp.MustCompile(`^[a-f0-9]{32}$`).MatchString(requestID) {
+		q := r.URL.Query()
+		q.Set("conversation", id)
+		q.Set("station", r.PostForm.Get("station"))
+		r.URL.RawQuery = q.Encode()
+		r.URL.Path = "/producer/assistant"
+		s.assistantRender(w, r, text, "The message identifier expired. Your draft is retained; send it again.")
+		return
+	}
 	if id == "" {
-		requestID := r.PostForm.Get("request_id")
-		if !regexp.MustCompile(`^[a-f0-9]{32}$`).MatchString(requestID) {
-			http.Error(w, "Invalid message identifier; reload the page", 400)
-			return
-		}
 		stationID := r.PostForm.Get("station")
 		if stationID != "" {
 			if _, e := s.d.Stations.Get(r.Context(), stationID); e != nil {

@@ -1,7 +1,10 @@
 # Optional Linux LAN discovery: use with compose.yaml, never on its own.
 # Requires Docker Compose 2.24.4+ for !reset. Retains the same named data volume.
+# Keep site-specific settings in .env; see .env.example and README.md.
 services:
   stationos:
     network_mode: host
     ports: !reset []
-    command: ["-listen", "127.0.0.1:8080", "-db", "/data/stationos.db", "-public-url", "${STATIONOS_PUBLIC_URL:-}"]
+    command: ["-listen", "${STATIONOS_LISTEN_ADDRESS:-127.0.0.1:8080}", "-db", "/data/stationos.db", "-public-url", "${STATIONOS_PUBLIC_URL:-}"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://${STATIONOS_LISTEN_ADDRESS:-127.0.0.1:8080}/readyz"]

@@ -1,6 +1,7 @@
 services:
   stationos:
     build: .
+    command: ["-listen", "0.0.0.0:8080", "-db", "/data/stationos.db", "-public-url", "${STATIONOS_PUBLIC_URL:-}"]
     ports:
       - "127.0.0.1:8080:8080"
     environment:

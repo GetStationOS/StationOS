@@ -253,4 +253,29 @@ Open **Sources → Add source**. StationOS searches its local network and lists 
 
 Search uses IPv4 SSDP multicast, as defined by the [UPnP device architecture](https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf). The server running StationOS must be able to send multicast searches and receive UDP replies on the music server’s network. The default Docker bridge may not carry LAN SSDP traffic; manually entered URLs continue to work.
 
-For Linux Docker hosts, `compose.discovery.yaml` is an optional host-network override, used alongside `compose.yaml`. It removes published port mappings and binds StationOS HTTP to `127.0.0.1:8080`, retaining the same data volume. Set `STATIONOS_PUBLIC_URL` to your existing HTTPS proxy origin when using that override. Keep both Compose files selected for subsequent operations. The override uses `!reset` and needs Docker Compose 2.24.4 or later. See [Docker host networking](https://docs.docker.com/engine/network/drivers/host/) and [Compose merge rules](https://docs.docker.com/reference/compose-file/merge/). Host networking changes container network isolation and is opt-in; it is not enabled by the application. IPv6 discovery and discovery across routed networks are not implemented.
+For Linux Docker hosts, `compose.discovery.yaml` is an optional host-network override used alongside `compose.yaml`. It removes published port mappings and retains the same named data volume. The override uses `!reset` and needs Docker Compose 2.24.4 or later. See [Docker host networking](https://docs.docker.com/engine/network/drivers/host/) and [Compose merge rules](https://docs.docker.com/reference/compose-file/merge/). Host networking is opt-in. IPv6 discovery and discovery across routed networks are not implemented.
+
+### Persistent deployment settings
+
+Keep installation-specific settings in the project directory’s **`.env`** file, which Git ignores. Use `.env.example` as a reference for new installations; on an existing installation, edit the existing `.env` and preserve its password and other settings. Do not edit tracked Compose files to store an address. The same repository can then be deployed to another server with different `.env` values.
+
+| Setting | Purpose |
+| --- | --- |
+| `COMPOSE_FILE` | `compose.yaml` for standard Docker networking; `compose.yaml:compose.discovery.yaml` for Linux LAN discovery. Saving this selects the correct files for future ordinary Compose commands. |
+| `STATIONOS_LISTEN_ADDRESS` | In discovery mode, the StationOS host’s address and port. Defaults to `127.0.0.1:8080`. Use its LAN address when the proxy connects from another machine or network namespace. The health check uses the same address. |
+| `STATIONOS_PUBLIC_URL` | The public HTTPS origin, such as `https://radio.example.com`, without a path. Used in both networking modes for proxied writes and advertised links. |
+| `STATIONOS_ADMIN_PASSWORD` | Your existing management password. Blank disables login. |
+
+For example, a Linux StationOS host with a separate reverse proxy could have these networking entries in `.env` (replace the example address and hostname with the deployment’s actual values):
+
+```dotenv
+COMPOSE_FILE=compose.yaml:compose.discovery.yaml
+STATIONOS_LISTEN_ADDRESS=192.168.1.20:8080
+STATIONOS_PUBLIC_URL=https://radio.example.com
+```
+
+`127.0.0.1` is only reachable within the StationOS host’s network namespace. A proxy on a separate server/VM/container must use a reachable address, and StationOS must listen on that address. A loopback-only listener in host mode can cause a proxy using the LAN address to return 502. In standard bridge mode, StationOS continues to listen on the container’s port 8080 and publishes it to host loopback; `STATIONOS_LISTEN_ADDRESS` is specific to the discovery override.
+
+Run Compose from the same project directory. With `COMPOSE_FILE` saved, the normal update command remains `sudo docker compose up --build -d`; no repeated `-f` flags or shell-only environment settings are needed. Explicit `-f` flags override `COMPOSE_FILE`, so avoid selecting only `compose.yaml` on a discovery-enabled deployment. Keep the project name/directory stable to retain the existing named volume. Ordinary pulls and rebuilds preserve `.env`; deploy tools that replace the whole directory must preserve or recreate `.env` and retain the volume.
+
+When upgrading an installation whose `compose.discovery.yaml` was edited locally, first record its actual address and public origin in `.env`. Then restore only that tracked Compose file before pulling the updated parameterised version. Do not discard unrelated changes or overwrite `.env`. Keep `.env` private and back it up separately from Git.

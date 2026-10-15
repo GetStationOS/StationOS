@@ -60,3 +60,70 @@ func TestCompactionPreservesSummaryAndUnansweredToolCalls(t *testing.T) {
 		t.Fatal("essential content was silently dropped", string(raw))
 	}
 }
+
+func TestMaximumOutputSettingAdaptsWithoutDroppingRequirements(t *testing.T) {
+	for _, kind := range []string{"ollama", "compatible", "anthropic", "gemini"} {
+		t.Run(kind, func(t *testing.T) {
+			brief := "Full human brief: " + strings.Repeat("Keep every requested programme and presenter. ", 650)
+			sent := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				sent++
+				raw, _ := io.ReadAll(r.Body)
+				if !strings.Contains(string(raw), brief) {
+					t.Error("requirements were trimmed")
+				}
+				var body map[string]json.RawMessage
+				json.Unmarshal(raw, &body)
+				var output int
+				switch kind {
+				case "ollama":
+					var options struct {
+						Output int `json:"num_predict"`
+					}
+					json.Unmarshal(body["options"], &options)
+					output = options.Output
+				case "compatible", "anthropic":
+					json.Unmarshal(body["max_tokens"], &output)
+				case "gemini":
+					var options struct {
+						Output int `json:"maxOutputTokens"`
+					}
+					json.Unmarshal(body["generationConfig"], &options)
+					output = options.Output
+				}
+				if output < 256 || output >= 8192 {
+					t.Errorf("output ceiling not adapted: %d", output)
+				}
+				switch kind {
+				case "ollama":
+					io.WriteString(w, `{"done":true,"message":{"content":"Next small step"}}`)
+				case "compatible":
+					io.WriteString(w, `{"choices":[{"finish_reason":"stop","message":{"content":"Next small step"}}]}`)
+				case "anthropic":
+					io.WriteString(w, `{"stop_reason":"end_turn","content":[{"type":"text","text":"Next small step"}]}`)
+				case "gemini":
+					io.WriteString(w, `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"Next small step"}]}}]}`)
+				}
+			}))
+			defer server.Close()
+			conn := connection(kind, server.URL)
+			conn.OutputTokens = 8192
+			_, err := NewClient().chat(context.Background(), conn, "", "model", brief, nil, nil, nil, false)
+			if err != nil || sent != 1 || conn.OutputTokens != 8192 {
+				t.Fatal("max-output request failed or settings mutated", sent, err)
+			}
+		})
+	}
+}
+
+func TestEssentialContextOverflowNeverDispatchesOrDropsHumanRequest(t *testing.T) {
+	sent := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { sent++ }))
+	defer server.Close()
+	conn := connection("ollama", server.URL)
+	conn.OutputTokens = 8192
+	_, err := NewClient().chat(context.Background(), conn, "", "model", strings.Repeat("Human requirements ", 4000), nil, nil, nil, false)
+	if err == nil || sent != 0 {
+		t.Fatal("oversized essential request dispatched", sent, err)
+	}
+}

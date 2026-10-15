@@ -420,7 +420,7 @@ a configurable 15–600 second response deadline (180 seconds for private/native
 connections; existing OpenAI requests retain their 60-second limit), cancellation, a 1 MiB response bound, and configured context/output
 budgets (default 16384/2048, context range 2048–32768). Input token counts are
 estimated at three UTF-8 bytes per token, including tools; essential requirements
-are never trimmed to fit. For assistant conversations, completed tool results are reduced to exact outcome/identity references, while original human messages, the approved proposal, current summary and task instructions remain protected. This runs before dispatch against the endpoint budget, including tool schemas and reserved output. Overflow of the essential minimum still pauses explicitly.
+are never trimmed to fit. For assistant conversations, completed tool results are reduced to exact outcome/identity references, while original human messages, the approved proposal, current summary and task instructions remain protected. This runs before dispatch against the endpoint budget, including tool schemas and reserved output. The configured output limit is a ceiling: after removing optional completed read results, the assistant reduces the per-request output allowance if needed to fit protected requirements, approved proposals, summaries and committed-action outcomes. It reserves a small framing margin when adapting, never changes the saved endpoint configuration, and still pauses if the essential minimum cannot fit alongside a 256-token reply.
 Ollama responses at the reserved input boundary are rejected before tool execution.
 Exact tokenizer-independent preflight counts are not available for every provider.
 Local curation offers at most 64 compact candidates per preparation, identified by short request-local references. The response schema enumerates exactly these references; validation rejects unavailable or repeated choices before mapping them back to catalogue IDs. A completed local plan with invalid choices receives at most one corrective text request within the existing preparation deadline. Transport failures, incomplete responses and invalid JSON are not replayed, and speech starts only after validation. Music reads
@@ -454,8 +454,10 @@ cloud fallback. For DJ planning, spoken-link writing and local audience review,
 Ollama's bounded, cached `/api/show` metadata determines whether `think:false` is
 supported. It is sent only when explicitly advertised; other thinking controls
 are never guessed. Spoken-link/review output is capped at 512 tokens or the smaller
-connection limit. Producer assistant thinking remains at the selected model's
-default. Frozen version 23 and 24 fixtures verify both historical upgrades.
+connection limit. Producer assistant thinking normally remains at the selected model's
+default. After a confirmed output-limit interruption, recovery requests ask for
+thinking to be disabled only if the model explicitly advertises support for
+`false`; unsupported controls are omitted. Frozen version 23 and 24 fixtures verify both historical upgrades.
 
 
 Live inference admission is sized against the same bounded connection deadline
@@ -482,7 +484,7 @@ After a successful measured summary, earlier detailed catalogue pages are remove
 
 Assistant-created show pools use the programme name or musical identity and a description of their intended music, rather than day-only or generic time-slot labels. Recurring broadcasts reuse the same pool; distinct editorial requirements should be reflected in verified eligibility, not merely different names for identical genre rules. Suitable existing pools remain reusable across shows.
 
-After successful show creation, editing or deletion, the producer runner reads the affected stations’ saved schedules before accepting a final answer and sends the measured readback for comparison with the original brief. Show tool results include Monday-based day names and formatted local times. This enforces readback; assessing natural-language requirements still depends on the model.
+After successful show creation, editing or deletion, the producer runner reads the affected stations’ saved schedules before accepting a final answer and sends the measured readback for comparison with the original brief. Show tool results include Monday-based day names and formatted local times. The mandatory readback groups recurring editions with identical programme, presenter, music pool and local times, preserving each edition’s exact saved ID and weekday without repeating full row metadata. Different times or assignments never merge. This enforces readback; assessing natural-language requirements still depends on the model.
 
 ### UPnP source discovery
 
@@ -493,3 +495,7 @@ SSDP LOCATION values must use the existing HTTP(S)/port policy. Description DNS 
 The authenticated `/producer/sources/discover` route returns a quiet HTMX fragment for the Add source page. It preserves the form and URL. Selecting a result fills the editable fields; ordinary GET forms provide a no-JavaScript fallback. Saving remains a separate CSRF-protected action. IPv6 SSDP discovery is not implemented; manual description URLs remain available.
 
 Discovery needs local multicast reachability from StationOS itself. Docker bridge networks commonly isolate SSDP from the LAN; an optional Linux host-network override is provided in `compose.discovery.yaml`. It preserves the named data volume. The installation’s Git-ignored `.env` selects the Compose files through `COMPOSE_FILE` and provides `STATIONOS_LISTEN_ADDRESS` (loopback by default) and `STATIONOS_PUBLIC_URL`. The discovery override uses the same listening address for its health check, including when a separate proxy requires a LAN-bound listener. The standard bridge configuration also receives the configured public URL. This keeps site addresses out of tracked configuration and preserves discovery mode through ordinary rebuilds. Host networking is never activated automatically. Manual source URLs work with the default bridge deployment.
+
+### Assistant output-limit recovery
+
+A completed local/native response that explicitly reports output truncation becomes `producer.ErrOutputLimit`, retaining usage counts but exposing no text, items or tool calls for execution. The runner may continue the same saved task with small-step instructions at most twice per run. It checkpoints the existing brief and successful outcomes, never the truncated response, and uses supported recovery generation options through an optional model port. Repeated truncation pauses with the original request intact. HTTP failures, timeouts, malformed/incomplete responses without a confirmed output-limit finish, and live DJ structured responses do not use this recovery path. This is a fresh bounded assistant turn with smaller-step guidance, not a replay of an HTTP request or mutation. Catalogue summaries and exact committed entity references remain protected during budget fitting.

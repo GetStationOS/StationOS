@@ -41,6 +41,10 @@ func (r *Router) selection(ctx context.Context, role string) (ai.Selection, ai.C
 func (r *Router) Respond(ctx context.Context, model, _, prompt string, input []producer.Item, tools []producer.Tool) (producer.Response, error) {
 	return r.respond(ctx, "assistant", model, prompt, input, tools, nil, ai.GenerationOptions{})
 }
+func (r *Router) RespondWithOptions(ctx context.Context, model, _, prompt string, input []producer.Item, tools []producer.Tool, options ai.GenerationOptions) (producer.Response, error) {
+	return r.respond(ctx, "assistant", model, prompt, input, tools, nil, options)
+}
+
 func (r *Router) respond(ctx context.Context, role, model, prompt string, input []producer.Item, tools []producer.Tool, schema json.RawMessage, options ai.GenerationOptions) (producer.Response, error) {
 	_, c, key, err := r.selection(ctx, role)
 	if err != nil {

@@ -86,6 +86,9 @@ func (c *Client) anthropic(ctx context.Context, conn ai.Connection, key, model s
 		}
 		Usage producer.Usage
 	}
+	if json.Unmarshal(raw, &v) == nil && v.Stop == "max_tokens" {
+		return producer.Response{Usage: v.Usage}, producer.ErrOutputLimit
+	}
 	if json.Unmarshal(raw, &v) != nil || (v.Stop != "end_turn" && v.Stop != "tool_use") {
 		return producer.Response{}, errors.New("Anthropic response incomplete or refused")
 	}
@@ -186,6 +189,9 @@ func (c *Client) gemini(ctx context.Context, conn ai.Connection, key, model stri
 			Input  int `json:"promptTokenCount"`
 			Output int `json:"candidatesTokenCount"`
 		} `json:"usageMetadata"`
+	}
+	if json.Unmarshal(raw, &v) == nil && len(v.Candidates) == 1 && v.Candidates[0].Finish == "MAX_TOKENS" {
+		return producer.Response{Usage: producer.Usage{Input: v.Usage.Input, Output: v.Usage.Output}}, producer.ErrOutputLimit
 	}
 	if json.Unmarshal(raw, &v) != nil || len(v.Candidates) != 1 || v.Candidates[0].Finish != "STOP" {
 		return producer.Response{}, errors.New("Gemini response incomplete or refused")

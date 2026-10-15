@@ -194,16 +194,17 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	for _, t := range tools {
 		functions = append(functions, map[string]any{"type": "function", "function": map[string]any{"name": t.Name, "description": t.Description, "parameters": t.Parameters}})
 	}
-	rawMessages, _ := json.Marshal(msgs)
 	rawTools, _ := json.Marshal(functions)
-	// Compact only completed assistant history, before any provider request.
-	maximum := (conn.ContextTokens - conn.OutputTokens) * 3
-	if !live && len(rawMessages)+len(rawTools) > maximum {
-		msgs = compactAssistantContext(msgs, maximum-len(rawTools))
-		rawMessages, _ = json.Marshal(msgs)
-	}
-	if len(rawMessages)+len(rawTools) > maximum {
-		return producer.Response{}, errors.New("The endpoint context budget cannot fit the full requirements, latest plan and tools. Original requirements remain saved; increase the endpoint context budget")
+	if !live {
+		msgs, conn.OutputTokens, err = fitAssistantBudget(msgs, len(rawTools), conn)
+		if err != nil {
+			return producer.Response{}, err
+		}
+	} else {
+		rawMessages, _ := json.Marshal(msgs)
+		if len(rawMessages)+len(rawTools) > (conn.ContextTokens-conn.OutputTokens)*3 {
+			return producer.Response{}, errors.New("The endpoint context budget cannot fit the full requirements and tools")
+		}
 	}
 	queueWait := conn.QueueTimeout(live)
 	queueCtx, queueCancel := context.WithTimeout(ctx, queueWait)
@@ -282,15 +283,21 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 		if v.PromptCount >= conn.ContextTokens-conn.OutputTokens {
 			return producer.Response{Usage: usage}, errors.New("Local input reached its context budget; response was rejected to preserve complete requirements")
 		}
-		if !v.Done || v.DoneReason == "length" {
-			return producer.Response{Usage: usage}, errors.New("Local response incomplete: output limit reached")
+		if !v.Done {
+			return producer.Response{Usage: usage}, errors.New("Local response incomplete: provider did not finish the response")
+		}
+		if v.DoneReason == "length" {
+			return producer.Response{Usage: usage}, producer.ErrOutputLimit
 		}
 	} else {
+		usage = producer.Usage{Input: v.Usage.Input, Output: v.Usage.Output}
+		if len(v.Choices) == 1 && v.Choices[0].Finish == "length" {
+			return producer.Response{Usage: usage}, producer.ErrOutputLimit
+		}
 		if len(v.Choices) != 1 || (v.Choices[0].Finish != "stop" && v.Choices[0].Finish != "tool_calls") {
-			return producer.Response{}, errors.New("Compatible response incomplete or refused")
+			return producer.Response{Usage: usage}, errors.New("Compatible response incomplete or refused")
 		}
 		m = v.Choices[0].Message
-		usage = producer.Usage{Input: v.Usage.Input, Output: v.Usage.Output}
 	}
 	if len(m.ToolCalls) > 16 || len(m.Content) > 32000 {
 		return producer.Response{}, errors.New("Provider answer exceeds limits")

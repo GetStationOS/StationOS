@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/persistence"
@@ -24,11 +25,15 @@ type partialRecoveryModel struct {
 	recovered                    bool
 	firstFocus                   bool
 	contextFailure, failedBudget bool
+	inputFailure                 bool
 }
 
 func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, input []producer.Item, tools []producer.Tool) (producer.Response, error) {
 	if m.contextFailure && !m.failedBudget {
 		m.failedBudget = true
+		if m.inputFailure {
+			return producer.Response{Usage: producer.Usage{Input: 16384, Output: 457}}, producer.ErrInputContextLimit
+		}
 		return producer.Response{}, producer.ErrContextBudget
 	}
 	n := m.n
@@ -90,7 +95,8 @@ func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
 	for _, scenario := range []struct {
 		name            string
 		focused, budget bool
-	}{{"mid_run_stall", false, false}, {"stalled_resume", true, false}, {"context_recovery", false, true}} {
+		input           bool
+	}{{"mid_run_stall", false, false, false}, {"stalled_resume", true, false, false}, {"context_recovery", false, true, false}, {"reported_input_overflow", false, true, true}} {
 		focused := scenario.focused
 		t.Run(scenario.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -109,7 +115,7 @@ func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
 				t.Fatal(err)
 			}
 			_ = store.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "test-key"})
-			model := &partialRecoveryModel{t: t, station: owner.ID, pool: pool.ID, dj: dj.ID, firstFocus: focused || scenario.budget, contextFailure: scenario.budget}
+			model := &partialRecoveryModel{t: t, station: owner.ID, pool: pool.ID, dj: dj.ID, firstFocus: focused || scenario.budget, contextFailure: scenario.budget, inputFailure: scenario.input}
 			svc, err := producer.New(ctx, store, r, model)
 			if err != nil {
 				t.Fatal(err)
@@ -273,5 +279,61 @@ func TestFocusedRecoveryRejectsUnofferedWritesAndChecklistLoops(t *testing.T) {
 	last := c.Messages[len(c.Messages)-1].Text
 	if !strings.Contains(last, "Most frequent checks: list_voices") || strings.Contains(last, "use Continue to resume") {
 		t.Fatal("missing actionable stall diagnosis", last)
+	}
+}
+
+// Even before a station has been bound, an actual input rejection receives only
+// one compacted retry. Calls attached to a rejected response must never run.
+type rejectedInputModel struct {
+	t     *testing.T
+	calls int
+}
+
+func (m *rejectedInputModel) Respond(context.Context, string, string, string, []producer.Item, []producer.Tool) (producer.Response, error) {
+	m.t.Fatal("options-aware response path was bypassed")
+	return producer.Response{}, nil
+}
+
+func (m *rejectedInputModel) RespondWithOptions(_ context.Context, _, _, _ string, _ []producer.Item, tools []producer.Tool, options ai.GenerationOptions) (producer.Response, error) {
+	m.calls++
+	if m.calls == 2 {
+		if !options.CompactContext {
+			m.t.Error("recovery did not request compacted context")
+		}
+		for _, tool := range tools {
+			if tool.Name != "select_work_step" && tool.Name != "save_task_progress" {
+				m.t.Errorf("unfocused recovery tool: %s", tool.Name)
+			}
+		}
+	}
+	return producer.Response{Calls: []producer.Call{{ID: "unsafe", Name: "save_station", Arguments: json.RawMessage(`{"name":"Must not exist"}`)}}}, producer.ErrInputContextLimit
+}
+
+func TestUnboundInputContextRecoveryIsBoundedAndCannotExecuteRejectedCalls(t *testing.T) {
+	ctx := context.Background()
+	store, registry, stations, _, _, _ := fixture(t)
+	if err := store.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "test-key"}); err != nil {
+		t.Fatal(err)
+	}
+	model := &rejectedInputModel{t: t}
+	svc, err := producer.New(ctx, store, registry, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	id, err := svc.Create(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Start(ctx, id, producer.ID(), "Create a jazz station"); err != nil {
+		t.Fatal(err)
+	}
+	conversation := waitDone(t, store, id)
+	if conversation.Status != "failed" || model.calls != 2 {
+		t.Fatalf("recovery was not bounded: %s, %d requests", conversation.Status, model.calls)
+	}
+	saved, err := stations.List(ctx)
+	if err != nil || len(saved) != 0 {
+		t.Fatal("rejected response changed configuration", saved, err)
 	}
 }

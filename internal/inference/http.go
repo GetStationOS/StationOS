@@ -196,6 +196,9 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	}
 	rawTools, _ := json.Marshal(functions)
 	if !live {
+		if options.CompactContext {
+			msgs = compactAssistantContextMode(msgs, (conn.ContextTokens-256-128)*3-len(rawTools), true)
+		}
 		msgs, conn.OutputTokens, err = fitAssistantBudget(msgs, len(rawTools), conn)
 		if err != nil {
 			return producer.Response{}, err
@@ -246,6 +249,12 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	}
 	if conn.Type == "ollama" {
 		path = "/api/chat"
+		if !live {
+			// Ask Ollama to reject overflow rather than silently removing input
+			// messages or shifting away requirements during generation.
+			body["truncate"] = false
+			body["shift"] = false
+		}
 		if options.DisableThinking && c.canDisableThinking(ctx, conn, key, model) {
 			body["think"] = false
 		}
@@ -261,6 +270,10 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	}
 	raw, err := c.request(ctx, conn, key, "POST", path, body)
 	if err != nil {
+		var status *HTTPError
+		if conn.Type == "ollama" && errors.As(err, &status) && status.StatusCode == 413 {
+			return producer.Response{}, producer.ErrInputContextLimit
+		}
 		if errors.Is(err, context.DeadlineExceeded) {
 			return producer.Response{}, fmt.Errorf("Provider response for model %q exceeded its deadline; generation was not automatically replayed: %w", model, err)
 		}
@@ -287,8 +300,8 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	m := v.Message
 	usage := producer.Usage{Input: v.PromptCount, Output: v.Count}
 	if conn.Type == "ollama" {
-		if v.PromptCount >= conn.ContextTokens-conn.OutputTokens {
-			return producer.Response{Usage: usage}, errors.New("Local input reached its context budget; response was rejected to preserve complete requirements")
+		if v.PromptCount >= conn.ContextTokens {
+			return producer.Response{Usage: usage}, producer.ErrInputContextLimit
 		}
 		if !v.Done {
 			return producer.Response{Usage: usage}, errors.New("Local response incomplete: provider did not finish the response")

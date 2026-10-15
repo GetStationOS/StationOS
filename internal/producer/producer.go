@@ -31,6 +31,10 @@ var ErrOutputLimit = errors.New("The assistant reached its reply limit before co
 // ErrContextBudget is a pre-dispatch failure; no response or tool call ran.
 var ErrContextBudget = errors.New("The endpoint context budget cannot fit the saved requirements and tools even with a short reply. Original requirements remain saved; increase the endpoint context budget")
 
+// ErrInputContextLimit rejects a provider reply whose full input window is unsafe.
+// It exposes usage only; no response text or tool calls may be executed.
+var ErrInputContextLimit = errors.New("Local input reached the full context window; response was discarded before tool execution")
+
 // ErrToolBatchLimit rejects an entire oversized reply before any action runs.
 var ErrToolBatchLimit = errors.New("The assistant returned an oversized action batch")
 var ErrBusy = errors.New("The assistant is already working. Wait for it to finish.")
@@ -456,24 +460,27 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		if err == nil && len(response.Calls) > MaxToolCalls {
 			err = ErrToolBatchLimit
 		}
-		if errors.Is(err, ErrContextBudget) && ctx.Err() == nil && !budgetRecovery && len(task.Remaining) > 0 && len(reviewStations) > 0 {
+		if (errors.Is(err, ErrContextBudget) || errors.Is(err, ErrInputContextLimit)) && ctx.Err() == nil && !budgetRecovery {
 			budgetRecovery = true
-			review, nextFocus, reviewErr := s.configurationReview(ctx, reviewStations, true)
-			if reviewErr != nil {
-				fail("The saved configuration could not be read for context recovery. Completed work remains saved.")
-				return
-			}
-			if nextFocus != "" {
-				focus = nextFocus
-				focusReads = map[string]int{}
-				input = append(input, review)
-				input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Context recovery: the previous request was rejected before dispatch. No actions ran. Only tools for the next unfinished configuration area are offered now. Use saved references and the original brief for one small next action; do not repeat the full plan."}))
-				if err := checkpoint(); err != nil {
-					fail("The context recovery checkpoint could not be saved. Completed work remains saved.")
+			generationOptions.CompactContext = true
+			focus = "choose"
+			if len(reviewStations) > 0 && len(task.Remaining) > 0 {
+				review, nextFocus, reviewErr := s.configurationReview(ctx, reviewStations, true)
+				if reviewErr != nil {
+					fail("The saved configuration could not be read for context recovery. Completed work remains saved.")
 					return
 				}
-				continue
+				if nextFocus != "" {
+					focus = nextFocus
+				}
+				input = append(input, review)
 			}
+			input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Context recovery: the previous request or response could not be used safely. No actions from it ran. Only tools for one next work area are offered. Use select_work_step if needed, preserve the original brief and saved references, and make one small next action without restating the full plan."}))
+			if err := checkpoint(); err != nil {
+				fail("The context recovery checkpoint could not be saved. Completed work remains saved.")
+				return
+			}
+			continue
 		}
 		if errors.Is(err, ErrOutputLimit) && ctx.Err() == nil && outputRecoveries < 2 {
 			outputRecoveries++

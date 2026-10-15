@@ -36,6 +36,7 @@ type Store interface {
 type GenerationOptions struct {
 	MaxOutputTokens int
 	DisableThinking bool
+	CompactContext  bool
 }
 type TextRequest struct {
 	Options                          GenerationOptions

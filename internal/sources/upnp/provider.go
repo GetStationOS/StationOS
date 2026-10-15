@@ -25,6 +25,7 @@ const maxXML = 4 << 20
 var directoryType = regexp.MustCompile(`^urn:schemas-upnp-org:service:ContentDirectory:[1-9][0-9]*$`)
 
 type device struct {
+	FriendlyName string    `xml:"friendlyName"`
 	Manufacturer string    `xml:"manufacturer"`
 	Model        string    `xml:"modelName"`
 	Services     []service `xml:"serviceList>service"`

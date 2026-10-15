@@ -32,7 +32,7 @@ func (fakeSource) Get(context.Context, string) (content.AudioItem, error) {
 func (fakeSource) Resolve(context.Context, string) ([]content.Resource, error) {
 	return nil, sources.ErrUnsupported
 }
-func setupWeb(t *testing.T, password string) (http.Handler, persistence.Stations, persistence.Sources, persistence.Catalogue) {
+func setupWeb(t *testing.T, password string, discovery ...sources.Discoverer) (http.Handler, persistence.Stations, persistence.Sources, persistence.Catalogue) {
 	t.Helper()
 	db, err := persistence.Open(context.Background(), ":memory:")
 	if err != nil {
@@ -48,7 +48,11 @@ func setupWeb(t *testing.T, password string) (http.Handler, persistence.Stations
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := New(Dependencies{Mixer: persistence.Mixer{DB: db}, Schedule: persistence.Schedule{DB: db}, DJs: djsRepo, Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Password: password, Logger: logger})
+	var discoverer sources.Discoverer
+	if len(discovery) > 0 {
+		discoverer = discovery[0]
+	}
+	h, err := New(Dependencies{SourceDiscovery: discoverer, Mixer: persistence.Mixer{DB: db}, Schedule: persistence.Schedule{DB: db}, DJs: djsRepo, Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Password: password, Logger: logger})
 	if err != nil {
 		t.Fatal(err)
 	}

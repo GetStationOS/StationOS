@@ -44,6 +44,7 @@ type Dependencies struct {
 	BroadcastConfig broadcast.Repository
 	PublicURL       string
 	Stations        station.Repository
+	SourceDiscovery sources.Discoverer
 	Sources         sources.Repository
 	Catalogue       catalogue.Repository
 	Playlists       playlists.Repository
@@ -153,6 +154,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /producer/djs/{id}/delete", s.deleteDJ)
 	mux.HandleFunc("GET /producer/sources", s.page)
 	mux.HandleFunc("GET /producer/sources/new", s.page)
+	mux.HandleFunc("GET /producer/sources/discover", s.discoverSources)
 	mux.HandleFunc("GET /producer/sources/{id}", s.sourcePage)
 	mux.HandleFunc("GET /producer/sources/{id}/settings", s.sourcePage)
 	mux.HandleFunc("GET /producer/content", s.page)
@@ -363,6 +365,16 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 func (s *Server) saveSource(w http.ResponseWriter, r *http.Request) {
 	c := sources.Config{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Kind: "upnp", Endpoint: r.PostForm.Get("endpoint")}
 	if err := c.Validate(); err != nil {
+		if c.ID == "" {
+			v, viewErr := s.baseView(r)
+			if viewErr != nil {
+				s.fail(w, viewErr)
+				return
+			}
+			v.Page, v.Title, v.Source, v.SourceError = "/producer/sources/new", "Add source", c, err.Error()
+			s.render(w, r, v)
+			return
+		}
 		http.Error(w, err.Error(), 400)
 		return
 	}

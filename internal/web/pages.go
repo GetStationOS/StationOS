@@ -264,6 +264,9 @@ type view struct {
 	BroadcastEnabled                                                                                     bool
 	Source                                                                                               sources.Config
 	SourceTab, SourceHost                                                                                string
+	SourceDiscoveries                                                                                    []discoveredSource
+	SourceDiscoveryError, SourceError                                                                    string
+	SourceDiscoveryAttempted                                                                             bool
 	SourceAlbums                                                                                         int
 	SourceCards                                                                                          []sourceCard
 	TargetPlaylist                                                                                       playlists.Playlist
@@ -435,6 +438,11 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		v.Title = "Create a station"
 	case "/producer/sources/new":
 		v.Title = "Add source"
+		v.Source.Name = r.URL.Query().Get("name")
+		v.Source.Endpoint = r.URL.Query().Get("endpoint")
+		if r.URL.Query().Get("discover") == "1" {
+			s.findSources(r.Context(), &v)
+		}
 	case "/producer/sources":
 		v.Title = "Sources"
 	case "/producer/content":

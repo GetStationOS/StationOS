@@ -63,7 +63,7 @@ export STATIONOS_ADMIN_PASSWORD='choose-a-strong-password'
 docker compose up --build -d
 ```
 
-Open http://127.0.0.1:8080. When `STATIONOS_ADMIN_PASSWORD` is set to a non-empty value, sign in as `admin` with that password. If the variable is unset or empty, authentication is disabled and the management UI and API are accessible without login. Compose publishes to host loopback and retains `/data` in a named volume. The runtime runs as a non-root user. Container health checks use readiness. UPnP access uses outbound HTTP to the configured server; SSDP and host networking are not required by this milestone. Docker Desktop/container networking must be able to reach that server.
+Open http://127.0.0.1:8080. When `STATIONOS_ADMIN_PASSWORD` is set to a non-empty value, sign in as `admin` with that password. If the variable is unset or empty, authentication is disabled and the management UI and API are accessible without login. Compose publishes to host loopback and retains `/data` in a named volume. The runtime runs as a non-root user. Container health checks use readiness. Configured UPnP sources use outbound HTTP. Automatic server discovery additionally needs local SSDP multicast reachability; see the discovery deployment notes below. Docker Desktop/container networking must be able to reach that server.
 
 The password is optional for local execution too, including when binding beyond loopback:
 
@@ -246,3 +246,11 @@ DJ status reports speech and music curation separately. “Speech ready” can a
 Assistant uses horizontal tabs: **Chats**, **Models for features** and **Manage endpoints**. Enter an endpoint’s provider/address and save it. StationOS checks the connection and discovers its models automatically before saving; failures display an error and preserve the existing configuration. Then assign providers and discovered models to each feature; manual IDs remain available. Discovery does not generate or download models.
 
 The producer assistant starts catalogue exploration with measured summaries (counts, genre/artist coverage and known duration), rather than sending the library to the model. Targeted recording searches default to five results, capped at 20. A successful summary releases older detailed pages from working context. Local conversations compact completed tool results against the selected endpoint’s context budget while keeping human requirements and the approved plan.
+
+### Find UPnP music servers automatically
+
+Open **Sources → Add source**. StationOS searches its local network and lists verified music servers. **Use server** fills the name and description address; review them and select **Add source**. Discovery does not save or import anything. Servers already configured are labelled **Already added**. If search is unavailable or finds nothing, enter the description URL manually. Without JavaScript, use **Search for music servers** and the same selection form.
+
+Search uses IPv4 SSDP multicast, as defined by the [UPnP device architecture](https://upnp.org/specs/arch/UPnP-arch-DeviceArchitecture-v1.1.pdf). The server running StationOS must be able to send multicast searches and receive UDP replies on the music server’s network. The default Docker bridge may not carry LAN SSDP traffic; manually entered URLs continue to work.
+
+For Linux Docker hosts, `compose.discovery.yaml` is an optional host-network override, used alongside `compose.yaml`. It removes published port mappings and binds StationOS HTTP to `127.0.0.1:8080`, retaining the same data volume. Set `STATIONOS_PUBLIC_URL` to your existing HTTPS proxy origin when using that override. Keep both Compose files selected for subsequent operations. The override uses `!reset` and needs Docker Compose 2.24.4 or later. See [Docker host networking](https://docs.docker.com/engine/network/drivers/host/) and [Compose merge rules](https://docs.docker.com/reference/compose-file/merge/). Host networking changes container network isolation and is opt-in; it is not enabled by the application. IPv6 discovery and discovery across routed networks are not implemented.

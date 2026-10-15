@@ -483,3 +483,13 @@ After a successful measured summary, earlier detailed catalogue pages are remove
 Assistant-created show pools use the programme name or musical identity and a description of their intended music, rather than day-only or generic time-slot labels. Recurring broadcasts reuse the same pool; distinct editorial requirements should be reflected in verified eligibility, not merely different names for identical genre rules. Suitable existing pools remain reusable across shows.
 
 After successful show creation, editing or deletion, the producer runner reads the affected stations’ saved schedules before accepting a final answer and sends the measured readback for comparison with the original brief. Show tool results include Monday-based day names and formatted local times. This enforces readback; assessing natural-language requirements still depends on the model.
+
+### UPnP source discovery
+
+The source domain exposes a read-only Discoverer port. `upnp.Discovery` sends IPv4 SSDP M-SEARCH queries for MediaServer and ContentDirectory on up to 16 active multicast interface addresses. Replies are bounded to 8 KiB/256 packets per interface and 24 unique descriptions per scan; a 3-second response window and 10-second overall deadline bound the operation. Four description fetches run at once, with 2-second deadlines and the existing 4 MiB XML cap. Concurrent requests share a scan and successful results are cached for 15 seconds.
+
+SSDP LOCATION values must use the existing HTTP(S)/port policy. Description DNS resolves only to the advertising UDP peer; HTTP uses pinned addresses, no proxy and same-host redirects. Loopback/link-local/multicast peers and cross-host descriptions, URLBase and control URLs are rejected. Only devices with ContentDirectory are offered. These are temporary suggestions; no source records, catalogue imports or playback are created by discovery.
+
+The authenticated `/producer/sources/discover` route returns a quiet HTMX fragment for the Add source page. It preserves the form and URL. Selecting a result fills the editable fields; ordinary GET forms provide a no-JavaScript fallback. Saving remains a separate CSRF-protected action. IPv6 SSDP discovery is not implemented; manual description URLs remain available.
+
+Discovery needs local multicast reachability from StationOS itself. Docker bridge networks commonly isolate SSDP from the LAN; an optional Linux host-network override is provided in `compose.discovery.yaml`. It preserves the named data volume and binds HTTP to loopback. It is never activated automatically. Manual source URLs work with the default bridge deployment.

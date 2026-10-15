@@ -103,12 +103,30 @@
 {{if eq .SourceTab "settings"}}<section class="form-panel"><form method="post" action="/producer/sources" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.Source.ID}}"><label>Source name<input name="name" value="{{.Source.Name}}" required maxlength="200"></label><label>Device-description URL<input type="url" name="endpoint" value="{{.Source.Endpoint}}" required maxlength="4096"></label><div class="form-actions"><a class="button secondary" href="/producer/sources/{{.Source.ID}}">Cancel</a><button>Save changes</button></div></form></section>{{end}}
 {{end}}
 
-{{define "new-source"}}<section class="form-panel"><form method="post" action="/producer/sources">
- <input type="hidden" name="csrf" value="{{.CSRF}}">
- <label>Source name<input name="name" required maxlength="200"></label>
- <label>Device-description URL<input type="url" name="endpoint" placeholder="http://music-server:9791/server-id/Upnp/device.xml" required maxlength="4096"></label>
- <p class="hint">Audio stays on your server. StationOS imports the library details.</p><div class="form-actions"><a class="button secondary" href="/producer/sources">Cancel</a><button>Add source</button></div>
+{{define "new-source"}}<section class="form-panel">
+<h2>Find your music server</h2>
+<p class="hint">Choose a server on your network, or enter its details below.</p>
+<div id="source-discovery-results" {{if not .SourceDiscoveryAttempted}}hx-get="/producer/sources/discover" hx-trigger="load" hx-target="this" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="this"{{end}}>
+{{if .SourceDiscoveryAttempted}}{{template "source-discoveries" .}}{{else}}<p class="htmx-indicator" role="status">Searching for music servers…</p><noscript><p><a href="/producer/sources/new?discover=1">Search for music servers</a></p></noscript>{{end}}
+</div>
+<form method="post" action="/producer/sources" data-new-source hx-disabled-elt="find button">
+{{if .SourceError}}<p class="notice error" role="alert">{{.SourceError}}</p>{{end}}
+<input type="hidden" name="csrf" value="{{.CSRF}}">
+<label>Source name<input name="name" value="{{.Source.Name}}" required maxlength="200"></label>
+<label>Device-description URL<input type="url" name="endpoint" value="{{.Source.Endpoint}}" placeholder="http://music-server:9791/server-id/Upnp/device.xml" required maxlength="4096"></label>
+<p class="hint" data-source-selected role="status"></p>
+<p class="hint">Audio stays on your server. StationOS imports the library details.</p>
+<div class="form-actions"><a class="button secondary" href="/producer/sources">Cancel</a><button>Add source</button></div>
 </form></section>{{end}}
+
+{{define "source-discoveries"}}
+{{if .SourceDiscoveryError}}<p class="notice" role="status">{{.SourceDiscoveryError}}</p>{{else if .SourceDiscoveries}}
+<div class="source-list discovery-list">{{range .SourceDiscoveries}}<div class="source-row"><div class="source-identity"><strong>{{.Name}}</strong><span>{{if .Model}}{{.Model}} · {{end}}{{.Host}}</span></div>
+{{if .ExistingID}}<span class="badge">Already added</span><a class="button secondary" href="/producer/sources/{{.ExistingID}}" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true" hx-indicator="#global-busy">Open source</a>{{else}}<form method="get" action="/producer/sources/new" data-source-choice hx-boost="false"><input type="hidden" name="name" value="{{.Name}}"><input type="hidden" name="endpoint" value="{{.Endpoint}}"><button class="secondary" aria-pressed="false">Use server</button></form>{{end}}
+</div>{{end}}</div>
+{{else}}<p class="hint" role="status">No music servers found. Check that your server is on and on the same network as StationOS, or enter its address below.</p>{{end}}
+<p class="discovery-retry"><a href="/producer/sources/new?discover=1" hx-get="/producer/sources/discover" hx-target="#source-discovery-results" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#source-discovery-results">Search again</a><span class="htmx-indicator" role="status">Searching…</span></p>
+{{end}}
 
 {{define "pagination"}}
 <div class="pagination-bar">

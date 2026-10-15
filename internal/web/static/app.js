@@ -91,7 +91,7 @@ window.addEventListener('beforeunload', event => { if (unsavedSelections()) { ev
 document.body.addEventListener('htmx:afterSwap', event => {
   const target = event.detail.target || event.detail.elt || event.target;
   if (target.id === 'assistant-messages') { syncAssistant(); return; }
-  if (target.id === 'audience-queue-results') return;
+  if (target.id === 'audience-queue-results' || target.id === 'source-discovery-results') return;
   const feedback = document.getElementById('feedback'); feedback.hidden = true;
   if (target.id === 'dialog-body') {
     document.querySelector('#confirm-dialog [data-modal-error]').hidden = true;
@@ -692,3 +692,26 @@ document.addEventListener('change',event=>{
  manual.hidden=choice.value!=='__manual';
  if(choice.value==='__manual')input.focus();else input.value=choice.value;
 });
+
+// Selecting a discovered server fills only the creation form. Ordinary GET
+// forms provide the same prefilled screen when JavaScript is unavailable.
+document.body.addEventListener('submit', event => {
+ const choice=event.target.closest('[data-source-choice]');
+ if (!choice) return;
+ const form=document.querySelector('[data-new-source]');
+ if (!form) return;
+ event.preventDefault();
+ event.stopImmediatePropagation();
+ for (const name of ['name','endpoint']) {
+  const field=form.elements.namedItem(name);
+  field.value=choice.elements.namedItem(name).value;
+  field.dispatchEvent(new Event('input',{bubbles:true}));
+ }
+ document.querySelectorAll('[data-source-choice] button').forEach(button => {
+  const selected=button.form===choice;
+  button.setAttribute('aria-pressed',String(selected));
+  button.textContent=selected ? 'Selected' : 'Use server';
+ });
+ form.querySelector('[data-source-selected]').textContent='Server selected. Review its details, then add the source.';
+ form.elements.namedItem('name').focus({preventScroll:true});
+}, true);

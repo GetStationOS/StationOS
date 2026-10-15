@@ -135,3 +135,12 @@ func (s Service) Save(ctx context.Context, c Config) (Config, error) {
 type ArtworkReader interface {
 	Artwork(context.Context, string) ([]byte, string, error)
 }
+
+// DiscoveredSource is a verified music-server description, not saved configuration.
+type DiscoveredSource struct {
+	Name, Endpoint, Model string
+}
+
+type Discoverer interface {
+	Discover(context.Context) ([]DiscoveredSource, error)
+}

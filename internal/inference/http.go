@@ -207,7 +207,11 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 		}
 	}
 	queueWait := conn.QueueTimeout(live)
-	queueCtx, queueCancel := context.WithTimeout(ctx, queueWait)
+	queueCtx := ctx
+	queueCancel := func() {}
+	if queueWait > 0 {
+		queueCtx, queueCancel = context.WithTimeout(ctx, queueWait)
+	}
 	p := backgroundPriority
 	if live {
 		p = livePriority
@@ -219,7 +223,10 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	queueCancel()
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return producer.Response{}, fmt.Errorf("Inference queue deadline reached before generation started (wait limit %s): %w", queueWait, err)
+			if queueWait > 0 {
+				return producer.Response{}, fmt.Errorf("Inference queue deadline reached before generation started (wait limit %s): %w", queueWait, err)
+			}
+			return producer.Response{}, fmt.Errorf("Request deadline reached while waiting for inference; generation did not start: %w", err)
 		}
 		return producer.Response{}, err
 	}

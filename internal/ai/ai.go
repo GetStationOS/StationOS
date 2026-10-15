@@ -73,14 +73,14 @@ func (c Connection) RequestTimeout() time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
-// QueueTimeout lets live preparation wait for one bounded request already in
-// progress. Producer work retains a shorter admission wait. Cancellation from
-// playout still removes a stale song link immediately.
+// QueueTimeout bounds admission for time-sensitive live preparation. Producer
+// conversations remain queued until admitted or their caller cancels them; zero
+// means no additional admission deadline, not an immediate expiry.
 func (c Connection) QueueTimeout(live bool) time.Duration {
 	if live {
 		return c.RequestTimeout()
 	}
-	return 30 * time.Second
+	return 0
 }
 
 // TimedText gives production a bounded budget that includes queueing and generation.

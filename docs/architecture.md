@@ -414,8 +414,9 @@ One shared local/native inference gate admits one active request and eight queue
 requests, across connections. Queued short live links and audience review have priority over show planning,
 which takes priority over producer work; running work is not preempted. Capability checks
 share that gate. Queue waiting is separate from generation: live work can wait up to the
-connection response deadline for an admitted request to finish, while producer
-work has a 30-second admission limit. Each admitted request then has
+connection response deadline for an admitted request to finish. Producer conversations
+remain in the bounded queue until admitted, stopped or cancelled by server shutdown;
+they have no separate 30-second admission expiry. Each admitted request then has
 a configurable 15–600 second response deadline (180 seconds for private/native
 connections; existing OpenAI requests retain their 60-second limit), cancellation, a 1 MiB response bound, and configured context/output
 budgets (default 16384/2048, context range 2048–32768). Input token counts are
@@ -521,3 +522,11 @@ Focused recovery narrows the advertised tool definitions to the measured unfinis
 A Continue following a recorded stall starts with the focused tool set immediately, using fresh measured state, rather than repeating the initial observation allowance. This does not change provider/model settings or retry prior mutations.
 
 Playlist rule tool schemas require an existing playlist ID plus a rule with an explicit `genre`/`album` enum and exact value. Genre rules omit source IDs; album rules require one. Domain validation preserves `playlists.ErrInvalid` while returning the specific field correction. Tool descriptions avoid duplicating the full editorial policy so the stronger schemas still fit the existing local-model context budget.
+
+Producer queue waiting uses the conversation cancellation context rather than a short admission timeout. This prevents a legitimate running local-model request from failing the next producer instruction before generation begins. Live admission deadlines, queue capacity and priority order are unchanged. A queued producer Stop removes its ticket without dispatch; each admitted producer still gets the configured generation deadline. Assistant `TimedText` budgets return zero because queue time is not bounded independently of cancellation. No provider response is replayed and no cloud fallback is introduced.
+
+### Long-session context recovery
+
+Only the latest server-generated schedule readback, progress-recovery instruction and batch-continuation hint of each kind remain in transport context. Arbitrary system instructions, all human requirements and the approved proposal stay protected. If ordinary compaction cannot leave room for a minimal reply, older completed outcomes become a deduplicated action ledger containing exact summaries, URLs, primary identities, deduplicated secondary reference IDs, errors and artwork errors. Camel-case domain IDs and already-compacted identities survive repeated compaction. The full durable transcript and audit records remain unchanged; the ledger explicitly directs the model to reread current configuration before editing. Unanswered exchanges, latest results and the catalogue summary remain protected.
+
+An irreducible context failure is typed and occurs before dispatch. The producer runner may make one fresh attempt with tools restricted to the measured unfinished playlist or schedule area, retaining the saved brief and task. This does not replay a provider response or mutation, change endpoint settings or discard oversized human requirements. Requests whose essential minimum still cannot fit remain safely rejected.

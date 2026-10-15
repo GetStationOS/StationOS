@@ -28,6 +28,9 @@ var ErrNotFound = errors.New("conversation not found")
 // calls from that response may be executed or added to durable history.
 var ErrOutputLimit = errors.New("The assistant reached its reply limit before completing the response")
 
+// ErrContextBudget is a pre-dispatch failure; no response or tool call ran.
+var ErrContextBudget = errors.New("The endpoint context budget cannot fit the saved requirements and tools even with a short reply. Original requirements remain saved; increase the endpoint context budget")
+
 // ErrToolBatchLimit rejects an entire oversized reply before any action runs.
 var ErrToolBatchLimit = errors.New("The assistant returned an oversized action batch")
 var ErrBusy = errors.New("The assistant is already working. Wait for it to finish.")
@@ -429,6 +432,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 	noProgress := 0
 	outputRecoveries := 0
 	batchRecoveries := 0
+	budgetRecovery := false
 	generationOptions := ai.GenerationOptions{}
 	seenResults := map[[32]byte]bool{}
 	schedulesToReview := map[string]bool{}
@@ -447,6 +451,25 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		response, err := s.respondWithOptions(ctx, id, model, key, prompt+"\nSaved task checklist:\n"+string(taskJSON), input, offered, generationOptions)
 		if err == nil && len(response.Calls) > MaxToolCalls {
 			err = ErrToolBatchLimit
+		}
+		if errors.Is(err, ErrContextBudget) && ctx.Err() == nil && !budgetRecovery && len(task.Remaining) > 0 && len(reviewStations) > 0 {
+			budgetRecovery = true
+			review, nextFocus, reviewErr := s.configurationReview(ctx, reviewStations, true)
+			if reviewErr != nil {
+				fail("The saved configuration could not be read for context recovery. Completed work remains saved.")
+				return
+			}
+			if nextFocus != "" {
+				focus = nextFocus
+				focusReads = map[string]int{}
+				input = append(input, review)
+				input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Context recovery: the previous request was rejected before dispatch. No actions ran. Only tools for the next unfinished configuration area are offered now. Use saved references and the original brief for one small next action; do not repeat the full plan."}))
+				if err := checkpoint(); err != nil {
+					fail("The context recovery checkpoint could not be saved. Completed work remains saved.")
+					return
+				}
+				continue
+			}
 		}
 		if errors.Is(err, ErrOutputLimit) && ctx.Err() == nil && outputRecoveries < 2 {
 			outputRecoveries++

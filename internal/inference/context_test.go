@@ -3,6 +3,8 @@ package inference
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -123,7 +125,104 @@ func TestEssentialContextOverflowNeverDispatchesOrDropsHumanRequest(t *testing.T
 	conn := connection("ollama", server.URL)
 	conn.OutputTokens = 8192
 	_, err := NewClient().chat(context.Background(), conn, "", "model", strings.Repeat("Human requirements ", 4000), nil, nil, nil, false)
-	if err == nil || sent != 0 {
-		t.Fatal("oversized essential request dispatched", sent, err)
+	if !errors.Is(err, producer.ErrContextBudget) || sent != 0 {
+		t.Fatal("oversized essential request dispatched or wrong pre-dispatch error", sent, err)
+	}
+}
+
+func TestLongActionHistoryFitsUsingReferenceLedger(t *testing.T) {
+	for _, kind := range []string{"ollama", "compatible", "anthropic", "gemini"} {
+		t.Run(kind, func(t *testing.T) {
+			plan := "Approved plan: weekdays 18:00–20:00 eighties music; preserve all other shows."
+			input := []producer.Item{item(map[string]string{"role": "user", "content": "Make a 1980s show on weekdays"}), item(map[string]string{"role": "assistant", "content": plan}), item(map[string]string{"role": "user", "content": "Yes, proceed; keep the existing presenters"})}
+			for n := 0; n < 500; n++ {
+				id := fmt.Sprintf("saved-pool-%02d", n%50)
+				outcome, _ := json.Marshal(map[string]any{"summary": "Saved playlist: " + id, "url": "/producer/playlists/" + id, "data": map[string]string{"ID": id, "StationID": "spectrum"}})
+				input = append(input, item(map[string]string{"role": "assistant", "content": recordedResultPrefix + string(outcome)}))
+				if n%20 == 0 {
+					input = append(input, item(map[string]string{"role": "developer", "content": "Mandatory schedule readback old snapshot " + strings.Repeat("old schedule ", 100)}))
+				}
+			}
+			input = append(input, item(map[string]string{"role": "developer", "content": "Mandatory schedule readback CURRENT snapshot: missing 18:00–20:00"}))
+			count := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				count++
+				body, _ := io.ReadAll(r.Body)
+				text := string(body)
+				for _, want := range []string{plan, "keep the existing presenters", "Recorded StationOS action ledger", "CURRENT snapshot", "spectrum"} {
+					if !strings.Contains(text, want) {
+						t.Errorf("lost %q", want)
+					}
+				}
+				for n := 0; n < 50; n++ {
+					if !strings.Contains(text, fmt.Sprintf("saved-pool-%02d", n)) {
+						t.Errorf("lost exact identity %d", n)
+					}
+				}
+				if strings.Contains(text, "old snapshot") {
+					t.Error("superseded recovery retained")
+				}
+				switch kind {
+				case "ollama":
+					io.WriteString(w, `{"done":true,"message":{"content":"Next action"}}`)
+				case "compatible":
+					io.WriteString(w, `{"choices":[{"finish_reason":"stop","message":{"content":"Next action"}}]}`)
+				case "anthropic":
+					io.WriteString(w, `{"stop_reason":"end_turn","content":[{"type":"text","text":"Next action"}]}`)
+				case "gemini":
+					io.WriteString(w, `{"candidates":[{"finishReason":"STOP","content":{"parts":[{"text":"Next action"}]}}]}`)
+				}
+			}))
+			defer server.Close()
+			conn := connection(kind, server.URL)
+			conn.OutputTokens = 8192
+			tools := producer.NewRegistry(producer.Dependencies{}).List()
+			_, err := NewClient().chat(context.Background(), conn, "", "gemma4:12b", "Keep the complete original human brief and approved plan.", input, tools, nil, false)
+			if err != nil || count != 1 || conn.OutputTokens != 8192 {
+				t.Fatal("long session failed or settings changed", count, err)
+			}
+		})
+	}
+}
+
+func TestReducedOutcomesRetainIdentitiesAndLatestFailure(t *testing.T) {
+	raw := `{"summary":"Saved show","url":"/producer/stations/spectrum/schedule/show-1","data":{"ID":"show-1","StationID":"spectrum","DJID":"dj-1","PlaylistID":"pool-1"}}`
+	reduced := contextResult(raw)
+	if contextResult(reduced) != reduced {
+		t.Fatal("repeat compaction lost references")
+	}
+	messages := []message{{Role: "system", Content: "Original human requirements"}, {Role: "assistant", Content: recordedResultPrefix + reduced}, {Role: "assistant", Content: recordedResultPrefix + `{"error":"album requires source_id"}`}, {Role: "assistant", ToolCalls: []wireCall{{ID: "unanswered"}}}}
+	compact := compactAssistantContextMode(messages, 1, true)
+	body, _ := json.Marshal(compact)
+	for _, want := range []string{"show-1", "spectrum", "dj-1", "pool-1", "album requires source_id", "unanswered", "Original human requirements"} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("lost %q: %s", want, body)
+		}
+	}
+	// Arbitrary system instructions are not superseded by recovery markers.
+	result := compactAssistantContext([]message{{Role: "system", Content: "Keep this instruction"}, {Role: "user", Content: "Mandatory schedule readback is part of my brief"}, {Role: "system", Content: "Mandatory schedule readback old"}, {Role: "system", Content: "Mandatory schedule readback new"}}, 1)
+	body, _ = json.Marshal(result)
+	if strings.Contains(string(body), "readback old") || !strings.Contains(string(body), "part of my brief") || !strings.Contains(string(body), "Keep this instruction") {
+		t.Fatal(string(body))
+	}
+}
+
+func TestActionLedgerKeepsNamesLinkedToExactIDs(t *testing.T) {
+	night := `{"summary":"Saved playlist: Night Notes","url":"/producer/playlists/pool-night","data":{"ID":"pool-night"}}`
+	morning := `{"summary":"Saved playlist: Morning Brew","url":"/producer/playlists/pool-morning","data":{"ID":"pool-morning"}}`
+	ledger := actionLedger([]string{night, morning, night})
+	var result struct {
+		Actions []struct {
+			Summary    string              `json:"summary"`
+			URL        string              `json:"url"`
+			Identities []map[string]string `json:"identities"`
+		} `json:"actions"`
+	}
+	if err := json.Unmarshal([]byte(strings.TrimPrefix(ledger.Content, actionLedgerPrefix)), &result); err != nil {
+		t.Fatal(err)
+	}
+	rows := result.Actions
+	if len(rows) != 2 || rows[0].Summary != "Saved playlist: Night Notes" || rows[0].URL != "/producer/playlists/pool-night" || rows[0].Identities[0]["ID"] != "pool-night" || rows[1].Identities[0]["ID"] != "pool-morning" {
+		t.Fatal("outcome associations lost", rows)
 	}
 }

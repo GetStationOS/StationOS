@@ -16,24 +16,28 @@ import (
 )
 
 func TestGenerationDeadlineStartsAfterQueueAdmission(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(400 * time.Millisecond)
-		io.WriteString(w, `{"done":true,"message":{"content":"Ready"}}`)
-	}))
-	defer server.Close()
-	c := NewClient()
-	conn := connection("ollama", server.URL)
-	conn.RequestTimeoutSeconds = 1
-	hold, _ := c.Gate.acquire(context.Background(), false)
-	done := make(chan error, 1)
-	go func() {
-		_, err := c.chat(context.Background(), conn, "", "m", "prompt", nil, nil, nil, true)
-		done <- err
-	}()
-	time.Sleep(800 * time.Millisecond)
-	hold()
-	if err := <-done; err != nil {
-		t.Fatal("queue wait consumed response deadline", err)
+	for _, live := range []bool{false, true} {
+		t.Run(map[bool]string{false: "producer", true: "live"}[live], func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(400 * time.Millisecond)
+				io.WriteString(w, `{"done":true,"message":{"content":"Ready"}}`)
+			}))
+			defer server.Close()
+			c := NewClient()
+			conn := connection("ollama", server.URL)
+			conn.RequestTimeoutSeconds = 1
+			hold, _ := c.Gate.acquire(context.Background(), false)
+			done := make(chan error, 1)
+			go func() {
+				_, err := c.chat(context.Background(), conn, "", "m", "prompt", nil, nil, nil, live)
+				done <- err
+			}()
+			time.Sleep(800 * time.Millisecond)
+			hold()
+			if err := <-done; err != nil {
+				t.Fatal("queue wait consumed response deadline", err)
+			}
+		})
 	}
 }
 func TestDJThinkingControlIsAdvertisedAndOutputIsBounded(t *testing.T) {
@@ -100,7 +104,7 @@ func TestQueueTimeoutIsDistinctAndDoesNotDispatch(t *testing.T) {
 func TestLiveQueueWaitMatchesActiveRequestBudget(t *testing.T) {
 	conn := connection("ollama", "http://configured-provider")
 	conn.RequestTimeoutSeconds = 180
-	if conn.QueueTimeout(true) != 180*time.Second || conn.QueueTimeout(false) != 30*time.Second {
+	if conn.QueueTimeout(true) != 180*time.Second || conn.QueueTimeout(false) != 0 {
 		t.Fatal("live wait cannot outlast legitimate active inference")
 	}
 	r := router(conn)
@@ -214,4 +218,61 @@ func TestStaleQueuedLinkIsCancelledWithoutInference(t *testing.T) {
 		t.Fatal("cancelled link leaked inference slot", err)
 	}
 	release()
+}
+
+func TestProducerQueueCancellationDoesNotDispatchOrLeakSlot(t *testing.T) {
+	var sent atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sent.Add(1)
+		io.WriteString(w, `{"done":true,"message":{"content":"Ready"}}`)
+	}))
+	defer server.Close()
+	client := NewClient()
+	conn := connection("ollama", server.URL)
+	if conn.QueueTimeout(false) != 0 {
+		t.Fatal("producer still has a separate admission deadline")
+	}
+	hold, err := client.Gate.acquire(context.Background(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { _, err := client.chat(ctx, conn, "", "m", "prompt", nil, nil, nil, false); done <- err }()
+	deadline := time.Now().Add(time.Second)
+	queued := false
+	for time.Now().Before(deadline) {
+		client.Gate.mu.Lock()
+		queued = len(client.Gate.background) == 1
+		client.Gate.mu.Unlock()
+		if queued {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if !queued {
+		cancel()
+		hold()
+		t.Fatal("producer did not queue")
+	}
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		hold()
+		t.Fatal(err)
+	}
+	if sent.Load() != 0 {
+		hold()
+		t.Fatal("cancelled request dispatched")
+	}
+	hold()
+	nextCtx, nextCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer nextCancel()
+	_, err = client.chat(nextCtx, conn, "", "m", "prompt", nil, nil, nil, false)
+	if err != nil || sent.Load() != 1 {
+		t.Fatal("cancelled producer leaked inference slot", err, sent.Load())
+	}
+	budget, err := router(conn).Budget(context.Background(), "assistant")
+	if err != nil || budget != 0 {
+		t.Fatal("producer was given a deadline that excludes unbounded queue time", budget, err)
+	}
 }

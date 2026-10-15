@@ -143,7 +143,7 @@ func (r *Router) Budget(ctx context.Context, role string) (time.Duration, error)
 	if err != nil {
 		return 0, err
 	}
-	if c.Type == "openai" {
+	if c.Type == "openai" || role == "assistant" {
 		return 0, nil
 	}
 	return c.QueueTimeout(role != "assistant") + c.RequestTimeout(), nil

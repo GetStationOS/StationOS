@@ -18,14 +18,19 @@ import (
 )
 
 type partialRecoveryModel struct {
-	t                 *testing.T
-	n                 int
-	station, pool, dj string
-	recovered         bool
-	firstFocus        bool
+	t                            *testing.T
+	n                            int
+	station, pool, dj            string
+	recovered                    bool
+	firstFocus                   bool
+	contextFailure, failedBudget bool
 }
 
 func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, input []producer.Item, tools []producer.Tool) (producer.Response, error) {
+	if m.contextFailure && !m.failedBudget {
+		m.failedBudget = true
+		return producer.Response{}, producer.ErrContextBudget
+	}
 	n := m.n
 	if m.firstFocus {
 		n += 4
@@ -82,8 +87,12 @@ func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, i
 }
 
 func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
-	for _, focused := range []bool{false, true} {
-		t.Run(fmt.Sprintf("focused_resume_%t", focused), func(t *testing.T) {
+	for _, scenario := range []struct {
+		name            string
+		focused, budget bool
+	}{{"mid_run_stall", false, false}, {"stalled_resume", true, false}, {"context_recovery", false, true}} {
+		focused := scenario.focused
+		t.Run(scenario.name, func(t *testing.T) {
 			ctx := context.Background()
 			store, r, stations, pools, shows, _ := fixture(t)
 			owner := call(t, r, "save_station", map[string]string{"name": "Partial Radio"}).Data.(station.Station)
@@ -100,7 +109,7 @@ func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
 				t.Fatal(err)
 			}
 			_ = store.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "test-key"})
-			model := &partialRecoveryModel{t: t, station: owner.ID, pool: pool.ID, dj: dj.ID, firstFocus: focused}
+			model := &partialRecoveryModel{t: t, station: owner.ID, pool: pool.ID, dj: dj.ID, firstFocus: focused || scenario.budget, contextFailure: scenario.budget}
 			svc, err := producer.New(ctx, store, r, model)
 			if err != nil {
 				t.Fatal(err)
@@ -127,7 +136,7 @@ func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
 			}
 			c := waitDone(t, store, id)
 			expected := 10
-			if focused {
+			if focused || scenario.budget {
 				expected = 6
 			}
 			if c.Status != "idle" || model.n != expected {

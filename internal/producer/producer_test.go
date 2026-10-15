@@ -163,7 +163,12 @@ func (m *scripted) Respond(ctx context.Context, model, key, prompt string, input
 }
 func waitDone(t *testing.T, store producer.Store, id string) producer.Conversation {
 	t.Helper()
-	end := time.Now().Add(3 * time.Second)
+	return waitDoneWithin(t, store, id, 3*time.Second)
+}
+
+func waitDoneWithin(t *testing.T, store producer.Store, id string, limit time.Duration) producer.Conversation {
+	t.Helper()
+	end := time.Now().Add(limit)
 	for time.Now().Before(end) {
 		c, e := store.Get(context.Background(), id)
 		if e != nil {

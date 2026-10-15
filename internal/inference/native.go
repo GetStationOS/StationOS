@@ -12,7 +12,10 @@ import (
 )
 
 func result(text string, calls []producer.Call, usage producer.Usage) (producer.Response, error) {
-	if len(text) > 32000 || len(calls) > 16 {
+	if len(calls) > producer.MaxToolCalls {
+		return producer.Response{Usage: usage}, producer.ErrToolBatchLimit
+	}
+	if len(text) > 32000 {
 		return producer.Response{}, errors.New("Provider response exceeds limits")
 	}
 	out := producer.Response{Text: text, Calls: calls, Usage: usage}

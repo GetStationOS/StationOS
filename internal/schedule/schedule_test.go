@@ -1,6 +1,8 @@
 package schedule
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -50,6 +52,20 @@ func TestDSTMissingAndRepeatedBoundaries(t *testing.T) {
 	for _, o := range Occurrences(shows, spring, loc) {
 		if o.Start.Day() == 29 && o.Start.Month() == 3 {
 			t.Fatal("collapsed show retained", o)
+		}
+	}
+}
+
+func TestConflictReportsWeekBoundaryAndPreservesCategory(t *testing.T) {
+	existing := Show{ID: "saved-show", Name: "Sunday Night", Day: 6, Start: 1380, End: 60}
+	requested := Show{Name: "Monday Breakfast", Day: 0, Start: 0, End: 120}
+	err := Conflict(requested, existing)
+	if !errors.Is(err, ErrOverlap) {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Monday Breakfast", "Monday 00:00–Monday 02:00", "Sunday Night", "Sunday 23:00–Monday 01:00", "show_id=saved-show"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("missing %q: %v", want, err)
 		}
 	}
 }

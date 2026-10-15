@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"sort"
 	"stationos.local/stationos/internal/djs"
 	"strconv"
@@ -38,12 +39,64 @@ func (s Show) Duration() int {
 	}
 	return d
 }
+
+// Invalid preserves the validation category while identifying the correction.
+func Invalid(reason string) error { return fmt.Errorf("%w: %s", ErrInvalid, reason) }
+
+// Normalized keeps the stored midnight convention while accepting a caller's
+// unambiguous 24:00 end-of-day boundary. Start times never roll into another day.
+func (s Show) Normalized() Show {
+	s.Name = strings.TrimSpace(s.Name)
+	s.Description = strings.TrimSpace(s.Description)
+	if s.End == 1440 {
+		s.End = 0
+	}
+	return s
+}
+
 func (s Show) Validate() error {
-	if s.StationID == "" || strings.TrimSpace(s.Name) == "" || len(s.Name) > 200 || len(s.Description) > 2000 || s.DJID == "" || s.PlaylistID == "" || s.Day < 0 || s.Day > 6 || s.Start < 0 || s.Start >= 1440 || s.End < 0 || s.End >= 1440 || s.Start%15 != 0 || s.End%15 != 0 {
-		return ErrInvalid
+	switch {
+	case s.StationID == "":
+		return Invalid("choose an existing station (station_id)")
+	case strings.TrimSpace(s.Name) == "":
+		return Invalid("supply a show name (name)")
+	case len(s.Name) > 200:
+		return Invalid("show name must be at most 200 characters")
+	case len(s.Description) > 2000:
+		return Invalid("show description must be at most 2000 characters")
+	case s.DJID == "":
+		return Invalid("choose an existing presenter (dj_id)")
+	case s.PlaylistID == "":
+		return Invalid("choose an existing station playlist (playlist_id)")
+	case s.Day < 0 || s.Day > 6:
+		return Invalid("day must be 0–6: Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6")
+	case s.Start < 0 || s.Start >= 1440:
+		return Invalid("start must be minutes after midnight from 0 to 1439; for example 480 is 08:00")
+	case s.End < 0 || s.End >= 1440:
+		return Invalid("end must be minutes after midnight from 0 to 1439; use 0 for midnight, not 2400")
+	case s.Start%15 != 0:
+		return Invalid("start must be a multiple of 15 minutes")
+	case s.End%15 != 0:
+		return Invalid("end must be a multiple of 15 minutes")
 	}
 	return nil
 }
+
+// Conflict identifies the saved show that prevented a write. Week boundaries
+// and overnight endings are explicit so callers can repair the intended slot.
+func Conflict(requested, existing Show) error {
+	return fmt.Errorf("%w: requested %q (%s) conflicts with saved %q (%s, show_id=%s)", ErrOverlap, requested.Name, slotLabel(requested), existing.Name, slotLabel(existing), existing.ID)
+}
+
+func slotLabel(s Show) string {
+	days := [...]string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+	endDay := s.Day
+	if s.End <= s.Start {
+		endDay = (endDay + 1) % 7
+	}
+	return fmt.Sprintf("%s %s–%s %s", days[s.Day], TimeLabel(s.Start), days[endDay], TimeLabel(s.End))
+}
+
 func Overlaps(a, b Show) bool {
 	x := a.Day*1440 + a.Start
 	y := b.Day*1440 + b.Start
@@ -65,8 +118,7 @@ type Repository interface {
 type Service struct{ Repo Repository }
 
 func (s Service) Save(ctx context.Context, v Show) (Show, error) {
-	v.Name = strings.TrimSpace(v.Name)
-	v.Description = strings.TrimSpace(v.Description)
+	v = v.Normalized()
 	if err := v.Validate(); err != nil {
 		return Show{}, err
 	}
@@ -87,16 +139,18 @@ func (s Service) Save(ctx context.Context, v Show) (Show, error) {
 
 // CreateDays creates independent weekly shows in one atomic write.
 func (s Service) CreateDays(ctx context.Context, v Show, days []int) error {
-	if v.ID != "" || len(days) == 0 || len(days) > 7 {
-		return ErrInvalid
+	if v.ID != "" {
+		return Invalid("omit id when creating new weekly shows; edit an existing show separately")
 	}
-	v.Name = strings.TrimSpace(v.Name)
-	v.Description = strings.TrimSpace(v.Description)
+	if len(days) == 0 || len(days) > 7 {
+		return Invalid("choose one to seven weekdays in days, using Monday=0 through Sunday=6")
+	}
+	v = v.Normalized()
 	shows := make([]Show, 0, len(days))
 	seen := map[int]bool{}
 	for _, day := range days {
 		if seen[day] {
-			return ErrInvalid
+			return Invalid("each weekday may appear only once in days")
 		}
 		seen[day] = true
 		show := v

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/inference"
@@ -189,7 +190,9 @@ func TestLocalAIResumesLargeHistoryAndBuildsApprovedWeeklyStation(t *testing.T) 
 	if err = svc.Start(ctx, id, producer.ID(), "Yes, please proceed"); err != nil {
 		t.Fatal(err)
 	}
-	conversation := waitDone(t, store, id)
+	// The full weekly fixture makes over forty requests; allow race instrumentation
+	// to finish without changing any production inference deadline.
+	conversation := waitDoneWithin(t, store, id, 10*time.Second)
 	if conversation.Status != "idle" || len(conversation.Task.Remaining) > 0 {
 		t.Fatal("local setup did not finish", conversation.Status, conversation.Messages)
 	}

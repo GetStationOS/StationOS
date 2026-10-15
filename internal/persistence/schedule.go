@@ -70,7 +70,7 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 		return err
 	}
 	if v.ID == "" {
-		return schedule.ErrInvalid
+		return schedule.Invalid("show id is required")
 	}
 	var err error
 	var count int
@@ -84,22 +84,22 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 		return err
 	}
 	if count != 1 {
-		return schedule.ErrInvalid
+		return schedule.Invalid("selected playlist does not exist in this station; choose a playlist belonging to this station")
 	}
 	if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM djs WHERE id=?`, v.DJID).Scan(&count); err != nil {
 		return err
 	}
 	if count != 1 {
-		return schedule.ErrInvalid
+		return schedule.Invalid("selected presenter does not exist; choose an existing DJ")
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,station_id,weekday,start_minute,end_minute FROM station_shows WHERE station_id=?`, v.StationID)
+	rows, err := tx.QueryContext(ctx, `SELECT id,station_id,name,weekday,start_minute,end_minute FROM station_shows WHERE station_id=? ORDER BY weekday,start_minute,id`, v.StationID)
 	if err != nil {
 		return err
 	}
 	existing := []schedule.Show{}
 	for rows.Next() {
 		var x schedule.Show
-		if err = rows.Scan(&x.ID, &x.StationID, &x.Day, &x.Start, &x.End); err != nil {
+		if err = rows.Scan(&x.ID, &x.StationID, &x.Name, &x.Day, &x.Start, &x.End); err != nil {
 			rows.Close()
 			return err
 		}
@@ -117,11 +117,11 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 			continue
 		}
 		if schedule.Overlaps(v, x) {
-			return schedule.ErrOverlap
+			return schedule.Conflict(v, x)
 		}
 	}
 	if !found && len(existing) >= schedule.MaxShows {
-		return schedule.ErrInvalid
+		return schedule.Invalid("station has reached its scheduled-show limit")
 	}
 	result, err := tx.ExecContext(ctx, `INSERT INTO station_shows(id,station_id,name,weekday,start_minute,end_minute,dj_id,playlist_id,accept_requests,accept_shoutouts,description) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,weekday=excluded.weekday,start_minute=excluded.start_minute,end_minute=excluded.end_minute,dj_id=excluded.dj_id,playlist_id=excluded.playlist_id,accept_requests=excluded.accept_requests,accept_shoutouts=excluded.accept_shoutouts,description=excluded.description,revision=station_shows.revision+1 WHERE station_shows.station_id=excluded.station_id`, v.ID, v.StationID, v.Name, v.Day, v.Start, v.End, v.DJID, v.PlaylistID, v.AcceptRequests, v.AcceptShoutouts, v.Description)
 	if err != nil {

@@ -101,7 +101,7 @@ func register[T any](r *Registry, name, description string, write bool, fn func(
 		d.DisallowUnknownFields()
 		if err := d.Decode(&args); err != nil {
 			if name == "create_shows" {
-				return Result{}, errors.New("Invalid create_shows arguments. Supply one show object and a days array, for example {\"show\":{\"station_id\":\"existing station ID\",\"name\":\"The Morning Brew\",\"dj_id\":\"existing DJ ID\",\"playlist_id\":\"existing playlist ID\",\"start\":480,\"end\":660},\"days\":[0,1,2,3,4]}. Never put an array in show. Call separately for each distinct programme. No shows were created by this call.")
+				return Result{}, createShowsArgumentError(err)
 			}
 			return Result{}, errors.New("Invalid tool arguments: " + err.Error())
 		}
@@ -111,6 +111,35 @@ func register[T any](r *Registry, name, description string, write bool, fn func(
 		return fn(ctx, args)
 	}}
 }
+
+// Keep the actual decoder failure: an array-shaped show is only one of
+// several possible errors. Never echo complete arguments into the transcript.
+func createShowsArgumentError(err error) error {
+	correction := err.Error() + ". Use only fields in the create_shows schema."
+	var typed *json.UnmarshalTypeError
+	var syntax *json.SyntaxError
+	switch {
+	case errors.As(err, &typed):
+		switch typed.Field {
+		case "show":
+			correction = "show must be one object. Never put an array in show. Call separately for each distinct programme."
+		case "days":
+			correction = "days must be an array of integers, Monday=0 through Sunday=6, for example [0,1,2,3,4]."
+		case "show.start", "show.end":
+			correction = typed.Field + " must be an integer number of minutes after midnight, in multiples of 15; 08:00 is 480, 20:00 is 1200, and a midnight end is 0 or 1440. Do not send a time string or HHMM value."
+		default:
+			field := typed.Field
+			if field == "" {
+				field = "arguments"
+			}
+			correction = fmt.Sprintf("%s must have JSON type %s; received %s.", field, typed.Type, typed.Value)
+		}
+	case errors.As(err, &syntax):
+		correction = fmt.Sprintf("Malformed JSON at byte %d. Supply one complete arguments object with a show object and a days array.", syntax.Offset)
+	}
+	return errors.New("Invalid create_shows arguments: " + correction + " No shows were created by this call. Correct the arguments and retry only this failed call; earlier successful calls remain saved.")
+}
+
 func schema(t reflect.Type) any {
 	if t.Kind() == reflect.Pointer {
 		return schema(t.Elem())
@@ -132,7 +161,21 @@ func schema(t reflect.Type) any {
 			}
 			props[name] = schema(f.Type)
 		}
-		return map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+		definition := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+		if t == reflect.TypeOf(showPatch{}) {
+			props["day"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 6, "description": "Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6."}
+			props["start"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 1439, "multipleOf": 15, "description": "Station-local minutes after midnight; 08:00 is 480 and 20:00 is 1200. Never use HHMM values such as 2000."}
+			props["end"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 1440, "multipleOf": 15, "description": "Station-local minutes after midnight. Midnight may be 0 or 1440 (24:00), never 2400. End at or before start crosses midnight."}
+			props["name"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 200}
+			props["description"] = map[string]any{"type": "string", "maxLength": 2000}
+			definition["required"] = []string{"station_id"}
+		}
+		if t == reflect.TypeOf(createShowsArgs{}) {
+			props["days"] = map[string]any{"type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": map[string]any{"type": "integer", "minimum": 0, "maximum": 6}, "description": "Selected weekdays, Monday=0 through Sunday=6, each appearing once."}
+			props["show"].(map[string]any)["required"] = []string{"station_id", "name", "dj_id", "playlist_id", "start", "end"}
+			definition["required"] = []string{"show", "days"}
+		}
+		return definition
 	case reflect.Slice:
 		return map[string]any{"type": "array", "items": schema(t.Elem()), "maxItems": 100}
 	case reflect.Bool:
@@ -231,6 +274,11 @@ type showPatch struct {
 	AcceptShoutouts *bool   `json:"accept_shoutouts"`
 }
 
+type createShowsArgs struct {
+	Show showPatch `json:"show"`
+	Days []int     `json:"days"`
+}
+
 func (a showPatch) merge(ctx context.Context, d Dependencies) (schedule.Show, error) {
 	if a.ID == "" && (a.Start == nil || a.End == nil || a.Day == nil) {
 		return schedule.Show{}, errors.New("Supply day, start and end for a new show")
@@ -252,7 +300,7 @@ func (a showPatch) merge(ctx context.Context, d Dependencies) (schedule.Show, er
 	set(&v.End, a.End)
 	set(&v.AcceptRequests, a.AcceptRequests)
 	set(&v.AcceptShoutouts, a.AcceptShoutouts)
-	return v, nil
+	return v.Normalized(), nil
 }
 
 type rule struct {
@@ -654,7 +702,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(namedSchedule(v), e)
 	})
-	register(r, "save_show", "Create or update supplied show fields. Provide station_id; days Monday=0..Sunday=6; start/end are minutes after midnight, multiples of 15. Overlaps are rejected.", true, func(ctx context.Context, a showPatch) (Result, error) {
+	register(r, "save_show", "Create or update supplied show fields. Provide station_id; days Monday=0..Sunday=6; start/end are minutes after midnight, multiples of 15. Midnight ends may be 0 or 1440 (24:00), never 2400. Use existing DJ and station-owned playlist IDs. Overlaps are rejected.", true, func(ctx context.Context, a showPatch) (Result, error) {
 		v, e := a.merge(ctx, d)
 		if e != nil {
 			return Result{}, e
@@ -665,15 +713,12 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(v, "Saved show: "+v.Name, "/producer/stations/"+v.StationID+"/schedule/"+v.ID)
 	})
-	register(r, "create_shows", "Create ONE programme on multiple selected days, atomically. Arguments: show is ONE object (never an array), days is an integer array with Monday=0 through Sunday=6. Call separately for each distinct programme. Example: {\"show\":{\"station_id\":\"existing station ID\",\"name\":\"The Morning Brew\",\"dj_id\":\"existing DJ ID\",\"playlist_id\":\"existing playlist ID\",\"start\":480,\"end\":660},\"days\":[0,1,2,3,4]}. No shows are created if any selected day conflicts. Show uses the same fields as save_show, with no ID.", true, func(ctx context.Context, a struct {
-		Show showPatch `json:"show"`
-		Days []int     `json:"days"`
-	}) (Result, error) {
+	register(r, "create_shows", "Create ONE programme on multiple selected days, atomically. Arguments: show is ONE object (never an array), days is an integer array with Monday=0 through Sunday=6. Call separately for each distinct programme. Example: {\"show\":{\"station_id\":\"existing station ID\",\"name\":\"The Morning Brew\",\"dj_id\":\"existing DJ ID\",\"playlist_id\":\"existing playlist ID\",\"start\":480,\"end\":660},\"days\":[0,1,2,3,4]}. No shows are created if any selected day conflicts. Show uses the same fields as save_show, with no ID. Start/end are minutes after midnight, in multiples of 15. A midnight end may be 0 or 1440 (24:00), never 2400. Supply existing dj_id and a playlist_id belonging to the station.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
 		if a.Show.ID != "" {
-			return Result{}, schedule.ErrInvalid
+			return Result{}, schedule.Invalid("omit show.id in create_shows; use save_show to edit an existing show")
 		}
 		if len(a.Days) == 0 {
-			return Result{}, schedule.ErrInvalid
+			return Result{}, schedule.Invalid("supply days with one to seven weekdays, using Monday=0 through Sunday=6")
 		}
 		a.Show.Day = &a.Days[0]
 		v, e := a.Show.merge(ctx, d)

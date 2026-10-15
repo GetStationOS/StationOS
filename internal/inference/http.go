@@ -299,7 +299,10 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 		}
 		m = v.Choices[0].Message
 	}
-	if len(m.ToolCalls) > 16 || len(m.Content) > 32000 {
+	if len(m.ToolCalls) > producer.MaxToolCalls {
+		return producer.Response{Usage: usage}, producer.ErrToolBatchLimit
+	}
+	if len(m.Content) > 32000 {
 		return producer.Response{}, errors.New("Provider answer exceeds limits")
 	}
 	out := producer.Response{Text: m.Content, Usage: usage}

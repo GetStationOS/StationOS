@@ -121,12 +121,13 @@ func createShowsArgumentError(err error) error {
 	var syntax *json.SyntaxError
 	switch {
 	case errors.As(err, &typed):
-		switch typed.Field {
-		case "show":
+		switch {
+		case typed.Field == "show":
 			correction = "show must be one object. Never put an array in show. Call separately for each distinct programme."
-		case "days":
+		// Decoder field paths may include an array index, such as days.0.
+		case typed.Field == "days" || strings.HasPrefix(typed.Field, "days."):
 			correction = "days must be an array of integers, Monday=0 through Sunday=6, for example [0,1,2,3,4]."
-		case "show.start", "show.end":
+		case typed.Field == "show.start" || typed.Field == "show.end":
 			correction = typed.Field + " must be an integer number of minutes after midnight, in multiples of 15; 08:00 is 480, 20:00 is 1200, and a midnight end is 0 or 1440. Do not send a time string or HHMM value."
 		default:
 			field := typed.Field

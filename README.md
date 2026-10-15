@@ -8,7 +8,7 @@ StationOS now provides **listener-driven station streams**. Create and edit stat
 
 ## Build and run
 
-Requires Go 1.23 or later and FFmpeg on PATH (`brew install ffmpeg` on macOS; included in Docker). SQLite needs no native library or CGO. Initial dependency download requires network access; the normal tests need only local resources and loopback HTTP listeners.
+Requires Go 1.27.2 or later and FFmpeg on PATH (`brew install ffmpeg` on macOS; included in Docker). The project, CI and Docker build use Go 1.27.2. With automatic toolchain selection enabled, an older Go installation downloads the required version when you run project commands. SQLite needs no native library or CGO. Initial dependency download requires network access; the normal tests need only local resources and loopback HTTP listeners.
 
 ```sh
 make build

@@ -95,6 +95,8 @@ func TestCreateShowsDecoderReportsActualProblem(t *testing.T) {
 		{`{"show":{"end":"24:00"},"days":[0]}`, "show.end must be an integer number of minutes"},
 		{`{"show":{},"days":"Monday"}`, "days must be an array of integers"},
 		{`{"show":{},"days":["Monday"]}`, "days must be an array of integers"},
+		{`{"show":{},"days":[0,"Monday"]}`, "days must be an array of integers"},
+		{`{"show":{},"days":[{}]}`, "days must be an array of integers"},
 		{`{"show":{"title":"Morning"},"days":[0]}`, `unknown field "title"`},
 		{`{"show":{"name":false},"days":[0]}`, "show.name must have JSON type string"},
 		{`{"show":,}`, "Malformed JSON at byte"},

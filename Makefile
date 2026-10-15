@@ -1,4 +1,5 @@
 GO ?= go
+GOFMT ?= $(shell $(GO) env GOROOT)/bin/gofmt
 .PHONY: build run test race vet fmt check integrity clear-catalogue sync docker
 build:
 	$(GO) build -trimpath -o bin/stationos ./cmd/stationos
@@ -11,9 +12,9 @@ race:
 vet:
 	$(GO) vet ./...
 fmt:
-	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
+	$(GOFMT) -w $$(find . -name '*.go' -not -path './vendor/*')
 check: test vet
-	@test -z "$$(gofmt -l $$(find . -name '*.go' -not -path './vendor/*'))"
+	@test -z "$$($(GOFMT) -l $$(find . -name '*.go' -not -path './vendor/*'))"
 integrity:
 	$(GO) run ./cmd/stationos -task integrity
 clear-catalogue:

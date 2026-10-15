@@ -341,3 +341,5 @@ The Audience queue table scrolls horizontally inside its bordered panel on small
 The AI endpoint directory contains navigation and summaries only. All endpoint configuration, including the built-in OpenAI key, belongs on that endpoint’s dedicated management screen. Key saves and validation errors remain in OpenAI management.
 
 Chats places its primary New conversation action at the top right beside the page heading, using the shared creation-button style.
+
+Large assistant requests remain one user task. Explore libraries through measured database summaries and small targeted searches; do not require users to enumerate recordings or split an approved station configuration into separate prompts. Older catalogue detail leaves working context after a summary; preserve the approved plan and completed-action references. Continue saved request reuses the original requirements.

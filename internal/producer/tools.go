@@ -365,7 +365,15 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(map[string]int{"tracks": n}, fmt.Sprintf("Imported %d tracks", n), "/producer/sources/"+a.ID)
 	})
-	register(r, "search_music", "Search imported music by text, exact genre, album or source. Results include IDs, performers, composers and known durations. Paginated, limit 1–100.", false, func(ctx context.Context, a struct {
+	register(r, "summarize_music", "Summarize the imported catalogue using measured counts, genre/artist coverage and known duration. Start library exploration here; optional text, exact genre or source filters. Limit controls the top genres/artists (1–20, default 12), never recording rows. Detailed earlier catalogue pages leave working context after this summary; use small targeted searches for exact recordings.", false, func(ctx context.Context, q catalogue.SummaryQuery) (Result, error) {
+		repo, ok := d.Catalogue.(catalogue.SummaryRepository)
+		if !ok {
+			return Result{}, errors.New("Catalogue summary is unavailable")
+		}
+		summary, err := (catalogue.SummaryService{Repo: repo}).Summarize(ctx, q)
+		return read(summary, err)
+	})
+	register(r, "search_music", "Search imported music by text, exact genre, album or source. Results include IDs, performers, composers and known durations. Start with summarize_music. Paginated, limit 1–20 (default 5).", false, func(ctx context.Context, a struct {
 		Text     string `json:"text"`
 		Genre    string `json:"genre"`
 		Album    string `json:"album"`
@@ -373,6 +381,12 @@ func NewRegistry(d Dependencies) *Registry {
 		Offset   int    `json:"offset"`
 		Limit    int    `json:"limit"`
 	}) (Result, error) {
+		if a.Limit == 0 {
+			a.Limit = 5
+		}
+		if a.Limit > 20 {
+			return Result{}, errors.New("Use at most 20 recordings per search page")
+		}
 		o, l, e := bounds(a.Offset, a.Limit)
 		if e != nil {
 			return Result{}, e
@@ -385,7 +399,7 @@ func NewRegistry(d Dependencies) *Registry {
 		for _, item := range v.Items {
 			out = append(out, music(item))
 		}
-		return read(map[string]any{"items": out, "total": v.Total, "offset": o, "limit": l}, nil)
+		return read(map[string]any{"catalogue_page": true, "query": a, "items": out, "total": v.Total, "offset": o, "limit": l}, nil)
 	})
 	register(r, "explore_music", "Explore exact genre values or albums for dynamic playlist rules. kind must be genres or albums. Filter by text; paginate with offset and limit.", false, func(ctx context.Context, a struct {
 		Kind   string `json:"kind"`
@@ -421,7 +435,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		total := len(out)
 		o = min(o, total)
-		return read(map[string]any{"items": out[o:min(o+l, total)], "total": total}, nil)
+		return read(map[string]any{"catalogue_page": true, "query": a, "items": out[o:min(o+l, total)], "total": total}, nil)
 	})
 	ps := playlists.Service{Repo: d.Playlists, Stations: d.Stations}
 	register(r, "list_playlists", "List a station's existing playlists before creating another. Assess candidates using get_playlist and reuse suitable IDs in that station's shows/default assignment. All playlists are listed when station_id is omitted; playlists cannot be assigned across stations.", false, func(ctx context.Context, a stationID) (Result, error) {

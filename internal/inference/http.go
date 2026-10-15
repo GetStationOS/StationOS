@@ -189,10 +189,14 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	}
 	rawMessages, _ := json.Marshal(msgs)
 	rawTools, _ := json.Marshal(functions)
-	// Estimate input tokens conservatively at three UTF-8 bytes per token. Keep complete human
-	// requirements; pause explicitly instead of silently truncating the task.
-	if (len(rawMessages)+len(rawTools)+2)/3 > conn.ContextTokens-conn.OutputTokens {
-		return producer.Response{}, errors.New("Configured context budget is too small for the complete request and tools. Original requirements remain saved; increase the budget or use a smaller task")
+	// Compact only completed assistant history, before any provider request.
+	maximum := (conn.ContextTokens - conn.OutputTokens) * 3
+	if !live && len(rawMessages)+len(rawTools) > maximum {
+		msgs = compactAssistantContext(msgs, maximum-len(rawTools))
+		rawMessages, _ = json.Marshal(msgs)
+	}
+	if len(rawMessages)+len(rawTools) > maximum {
+		return producer.Response{}, errors.New("The endpoint context budget cannot fit the full requirements, latest plan and tools. Original requirements remain saved; increase the endpoint context budget")
 	}
 	queueWait := conn.QueueTimeout(live)
 	queueCtx, queueCancel := context.WithTimeout(ctx, queueWait)

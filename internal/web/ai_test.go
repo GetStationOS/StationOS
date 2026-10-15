@@ -194,3 +194,66 @@ func TestFailedEndpointSaveRetainsExistingConfiguration(t *testing.T) {
 		t.Fatal(errors.New("invalid endpoint saved"))
 	}
 }
+
+type credentialCheckingModel struct {
+	*assistantModel
+	received string
+	failure  error
+}
+
+func (m *credentialCheckingModel) Check(_ context.Context, _ ai.Connection, key, _ string, _ bool) (inference.Check, error) {
+	m.received = key
+	return inference.Check{Reachable: true, Models: []string{"test-model"}}, m.failure
+}
+
+func TestOpenAIKeyDiscoveryUsesTheStoredClipboardNormalization(t *testing.T) {
+	model := &credentialCheckingModel{assistantModel: &assistantModel{}}
+	h, store, _ := setupAssistant(t, "", model)
+	form := url.Values{"csrf": {csrf(t, h)}, "connection_action": {"shared-key"}, "connection_id": {"openai"}, "api_key": {" sk-project-clipboard\nwrapped-key\r\n "}}
+	w := request(h, "POST", "/producer/assistant/endpoints?connection=openai", form, nil)
+	if w.Code != 303 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	saved, err := store.(ai.Store).Credential(context.Background(), "openai")
+	if err != nil || saved != "sk-project-clipboardwrapped-key" || model.received != saved {
+		t.Fatal("discovery and persistence normalized differently", err)
+	}
+}
+
+func TestOpenAIKeySaveShowsSafeDiscoveryFailuresAndPreservesStoredKey(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		err     error
+		message string
+	}{
+		{"unauthorized", &inference.HTTPError{StatusCode: 401}, "rejected the credential (401)"},
+		{"forbidden", &inference.HTTPError{StatusCode: 403}, "denied access to its model list (403)"},
+		{"rate-limited", &inference.HTTPError{StatusCode: 429}, "limited the model-list request (429)"},
+		{"unavailable", &inference.HTTPError{StatusCode: 503}, "temporarily unavailable"},
+		{"timeout", context.DeadlineExceeded, "within 10 seconds"},
+		{"unknown", errors.New("private-provider-response-with-secret"), "Could not connect"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			model := &credentialCheckingModel{assistantModel: &assistantModel{}, failure: tc.err}
+			h, store, _ := setupAssistant(t, "", model)
+			if err := store.SaveSettings(context.Background(), "test-model", producer.KeyChange{Value: "sk-original-secret"}); err != nil {
+				t.Fatal(err)
+			}
+			form := url.Values{"csrf": {csrf(t, h)}, "connection_action": {"shared-key"}, "connection_id": {"openai"}, "api_key": {"sk-replacement-secret"}}
+			w := request(h, "POST", "/producer/assistant/endpoints?connection=openai", form, nil)
+			body := w.Body.String()
+			if w.Code != 200 || !strings.Contains(body, tc.message) {
+				t.Fatal(w.Code, body)
+			}
+			for _, secret := range []string{"sk-original-secret", "sk-replacement-secret", "private-provider-response-with-secret"} {
+				if strings.Contains(body, secret) {
+					t.Fatal("failure disclosed private data")
+				}
+			}
+			saved, err := store.(ai.Store).Credential(context.Background(), "openai")
+			if err != nil || saved != "sk-original-secret" {
+				t.Fatal("failed validation replaced key", err)
+			}
+		})
+	}
+}

@@ -18,6 +18,13 @@ import (
 	"stationos.local/stationos/internal/producer"
 )
 
+// HTTPError carries only the response status, never the provider body or key.
+type HTTPError struct{ StatusCode int }
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("Provider returned HTTP %d; check its model, capability and credential settings", e.StatusCode)
+}
+
 type safeFailure struct{ error }
 type Client struct {
 	HTTP   *http.Client
@@ -73,7 +80,7 @@ func (c *Client) request(ctx context.Context, conn ai.Connection, key, method, p
 		if resp.StatusCode == 404 {
 			return nil, &safeFailure{errors.New("Provider model or endpoint is unavailable")}
 		}
-		return nil, fmt.Errorf("Provider returned HTTP %d; check its model, capability and credential settings", resp.StatusCode)
+		return nil, &HTTPError{StatusCode: resp.StatusCode}
 	}
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(raw) > 1<<20 {

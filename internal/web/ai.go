@@ -62,7 +62,7 @@ func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v view) {
 		}
 		v.AIConnectionSaved = true
 		v.Title = v.AIConnection.Name
-		keyChange := producer.KeyChange{Value: strings.TrimSpace(r.PostForm.Get("api_key")), Clear: r.PostForm.Get("clear_key") == "yes"}
+		keyChange := producer.NormalizeKey(producer.KeyChange{Value: r.PostForm.Get("api_key"), Clear: r.PostForm.Get("clear_key") == "yes"})
 		err = producer.ValidateSettings(v.AssistantSettings.Model, keyChange)
 		if err == nil && !keyChange.Clear {
 			key := keyChange.Value
@@ -212,6 +212,24 @@ func (s *Server) availableModels(parent context.Context, c ai.Connection, key st
 	defer cancel()
 	result, err := s.modelListing(ctx, c, key)
 	if err != nil {
+		var providerError *inference.HTTPError
+		if errors.As(err, &providerError) {
+			switch providerError.StatusCode {
+			case http.StatusUnauthorized:
+				return nil, errors.New("The endpoint rejected the credential (401). Check that you pasted the complete API key, then save again.")
+			case http.StatusForbidden:
+				return nil, errors.New("The endpoint denied access to its model list (403). Check the key’s permissions and provider access settings.")
+			case http.StatusTooManyRequests:
+				return nil, errors.New("The endpoint limited the model-list request (429). Check provider usage limits and try saving again shortly.")
+			default:
+				if providerError.StatusCode >= 500 {
+					return nil, errors.New("The endpoint is temporarily unavailable. Try saving again shortly.")
+				}
+			}
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, errors.New("The endpoint did not return its model list within 10 seconds. Try saving again.")
+		}
 		return nil, errors.New("Could not connect to the endpoint or discover its models. Check the provider, server address and credential, then save again.")
 	}
 	models := []string{}

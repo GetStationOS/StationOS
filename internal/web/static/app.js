@@ -268,8 +268,8 @@ function nodeKey(node) {
  if(node.nodeType!==Node.ELEMENT_NODE)return String(node.nodeType);
  return node.tagName+':'+(node.id||node.getAttribute('data-station-card')||node.classList[0]||'');
 }
-function patchStationNode(current,next) {
- if(current.isEqualNode(next))return;
+function patchStationNode(current,next,preserved) {
+ if(current===preserved || current.isEqualNode(next))return;
  if(current.nodeType!==Node.ELEMENT_NODE){if(current.nodeValue!==next.nodeValue)current.nodeValue=next.nodeValue;return;}
  if(current.matches('img[data-track-artwork]')&&current.getAttribute('src')===next.getAttribute('src'))return;
  for(const attr of Array.from(current.attributes))if(!next.hasAttribute(attr.name))current.removeAttribute(attr.name);
@@ -281,7 +281,7 @@ function patchStationNode(current,next) {
    if(match){current.insertBefore(match,existing||null);existing=match;}
    else{current.insertBefore(child.cloneNode(true),existing||null);return;}
   }
-  patchStationNode(existing,child);
+  patchStationNode(existing,child,preserved);
  });
  while(current.childNodes.length>next.childNodes.length)current.lastChild.remove();
 }
@@ -717,6 +717,25 @@ document.body.addEventListener('submit', event => {
  form.elements.namedItem('name').focus({preventScroll:true});
 }, true);
 
+// Saved message IDs keep reasoning, chatter and action records anchored within
+// a response. New records go after earlier records, before the live status footer.
+function patchAssistantParts(current,next) {
+ const parts=current.querySelector('[data-assistant-parts]');
+ const incoming=next.querySelector('[data-assistant-parts]');
+ if(!parts || !incoming)return;
+ const saved=new Map(Array.from(parts.children).map(part=>[part.dataset.assistantPart,part]));
+ const ordered=Array.from(incoming.children).map(part=>{
+  const existing=saved.get(part.dataset.assistantPart);
+  if(!existing)return part.cloneNode(true);
+  patchStationNode(existing,part);
+  return existing;
+ });
+ ordered.forEach((part,index)=>{
+  if(parts.children[index]!==part)parts.insertBefore(part,parts.children[index]||null);
+ });
+ while(parts.children.length>ordered.length)parts.lastElementChild.remove();
+}
+
 // Reconcile chat turns by their server-rendered position, never by shared CSS
 // classes. Explicitly placing each turn also repairs an already scrambled list.
 // Keep unchanged bubbles mounted so selection and open reasoning survive polls.
@@ -728,7 +747,8 @@ function patchAssistantMessages(current,next) {
   const ordered=Array.from(incoming.children).map(turn=>{
    const existing=turns.get(turn.dataset.assistantTurn);
    if(!existing)return turn.cloneNode(true);
-   patchStationNode(existing,turn);
+   patchAssistantParts(existing,turn);
+   patchStationNode(existing,turn,existing.querySelector('[data-assistant-parts]'));
    return existing;
   });
   ordered.forEach((turn,index)=>{

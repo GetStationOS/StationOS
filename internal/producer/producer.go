@@ -224,7 +224,10 @@ func ValidateSettings(model string, k KeyChange) error {
 	return nil
 }
 
-type Message struct{ Role, Text, URL string }
+type Message struct {
+	ID              int64
+	Role, Text, URL string
+}
 type Conversation struct {
 	ID, StationID, Title, Status string
 	Transcript                   json.RawMessage

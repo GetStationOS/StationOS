@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -139,5 +140,62 @@ func TestFirstChatValidationRetainsDraftWithoutCreatingConversation(t *testing.T
 	conversations, err := store.List(context.Background(), "")
 	if err != nil || len(conversations) != 0 || response.Code != 200 || !strings.Contains(response.Body.String(), "Keep my first draft") || !strings.Contains(response.Body.String(), "Your draft is retained") {
 		t.Fatal(conversations, err, response.Code, response.Body.String())
+	}
+}
+
+func TestChatPartsKeepSavedIdentityAcrossLiveRefreshes(t *testing.T) {
+	h, store, _ := setupAssistant(t, "", &assistantModel{})
+	ctx := context.Background()
+	id := producer.ID()
+	if err := store.Create(ctx, producer.Conversation{ID: id, Title: "Live content order"}); err != nil {
+		t.Fatal(err)
+	}
+	messages := []producer.Message{
+		{Role: "user", Text: "Find Christmas recordings"},
+		{Role: "reasoning", Text: "Check the catalogue"},
+		{Role: "assistant", Text: "I found an album"},
+		{Role: "action", Text: "Saved the album"},
+		{Role: "assistant", Text: "Now checking carols"},
+		{Role: "action", Text: "Saved the carols"},
+	}
+	var previousIDs []int64
+	for _, message := range messages {
+		if err := store.Append(ctx, id, message); err != nil {
+			t.Fatal(err)
+		}
+		conversation, err := store.Get(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response := request(h, "GET", "/producer/assistant/"+id+"/messages", nil, map[string]string{"HX-Request": "true"})
+		if response.Code != 200 {
+			t.Fatal(response.Code, response.Body.String())
+		}
+		body := response.Body.String()
+		position := -1
+		for i, saved := range conversation.Messages {
+			if saved.ID <= 0 || (i > 0 && saved.ID <= conversation.Messages[i-1].ID) {
+				t.Fatal("message IDs are not chronological", conversation.Messages)
+			}
+			if i < len(previousIDs) && saved.ID != previousIDs[i] {
+				t.Fatal("saved message identity changed")
+			}
+			if saved.Role == "user" {
+				continue
+			}
+			key := fmt.Sprintf(`data-assistant-part="%d"`, saved.ID)
+			at := strings.Index(body, key)
+			if at <= position {
+				t.Fatalf("response record %d missing or out of order: %s", saved.ID, body)
+			}
+			position = at
+			if saved.Role == "reasoning" && !strings.Contains(body, fmt.Sprintf(`data-assistant-detail="%d"`, saved.ID)) {
+				t.Fatal("reasoning identity is not stable", body)
+			}
+		}
+		previousIDs = nil
+		for _, saved := range conversation.Messages {
+			previousIDs = append(previousIDs, saved.ID)
+		}
 	}
 }

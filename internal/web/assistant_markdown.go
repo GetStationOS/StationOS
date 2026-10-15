@@ -12,6 +12,7 @@ import (
 )
 
 type assistantMessage struct {
+	ID              int64
 	Role, Text, URL string
 	HTML            template.HTML
 	Parts           []assistantMessage

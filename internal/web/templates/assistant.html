@@ -67,19 +67,21 @@
       {{if eq .Role "user"}}
       <p>{{.Text}}</p>
       {{else}}
-      {{range $part, $content := .Parts}}{{if eq .Role "reasoning"}}
-      <details class="assistant-reasoning" data-assistant-detail="{{$index}}-{{$part}}">
+      <div data-assistant-parts>
+      {{range .Parts}}{{if eq .Role "reasoning"}}
+      <details class="assistant-reasoning" data-assistant-part="{{.ID}}" data-assistant-detail="{{.ID}}">
         <summary>Provider reasoning</summary>
         <p>{{.Text}}</p>
       </details>
       {{else if eq .Role "assistant"}}
-      <div class="assistant-markdown">{{.HTML}}
+      <div class="assistant-markdown" data-assistant-part="{{.ID}}">{{.HTML}}
       </div>
       {{else}}
-      <div class="assistant-action">
+      <div class="assistant-action" data-assistant-part="{{.ID}}">
         <p>{{.Text}}</p>
         {{if .URL}}<a href="{{.URL}}">View in StationOS →</a>{{end}}
       </div>{{end}}{{end}}
+      </div>
       {{if .Latest}}{{with $}}{{if .AssistantState}}
       <section class="notice assistant-status" data-state="{{.AssistantState}}" role="status" aria-label="Assistant status">
         <strong>{{.AssistantState}}</strong>

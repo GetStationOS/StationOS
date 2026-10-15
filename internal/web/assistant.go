@@ -99,7 +99,7 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 		}
 	}
 	for _, message := range v.Conversation.Messages {
-		rendered := assistantMessage{Role: message.Role, Text: message.Text, URL: message.URL}
+		rendered := assistantMessage{ID: message.ID, Role: message.Role, Text: message.Text, URL: message.URL}
 		if message.Role == "assistant" {
 			rendered.HTML = assistantMarkdown(message.Text)
 		}

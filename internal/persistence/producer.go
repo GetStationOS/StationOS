@@ -221,14 +221,14 @@ func (p Producer) Get(ctx context.Context, id string) (producer.Conversation, er
 	if e = json.Unmarshal([]byte(taskJSON), &c.Task); e != nil {
 		return c, e
 	}
-	rows, e := p.DB.QueryContext(ctx, `SELECT role,text,url FROM (SELECT id,role,text,url FROM producer_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 100) ORDER BY id`, id)
+	rows, e := p.DB.QueryContext(ctx, `SELECT id,role,text,url FROM (SELECT id,role,text,url FROM producer_messages WHERE conversation_id=? ORDER BY id DESC LIMIT 100) ORDER BY id`, id)
 	if e != nil {
 		return c, e
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var m producer.Message
-		if e = rows.Scan(&m.Role, &m.Text, &m.URL); e != nil {
+		if e = rows.Scan(&m.ID, &m.Role, &m.Text, &m.URL); e != nil {
 			return c, e
 		}
 		c.Messages = append(c.Messages, m)

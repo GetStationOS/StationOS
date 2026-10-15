@@ -1,41 +1,210 @@
 {{define "audience-form"}}
-{{if and .AudienceMode .PublicShow.ID}}<a class="contribution-cancel" href="{{.PublicShow.URL}}?show={{.AudienceKey}}&day={{.AudienceDay}}" hx-get="{{.PublicShow.URL}}?show={{.AudienceKey}}&day={{.AudienceDay}}" hx-boost="false" hx-target="#{{.AudiencePanel}}" hx-swap="innerHTML show:none" hx-sync="closest section:replace" hx-push-url="false" hx-indicator="#busy-{{.AudiencePanel}}" aria-label="{{if eq .AudienceMode "thanks"}}Close contribution confirmation{{else}}Cancel contribution{{end}}" title="{{if eq .AudienceMode "thanks"}}Close confirmation{{else}}Cancel contribution{{end}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></a>{{end}}
+{{if and .AudienceMode .PublicShow.ID}}<a class="contribution-cancel" href="{{.PublicShow.URL}}?show={{.AudienceKey}}&day={{.AudienceDay}}" hx-get="{{.PublicShow.URL}}?show={{.AudienceKey}}&day={{.AudienceDay}}" hx-boost="false" hx-target="#{{.AudiencePanel}}" hx-swap="innerHTML show:none" hx-sync="closest section:replace" hx-push-url="false" hx-indicator="#busy-{{.AudiencePanel}}" aria-label="{{if eq .AudienceMode "thanks"}}Close contribution confirmation{{else}}Cancel contribution{{end}}" title="{{if eq .AudienceMode "thanks"}}Close confirmation{{else}}Cancel contribution{{end}}">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+    <path d="m6 6 12 12M18 6 6 18"/>
+  </svg>
+</a>{{end}}
 <span id="busy-{{.AudiencePanel}}" class="contribution-busy htmx-indicator" role="status">Loading…</span>
 {{if .AudienceMode}}
-{{if .AudienceShow.Key}}<p class="eyebrow">{{.AudienceShow.Title}} · {{.AudienceShow.Start.Format "Mon 2 Jan, 15:04 MST"}}</p>{{end}}
-{{if .AudienceError}}<p class="notice error" role="alert">{{.AudienceError}}</p>{{end}}
+{{if .AudienceShow.Key}}
+<p class="eyebrow">{{.AudienceShow.Title}} · {{.AudienceShow.Start.Format "Mon 2 Jan, 15:04 MST"}}</p>{{end}}
+{{if .AudienceError}}
+<p class="notice error" role="alert">{{.AudienceError}}</p>{{end}}
 {{if eq .AudienceMode "closed"}}
-<h2>Contributions are closed</h2><p>This airing has ended or its contribution options have changed. Choose an available airing from the <a href="/radio/{{.Station.StreamSlug}}">station schedule</a>.</p>
+<h2>Contributions are closed</h2>
+<p>This airing has ended or its contribution options have changed. Choose an available airing from the <a href="/radio/{{.Station.StreamSlug}}">station schedule</a>.</p>
 {{else if eq .AudienceMode "choose"}}
-<h2>Choose a show</h2><div class="contribution-choices">{{range .AudienceShows}}<a class="button secondary" href="/radio/{{$.Station.StreamSlug}}/contribute?show={{.Key}}">{{.Title}} · {{.Start.Format "Mon 2 Jan, 15:04 MST"}}</a>{{else}}<p>No upcoming shows are accepting contributions at the moment.</p>{{end}}</div>
+<h2>Choose a show</h2>
+<div class="contribution-choices">
+  {{range .AudienceShows}}<a class="button secondary" href="/radio/{{$.Station.StreamSlug}}/contribute?show={{.Key}}">{{.Title}} · {{.Start.Format "Mon 2 Jan, 15:04 MST"}}</a>
+  {{else}}
+  <p>No upcoming shows are accepting contributions at the moment.</p>{{end}}
+</div>
 {{else if eq .AudienceMode "types"}}
-<h2>How would you like to contribute?</h2><div class="contribution-choices">{{if .AudienceShow.AcceptRequests}}<a class="button" href="{{.AudienceBase}}/requests?show={{.AudienceKey}}&day={{.AudienceDay}}">Request a track</a>{{end}}{{if .AudienceShow.AcceptShoutouts}}<a class="button secondary" href="{{.AudienceBase}}/shoutouts?show={{.AudienceKey}}&day={{.AudienceDay}}">Send a shout-out</a>{{end}}</div><p class="hint">Your contribution is for this airing of the show.</p>
+<h2>How would you like to contribute?</h2>
+<div class="contribution-choices">
+  {{if .AudienceShow.AcceptRequests}}<a class="button" href="{{.AudienceBase}}/requests?show={{.AudienceKey}}&day={{.AudienceDay}}">Request a track</a>{{end}}{{if .AudienceShow.AcceptShoutouts}}<a class="button secondary" href="{{.AudienceBase}}/shoutouts?show={{.AudienceKey}}&day={{.AudienceDay}}">Send a shout-out</a>{{end}}
+</div>
+<p class="hint">Your contribution is for this airing of the show.</p>
 {{else if eq .AudienceMode "thanks"}}
-<h2>Thanks for contributing!</h2><p role="status">Your {{if eq .AudienceKind "request"}}request{{else}}shout-out{{end}} has been sent to the producer for review.</p><p class="hint">Listen during the show to hear what makes it on air. Airtime is not guaranteed.</p><a class="button secondary" href="{{.AudienceBase}}/contribute?show={{.AudienceKey}}&day={{.AudienceDay}}">Contribute again</a>
+<h2>Thanks for contributing!</h2>
+<p role="status">Your {{if eq .AudienceKind "request"}}request{{else}}shout-out{{end}} has been sent to the producer for review.</p>
+<p class="hint">Listen during the show to hear what makes it on air. Airtime is not guaranteed.</p>
+<a class="button secondary" href="{{.AudienceBase}}/contribute?show={{.AudienceKey}}&day={{.AudienceDay}}">Contribute again</a>
 {{else}}
-<h2>{{if eq .AudienceKind "request"}}Request a track{{else}}Send a shout-out{{end}}</h2>
-{{if eq .AudienceKind "request"}}<form class="audience-track-search" method="get" action="{{.Page}}" hx-get="{{.Page}}" hx-trigger="submit, input changed delay:300ms, search" hx-sync="closest section:replace" hx-target="#audience-track-options-{{.AudiencePanel}}" hx-select="#audience-track-options-{{.AudiencePanel}}" hx-swap="outerHTML show:none" hx-push-url="false" hx-indicator="#track-search-busy-{{.AudiencePanel}}"><input type="hidden" name="show" value="{{.AudienceKey}}"><input type="hidden" name="day" value="{{.AudienceDay}}"><label>Search for a track or artist<input type="search" name="q" value="{{.AudienceQuery}}" maxlength="100" placeholder="Track, artist or band name" autocomplete="off" aria-describedby="track-search-help-{{.AudiencePanel}}" aria-controls="audience-track-options-{{.AudiencePanel}}"></label><p class="hint" id="track-search-help-{{.AudiencePanel}}">Search this show's playlist by track, artist or band, then choose a recording.</p><span id="track-search-busy-{{.AudiencePanel}}" class="htmx-indicator" role="status">Searching…</span><button class="secondary" data-track-search-submit>Find tracks</button></form>{{end}}
-<form method="post" action="{{.Page}}" {{if eq .AudienceKind "request"}}data-audience-request{{end}} hx-disabled-elt="find button" hx-push-url="false"><input type="hidden" name="csrf" value="{{.AudienceToken}}"><input type="hidden" name="show" value="{{.AudienceKey}}"><input type="hidden" name="day" value="{{.AudienceDay}}">
-{{if eq .AudienceKind "request"}}<input type="hidden" name="track" value="{{.AudienceTrack}}" data-selected-track disabled><div class="audience-selected-track" data-selected-recording hidden role="status"><span class="eyebrow">Selected recording</span><strong data-selected-title></strong><span data-selected-artist></span></div>{{template "audience-tracks" .}}{{end}}
-<label>Your name or nickname (optional)<input name="name" value="{{.AudienceName}}" maxlength="80" autocomplete="nickname"></label><label>{{if eq .AudienceKind "request"}}Dedication (optional){{else}}Your shout-out{{end}}<textarea name="message" maxlength="400" rows="4" {{if eq .AudienceKind "shoutout"}}required{{end}} placeholder="Keep it friendly, and leave out private contact details.">{{.AudienceText}}</textarea></label><label class="choice"><input type="checkbox" name="consent" value="yes" {{if .AudienceConsent}}checked{{end}} required>I'm happy for my name and message to be read on air.</label><p class="hint">The producer reviews contributions during this show. Requests must fit its music and timing. Airtime is not guaranteed.</p><div class="form-footer"><div class="form-actions"><a class="button secondary" href="{{.AudienceBase}}/contribute?show={{.AudienceKey}}&day={{.AudienceDay}}">Back</a><button class="audience-submit">Send to producer</button></div></div></form>
+<h2>
+  {{if eq .AudienceKind "request"}}Request a track{{else}}Send a shout-out{{end}}</h2>
+{{if eq .AudienceKind "request"}}
+<form class="audience-track-search" method="get" action="{{.Page}}" hx-get="{{.Page}}" hx-trigger="submit, input changed delay:300ms, search" hx-sync="closest section:replace" hx-target="#audience-track-options-{{.AudiencePanel}}" hx-select="#audience-track-options-{{.AudiencePanel}}" hx-swap="outerHTML show:none" hx-push-url="false" hx-indicator="#track-search-busy-{{.AudiencePanel}}">
+  <input type="hidden" name="show" value="{{.AudienceKey}}">
+  <input type="hidden" name="day" value="{{.AudienceDay}}">
+  <label>Search for a track or artist<input type="search" name="q" value="{{.AudienceQuery}}" maxlength="100" placeholder="Track, artist or band name" autocomplete="off" aria-describedby="track-search-help-{{.AudiencePanel}}" aria-controls="audience-track-options-{{.AudiencePanel}}">
+  </label>
+  <p class="hint" id="track-search-help-{{.AudiencePanel}}">Search this show's playlist by track, artist or band, then choose a recording.</p>
+  <span id="track-search-busy-{{.AudiencePanel}}" class="htmx-indicator" role="status">Searching…</span>
+  <button class="secondary" data-track-search-submit>Find tracks</button>
+</form>{{end}}
+<form method="post" action="{{.Page}}" {{if eq .AudienceKind "request"}}data-audience-request{{end}} hx-disabled-elt="find button" hx-push-url="false">
+  <input type="hidden" name="csrf" value="{{.AudienceToken}}">
+  <input type="hidden" name="show" value="{{.AudienceKey}}">
+  <input type="hidden" name="day" value="{{.AudienceDay}}">
+  {{if eq .AudienceKind "request"}}
+  <input type="hidden" name="track" value="{{.AudienceTrack}}" data-selected-track disabled>
+  <div class="audience-selected-track" data-selected-recording hidden role="status">
+    <span class="eyebrow">Selected recording</span>
+    <strong data-selected-title>
+    </strong>
+    <span data-selected-artist>
+    </span>
+  </div>
+  {{template "audience-tracks" .}}{{end}}
+  <label>Your name or nickname (optional)<input name="name" value="{{.AudienceName}}" maxlength="80" autocomplete="nickname">
+  </label>
+  <label>
+    {{if eq .AudienceKind "request"}}Dedication (optional){{else}}Your shout-out{{end}}<textarea name="message" maxlength="400" rows="4" {{if eq .AudienceKind "shoutout"}}required{{end}} placeholder="Keep it friendly, and leave out private contact details.">{{.AudienceText}}</textarea>
+  </label>
+  <label class="choice">
+    <input type="checkbox" name="consent" value="yes" {{if .AudienceConsent}}checked{{end}} required>I'm happy for my name and message to be read on air.</label>
+  <p class="hint">The producer reviews contributions during this show. Requests must fit its music and timing. Airtime is not guaranteed.</p>
+  <div class="form-footer">
+    <div class="form-actions">
+      <a class="button secondary" href="{{.AudienceBase}}/contribute?show={{.AudienceKey}}&day={{.AudienceDay}}">Back</a>
+      <button class="audience-submit">Send to producer</button>
+    </div>
+  </div>
+</form>
 {{end}}
-{{else}}{{if .PublicShow.Name}}<div class="audience-invitation">{{if .PublicShow.ContributionURL}}<a class="button" href="{{.PublicShow.ContributionURL}}" aria-controls="{{.AudiencePanel}}">Be part of the show</a>{{else}}<p>This show is not accepting contributions.</p>{{end}}</div>{{else}}<h2>Be part of the show</h2><p>Choose Contribute on a show in the schedule to request a track or send a shout-out.</p>{{end}}{{end}}
+{{else}}{{if .PublicShow.Name}}
+<div class="audience-invitation">
+  {{if .PublicShow.ContributionURL}}<a class="button" href="{{.PublicShow.ContributionURL}}" aria-controls="{{.AudiencePanel}}">Be part of the show</a>
+  {{else}}
+  <p>This show is not accepting contributions.</p>{{end}}
+</div>
+{{else}}
+<h2>Be part of the show</h2>
+<p>Choose Contribute on a show in the schedule to request a track or send a shout-out.</p>{{end}}{{end}}
 {{end}}
 {{define "audience-queue"}}
 <section class="audience-workspace">
-<p class="intro">Listener requests and shout-outs for this station. The AI reviews new contributions while the station is playing; approved messages wait for a suitable DJ link.</p>
-<form class="audience-filters" method="get" action="/producer/stations/{{.Station.ID}}/audience" hx-get="/producer/stations/{{.Station.ID}}/audience" hx-trigger="change, submit" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-sync="closest section:replace" hx-replace-url="true" hx-indicator="#audience-filter-busy">
-<input type="hidden" name="filtered" value="1">
-<fieldset><legend>Show contributions with these statuses</legend><div class="audience-status-options">{{range .AudienceStatuses}}<label class="audience-status-choice"><input type="checkbox" name="status" value="{{.Value}}" {{if .Selected}}checked{{end}} aria-controls="audience-queue-results"><span>{{.Label}}</span></label>{{end}}</div></fieldset>
-<span id="audience-filter-busy" class="htmx-indicator" role="status">Updating…</span><noscript><button class="secondary">Update table</button></noscript>
-</form>
-{{template "audience-queue-results" .}}
+  <p class="intro">Listener requests and shout-outs for this station. The AI reviews new contributions while the station is playing; approved messages wait for a suitable DJ link.</p>
+  <form class="audience-filters" method="get" action="/producer/stations/{{.Station.ID}}/audience" hx-get="/producer/stations/{{.Station.ID}}/audience" hx-trigger="change, submit" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-sync="closest section:replace" hx-replace-url="true" hx-indicator="#audience-filter-busy">
+    <input type="hidden" name="filtered" value="1">
+    <fieldset>
+      <legend>Show contributions with these statuses</legend>
+      <div class="audience-status-options">
+        {{range .AudienceStatuses}}
+        <label class="audience-status-choice">
+          <input type="checkbox" name="status" value="{{.Value}}" {{if .Selected}}checked{{end}} aria-controls="audience-queue-results">
+          <span>{{.Label}}</span>
+        </label>{{end}}
+      </div>
+    </fieldset>
+    <span id="audience-filter-busy" class="htmx-indicator" role="status">Updating…</span>
+    <noscript>
+      <button class="secondary">Update table</button>
+    </noscript>
+  </form>
+  {{template "audience-queue-results" .}}
 </section>
 {{end}}
-{{define "audience-queue-results"}}<div id="audience-queue-results" tabindex="-1" hx-get="{{.AudienceRefreshURL}}" hx-trigger="every 5s" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest section:drop" hx-indicator="this" hx-push-url="false">{{if not .Broadcast.Listeners}}<p class="hint">Automatic review starts while someone is listening to the station.</p>{{else}}{{if and .Broadcast.Programme.DJ.ID (not .Broadcast.Programme.DJ.HasKey)}}<p class="notice">The selected speech connection has no key, so spoken shout-outs are unavailable. Local audience review can still run when configured. Configure it in <a href="/producer/assistant/settings" hx-target="#main">Assistant settings</a> or review messages manually.</p>{{end}}{{end}}<div class="audience-table-panel"><div class="table-scroll" tabindex="0" role="region" aria-label="Listener contributions"><table class="audience-queue-table"><caption class="visually-hidden">Listener contributions and their review status</caption><thead><tr><th scope="col">Show</th><th scope="col">Submission</th><th scope="col">Selected recording</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>{{range .AudienceMessages}}<tr><td>{{.ShowName}}<br><span class="hint">{{.ShowStart.Format "2 Jan 15:04 MST"}}</span></td><td class="audience-submission"><strong>{{if .Name}}{{.Name}}{{else}}A listener{{end}}</strong><span class="audience-kind">{{if eq .Kind "request"}}Track request{{else}}Shout-out{{end}}</span>{{if .Text}}<p class="audience-message">{{.Text}}</p>{{end}}</td><td>{{if .TrackID}}<strong>{{.TrackTitle}}</strong>{{if .TrackArtist}}<br>{{.TrackArtist}}{{end}}{{if eq .TrackID $.Broadcast.Current.ID}}<br><span class="hint">Playing now</span>{{else if eq .TrackID $.Broadcast.Next.ID}}<br><span class="hint">Up next</span>{{end}}{{else}}<span class="hint">—</span>{{end}}</td><td><span class="audience-status-badge audience-status-{{.Status}}">{{if eq .Status "pending"}}Awaiting AI review{{else if eq .Status "review"}}Needs producer review{{else if eq .Status "approved"}}Approved{{else if eq .Status "rejected"}}Dismissed{{else if eq .Status "used"}}Broadcast{{else}}Expired{{end}}</span>{{if .Reason}}<br><span class="hint">{{.Reason}}</span>{{end}}</td><td>{{if or (eq .Status "pending") (eq .Status "review") (eq .Status "approved")}}<form class="audience-queue-actions" method="post" action="/producer/stations/{{$.Station.ID}}/audience/{{.ID}}" hx-disabled-elt="find button" hx-sync="closest section:replace" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-push-url="false" hx-indicator="this"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="filtered" value="1">{{range $.AudienceStatuses}}{{if .Selected}}<input type="hidden" name="status" value="{{.Value}}">{{end}}{{end}}{{if or (eq .Status "pending") (eq .Status "review")}}<button name="action" value="approve" class="secondary audience-icon-action" title="Approve" aria-label="Approve contribution from {{if .Name}}{{.Name}}{{else}}a listener{{end}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></button>{{end}}<button name="action" value="dismiss" class="secondary audience-icon-action" title="Dismiss" aria-label="Dismiss contribution from {{if .Name}}{{.Name}}{{else}}a listener{{end}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></form>{{end}}</td></tr>{{else}}<tr><td colspan="5">{{if eq .AudienceFilter "none"}}Select a status above to see contributions.{{else}}No contributions match these statuses.{{end}}</td></tr>{{end}}</tbody></table></div><div class="pagination"><span>{{.AudienceTotal}} submissions</span>{{if .AudiencePrevious}}<a href="{{.AudiencePrevious}}" hx-get="{{.AudiencePrevious}}" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-push-url="true" hx-sync="closest section:replace" hx-indicator="#audience-filter-busy">Previous</a>{{end}}{{if .AudienceNext}}<a href="{{.AudienceNext}}" hx-get="{{.AudienceNext}}" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-push-url="true" hx-sync="closest section:replace" hx-indicator="#audience-filter-busy">Next</a>{{end}}</div></div></div>{{end}}
-
-
-{{define "audience-tracks"}}<div id="audience-track-options-{{.AudiencePanel}}" data-audience-track-results data-query="{{.AudienceQuery}}">
-{{if .AudienceTracks}}<fieldset class="audience-track-results"><legend>Choose a recording</legend>{{range .AudienceTracks}}<label class="audience-track-result"><input type="radio" name="track" value="{{.ID}}" data-track-result data-title="{{.Title}}" data-artist="{{.Artist}}" data-album="{{.Album}}" {{if eq .ID $.AudienceTrack}}checked{{end}} required><span><strong>{{.Title}}</strong>{{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<small>{{.Album}}</small>{{end}}</span></label>{{end}}</fieldset><p class="hint" role="status">{{if .AudienceMoreTracks}}Showing the first 8 matches. Add more to your search to narrow the list.{{else}}{{len .AudienceTracks}} {{if eq (len .AudienceTracks) 1}}recording found{{else}}recordings found{{end}}. Choose the one you want.{{end}}</p>
-{{else}}{{if .AudienceQuery}}<p class="audience-search-empty" role="status">No tracks match “{{.AudienceQuery}}” in this show's playlist. Try a different track, artist or band name.</p>{{else}}<p class="audience-search-empty" role="status">Start typing a track, artist or band name to find a recording.</p>{{end}}{{end}}
+{{define "audience-queue-results"}}
+<div id="audience-queue-results" tabindex="-1" hx-get="{{.AudienceRefreshURL}}" hx-trigger="every 5s" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest section:drop" hx-indicator="this" hx-push-url="false">
+  {{if not .Broadcast.Listeners}}
+  <p class="hint">Automatic review starts while someone is listening to the station.</p>
+  {{else}}{{if and .Broadcast.Programme.DJ.ID (not .Broadcast.Programme.DJ.HasKey)}}
+  <p class="notice">The selected speech connection has no key, so spoken shout-outs are unavailable. Local audience review can still run when configured. Configure it in <a href="/producer/assistant/settings" hx-target="#main">Assistant settings</a> or review messages manually.</p>{{end}}{{end}}
+  <div class="audience-table-panel">
+    <div class="table-scroll" tabindex="0" role="region" aria-label="Listener contributions">
+      <table class="audience-queue-table">
+        <caption class="visually-hidden">Listener contributions and their review status</caption>
+        <thead>
+          <tr>
+            <th scope="col">Show</th>
+            <th scope="col">Submission</th>
+            <th scope="col">Selected recording</th>
+            <th scope="col">Status</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .AudienceMessages}}
+          <tr>
+            <td>{{.ShowName}}<br>
+              <span class="hint">{{.ShowStart.Format "2 Jan 15:04 MST"}}</span>
+            </td>
+            <td class="audience-submission">
+              <strong>
+                {{if .Name}}{{.Name}}{{else}}A listener{{end}}</strong>
+              <span class="audience-kind">
+                {{if eq .Kind "request"}}Track request{{else}}Shout-out{{end}}</span>
+              {{if .Text}}
+              <p class="audience-message">{{.Text}}</p>{{end}}</td>
+            <td>
+              {{if .TrackID}}<strong>{{.TrackTitle}}</strong>
+              {{if .TrackArtist}}<br>{{.TrackArtist}}{{end}}{{if eq .TrackID $.Broadcast.Current.ID}}<br>
+              <span class="hint">Playing now</span>
+              {{else if eq .TrackID $.Broadcast.Next.ID}}<br>
+              <span class="hint">Up next</span>{{end}}{{else}}<span class="hint">—</span>{{end}}</td>
+            <td>
+              <span class="audience-status-badge audience-status-{{.Status}}">
+                {{if eq .Status "pending"}}Awaiting AI review{{else if eq .Status "review"}}Needs producer review{{else if eq .Status "approved"}}Approved{{else if eq .Status "rejected"}}Dismissed{{else if eq .Status "used"}}Broadcast{{else}}Expired{{end}}</span>
+              {{if .Reason}}<br>
+              <span class="hint">{{.Reason}}</span>{{end}}</td>
+            <td>
+              {{if or (eq .Status "pending") (eq .Status "review") (eq .Status "approved")}}
+              <form class="audience-queue-actions" method="post" action="/producer/stations/{{$.Station.ID}}/audience/{{.ID}}" hx-disabled-elt="find button" hx-sync="closest section:replace" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-push-url="false" hx-indicator="this">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <input type="hidden" name="filtered" value="1">
+                {{range $.AudienceStatuses}}{{if .Selected}}
+                <input type="hidden" name="status" value="{{.Value}}">{{end}}{{end}}{{if or (eq .Status "pending") (eq .Status "review")}}
+                <button name="action" value="approve" class="secondary audience-icon-action" title="Approve" aria-label="Approve contribution from {{if .Name}}{{.Name}}{{else}}a listener{{end}}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m5 12 4 4L19 6"/>
+                  </svg>
+                </button>{{end}}
+                <button name="action" value="dismiss" class="secondary audience-icon-action" title="Dismiss" aria-label="Dismiss contribution from {{if .Name}}{{.Name}}{{else}}a listener{{end}}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="m6 6 12 12M18 6 6 18"/>
+                  </svg>
+                </button>
+              </form>{{end}}</td>
+          </tr>
+          {{else}}
+          <tr>
+            <td colspan="5">
+              {{if eq .AudienceFilter "none"}}Select a status above to see contributions.{{else}}No contributions match these statuses.{{end}}</td>
+          </tr>{{end}}
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span>{{.AudienceTotal}} submissions</span>
+      {{if .AudiencePrevious}}<a href="{{.AudiencePrevious}}" hx-get="{{.AudiencePrevious}}" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-push-url="true" hx-sync="closest section:replace" hx-indicator="#audience-filter-busy">Previous</a>{{end}}{{if .AudienceNext}}<a href="{{.AudienceNext}}" hx-get="{{.AudienceNext}}" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-push-url="true" hx-sync="closest section:replace" hx-indicator="#audience-filter-busy">Next</a>{{end}}
+    </div>
+  </div>
 </div>{{end}}
+
+{{define "audience-tracks"}}
+<div id="audience-track-options-{{.AudiencePanel}}" data-audience-track-results data-query="{{.AudienceQuery}}">
+  {{if .AudienceTracks}}
+  <fieldset class="audience-track-results">
+    <legend>Choose a recording</legend>
+    {{range .AudienceTracks}}
+    <label class="audience-track-result">
+      <input type="radio" name="track" value="{{.ID}}" data-track-result data-title="{{.Title}}" data-artist="{{.Artist}}" data-album="{{.Album}}" {{if eq .ID $.AudienceTrack}}checked{{end}} required>
+      <span>
+        <strong>{{.Title}}</strong>
+        {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<small>{{.Album}}</small>{{end}}</span>
+    </label>{{end}}
+  </fieldset>
+  <p class="hint" role="status">
+    {{if .AudienceMoreTracks}}Showing the first 8 matches. Add more to your search to narrow the list.{{else}}{{len .AudienceTracks}} {{if eq (len .AudienceTracks) 1}}recording found{{else}}recordings found{{end}}. Choose the one you want.{{end}}</p>
+  {{else}}{{if .AudienceQuery}}
+  <p class="audience-search-empty" role="status">No tracks match “{{.AudienceQuery}}” in this show's playlist. Try a different track, artist or band name.</p>
+  {{else}}
+  <p class="audience-search-empty" role="status">Start typing a track, artist or band name to find a recording.</p>{{end}}{{end}}
+</div>{{end}}
+
+{{define "audience-queue-page"}}
+{{template "page-heading" .Title}}{{template "audience-queue" .}}
+{{end}}

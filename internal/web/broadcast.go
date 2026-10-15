@@ -180,14 +180,11 @@ func (s *Server) liveStation(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	v := view{Station: st, Broadcast: broadcast.State{Status: "Dormant"}}
+	v := stationPageView{pageView: pageView{Station: st}, Broadcast: broadcast.State{Status: "Dormant"}}
 	if s.d.Broadcast != nil {
 		v.Broadcast = s.d.Broadcast.State(st.ID)
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.t.ExecuteTemplate(w, "station-live", v); err != nil {
-		s.d.Logger.Error("status rendering failed", "error", err)
-	}
+	s.renderHTML(w, http.StatusOK, "station-live", v)
 }
 func (s *Server) streamURL(r *http.Request, id string) string {
 	base := s.d.PublicURL
@@ -202,13 +199,10 @@ func (s *Server) streamURL(r *http.Request, id string) string {
 }
 
 func (s *Server) liveCards(w http.ResponseWriter, r *http.Request) {
-	v := s.baseView(r)
+	v := stationDirectoryView{pageView: s.baseView(r)}
 	if err := s.loadStationCards(r, &v); err != nil {
 		s.fail(w, err)
 		return
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.t.ExecuteTemplate(w, "station-cards", v); err != nil {
-		s.d.Logger.Error("cards rendering failed", "error", err)
-	}
+	s.renderHTML(w, http.StatusOK, "station-cards", v)
 }

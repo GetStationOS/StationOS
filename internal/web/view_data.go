@@ -11,7 +11,7 @@ import (
 )
 
 // Catalogue choices belong only to track browsing and playlist rule editing.
-func (s *Server) loadCatalogueChoices(ctx context.Context, v *view) error {
+func (s *Server) loadCatalogueChoices(ctx context.Context, v *catalogueChoices) error {
 	var err error
 	v.Facets, err = s.d.Catalogue.Facets(ctx)
 	if err != nil {
@@ -25,7 +25,8 @@ func (s *Server) loadCatalogueChoices(ctx context.Context, v *view) error {
 }
 
 // A station workspace needs only its own pools. Global lists also need station names.
-func (s *Server) loadPlaylistOptions(ctx context.Context, v *view, stationID string) error {
+func (s *Server) loadPlaylistOptions(ctx context.Context, v *playlistChoices, current station.Station) error {
+	stationID := current.ID
 	if stationID == "" {
 		var err error
 		v.Stations, err = s.d.Stations.List(ctx)
@@ -44,8 +45,8 @@ func (s *Server) loadPlaylistOptions(ctx context.Context, v *view, stationID str
 	for _, st := range v.Stations {
 		names[st.ID] = st.Name
 	}
-	if v.Station.ID != "" {
-		names[v.Station.ID] = v.Station.Name
+	if current.ID != "" {
+		names[current.ID] = current.Name
 	}
 	for _, p := range items {
 		name := names[p.StationID]
@@ -54,16 +55,17 @@ func (s *Server) loadPlaylistOptions(ctx context.Context, v *view, stationID str
 		}
 		v.PlaylistOptions = append(v.PlaylistOptions, playlistOption{Playlist: p, Station: name})
 	}
+	v.StationPlaylistCount = len(items)
 	return nil
 }
 
-func (s *Server) markDefaultPlaylists(ctx context.Context, v *view) error {
+func (s *Server) markDefaultPlaylists(ctx context.Context, v *playlistChoices, current station.Station) error {
 	if s.d.BroadcastConfig == nil {
 		return nil
 	}
 	stations := v.Stations
-	if v.Station.ID != "" {
-		stations = []station.Station{v.Station}
+	if current.ID != "" {
+		stations = []station.Station{current}
 	}
 	for _, st := range stations {
 		id, err := s.d.BroadcastConfig.Assignment(ctx, st.ID)
@@ -80,8 +82,8 @@ func (s *Server) markDefaultPlaylists(ctx context.Context, v *view) error {
 }
 
 // The overview and its live updates share the same measured card projection.
-func (s *Server) loadStationCards(r *http.Request, v *view) error {
-	if err := s.loadPlaylistOptions(r.Context(), v, ""); err != nil {
+func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) error {
+	if err := s.loadPlaylistOptions(r.Context(), &v.playlistChoices, station.Station{}); err != nil {
 		return err
 	}
 	var err error

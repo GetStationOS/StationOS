@@ -366,9 +366,9 @@ func (s *Server) saveSource(w http.ResponseWriter, r *http.Request) {
 	c := sources.Config{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Kind: "upnp", Endpoint: r.PostForm.Get("endpoint")}
 	if err := c.Validate(); err != nil {
 		if c.ID == "" {
-			v := s.baseView(r)
+			v := sourcePageView{pageView: s.baseView(r)}
 			v.Page, v.Title, v.Source, v.SourceError = "/producer/sources/new", "Add source", c, err.Error()
-			s.render(w, r, v)
+			s.renderPage(w, r, http.StatusOK, "new-source-page", v)
 			return
 		}
 		http.Error(w, err.Error(), 400)

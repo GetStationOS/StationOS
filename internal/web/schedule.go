@@ -37,8 +37,8 @@ func calendarCards(shows []schedule.Show) []scheduleCard {
 	}
 	return cards
 }
-func (s *Server) scheduleView(r *http.Request) (view, error) {
-	v := s.baseView(r)
+func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
+	v := schedulePageView{pageView: s.baseView(r)}
 	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *Server) scheduleView(r *http.Request) (view, error) {
 		}
 	}
 	if v.ScheduleMode == "form" {
-		if err := s.loadPlaylistOptions(r.Context(), &v, v.Station.ID); err != nil {
+		if err := s.loadPlaylistOptions(r.Context(), &v.playlistChoices, v.Station); err != nil {
 			return v, err
 		}
 	}
@@ -108,7 +108,7 @@ func (s *Server) schedulePage(w http.ResponseWriter, r *http.Request) {
 		s.scheduleError(w, r, err)
 		return
 	}
-	s.render(w, r, v)
+	s.renderSchedulePage(w, r, http.StatusOK, v)
 }
 func (s *Server) scheduleError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
@@ -227,6 +227,20 @@ func (s *Server) invalidShow(w http.ResponseWriter, r *http.Request, show schedu
 	}
 	v.ShowError = message
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(422)
-	s.render(w, r, v)
+	s.renderSchedulePage(w, r, http.StatusUnprocessableEntity, v)
+}
+
+func (s *Server) renderSchedulePage(w http.ResponseWriter, r *http.Request, status int, v schedulePageView) {
+	name := "schedule-list-page"
+	switch v.ScheduleMode {
+	case "form":
+		name = "schedule-form-page"
+	case "delete":
+		if fragmentTarget(r, "dialog-body") {
+			s.renderHTML(w, status, "delete-show", v)
+			return
+		}
+		name = "schedule-delete-page"
+	}
+	s.renderPage(w, r, status, name, v)
 }

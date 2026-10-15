@@ -8,7 +8,7 @@ import (
 )
 
 func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
-	v := s.baseView(r)
+	v := stationPageView{pageView: s.baseView(r)}
 	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	if errors.Is(err, station.ErrNotFound) {
@@ -42,7 +42,18 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
 		}
 		v.StationPlaylistCount = len(pools)
 	}
-	s.render(w, r, v)
+	name := "station-overview-page"
+	switch v.Section {
+	case "settings":
+		name = "station-settings-page"
+	case "delete":
+		if fragmentTarget(r, "dialog-body") {
+			s.renderHTML(w, http.StatusOK, "delete-station", v)
+			return
+		}
+		name = "delete-station-page"
+	}
+	s.renderPage(w, r, http.StatusOK, name, v)
 }
 
 func (s *Server) deleteStation(w http.ResponseWriter, r *http.Request) {

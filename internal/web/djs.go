@@ -15,7 +15,7 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "DJs unavailable", 503)
 		return
 	}
-	v := s.baseView(r)
+	v := djPageView{pageView: s.baseView(r)}
 	var err error
 	if s.d.Assistant != nil {
 		v.AssistantSettings, err = s.d.Assistant.Store.Settings(r.Context())
@@ -78,7 +78,7 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.render(w, r, v)
+	s.renderDJPage(w, r, http.StatusOK, v)
 }
 func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 	if s.d.DJs == nil {
@@ -125,7 +125,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Normal form fallback retains non-secret input; credentials are never echoed.
-		v := s.baseView(r)
+		v := djPageView{pageView: s.baseView(r)}
 		uploaded := p.Photo != nil && len(p.Photo.Data) > 0
 		p.Photo = nil
 		v.DJ = p
@@ -148,8 +148,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 			v.Title = p.Name
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(422)
-		s.render(w, r, v)
+		s.renderDJPage(w, r, http.StatusUnprocessableEntity, v)
 		return
 	}
 	if errors.Is(err, djs.ErrNotFound) {
@@ -185,4 +184,19 @@ func (s *Server) deleteDJ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.redirect(w, r, "/producer/djs?notice=dj-deleted")
+}
+
+func (s *Server) renderDJPage(w http.ResponseWriter, r *http.Request, status int, v djPageView) {
+	name := "dj-form-page"
+	switch v.DJMode {
+	case "list":
+		name = "dj-list-page"
+	case "delete":
+		if fragmentTarget(r, "dialog-body") {
+			s.renderHTML(w, status, "delete-dj", v)
+			return
+		}
+		name = "dj-delete-page"
+	}
+	s.renderPage(w, r, status, name, v)
 }

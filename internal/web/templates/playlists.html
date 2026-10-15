@@ -1,0 +1,288 @@
+{{define "playlist-cards"}}
+<div class="playlist-cards">
+  {{range .PlaylistOptions}}{{if or (eq $.StationID "") (eq $.StationID .Playlist.StationID)}}
+  <article class="playlist-card">
+    <div class="playlist-card-heading">
+      <h2>
+        <a href="/producer/playlists/{{.Playlist.ID}}">{{.Playlist.Name}}</a>
+      </h2>
+      {{if .Default}}<span class="badge" title="Station default playlist">
+        <span aria-hidden="true">★</span> Default</span>{{end}}
+    </div>
+    <p>
+      {{if .Playlist.Description}}{{.Playlist.Description}}{{else}}{{end}}</p>
+    <a href="/producer/playlists/{{.Playlist.ID}}">Open playlist →</a>
+  </article>{{end}}{{end}}
+</div>{{end}}
+
+{{define "playlists"}}
+{{if not .Stations}}
+<section class="empty-state">
+  <h2>Create a station first</h2>
+  <a class="button" href="/producer/stations/new">Create station</a>
+</section>{{end}}
+{{template "playlist-cards" .}}
+{{end}}
+
+{{define "new-playlist"}}
+<section class="form-panel">
+  <form method="post" action="/producer/playlists" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{if .Station.ID}}
+    <input type="hidden" name="station" value="{{.Station.ID}}">
+    {{else}}
+    <label>Station<select name="station" required>
+        {{range .Stations}}
+        <option value="{{.ID}}">{{.Name}}</option>{{end}}</select>
+    </label>{{end}}
+    <label>Playlist name<input name="name" required maxlength="200" autofocus placeholder="e.g. Daytime jazz">
+    </label>
+    <label>Description <span class="optional">Optional</span>
+      <textarea name="description" maxlength="4000">
+      </textarea>
+    </label>
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/playlists{{if .Station.ID}}?station={{.Station.ID}}{{end}}">Cancel</a>
+      <button>Create playlist</button>
+    </div>
+  </form>
+</section>
+{{end}}
+
+{{define "delete-playlist"}}
+<section class="form-panel">
+  <h2 id="dialog-heading">Delete {{.Playlist.Name}}?</h2>
+  <p id="dialog-description">This permanently deletes this playlist and its selections. Music stays in the shared library.</p>
+  <form method="post" action="/producer/playlists/{{.Playlist.ID}}/delete" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/playlists/{{.Playlist.ID}}/settings" data-close-dialog>Cancel</a>
+      <button class="danger">Delete playlist</button>
+    </div>
+  </form>
+</section>{{end}}
+
+{{define "playlist-default"}}
+<section class="form-panel" id="playlist-default-{{.Playlist.ID}}">
+  <form method="post" action="/producer/playlists/{{.Playlist.ID}}/default" hx-post="/producer/playlists/{{.Playlist.ID}}/default" hx-target="closest section" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <div class="playlist-card-heading">
+      <h2>Default playlist</h2>
+      {{if eq .BroadcastPlaylist .Playlist.ID}}<span class="badge">
+        <span aria-hidden="true">★</span> Default</span>{{end}}
+    </div>
+    {{if eq .BroadcastPlaylist .Playlist.ID}}
+    <p class="hint">Plays between scheduled shows.</p>
+    <input type="hidden" name="action" value="clear">
+    <div class="form-actions">
+      <button id="playlist-default-action-{{.Playlist.ID}}" class="secondary">Remove as station default</button>
+    </div>
+    {{else}}
+    <p class="hint">Use this playlist between scheduled shows.</p>
+    <input type="hidden" name="action" value="set">
+    <div class="form-actions">
+      <button id="playlist-default-action-{{.Playlist.ID}}">Set as station default</button>
+    </div>{{end}}
+  </form>
+</section>{{end}}
+
+{{define "playlist-navigation"}}
+
+<nav class="station-tabs" aria-label="Playlist navigation">
+  <a href="/producer/playlists/{{.Playlist.ID}}" {{if eq .PlaylistTab "selections"}}aria-current="page"{{end}}>Selections</a>
+  <a href="/producer/playlists/{{.Playlist.ID}}/tracks" {{if eq .PlaylistTab "tracks"}}aria-current="page"{{end}}>Tracks</a>
+  <a href="/producer/playlists/{{.Playlist.ID}}/settings" {{if eq .PlaylistTab "details"}}aria-current="page"{{end}}>Details</a>
+</nav>
+
+{{end}}
+
+{{define "playlist-details"}}
+<section class="form-panel">
+  <form method="post" action="/producer/playlists">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="id" value="{{.Playlist.ID}}">
+    <input type="hidden" name="station" value="{{.Playlist.StationID}}">
+    <input type="hidden" name="return_to" value="/producer/playlists/{{.Playlist.ID}}/settings">
+    <label>Name<input name="name" value="{{.Playlist.Name}}" required maxlength="200">
+    </label>
+    <label>Description<textarea name="description" maxlength="4000">{{.Playlist.Description}}</textarea>
+    </label>
+    <div class="form-footer">
+      <a class="button danger" href="/producer/playlists/{{.Playlist.ID}}/delete" hx-get="/producer/playlists/{{.Playlist.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete playlist</a>
+      <div class="form-actions">
+        <a class="button secondary" href="/producer/playlists/{{.Playlist.ID}}/tracks">Cancel</a>
+        <button>Save changes</button>
+      </div>
+    </div>
+  </form>
+</section>
+{{if .BroadcastEnabled}}{{template "playlist-default" .}}{{end}}
+{{end}}
+
+{{define "playlist-selections"}}
+<section class="selection-panel">
+  <form method="post" action="/producer/playlists/{{.Playlist.ID}}/selections" data-selection-form hx-disabled-elt="find button[type=submit]">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <div class="choice-grid">
+      <fieldset data-choice-group>
+        <legend>Genres</legend>
+        <label class="choice-search">
+          <span class="visually-hidden">Find a genre</span>
+          <input type="search" data-filter-choices placeholder="Find a genre" aria-label="Find a genre">
+        </label>
+        <div class="choice-tools">
+          <output data-choice-count>
+          </output>
+          <button type="button" class="text-button" data-choose="all" title="Select all visible results">Select all</button>
+          <button type="button" class="text-button" data-choose="none" title="Clear visible results">Clear</button>
+        </div>
+        <div class="choice-list">
+          {{range .Genres}}
+          <label class="choice">
+            <input type="checkbox" name="genre" value="{{.Name}}" {{if .Selected}}checked{{end}}>
+            <span>
+              <strong>{{.Name}}</strong>
+              {{if .Missing}}<small>Not in the current catalogue · selection kept</small>{{end}}</span>
+          </label>
+          {{else}}
+          <p class="hint">Import a source to see genres.</p>{{end}}
+        </div>
+        <p class="choice-empty" hidden>No genres match your search.</p>
+      </fieldset>
+      <fieldset data-choice-group>
+        <legend>Albums</legend>
+        <label class="choice-search">
+          <span class="visually-hidden">Find an album</span>
+          <input type="search" data-filter-choices placeholder="Find an album or source" aria-label="Find an album or source">
+        </label>
+        <div class="choice-tools">
+          <output data-choice-count>
+          </output>
+          <button type="button" class="text-button" data-choose="all" title="Select all visible results">Select all</button>
+          <button type="button" class="text-button" data-choose="none" title="Clear visible results">Clear</button>
+        </div>
+        <div class="choice-list">
+          {{range .Albums}}
+          <label class="choice">
+            <input type="checkbox" name="album" value="{{.Value}}" {{if .Selected}}checked{{end}}>
+            <span>
+              <strong>{{.Name}}</strong>
+              <small>{{.Source}}{{if .Missing}} · selection kept{{else}} · {{.Tracks}} tracks{{end}}</small>
+            </span>
+          </label>
+          {{else}}
+          <p class="hint">Import a source to see albums.</p>{{end}}
+        </div>
+        <p class="choice-empty" hidden>No albums match your search.</p>
+      </fieldset>
+    </div>
+    <div class="selection-save">
+      <span data-unsaved class="hint" role="status">
+      </span>
+      <div class="form-actions">
+        <a class="button secondary" href="/producer/playlists/{{.Playlist.ID}}/tracks">Cancel</a>
+        <button type="submit">Save selections</button>
+      </div>
+    </div>
+  </form>
+  <details class="selection-help">
+    <summary>How selections work</summary>
+    <p>Selected genres and albums include new matching tracks automatically. Overlapping selections appear once. Exclude tracks from the Tracks tab; add them again to restore them.</p>
+  </details>
+</section>
+{{end}}
+
+{{define "playlist-tracks"}}
+
+{{if .PlaylistResult.Unavailable}}
+<p class="notice">{{.PlaylistResult.Unavailable}} saved tracks unavailable. Refresh their source to restore them.</p>{{end}}
+
+{{template "pagination" .Pagination}}
+{{if .Rows}}
+<div class="table">
+  <table>
+    <thead>
+      <tr>
+        <th>Track / Artist</th>
+        <th>Album / Genre</th>
+        <th>Duration</th>
+        <th>Source</th>
+        <th>Selection</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Rows}}
+      <tr>
+        <td class="track-title">{{.Item.Title}}<span class="subline">{{.Item.Artist}}</span>
+          {{if not .Available}}<span class="unavailable">Unavailable</span>{{end}}</td>
+        <td>{{.Item.Album}}<span class="subline">{{.Item.Genre}}</span>
+        </td>
+        <td class="nowrap">{{.Duration}}</td>
+        <td>{{.Source}}</td>
+        <td>
+          <div class="row-actions">
+            <form method="post" action="/producer/playlists/{{$.Playlist.ID}}/remove">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <input type="hidden" name="item" value="{{.Item.ID}}">
+              <input type="hidden" name="return_to" value="{{$.ReturnTo}}">
+              <button class="secondary" aria-label="Exclude {{.Item.Title}} from playlist">Exclude</button>
+            </form>
+          </div>
+        </td>
+      </tr>{{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<section>
+  <p>No tracks yet. <a href="/producer/playlists/{{.Playlist.ID}}">Choose genres or albums</a>, or add tracks.</p>
+</section>{{end}}
+
+{{end}}
+
+{{define "playlists-page"}}
+<div class="page-heading">
+  <h1>{{.Title}}</h1>
+  {{if .Stations}}<a class="button" href="/producer/playlists/new{{if .Station.ID}}?station={{.Station.ID}}{{end}}">+ Add playlist</a>{{end}}
+</div>
+{{template "playlists" .}}
+{{end}}
+
+{{define "new-playlist-page"}}
+{{template "page-heading" .Title}}{{template "new-playlist" .}}
+{{end}}
+
+{{define "playlist-heading"}}
+<div class="page-heading">
+  <div class="title-line">
+    <h1>{{.Title}}</h1>
+    {{if ne .PlaylistTab "delete"}}<span class="playlist-meta">{{.PlaylistResult.Total}} tracks · {{.PlaylistDuration}}{{if .PlaylistResult.UnknownDurations}} · {{.PlaylistResult.UnknownDurations}} durations unknown{{end}}</span>{{end}}
+  </div>
+</div>
+
+{{end}}
+
+{{define "playlist-details-page"}}
+{{template "playlist-heading" .}}
+{{template "playlist-navigation" .}}
+{{template "playlist-details" .}}
+{{end}}
+
+{{define "playlist-selections-page"}}
+{{template "playlist-heading" .}}
+{{template "playlist-navigation" .}}
+{{template "playlist-selections" .}}
+{{end}}
+
+{{define "playlist-tracks-page"}}
+{{template "playlist-heading" .}}
+{{template "playlist-navigation" .}}
+{{template "playlist-tracks" .}}
+{{end}}
+
+{{define "playlist-delete-page"}}
+{{template "playlist-heading" .}}
+{{template "playlist-navigation" .}}
+{{template "delete-playlist" .}}
+{{end}}

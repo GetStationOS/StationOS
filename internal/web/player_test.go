@@ -149,12 +149,12 @@ func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
 				current.Current = content.AudioItem{}
 			}
 			var html bytes.Buffer
-			if err := templates.ExecuteTemplate(&html, "player-tracks", view{Station: station.Station{ID: "radio"}, Broadcast: current}); err != nil {
+			if err := templates.ExecuteTemplate(&html, "player-tracks", playerView{Station: station.Station{ID: "radio"}, Broadcast: current}); err != nil {
 				t.Fatal(err)
 			}
 			// The homepage must use the same artwork selection as the player.
 			var cards bytes.Buffer
-			if err := templates.ExecuteTemplate(&cards, "station-cards", view{StationCards: []stationCard{{Station: station.Station{ID: "radio", Name: "Radio"}, Broadcast: current, NextTrack: stationTrack("radio", "Up next", "Not queued", next)}}}); err != nil {
+			if err := templates.ExecuteTemplate(&cards, "station-cards", stationDirectoryView{StationCards: []stationCard{{Station: station.Station{ID: "radio", Name: "Radio"}, Broadcast: current, NextTrack: stationTrack("radio", "Up next", "Not queued", next)}}}); err != nil {
 				t.Fatal(err)
 			}
 			cardHTML := strings.SplitN(cards.String(), `<div class="card-tracks">`, 2)[1]
@@ -162,7 +162,7 @@ func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
 			publicStation := station.Station{ID: "radio", StreamSlug: "radio", Name: "Radio"}
 			directoryState := current
 			directoryState.Programme.DJ.PortraitURL = publicPresenterPortrait("/radio/radio", current.Programme.DJ.ID, strings.TrimPrefix(current.Programme.DJ.PortraitURL, "/producer"))
-			if err := templates.ExecuteTemplate(&directory, "public-cards", view{StationCards: []stationCard{{Station: publicStation, Broadcast: directoryState, CurrentTrack: publicTrack(publicStation, currentBroadcastTrack("radio", directoryState)), NextTrack: publicTrack(publicStation, stationTrack("radio", "UP NEXT", "Not queued", next))}}}); err != nil {
+			if err := templates.ExecuteTemplate(&directory, "public-cards", publicPageView{StationCards: []stationCard{{Station: publicStation, Broadcast: directoryState, CurrentTrack: publicTrack(publicStation, currentBroadcastTrack("radio", directoryState)), NextTrack: publicTrack(publicStation, stationTrack("radio", "UP NEXT", "Not queued", next))}}}); err != nil {
 				t.Fatal(err)
 			}
 			directoryHTML := directory.String()
@@ -176,7 +176,7 @@ func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
 				t.Fatal("listener directory missing speaking DJ portrait", directoryHTML)
 			}
 			var overview bytes.Buffer
-			if err := templates.ExecuteTemplate(&overview, "station-live", view{Station: station.Station{ID: "radio"}, Broadcast: current}); err != nil {
+			if err := templates.ExecuteTemplate(&overview, "station-live", stationPageView{pageView: pageView{Station: station.Station{ID: "radio"}}, Broadcast: current}); err != nil {
 				t.Fatal(err)
 			}
 			overviewHTML := strings.SplitN(overview.String(), `<div class="playout-grid">`, 2)[1]

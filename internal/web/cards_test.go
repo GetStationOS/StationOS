@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
@@ -195,10 +196,13 @@ func TestDJStatusIconsKeepCapabilitiesIndependent(t *testing.T) {
 	} {
 		state.PresenterStatus, state.CurationStatus = test.speech, test.selection
 		state.AINotice = "Internal provider notice should not be displayed"
-		v := view{Broadcast: state, StationCards: []stationCard{{Broadcast: state, DJIndicators: djIndicators(state)}}}
+		data := map[string]any{
+			"station-cards": stationDirectoryView{StationCards: []stationCard{{Broadcast: state, DJIndicators: djIndicators(state)}}},
+			"station-live":  stationPageView{Broadcast: state},
+		}
 		for _, name := range []string{"station-cards", "station-live"} {
 			var html bytes.Buffer
-			if err := templates.ExecuteTemplate(&html, name, v); err != nil {
+			if err := templates.ExecuteTemplate(&html, name, data[name]); err != nil {
 				t.Fatal(err)
 			}
 			markup := html.String()
@@ -214,7 +218,7 @@ func TestDJStatusIconsKeepCapabilitiesIndependent(t *testing.T) {
 				t.Fatal("status explanations must be hidden by default, including before styles load", name)
 			}
 			nameRow := `<div class="dj-name-row"><a href="/producer/djs/miles">Miles Mercer</a><div class="dj-statuses"`
-			if !strings.Contains(markup, nameRow) {
+			if !strings.Contains(regexp.MustCompile(`>\s+<`).ReplaceAllString(markup, "><"), nameRow) {
 				t.Fatal("DJ icons must sit immediately after the DJ name", name, markup)
 			}
 		}

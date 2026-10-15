@@ -1,0 +1,212 @@
+{{define "new-station"}}
+
+<section class="form-panel dj-settings">
+  {{if .StationError}}
+  <p class="notice" role="alert">{{.StationError}}</p>{{end}}
+  <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{template "station-logo-field" .}}
+    <label>Station name<input name="name" value="{{.Station.Name}}" required maxlength="200" placeholder="e.g. Reni Jazz" autofocus>
+    </label>
+    <label>Description <span class="optional">Optional</span>
+      <textarea name="description" maxlength="4000" placeholder="What makes this station yours?">{{.Station.Description}}</textarea>
+    </label>
+    <div class="fields">
+      <label>Timezone<input name="timezone" value="{{if .Station.Timezone}}{{.Station.Timezone}}{{else}}Europe/London{{end}}" required>
+        <span class="hint">Used for this station's programme times.</span>
+      </label>
+      <label>Locale<input name="locale" value="{{if .Station.Locale}}{{.Station.Locale}}{{else}}en-GB{{end}}" maxlength="64">
+      </label>
+    </div>
+    {{template "station-publication-field" .}}{{template "station-repeat-field" .}}
+    <div class="form-actions">
+      <a class="button secondary" href="/producer">Cancel</a>
+      <button>Create station</button>
+    </div>
+  </form>
+</section>{{end}}
+
+{{define "station-overview"}}
+<section class="station-overview-panel">
+  <div id="station-live" hx-get="/producer/stations/{{.Station.ID}}/live" hx-trigger="every 3s" hx-indicator="this" hx-target="this" hx-swap="innerHTML">
+    {{template "station-live" .}}
+  </div>
+  {{if .BroadcastEnabled}}
+  <section class="stream-access">
+    <label>Stream URL<input readonly value="{{.StreamURL}}" aria-label="Station stream URL">
+    </label>
+    <div class="stream-actions">
+      <button type="button" class="secondary" data-copy-stream="{{.StreamURL}}">Copy URL</button>
+      <button type="button" data-listen-radio="/producer/streams/{{.Station.StreamSlug}}" data-station-name="{{.Station.Name}}" data-station-id="{{.Station.ID}}" data-station-logo="{{producerLogo .Station}}">Listen</button>
+    </div>
+    <p class="hint">Starts when the first listener connects. Stops when the last leaves.</p>
+    <span data-copy-status role="status">
+    </span>
+  </section>{{end}}
+</section>
+{{if eq .StationPlaylistCount 0}}<a class="button" href="/producer/playlists/new?station={{.Station.ID}}">+ Create playlist</a>{{end}}
+{{end}}
+
+{{define "station-live"}}
+<header class="overview-live-header">
+  <div class="overview-station-identity">
+    <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="64" height="64">
+    <div class="overview-station-details">
+      {{if .Station.Description}}
+      <p class="overview-description">{{.Station.Description}}</p>
+      {{else}}<strong>{{.Station.Name}}</strong>{{end}}{{if .Station.Timezone}}<span class="hint">{{.Station.Timezone}}</span>{{end}}
+    </div>
+  </div>
+  <div class="station-status">
+    <span class="listener-count">
+      <strong>{{.Broadcast.Listeners}}</strong> {{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}</span>
+    <span class="status overview-state-{{.Broadcast.Status}} {{if eq .Broadcast.Status "Broadcasting"}}live{{end}}">
+      <span class="status-dot">
+      </span>
+      {{if eq .Broadcast.Status "Broadcasting"}}Live{{else if .Broadcast.Status}}{{.Broadcast.Status}}{{else}}Dormant{{end}}</span>
+  </div>
+</header>
+<div class="overview-programme-band{{if .Broadcast.Following.Title}} has-next-show{{end}}">
+  <div class="programme-status">
+    <span class="eyebrow">CURRENT SHOW</span>
+    <strong>
+      {{if .Broadcast.Programme.Title}}{{.Broadcast.Programme.Title}}{{else if .Broadcast.Current.ID}}Continuous music{{else}}No programme playing{{end}}</strong>
+    {{if .Broadcast.Programme.DJ.ID}}
+    <div class="overview-presenter">
+      {{if .Broadcast.Programme.DJ.PortraitURL}}<img class="dj-avatar small" src="{{.Broadcast.Programme.DJ.PortraitURL}}" alt="" width="32" height="32" referrerpolicy="no-referrer">{{end}}
+      <div class="dj-name-row">
+        <a href="/producer/djs/{{.Broadcast.Programme.DJ.ID}}">{{.Broadcast.Programme.DJ.Name}}</a>
+        {{template "dj-status-icons" (djIndicators .Broadcast)}}
+      </div>
+    </div>{{end}}
+  </div>
+  {{if .Broadcast.Following.Title}}
+  <div class="overview-next-show">
+    <span class="eyebrow">NEXT SHOW</span>
+    <strong>{{.Broadcast.Following.Title}}</strong>
+    {{if .Broadcast.Following.DJ.Name}}<span class="hint">with {{.Broadcast.Following.DJ.Name}}</span>{{end}}
+  </div>{{end}}
+</div>
+<div class="playout-grid">
+  <section class="now-playing">
+    {{template "overview-track" (currentBroadcastTrack .Station.ID .Broadcast)}}
+  </section>
+  <section>
+    {{template "overview-track" (stationTrack .Station.ID "UP NEXT" "Waiting for listeners" .Broadcast.Next)}}
+  </section>
+</div>
+{{if .Broadcast.RepeatRelaxed}}
+<p class="notice" role="status">Repeat interval relaxed to keep music playing.</p>{{end}}
+{{if .Broadcast.Error}}
+<p class="notice" role="status">{{.Broadcast.Error}}</p>{{end}}
+{{end}}
+
+{{define "station-settings"}}
+<section class="form-panel dj-settings">
+  {{if .StationError}}
+  <p class="notice" role="alert">{{.StationError}}</p>{{end}}
+  <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="id" value="{{.Station.ID}}">
+    {{template "station-logo-field" .}}
+    <label>Station name<input name="name" value="{{.Station.Name}}" required maxlength="200">
+    </label>
+    <label>Description<textarea name="description" maxlength="4000">{{.Station.Description}}</textarea>
+    </label>
+    <label>Stream address<input name="stream_slug" value="{{.Station.StreamSlug}}" required maxlength="80" pattern="[a-z0-9]+(-[a-z0-9]+)*">
+      <span class="hint">Lowercase letters, numbers and hyphens. Changing this updates both the public station page and the stream URL used by your listeners.</span>
+    </label>
+    <div class="fields">
+      <label>Timezone<input name="timezone" value="{{.Station.Timezone}}" required>
+      </label>
+      <label>Locale<input name="locale" value="{{.Station.Locale}}" maxlength="64">
+      </label>
+    </div>
+    {{template "station-publication-field" .}}{{template "station-repeat-field" .}}
+    <div class="form-footer">
+      <a class="button danger" href="/producer/stations/{{.Station.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete station</a>
+      <div class="form-actions">
+        <a class="button secondary" href="/producer/stations/{{.Station.ID}}">Cancel</a>
+        <button>Save changes</button>
+      </div>
+    </div>
+  </form>
+</section>{{end}}
+
+{{define "delete-station"}}
+<section class="form-panel">
+  <h2 id="dialog-heading">Delete {{.Station.Name}}?</h2>
+  <p id="dialog-description">This permanently deletes the station and its {{.StationPlaylistCount}} {{if eq .StationPlaylistCount 1}}playlist{{else}}playlists{{end}}. Shared sources and music remain available.</p>
+  <form method="post" action="/producer/stations/{{.Station.ID}}/delete" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/stations/{{.Station.ID}}/settings" data-close-dialog>Cancel</a>
+      <button class="danger">Delete station</button>
+    </div>
+  </form>
+</section>{{end}}
+
+{{define "station-logo-field"}}
+<input type="hidden" name="photo_removed" value="" data-photo-removed>
+<div class="dj-profile-header">
+  <div class="dj-photo-preview">
+    <img class="dj-portrait station-logo" data-photo-preview src="{{producerLogo .Station}}" data-default-src="/static/station-logo.jpg" alt="Station logo">
+    <span data-photo-placeholder hidden>
+    </span>
+    <button type="submit" name="clear_photo" value="yes" class="dj-photo-remove" data-remove-photo aria-label="Remove logo" title="Remove logo" {{if not .Station.LogoVersion}}hidden{{end}}>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+  <div class="dj-profile-fields">
+    <label>Logo <span class="optional">Optional</span>
+      <input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-describedby="logo-help">
+      <span id="logo-help" class="hint">Choose a JPEG or PNG, up to 5 MB. The default logo is used until you upload one.</span>
+    </label>
+  </div>
+</div>
+{{end}}
+
+{{define "station-repeat-field"}}
+<label>Minimum time between plays (minutes)<input type="number" name="repeat_minutes" value="{{if .StationRepeatSupplied}}{{.StationRepeatInput}}{{else}}{{.Station.RepeatIntervalMinutes}}{{end}}" min="1" max="10080" step="1" required>
+  <span class="hint">Applies across all shows and playlists. If every track is too recent, the least recently played track is used.</span>
+</label>{{end}}
+
+{{define "station-publication-field"}}
+<label>Public visibility<select name="visibility">
+    <option value="unlisted" {{if eq .Station.Publication "unlisted"}}selected{{end}}>Unlisted — direct link only</option>
+    <option value="listed" {{if eq .Station.Publication "listed"}}selected{{end}}>Listed — public directory</option>
+    <option value="private" {{if eq .Station.Publication "private"}}selected{{end}}>Private — producer access only</option>
+  </select>
+  <span class="hint">Listed and unlisted stations allow public listening. Private stations are available only in the producer app.</span>
+</label>
+{{if and .Station.ID .Station.Public}}
+<p>
+  <a href="/radio/{{.Station.StreamSlug}}" hx-boost="false">View public station page →</a>
+</p>{{end}}{{end}}
+
+{{define "stations-page"}}
+<div class="page-heading">
+  <h1>{{.Title}}</h1>
+  <a class="button" href="/producer/stations/new">+ Create station</a>
+</div>
+{{template "station-cards" .}}
+{{end}}
+
+{{define "new-station-page"}}
+{{template "page-heading" .Title}}{{template "new-station" .}}
+{{end}}
+
+{{define "station-overview-page"}}
+{{template "page-heading" .Title}}{{template "station-overview" .}}
+{{end}}
+
+{{define "station-settings-page"}}
+{{template "page-heading" .Title}}{{template "station-settings" .}}
+{{end}}
+
+{{define "delete-station-page"}}
+{{template "page-heading" .Title}}{{template "delete-station" .}}
+{{end}}

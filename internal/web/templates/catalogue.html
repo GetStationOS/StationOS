@@ -1,0 +1,139 @@
+{{define "pagination"}}
+<div class="pagination-bar">
+  {{if .ActionURL}}<a class="button secondary add-tracks" href="{{.ActionURL}}">+ Add tracks</a>{{end}}
+  <span class="page-range">{{.Start}}–{{.End}} of {{.Total}}</span>
+  <nav class="pagination" aria-label="Pagination">
+    {{if .Previous}}<a href="{{.First}}" aria-label="First page">«</a>
+    <a href="{{.Previous}}" aria-label="Previous page">‹</a>
+    {{else}}<span class="disabled" aria-label="First page">«</span>
+    <span class="disabled" aria-label="Previous page">‹</span>{{end}}
+    {{if .Next}}<a href="{{.Next}}" aria-label="Next page">›</a>
+    <a href="{{.Last}}" aria-label="Last page">»</a>
+    {{else}}<span class="disabled" aria-label="Next page">›</span>
+    <span class="disabled" aria-label="Last page">»</span>{{end}}
+  </nav>
+  <form class="page-jump" action="{{.Path}}" method="get" hx-get="{{.Path}}" hx-target="#main" hx-push-url="true">
+    {{range .Fields}}{{if ne .Key "per_page"}}
+    <input type="hidden" name="{{.Key}}" value="{{.Value}}">{{end}}{{end}}
+    <label>Page <input type="number" name="page" min="1" max="{{.Pages}}" value="{{.Number}}" required> / {{.Pages}}</label>
+    <label>
+      <span class="visually-hidden">Tracks per page</span>
+      <select name="per_page" aria-label="Tracks per page">
+        <option value="25" {{if eq .Size 25}}selected{{end}}>25 / page</option>
+        <option value="50" {{if eq .Size 50}}selected{{end}}>50 / page</option>
+        <option value="100" {{if eq .Size 100}}selected{{end}}>100 / page</option>
+      </select>
+    </label>
+    <button class="secondary">Go</button>
+  </form>
+</div>
+{{end}}
+
+{{define "catalogue"}}
+
+{{if .TargetPlaylist.ID}}
+<div class="catalogue-context">
+  <span>Adding tracks to <strong>{{.TargetPlaylist.Name}}</strong> · {{.Station.Name}}</span>
+  <a href="/producer/playlists/{{.TargetPlaylist.ID}}/tracks">Back to playlist →</a>
+</div>{{end}}
+<form class="filters" action="/producer/content" method="get" hx-get="/producer/content" hx-target="#main" hx-push-url="true">
+  <input type="hidden" name="playlist" value="{{.SelectedPlaylist}}">
+  <label>Search title, artist, album or genre<input type="search" name="q" value="{{.Query}}" maxlength="200">
+  </label>
+  <label>Genre<select name="genre">
+      <option value="">All genres</option>
+      {{range .Facets.Genres}}
+      <option {{if eq $.Genre .}}selected{{end}}>{{.}}</option>{{end}}</select>
+  </label>
+  <label>Album<select name="album_choice">
+      <option value="">All albums</option>
+      {{range .Albums}}
+      <option value="{{.Value}}" {{if eq $.AlbumChoice .Value}}selected{{end}}>{{.Name}} · {{.Source}} ({{.Tracks}} tracks)</option>{{end}}</select>
+  </label>
+  <label>Sort by<select name="sort">
+      <option value="title" {{if eq .Sort "title"}}selected{{end}}>Title</option>
+      <option value="artist" {{if eq .Sort "artist"}}selected{{end}}>Artist</option>
+      <option value="album" {{if eq .Sort "album"}}selected{{end}}>Album</option>
+      <option value="duration" {{if eq .Sort "duration"}}selected{{end}}>Duration</option>
+    </select>
+  </label>
+  <label>Direction<select name="direction">
+      <option value="asc">Ascending</option>
+      <option value="desc" {{if eq .Direction "desc"}}selected{{end}}>Descending</option>
+    </select>
+  </label>
+  <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
+  <div class="filter-actions">
+    <button>Apply filters</button>
+    <a href="/producer/content{{if .SelectedPlaylist}}?playlist={{.SelectedPlaylist}}{{end}}">Clear filters</a>
+  </div>
+</form>
+
+{{template "pagination" .Pagination}}
+{{if .Rows}}
+<form method="post" action="/producer/playlists/select" data-track-form hx-disabled-elt="find button">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="return_to" value="{{.ReturnTo}}">
+  {{if .PlaylistOptions}}
+  <div class="selection-bar">
+    <label>Add selected tracks to<select name="playlist" required>
+        <option value="">Choose a station playlist</option>
+        {{range .PlaylistOptions}}
+        <option value="{{.Playlist.ID}}" {{if eq $.SelectedPlaylist .Playlist.ID}}selected{{end}}>{{.Station}} · {{.Playlist.Name}}</option>{{end}}</select>
+    </label>
+    <div class="selection-actions">
+      <span data-track-count class="hint" role="status">Select tracks below</span>
+      <button>Add selected tracks</button>
+    </div>
+  </div>
+  {{else}}
+  <p>
+    <a href="/producer">Open a station and create its playlist</a> to select tracks from this catalogue.</p>{{end}}
+  <div class="table">
+    <table>
+      <thead>
+        <tr>
+          <th>
+            {{if .PlaylistOptions}}
+            <input class="check" type="checkbox" data-select-page aria-label="Select all tracks on this page">{{end}}</th>
+          <th>Title</th>
+          <th>Artist / Album</th>
+          <th>Genre</th>
+          <th>Duration</th>
+          <th>Format / Type</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Rows}}
+        <tr>
+          <td>
+            {{if $.PlaylistOptions}}
+            <input class="check" type="checkbox" name="item" value="{{.Item.ID}}" aria-label="Select {{.Item.Title}}">{{end}}</td>
+          <td class="track-title">{{.Item.Title}}</td>
+          <td>
+            {{if .Item.Artist}}{{.Item.Artist}}{{else}}—{{end}}<span class="subline">
+              {{if .Item.Album}}{{.Item.Album}}{{else}}No album{{end}}</span>
+          </td>
+          <td>
+            {{if .Item.Genre}}{{.Item.Genre}}{{else}}—{{end}}</td>
+          <td class="nowrap">{{.Duration}}</td>
+          <td>{{.Formats}}<span class="subline">{{.Item.Kind}}</span>
+          </td>
+          <td>{{.Source}}</td>
+        </tr>{{end}}
+      </tbody>
+    </table>
+  </div>
+</form>
+{{else}}
+<section>
+  <h2>No content found</h2>
+  <p>Import a configured source, or change your filters.</p>
+  <a href="/producer/sources">Manage sources</a>
+</section>{{end}}
+{{end}}
+
+{{define "catalogue-page"}}
+{{template "page-heading" .Title}}{{template "catalogue" .}}
+{{end}}

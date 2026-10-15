@@ -1,0 +1,187 @@
+{{define "station-cards"}}
+
+<div id="station-cards" {{if .BroadcastEnabled}}data-station-events="/producer/stations/events" hx-indicator="this"{{end}}>
+  {{if .StationCards}}
+  <div class="station-grid">
+    {{range .StationCards}}
+    <article class="station-card producer-card" hx-target="#main" hx-swap="innerHTML show:window:top" data-station-card="{{.Station.ID}}">
+      <div class="producer-heading">
+        <div class="station-heading">
+          <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="48" height="48">
+          <h2>
+            <a href="/producer/stations/{{.Station.ID}}">{{.Station.Name}}</a>
+          </h2>
+        </div>
+        <div class="card-top">
+          <span class="status {{if eq .Broadcast.Status "Broadcasting"}}live{{else}}muted{{end}}">
+            <span class="status-dot">
+            </span>{{.Broadcast.Status}}</span>
+          <span class="card-listeners">{{.Broadcast.Listeners}} {{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}</span>
+        </div>
+      </div>
+      <div class="producer-body">
+        <div class="producer-programming">
+          <div class="card-programme">
+            {{if and .Broadcast.Programme.ShowID .Broadcast.Current.ID}}
+            <div class="card-programme-caption">
+              <span class="eyebrow">ON AIR</span>
+              {{if .ProgrammeTime}}<span class="card-programme-time">{{.ProgrammeTime}}</span>{{end}}
+            </div>
+            <strong>{{.Broadcast.Programme.Title}}</strong>
+            <div class="card-presenter">
+              {{if .Broadcast.Programme.DJ.PortraitURL}}<img class="dj-avatar small" src="{{.Broadcast.Programme.DJ.PortraitURL}}" alt="" referrerpolicy="no-referrer">{{end}}
+              <div class="card-presenter-details">
+                <div class="dj-name-row">
+                  <a href="/producer/djs/{{.Broadcast.Programme.DJ.ID}}">{{.Broadcast.Programme.DJ.Name}}</a>
+                  {{template "dj-status-icons" .DJIndicators}}
+                </div>
+                {{if .PlaylistName}}<a class="card-pool" href="/producer/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a>{{end}}
+              </div>
+            </div>
+            {{else}}<span class="eyebrow">DEFAULT PLAYLIST</span>
+            {{if .PlaylistName}}<strong>
+              <a href="/producer/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a>
+            </strong>
+            {{else}}<strong class="card-unassigned">No default playlist</strong>{{end}}{{end}}
+          </div>
+        </div>
+        <div class="card-tracks">
+          {{template "card-track" (currentBroadcastTrack .Station.ID .Broadcast)}}{{template "card-track" .NextTrack}}
+        </div>
+      </div>
+      {{if and .Broadcast.Current.ID .Broadcast.Following.ShowID}}
+      <div class="producer-context">
+        <div class="card-handover">
+          <span class="eyebrow">NEXT SHOW{{if .FollowingTime}} · {{.FollowingTime}}{{end}}</span>
+          <strong>{{.Broadcast.Following.Title}}</strong>
+          {{if .Broadcast.Following.DJ.Name}}<span>{{.Broadcast.Following.DJ.Name}}</span>{{end}}
+        </div>
+      </div>{{end}}
+      {{if .Broadcast.Error}}
+      <p class="card-error" role="status">{{.Broadcast.Error}}</p>{{end}}
+      {{if .Broadcast.RepeatRelaxed}}
+      <p class="hint" role="status">Repeat interval relaxed to keep music playing.</p>{{end}}
+      <div class="card-footer">
+        <span>{{.Station.Timezone}}</span>
+        <div class="card-actions">
+          {{if $.BroadcastEnabled}}
+          <button type="button" class="secondary" data-listen-radio="/producer/streams/{{.Station.StreamSlug}}" data-station-name="{{.Station.Name}}" data-station-id="{{.Station.ID}}" data-station-logo="{{producerLogo .Station}}" aria-label="Listen to {{.Station.Name}}">Listen</button>{{end}}<a href="/producer/stations/{{.Station.ID}}">Open station →</a>
+        </div>
+      </div>
+    </article>{{end}}
+  </div>
+  {{else}}
+  <section class="empty-state">
+    <div class="empty-icon" aria-hidden="true">◉</div>
+    <h2>Your first station starts here</h2>
+    <p>Create a station, connect your music library, then build its playlists.</p>
+    <a class="button" href="/producer/stations/new">Create your first station</a>
+  </section>{{end}}
+</div>
+{{end}}
+
+{{define "card-track"}}
+<div class="card-track">
+  {{template "track-art" .}}
+  <div class="card-track-info">
+    <span class="eyebrow">{{.Label}}</span>
+    <strong>
+      {{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</strong>
+    {{if .Item.Artist}}<span class="card-track-artist">{{.Item.Artist}}</span>{{end}}{{if .Item.ID}}<span class="card-track-meta">
+      {{if .Item.Album}}{{.Item.Album}}{{end}}{{if .Item.Duration}}{{if .Item.Album}} · {{end}}{{.Duration}}{{end}}</span>{{end}}
+  </div>
+</div>{{end}}
+
+{{define "track-art"}}
+<div class="track-art" aria-hidden="true">
+  <span class="art-placeholder">♫</span>
+  {{if .Artwork}}<img src="{{.Artwork}}" alt="" width="80" height="80" loading="lazy" decoding="async" referrerpolicy="no-referrer" data-track-artwork>{{end}}
+</div>{{end}}
+
+{{define "player-track"}}
+<div class="player-track">
+  {{template "track-art" .}}
+  <div class="player-track-info">
+    <span class="eyebrow">{{.Label}}</span>
+    <strong>
+      {{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</strong>
+    {{if .Item.Artist}}<span class="player-track-artist">{{.Item.Artist}}</span>{{end}}
+  </div>
+</div>{{end}}
+
+{{define "player-tracks"}}
+<div id="player-tracks" class="player-tracks" data-station-logo="{{if .Public}}{{.Station.LogoURL}}{{else}}{{producerLogo .Station}}{{end}}" data-station-name="{{.Station.Name}}">
+  {{if .Public}}{{template "player-track" .PublicCurrent}}{{template "player-track" .PublicNext}}{{else}}{{template "player-track" (currentBroadcastTrack .Station.ID .Broadcast)}}{{template "player-track" (stationTrack .Station.ID "UP NEXT" "Not queued" .Broadcast.Next)}}{{end}}
+</div>{{end}}
+
+{{define "overview-track"}}
+<span class="eyebrow">{{.Label}}</span>
+<div class="overview-track">
+  {{template "track-art" .}}
+  <div class="overview-track-info">
+    <h2>
+      {{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</h2>
+    {{if .Item.Artist}}
+    <p>{{.Item.Artist}}</p>{{end}}{{if .Item.Album}}
+    <p class="hint">{{.Item.Album}}</p>{{end}}
+  </div>
+</div>{{end}}
+
+{{define "radio-player"}}
+<aside id="radio-player" class="radio-player" aria-label="Station player" hx-boost="false" hidden>
+  <div class="player-identity">
+    <img id="player-logo" class="station-logo" src="/static/station-logo.jpg" alt="" width="40" height="40">
+    <div class="player-identity-text">
+      <strong id="player-station">
+      </strong>
+      <span id="player-status" role="status">
+      </span>
+    </div>
+  </div>
+  {{template "player-tracks" .}}
+  <audio id="station-audio" preload="none">
+  </audio>
+  <div class="player-controls">
+    <label class="player-volume">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M11 5 6 9H3v6h3l5 4V5Z"/>
+        <path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>
+      </svg>
+      <input id="radio-volume" aria-label="Volume" type="range" min="0" max="1" step="0.05" value="1">
+    </label>
+    <button type="button" class="player-control player-toggle" data-toggle-radio data-radio-action="pause" aria-label="Pause" title="Pause">
+      <svg class="radio-icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 5h3v14H7zm7 0h3v14h-3z"/>
+      </svg>
+      <svg class="radio-icon-play" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m8 5 11 7-11 7z"/>
+      </svg>
+      <svg class="radio-icon-retry" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 7v5h-5M19 12a7 7 0 1 0-2 5"/>
+      </svg>
+    </button>
+    <button type="button" class="player-control" data-stop-radio aria-label="Stop" title="Stop">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="6" y="6" width="12" height="12" rx="1"/>
+      </svg>
+    </button>
+  </div>
+</aside>{{end}}
+
+{{define "dj-status-icon"}}
+<button type="button" class="dj-status-icon {{.State}}" aria-label="{{.Label}}">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+    {{if eq .Kind "speech"}}<rect x="9" y="2" width="6" height="12" rx="3"/>
+    <path d="M5 10v1a7 7 0 0014 0v-1M12 18v4M8 22h8"/>
+    {{else}}<path d="M4 5h12M4 10h12M4 15h6M18 12v7"/>
+    <ellipse cx="15" cy="19" rx="3" ry="2"/>{{end}}</svg>
+  <span class="dj-status-mark" aria-hidden="true">
+    {{if eq .State "ready"}}✓{{else if eq .State "unavailable"}}×{{else if eq .State "speaking"}}♪{{else}}…{{end}}</span>
+  <span class="dj-status-tooltip" hidden aria-hidden="true">{{.Label}}</span>
+</button>{{end}}
+
+{{define "dj-status-icons"}}
+{{if .}}
+<div class="dj-statuses" role="group" aria-label="DJ status">
+  {{range .}}{{template "dj-status-icon" .}}{{end}}
+</div>{{end}}{{end}}

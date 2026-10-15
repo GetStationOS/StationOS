@@ -9,16 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"stationos.local/stationos/internal/ai"
-	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
-	"stationos.local/stationos/internal/djs"
-	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/playlists"
-	"stationos.local/stationos/internal/producer"
-	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
 )
@@ -204,188 +198,43 @@ type sourceCard struct {
 	Host   string
 	Tracks int
 }
-type view struct {
-	AssistantMessages                                  []assistantMessage
-	AssistantState, AssistantActivity, AssistantTiming string
 
-	AssistantMode, AssistantError, AssistantInput, AssistantRequestID string
-	AssistantSettings                                                 producer.Settings
-	AIConnections                                                     []ai.Connection
-	AIConnection                                                      ai.Connection
-	AICheck                                                           inference.Check
-	AIRoles                                                           []aiRoleView
-	AIConnectionMode                                                  bool
-	AIConnectionSaved                                                 bool
-	Conversation                                                      producer.Conversation
-	Conversations                                                     []producer.Conversation
-
-	AudienceMode, AudienceKind, AudienceKey                  string
-	AudienceQuery, AudienceToken, AudienceFilter             string
-	AudienceShow                                             schedule.Occurrence
-	AudienceName, AudienceText, AudienceTrack, AudienceError string
-	AudienceConsent                                          bool
-	AudienceShows                                            []schedule.Occurrence
-	AudienceTracks                                           []content.AudioItem
-	AudienceMoreTracks                                       bool
-	AudienceMessages                                         []audience.Message
-	AudienceTotal                                            int
-	AudienceStatuses                                         []audienceStatusChoice
-	AudiencePrevious, AudienceNext, AudienceRefreshURL       string
-	Public                                                   bool
-	PublicDays                                               []publicDay
-	PublicDayLinks                                           []publicDay
-	PublicDate                                               string
-	AudiencePanel                                            string
-	AudienceDay                                              string
-	PublicShow                                               publicShow
-	AudienceBase                                             string
-	PublicCurrent, PublicNext                                cardTrack
-	StationRepeatSupplied                                    bool
-	StationRepeatInput                                       string
-	StationError                                             string
-	MixerChannels                                            []mixerChannel
-	MusicVolume, DJVolume, MixerError                        string
-	Show                                                     schedule.Show
-	Shows                                                    []schedule.Show
-	ShowError                                                string
-	ScheduleMode, ShowStart, ShowEnd                         string
-	ScheduleDays                                             []scheduleDay
-	ShowDays                                                 map[int]bool
-	ScheduleHours                                            []scheduleHour
-	ScheduleCards                                            []scheduleCard
-
-	DJ                                                                                                   djs.Profile
-	DJCards                                                                                              []djCard
-	DJs                                                                                                  []djs.Profile
-	DJVoices                                                                                             []djs.Voice
-	DJError                                                                                              string
-	DJMode, ExampleVibe                                                                                  string
-	Broadcast                                                                                            broadcast.State
-	BroadcastPlaylist, StreamURL                                                                         string
-	BroadcastEnabled                                                                                     bool
-	Source                                                                                               sources.Config
-	SourceTab, SourceHost                                                                                string
-	SourceDiscoveries                                                                                    []discoveredSource
-	SourceDiscoveryError, SourceError                                                                    string
-	SourceDiscoveryAttempted                                                                             bool
-	SourceAlbums                                                                                         int
-	SourceCards                                                                                          []sourceCard
-	TargetPlaylist                                                                                       playlists.Playlist
-	StationPlaylistCount                                                                                 int
-	Notice, Section                                                                                      string
-	Station                                                                                              station.Station
-	StationCards                                                                                         []stationCard
-	Genres                                                                                               []genreOption
-	Page, Title, CSRF, Query, Genre, Sort, Direction, AlbumChoice, SelectedPlaylist, ReturnTo, StationID string
-	Stations                                                                                             []station.Station
-	Sources                                                                                              []sources.Config
-	Catalogue                                                                                            catalogue.Result
-	Facets                                                                                               catalogue.Facets
-	Albums                                                                                               []albumOption
-	PlaylistOptions                                                                                      []playlistOption
-	Playlist                                                                                             playlists.Playlist
-	PlaylistStation                                                                                      string
-	PlaylistTab                                                                                          string
-	Rules                                                                                                []ruleRow
-	Rows                                                                                                 []trackRow
-	Pagination                                                                                           pagination
-	PlaylistResult                                                                                       playlists.Result
-	PlaylistDuration                                                                                     string
-}
-
-func (s *Server) baseView(r *http.Request) view {
-	v := view{Page: r.URL.Path, CSRF: s.csrf}
+func (s *Server) baseView(r *http.Request) pageView {
+	v := pageView{Page: r.URL.Path, CSRF: s.csrf}
 	v.BroadcastEnabled = s.d.Broadcast != nil
 
 	v.Notice = map[string]string{"station-deleted": "Station deleted.", "playlist-deleted": "Playlist deleted.", "station-saved": "Station saved.", "playlist-saved": "Playlist saved.", "selections-saved": "Selections saved.", "tracks-added": "Tracks added to the playlist.", "track-removed": "Track excluded from this playlist.", "source-saved": "Source saved.", "imported": "Library refreshed."}[r.URL.Query().Get("notice")]
 	return v
 }
 
-func (s *Server) render(w http.ResponseWriter, r *http.Request, v view) {
-	for _, p := range v.PlaylistOptions {
-		if v.StationID == "" || p.Playlist.StationID == v.StationID {
-			v.StationPlaylistCount++
-		}
-	}
-	name := "layout"
-	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true" {
-		name = "fragment"
-	}
-	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true" && v.AudienceMode == "queue" && r.Header.Get("HX-Target") == "audience-queue-results" {
-		name = "audience-queue-results"
-	}
-	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "dialog-body" {
-		if v.AssistantMode == "delete-connection" {
-			name = "delete-ai"
-		} else if v.ScheduleMode == "delete" {
-			name = "delete-show"
-		} else if v.DJMode == "delete" {
-			name = "delete-dj"
-		} else if v.PlaylistTab == "delete" {
-			name = "delete-playlist"
-		} else if v.Section == "delete" {
-			name = "delete-station"
-		}
-	}
-	if v.Public {
-		name = "public-layout"
-		if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true" {
-			name = "public-fragment"
-			if r.Header.Get("HX-Target") == v.AudiencePanel {
-				name = "audience-form"
-			}
-			if r.Header.Get("HX-Target") == "audience-track-options-"+v.AudiencePanel {
-				name = "audience-tracks"
-			}
-		}
-	}
-	var body strings.Builder
-	if err := s.t.ExecuteTemplate(&body, name, v); err != nil {
-		s.fail(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if _, err := w.Write([]byte(body.String())); err != nil {
-		s.d.Logger.Error("HTML write failed", "error", err)
-	}
-}
 func (s *Server) page(w http.ResponseWriter, r *http.Request) {
-	v := s.baseView(r)
-	var err error
 	switch r.URL.Path {
 	case "/producer":
+		v := stationDirectoryView{pageView: s.baseView(r)}
 		v.Title = "Your stations"
-		err = s.loadStationCards(r, &v)
-	case "/producer/station", "/producer/stations/new":
-		v.Title = "Create a station"
-	case "/producer/sources/new":
-		v.Title = "Add source"
-		v.Source.Name = r.URL.Query().Get("name")
-		v.Source.Endpoint = r.URL.Query().Get("endpoint")
-		if r.URL.Query().Get("discover") == "1" {
-			v.Sources, err = s.d.Sources.List(r.Context())
-			if err != nil {
-				s.fail(w, err)
-				return
-			}
-			s.findSources(r.Context(), &v)
+		if err := s.loadStationCards(r, &v); err != nil {
+			s.fail(w, err)
+			return
 		}
+		s.renderPage(w, r, http.StatusOK, "stations-page", v)
+	case "/producer/station", "/producer/stations/new":
+		v := stationPageView{pageView: s.baseView(r)}
+		v.Title = "Create a station"
+		s.renderPage(w, r, http.StatusOK, "new-station-page", v)
 	case "/producer/sources":
-		v.Title = "Sources"
-		err = s.loadSourceCards(r.Context(), &v)
+		s.sourcesPage(w, r)
+	case "/producer/sources/new":
+		s.newSourcePage(w, r)
 	case "/producer/content":
-		v.Title = "Browse tracks"
+		s.cataloguePage(w, r)
 	}
+}
 
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
-	if r.URL.Path != "/producer/content" {
-		s.render(w, r, v)
-		return
-	}
-	if err = s.loadCatalogueChoices(r.Context(), &v); err != nil {
+func (s *Server) cataloguePage(w http.ResponseWriter, r *http.Request) {
+	v := cataloguePageView{pageView: s.baseView(r)}
+	v.Title = "Browse tracks"
+	var err error
+	if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices); err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -394,7 +243,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	if err = s.loadPlaylistOptions(r.Context(), &v, ""); err != nil {
+	if err = s.loadPlaylistOptions(r.Context(), &v.playlistChoices, station.Station{}); err != nil {
 		s.fail(w, err)
 		return
 	}
@@ -448,5 +297,5 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	for n, item := range v.Catalogue.Items {
 		v.Rows = append(v.Rows, track(item, v.Sources, q.Offset+n+1, true))
 	}
-	s.render(w, r, v)
+	s.renderPage(w, r, http.StatusOK, "catalogue-page", v)
 }

@@ -1,66 +1,297 @@
-{{define "assistant"}}
-{{if eq .AssistantMode "delete-connection"}}{{template "delete-ai" .}}{{else if eq .AssistantMode "endpoints"}}
-{{if .AssistantError}}<p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
-{{if .AIConnectionMode}}<section class="form-panel">{{template "ai-connection" .}}</section>{{else}}
+{{define "assistant-endpoints"}}
+{{if .AssistantError}}
+<p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
+{{if .AIConnectionMode}}
+<section class="form-panel">
+  {{template "ai-connection" .}}
+</section>
+{{else}}
 <p class="hint">Connect an AI service, then choose where to use it in <a href="/producer/assistant/settings">Models for features</a>.</p>
 {{template "ai-connections" .}}
 {{end}}
-{{else if eq .AssistantMode "settings"}}
-<p class="hint">Choose a provider and model for each feature. Manage server addresses and credentials in <a href="/producer/assistant/endpoints">Manage endpoints</a>.</p>
-<section class="form-panel">{{if .AssistantError}}<p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
-<form method="post" action="/producer/assistant/settings" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}">
-{{template "ai-routes" .}}
-<div class="form-actions"><a class="button secondary" href="/producer/assistant">Cancel</a><button>Save models</button></div></form></section>
-{{else}}
+{{end}}
 
-{{if not .AssistantSettings.Enabled}}<p class="notice">Start with <a href="/producer/assistant/endpoints">Manage endpoints</a>, then choose a model in <a href="/producer/assistant/settings">Models for features</a>.</p>{{end}}
+{{define "assistant-settings"}}
+<p class="hint">Choose a provider and model for each feature. Manage server addresses and credentials in <a href="/producer/assistant/endpoints">Manage endpoints</a>.</p>
+<section class="form-panel">
+  {{if .AssistantError}}
+  <p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
+  <form method="post" action="/producer/assistant/settings" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{template "ai-routes" .}}
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/assistant">Cancel</a>
+      <button>Save models</button>
+    </div>
+  </form>
+</section>
+{{end}}
+
+{{define "assistant-chat"}}
+{{if not .AssistantSettings.Enabled}}
+<p class="notice">Start with <a href="/producer/assistant/endpoints">Manage endpoints</a>, then choose a model in <a href="/producer/assistant/settings">Models for features</a>.</p>{{end}}
 <div class="assistant-workspace">
-{{if .Conversations}}<nav class="assistant-conversations" aria-label="Conversations">{{range .Conversations}}<a href="/producer/assistant?conversation={{.ID}}" {{if eq .ID $.Conversation.ID}}aria-current="page"{{end}}>{{.Title}} <span class="hint" data-assistant-badge="{{.ID}}">{{if eq .Status "running"}}Working…{{end}}</span></a>{{end}}</nav>{{end}}
-<section class="assistant-chat" aria-label="Producer conversation">
-{{template "assistant-messages" .}}
-{{if .AssistantError}}<p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
-<form class="assistant-compose" data-assistant-compose data-assistant-enabled="{{.AssistantSettings.Enabled}}" method="post" action="/producer/assistant/messages" hx-disabled-elt="find button" hx-swap="innerHTML show:none" hx-push-url="false">
-<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="conversation" value="{{.Conversation.ID}}"><input type="hidden" name="station" value="{{.StationID}}"><input type="hidden" name="request_id" value="{{.AssistantRequestID}}">
-<label>Message<textarea id="assistant-message-input" name="message" required maxlength="12000" rows="4" placeholder="Explore my music library, create a station, or update its programming…">{{.AssistantInput}}</textarea></label>
-<div class="form-actions"><button {{if or (not .AssistantSettings.Enabled) (eq .Conversation.Status "running")}}disabled{{end}}>Send message</button></div>
-<p class="hint">The assistant can make changes on your behalf. Enter API keys only in secure settings. Changes and links appear in the reply.</p>
-</form></section></div>
-{{end}}{{end}}
+  {{if .Conversations}}
+  <nav class="assistant-conversations" aria-label="Conversations">
+    {{range .Conversations}}<a href="/producer/assistant?conversation={{.ID}}" {{if eq .ID $.Conversation.ID}}aria-current="page"{{end}}>{{.Title}} <span class="hint" data-assistant-badge="{{.ID}}">
+        {{if eq .Status "running"}}Working…{{end}}</span>
+    </a>{{end}}
+  </nav>{{end}}
+  <section class="assistant-chat" aria-label="Producer conversation">
+    {{template "assistant-messages" .}}
+    {{if .AssistantError}}
+    <p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
+    <form class="assistant-compose" data-assistant-compose data-assistant-enabled="{{.AssistantSettings.Enabled}}" method="post" action="/producer/assistant/messages" hx-disabled-elt="find button" hx-swap="innerHTML show:none" hx-push-url="false">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="conversation" value="{{.Conversation.ID}}">
+      <input type="hidden" name="station" value="{{.StationID}}">
+      <input type="hidden" name="request_id" value="{{.AssistantRequestID}}">
+      <label>Message<textarea id="assistant-message-input" name="message" required maxlength="12000" rows="4" placeholder="Explore my music library, create a station, or update its programming…">{{.AssistantInput}}</textarea>
+      </label>
+      <div class="form-actions">
+        <button {{if or (not .AssistantSettings.Enabled) (eq .Conversation.Status "running")}}disabled{{end}}>Send message</button>
+      </div>
+      <p class="hint">The assistant can make changes on your behalf. Enter API keys only in secure settings. Changes and links appear in the reply.</p>
+    </form>
+  </section>
+</div>
+{{end}}
 {{define "assistant-messages"}}
 <div id="assistant-messages" class="assistant-messages" data-assistant-running="{{eq .Conversation.Status "running"}}" data-assistant-conversation="{{.Conversation.ID}}" {{if eq .Conversation.Status "running"}}hx-get="/producer/assistant/{{.Conversation.ID}}/messages" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML show:none" hx-indicator="this"{{end}}>
-{{if .AssistantMessages}}<ol aria-label="Conversation history" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true" hx-indicator="#global-busy">{{range $index, $message := .AssistantMessages}}<li class="assistant-message assistant-{{.Role}}" data-assistant-turn="{{$index}}"><strong>{{if eq .Role "user"}}You{{else}}Producer assistant{{end}}</strong>
-{{if eq .Role "user"}}<p>{{.Text}}</p>{{else}}
-{{range $part, $content := .Parts}}{{if eq .Role "reasoning"}}<details class="assistant-reasoning" data-assistant-detail="{{$index}}-{{$part}}"><summary>Provider reasoning</summary><p>{{.Text}}</p></details>{{else if eq .Role "assistant"}}<div class="assistant-markdown">{{.HTML}}</div>{{else}}<div class="assistant-action"><p>{{.Text}}</p>{{if .URL}}<a href="{{.URL}}">View in StationOS →</a>{{end}}</div>{{end}}{{end}}
-{{if .Latest}}{{with $}}{{if .AssistantState}}<section class="notice assistant-status" data-state="{{.AssistantState}}" role="status" aria-label="Assistant status"><strong>{{.AssistantState}}</strong><p>{{.AssistantActivity}}</p>{{if .AssistantTiming}}<p class="hint">{{.AssistantTiming}}</p>{{end}}<p class="hint assistant-poll-error" role="alert" hidden>Live updates have disconnected. Reload this page to check the assistant’s current state.</p></section>{{end}}
-{{if .Conversation.Task.Brief}}<section class="assistant-task" aria-label="Saved task progress"><h2>Task progress</h2><p>{{.Conversation.Task.Brief}}</p>{{if .Conversation.Task.Completed}}<h3>Completed</h3><ul>{{range .Conversation.Task.Completed}}<li>{{.}}</li>{{end}}</ul>{{end}}{{if .Conversation.Task.Remaining}}<h3>Remaining</h3><ul>{{range .Conversation.Task.Remaining}}<li>{{.}}</li>{{end}}</ul>{{end}}{{if .Conversation.Task.Blockers}}<h3>Needs your input</h3><ul>{{range .Conversation.Task.Blockers}}<li>{{.}}</li>{{end}}</ul>{{end}}</section>{{end}}
-{{if eq .Conversation.Status "running"}}<p class="hint">You can navigate away and return while the assistant works.</p><form method="post" action="/producer/assistant/{{.Conversation.ID}}/stop" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><button class="secondary">Stop assistant</button></form>{{else if eq .Conversation.Status "failed"}}<form method="post" action="/producer/assistant/{{.Conversation.ID}}/continue" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="request_id" value="{{.AssistantRequestID}}"><button {{if not .AssistantSettings.Enabled}}disabled{{end}}>Continue saved request</button></form>{{end}}{{end}}{{end}}{{end}}</li>{{end}}</ol>{{else}}<p class="hint">Describe what you want to produce. The assistant can explore your music and manage stations, playlists, DJs and schedules.</p>{{end}}
+  {{if .AssistantMessages}}
+  <ol aria-label="Conversation history" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true" hx-indicator="#global-busy">
+    {{range $index, $message := .AssistantMessages}}
+    <li class="assistant-message assistant-{{.Role}}" data-assistant-turn="{{$index}}">
+      <strong>
+        {{if eq .Role "user"}}You{{else}}Producer assistant{{end}}</strong>
+      {{if eq .Role "user"}}
+      <p>{{.Text}}</p>
+      {{else}}
+      {{range $part, $content := .Parts}}{{if eq .Role "reasoning"}}
+      <details class="assistant-reasoning" data-assistant-detail="{{$index}}-{{$part}}">
+        <summary>Provider reasoning</summary>
+        <p>{{.Text}}</p>
+      </details>
+      {{else if eq .Role "assistant"}}
+      <div class="assistant-markdown">{{.HTML}}
+      </div>
+      {{else}}
+      <div class="assistant-action">
+        <p>{{.Text}}</p>
+        {{if .URL}}<a href="{{.URL}}">View in StationOS →</a>{{end}}
+      </div>{{end}}{{end}}
+      {{if .Latest}}{{with $}}{{if .AssistantState}}
+      <section class="notice assistant-status" data-state="{{.AssistantState}}" role="status" aria-label="Assistant status">
+        <strong>{{.AssistantState}}</strong>
+        <p>{{.AssistantActivity}}</p>
+        {{if .AssistantTiming}}
+        <p class="hint">{{.AssistantTiming}}</p>{{end}}
+        <p class="hint assistant-poll-error" role="alert" hidden>Live updates have disconnected. Reload this page to check the assistant’s current state.</p>
+      </section>{{end}}
+      {{if .Conversation.Task.Brief}}
+      <section class="assistant-task" aria-label="Saved task progress">
+        <h2>Task progress</h2>
+        <p>{{.Conversation.Task.Brief}}</p>
+        {{if .Conversation.Task.Completed}}
+        <h3>Completed</h3>
+        <ul>
+          {{range .Conversation.Task.Completed}}
+          <li>{{.}}</li>{{end}}
+        </ul>{{end}}{{if .Conversation.Task.Remaining}}
+        <h3>Remaining</h3>
+        <ul>
+          {{range .Conversation.Task.Remaining}}
+          <li>{{.}}</li>{{end}}
+        </ul>{{end}}{{if .Conversation.Task.Blockers}}
+        <h3>Needs your input</h3>
+        <ul>
+          {{range .Conversation.Task.Blockers}}
+          <li>{{.}}</li>{{end}}
+        </ul>{{end}}
+      </section>{{end}}
+      {{if eq .Conversation.Status "running"}}
+      <p class="hint">You can navigate away and return while the assistant works.</p>
+      <form method="post" action="/producer/assistant/{{.Conversation.ID}}/stop" hx-disabled-elt="find button">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button class="secondary">Stop assistant</button>
+      </form>
+      {{else if eq .Conversation.Status "failed"}}
+      <form method="post" action="/producer/assistant/{{.Conversation.ID}}/continue" hx-disabled-elt="find button">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="request_id" value="{{.AssistantRequestID}}">
+        <button {{if not .AssistantSettings.Enabled}}disabled{{end}}>Continue saved request</button>
+      </form>{{end}}{{end}}{{end}}{{end}}</li>{{end}}
+  </ol>
+  {{else}}
+  <p class="hint">Describe what you want to produce. The assistant can explore your music and manage stations, playlists, DJs and schedules.</p>{{end}}
 </div>{{end}}
 {{define "ai-connections"}}
-{{if .AIConnections}}<div class="source-list">{{range .AIConnections}}<article class="source-row"><span class="station-avatar" aria-hidden="true">✦</span><div class="source-identity"><h2><a href="/producer/assistant/endpoints?connection={{.ID}}">{{.Name}}</a></h2><span>{{if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span></div><a class="button secondary" href="/producer/assistant/endpoints?connection={{.ID}}">Manage endpoint</a></article>{{end}}</div>{{else}}<section class="empty-state"><h2>No AI endpoints yet</h2><p>Add an AI service to get started.</p></section>{{end}}
+{{if .AIConnections}}
+<div class="source-list">
+  {{range .AIConnections}}
+  <article class="source-row">
+    <span class="station-avatar" aria-hidden="true">✦</span>
+    <div class="source-identity">
+      <h2>
+        <a href="/producer/assistant/endpoints?connection={{.ID}}">{{.Name}}</a>
+      </h2>
+      <span>
+        {{if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span>
+    </div>
+    <a class="button secondary" href="/producer/assistant/endpoints?connection={{.ID}}">Manage endpoint</a>
+  </article>{{end}}
+</div>
+{{else}}
+<section class="empty-state">
+  <h2>No AI endpoints yet</h2>
+  <p>Add an AI service to get started.</p>
+</section>{{end}}
 {{end}}
 {{define "ai-routes"}}
-{{range .AIRoles}}{{$role:=.}}<fieldset class="dj-form-group"><legend>{{.Label}}</legend><label>{{.Label}} provider<select name="{{.Name}}_connection" data-feature-provider="{{.Name}}">{{range $.AIConnections}}{{if or $role.Text (eq .Type "openai")}}<option value="{{.ID}}" {{if or (eq .ID $role.Connection) (and (eq .ID "openai") (eq $role.Connection ""))}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}</select></label><label data-model-picker="{{.Name}}" hidden>Model<select data-model-choice="{{.Name}}"></select></label><label data-model-manual="{{.Name}}">Model ID<input name="{{.ModelField}}" data-feature-model="{{.Name}}" list="models-{{.Name}}" value="{{.Model}}" required maxlength="128"><span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} Applies to every DJ.{{else if or (eq .Name "speech") (eq .Name "image")}} Requires an OpenAI endpoint.{{end}}</span></label><datalist id="models-{{.Name}}"></datalist><p class="hint" role="status" data-feature-model-status="{{.Name}}"></p>
+{{range .AIRoles}}{{$role:=.}}
+<fieldset class="dj-form-group">
+  <legend>{{.Label}}</legend>
+  <label>{{.Label}} provider<select name="{{.Name}}_connection" data-feature-provider="{{.Name}}">
+      {{range $.AIConnections}}{{if or $role.Text (eq .Type "openai")}}
+      <option value="{{.ID}}" {{if or (eq .ID $role.Connection) (and (eq .ID "openai") (eq $role.Connection ""))}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}</select>
+  </label>
+  <label data-model-picker="{{.Name}}" hidden>Model<select data-model-choice="{{.Name}}">
+    </select>
+  </label>
+  <label data-model-manual="{{.Name}}">Model ID<input name="{{.ModelField}}" data-feature-model="{{.Name}}" list="models-{{.Name}}" value="{{.Model}}" required maxlength="128">
+    <span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} Applies to every DJ.{{else if or (eq .Name "speech") (eq .Name "image")}} Requires an OpenAI endpoint.{{end}}</span>
+  </label>
+  <datalist id="models-{{.Name}}">
+  </datalist>
+  <p class="hint" role="status" data-feature-model-status="{{.Name}}">
+  </p>
 </fieldset>{{end}}
 {{end}}
 {{define "ai-connection"}}
-{{if ne .AIConnection.ID "openai"}}<p class="hint">Give this service a name, choose its provider and enter the server address. Saving checks the endpoint and finds its available models automatically.</p>{{end}}
-{{if ne .AIConnection.ID "openai"}}<form method="post" action="/producer/assistant/endpoints?connection={{.AIConnection.ID}}" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="connection_id" value="{{.AIConnection.ID}}"><input type="hidden" name="connection_action" value="save">
-<label>Name<input name="connection_name" required maxlength="120" value="{{.AIConnection.Name}}"></label>
-<label>Provider<select name="provider_type" data-provider-type><option value="ollama" {{if eq .AIConnection.Type "ollama"}}selected{{end}}>Ollama</option><option value="compatible" {{if eq .AIConnection.Type "compatible"}}selected{{end}}>OpenAI-compatible chat completions</option><option value="anthropic" {{if eq .AIConnection.Type "anthropic"}}selected{{end}}>Anthropic</option><option value="gemini" {{if eq .AIConnection.Type "gemini"}}selected{{end}}>Gemini</option><option value="openai" {{if eq .AIConnection.Type "openai"}}selected{{end}}>OpenAI</option></select></label>
-<label>Server address<input name="address" type="url" required maxlength="2048" value="{{.AIConnection.Address}}" placeholder="{{if eq .AIConnection.Type "anthropic"}}https://api.anthropic.com/v1{{else if eq .AIConnection.Type "gemini"}}https://generativelanguage.googleapis.com/v1beta{{else if eq .AIConnection.Type "openai"}}https://api.openai.com/v1{{else if eq .AIConnection.Type "compatible"}}https://your-provider/v1{{else}}http://your-server:11434{{end}}"><span class="hint" data-provider-address-help>Enter an address reachable from the computer running StationOS. For Ollama, use the server address without /api; for compatible services, use the API base (usually ending /v1). Localhost refers to StationOS's computer or container.</span></label>
-<label>Optional credential<input name="credential" type="password" maxlength="4096" autocomplete="new-password"><span class="hint">{{if .AIConnection.HasKey}}A credential is saved.{{end}} Blank preserves it. Never copied from the OpenAI connection.</span></label>{{if .AIConnection.HasKey}}<label class="choice"><input type="checkbox" name="clear_credential" value="yes">Remove saved credential</label>{{end}}
-<details class="endpoint-advanced" {{if .AssistantError}}open{{end}}><summary>Advanced settings</summary><label>Context token budget<input name="context_tokens" type="number" min="2048" max="32768" required value="{{.AIConnection.ContextTokens}}"><span class="hint">Start at 16384 for producer tools, reduce if memory requires it. Includes tool definitions, complete requirements and output. Input is estimated conservatively; overflow pauses without discarding requirements.</span></label>
-<label>Response deadline (seconds)<input name="request_timeout_seconds" type="number" min="15" max="600" required value="{{.AIConnection.RequestTimeoutSeconds}}"><span class="hint">Starts when inference begins. Live DJ work can wait up to this deadline for the inference slot; producer conversations wait at most 30 seconds. Stale links are cancelled at song boundaries. Longer deadlines allow model loading and slow responses while music keeps playing.</span></label>
-<label>Maximum output tokens<input name="output_tokens" type="number" min="256" max="8192" required value="{{.AIConnection.OutputTokens}}"></label>
-</details><div class="form-footer">{{if .AIConnectionSaved}}<a class="button danger" href="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-get="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete connection</a>{{end}}<div class="form-actions"><a class="button secondary" href="/producer/assistant/endpoints">Cancel</a><button>Save endpoint</button></div></div></form>{{else}}<p class="hint">Manage the shared credential for this OpenAI endpoint. Server address: {{.AIConnection.Address}}.</p>{{template "openai-key" .}}{{end}}
-{{if and .AIConnectionSaved (not .AssistantError)}}<div data-endpoint-models data-saved-endpoint="{{.AIConnection.ID}}"><p class="hint" role="status" data-model-status></p><ul class="discovered-models" data-model-list hidden></ul></div>{{end}}
+{{if ne .AIConnection.ID "openai"}}
+<p class="hint">Give this service a name, choose its provider and enter the server address. Saving checks the endpoint and finds its available models automatically.</p>{{end}}
+{{if ne .AIConnection.ID "openai"}}
+<form method="post" action="/producer/assistant/endpoints?connection={{.AIConnection.ID}}" hx-disabled-elt="find button">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="connection_id" value="{{.AIConnection.ID}}">
+  <input type="hidden" name="connection_action" value="save">
+  <label>Name<input name="connection_name" required maxlength="120" value="{{.AIConnection.Name}}">
+  </label>
+  <label>Provider<select name="provider_type" data-provider-type>
+      <option value="ollama" {{if eq .AIConnection.Type "ollama"}}selected{{end}}>Ollama</option>
+      <option value="compatible" {{if eq .AIConnection.Type "compatible"}}selected{{end}}>OpenAI-compatible chat completions</option>
+      <option value="anthropic" {{if eq .AIConnection.Type "anthropic"}}selected{{end}}>Anthropic</option>
+      <option value="gemini" {{if eq .AIConnection.Type "gemini"}}selected{{end}}>Gemini</option>
+      <option value="openai" {{if eq .AIConnection.Type "openai"}}selected{{end}}>OpenAI</option>
+    </select>
+  </label>
+  <label>Server address<input name="address" type="url" required maxlength="2048" value="{{.AIConnection.Address}}" placeholder="{{if eq .AIConnection.Type "anthropic"}}https://api.anthropic.com/v1{{else if eq .AIConnection.Type "gemini"}}https://generativelanguage.googleapis.com/v1beta{{else if eq .AIConnection.Type "openai"}}https://api.openai.com/v1{{else if eq .AIConnection.Type "compatible"}}https://your-provider/v1{{else}}http://your-server:11434{{end}}">
+    <span class="hint" data-provider-address-help>Enter an address reachable from the computer running StationOS. For Ollama, use the server address without /api; for compatible services, use the API base (usually ending /v1). Localhost refers to StationOS's computer or container.</span>
+  </label>
+  <label>Optional credential<input name="credential" type="password" maxlength="4096" autocomplete="new-password">
+    <span class="hint">
+      {{if .AIConnection.HasKey}}A credential is saved.{{end}} Blank preserves it. Never copied from the OpenAI connection.</span>
+  </label>
+  {{if .AIConnection.HasKey}}
+  <label class="choice">
+    <input type="checkbox" name="clear_credential" value="yes">Remove saved credential</label>{{end}}
+  <details class="endpoint-advanced" {{if .AssistantError}}open{{end}}>
+    <summary>Advanced settings</summary>
+    <label>Context token budget<input name="context_tokens" type="number" min="2048" max="32768" required value="{{.AIConnection.ContextTokens}}">
+      <span class="hint">Start at 16384 for producer tools, reduce if memory requires it. Includes tool definitions, complete requirements and output. Input is estimated conservatively; overflow pauses without discarding requirements.</span>
+    </label>
+    <label>Response deadline (seconds)<input name="request_timeout_seconds" type="number" min="15" max="600" required value="{{.AIConnection.RequestTimeoutSeconds}}">
+      <span class="hint">Starts when inference begins. Live DJ work can wait up to this deadline for the inference slot; producer conversations wait at most 30 seconds. Stale links are cancelled at song boundaries. Longer deadlines allow model loading and slow responses while music keeps playing.</span>
+    </label>
+    <label>Maximum output tokens<input name="output_tokens" type="number" min="256" max="8192" required value="{{.AIConnection.OutputTokens}}">
+    </label>
+  </details>
+  <div class="form-footer">
+    {{if .AIConnectionSaved}}<a class="button danger" href="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-get="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete connection</a>{{end}}
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/assistant/endpoints">Cancel</a>
+      <button>Save endpoint</button>
+    </div>
+  </div>
+</form>
+{{else}}
+<p class="hint">Manage the shared credential for this OpenAI endpoint. Server address: {{.AIConnection.Address}}.</p>
+{{template "openai-key" .}}{{end}}
+{{if and .AIConnectionSaved (not .AssistantError)}}
+<div data-endpoint-models data-saved-endpoint="{{.AIConnection.ID}}">
+  <p class="hint" role="status" data-model-status>
+  </p>
+  <ul class="discovered-models" data-model-list hidden>
+  </ul>
+</div>{{end}}
 {{end}}
 
-{{define "delete-ai"}}<section class="form-panel"><h2 id="dialog-heading">Delete {{.AIConnection.Name}}?</h2><p id="dialog-description">This removes the provider connection and its encrypted credential. Choose another connection for any roles using it first.</p><form method="post" action="/producer/assistant/endpoints"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="connection_id" value="{{.AIConnection.ID}}"><input type="hidden" name="connection_action" value="delete"><input type="hidden" name="confirm" value="yes"><div class="form-actions"><a class="button secondary" href="/producer/assistant/endpoints?connection={{.AIConnection.ID}}" data-close-dialog>Cancel</a><button class="danger">Delete connection</button></div></form></section>{{end}}
+{{define "delete-ai"}}
+<section class="form-panel">
+  <h2 id="dialog-heading">Delete {{.AIConnection.Name}}?</h2>
+  <p id="dialog-description">This removes the provider connection and its encrypted credential. Choose another connection for any roles using it first.</p>
+  <form method="post" action="/producer/assistant/endpoints">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="connection_id" value="{{.AIConnection.ID}}">
+    <input type="hidden" name="connection_action" value="delete">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/assistant/endpoints?connection={{.AIConnection.ID}}" data-close-dialog>Cancel</a>
+      <button class="danger">Delete connection</button>
+    </div>
+  </form>
+</section>{{end}}
 
-{{define "assistant-navigation"}}<nav class="station-tabs assistant-tabs" aria-label="Assistant navigation"><a href="/producer/assistant" data-assistant-nav="chats" {{if eq .AssistantMode "chat"}}aria-current="page"{{end}}>Chats</a><a href="/producer/assistant/settings" data-assistant-nav="models" {{if eq .AssistantMode "settings"}}aria-current="page"{{end}}>Models</a><a href="/producer/assistant/endpoints" data-assistant-nav="endpoints" {{if or (eq .AssistantMode "endpoints") (eq .AssistantMode "delete-connection")}}aria-current="page"{{end}}>Endpoints</a></nav>{{end}}
+{{define "assistant-navigation"}}
+<nav class="station-tabs assistant-tabs" aria-label="Assistant navigation">
+  <a href="/producer/assistant" data-assistant-nav="chats" {{if eq .AssistantMode "chat"}}aria-current="page"{{end}}>Chats</a>
+  <a href="/producer/assistant/settings" data-assistant-nav="models" {{if eq .AssistantMode "settings"}}aria-current="page"{{end}}>Models</a>
+  <a href="/producer/assistant/endpoints" data-assistant-nav="endpoints" {{if or (eq .AssistantMode "endpoints") (eq .AssistantMode "delete-connection")}}aria-current="page"{{end}}>Endpoints</a>
+</nav>{{end}}
 
-{{define "openai-key"}}<form method="post" action="/producer/assistant/endpoints?connection=openai" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="connection_action" value="shared-key">
-<label>API key<input name="api_key" type="password" autocomplete="new-password" maxlength="4096"><span class="hint">{{if .AssistantSettings.HasKey}}A key is saved. Leave blank to keep it.{{else}}Optional for local text. Add a key to use the built-in OpenAI endpoint.{{end}} Stored encrypted.</span></label>
-{{if .AssistantSettings.HasKey}}<label class="choice"><input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
-<div class="form-actions"><a class="button secondary" href="/producer/assistant/endpoints">Cancel</a><button>Save key</button></div></form>{{end}}
+{{define "openai-key"}}
+<form method="post" action="/producer/assistant/endpoints?connection=openai" hx-disabled-elt="find button">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="connection_action" value="shared-key">
+  <label>API key<input name="api_key" type="password" autocomplete="new-password" maxlength="4096">
+    <span class="hint">
+      {{if .AssistantSettings.HasKey}}A key is saved. Leave blank to keep it.{{else}}Optional for local text. Add a key to use the built-in OpenAI endpoint.{{end}} Stored encrypted.</span>
+  </label>
+  {{if .AssistantSettings.HasKey}}
+  <label class="choice">
+    <input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
+  <div class="form-actions">
+    <a class="button secondary" href="/producer/assistant/endpoints">Cancel</a>
+    <button>Save key</button>
+  </div>
+</form>{{end}}
+
+{{define "assistant-chat-page"}}
+{{template "assistant-navigation" .}}
+<div class="page-heading">
+  <h1>{{.Title}}</h1>
+  <form method="post" action="/producer/assistant/conversations" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="station" value="{{.StationID}}">
+    <button class="button">+ New conversation</button>
+  </form>
+</div>
+{{template "assistant-chat" .}}
+{{end}}
+
+{{define "assistant-settings-page"}}
+{{template "assistant-navigation" .}}{{template "page-heading" .Title}}{{template "assistant-settings" .}}
+{{end}}
+
+{{define "assistant-endpoints-page"}}
+{{template "assistant-navigation" .}}
+<div class="page-heading">
+  <h1>{{.Title}}</h1>
+  {{if not .AIConnectionMode}}<a class="button" href="/producer/assistant/endpoints?connection=new">+ Add endpoint</a>{{end}}
+</div>
+{{template "assistant-endpoints" .}}
+{{end}}
+
+{{define "assistant-delete-page"}}
+{{template "assistant-navigation" .}}{{template "page-heading" .Title}}{{template "delete-ai" .}}
+{{end}}

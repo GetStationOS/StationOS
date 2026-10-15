@@ -22,7 +22,7 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 		http.Error(w, "Assistant unavailable", 503)
 		return
 	}
-	v := s.baseView(r)
+	v := assistantPageView{pageView: s.baseView(r)}
 	var err error
 	v.AssistantMode = "chat"
 	v.Title = "Producer assistant"
@@ -122,16 +122,10 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 	}
 	if r.PathValue("id") != "" {
 		// Poll only the messages/status region, preserving the compose form and focus.
-		var body strings.Builder
-		if err = s.t.ExecuteTemplate(&body, "assistant-messages", v); err != nil {
-			s.fail(w, err)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(body.String()))
+		s.renderHTML(w, http.StatusOK, "assistant-messages", v)
 		return
 	}
-	s.render(w, r, v)
+	s.renderAssistantPage(w, r, http.StatusOK, v)
 }
 func assistantURL(id string) string { return "/producer/assistant?conversation=" + url.QueryEscape(id) }
 func (s *Server) assistantMessages(w http.ResponseWriter, r *http.Request) {
@@ -227,7 +221,7 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Assistant unavailable", 503)
 		return
 	}
-	v := s.baseView(r)
+	v := assistantPageView{pageView: s.baseView(r)}
 	var e error
 	v.AssistantMode = "settings"
 	v.Title = "Models for features"
@@ -313,7 +307,7 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 		v.Notice = "OpenAI key saved."
 	}
 	v.AIRoles = roleViews(v.AssistantSettings)
-	s.render(w, r, v)
+	s.renderAssistantPage(w, r, http.StatusOK, v)
 }
 
 func (s *Server) assistantStop(w http.ResponseWriter, r *http.Request) {
@@ -360,4 +354,25 @@ func assistantDuration(d time.Duration) string {
 		return fmt.Sprintf("%ds", seconds)
 	}
 	return fmt.Sprintf("%dm %ds", seconds/60, seconds%60)
+}
+
+func (s *Server) renderAssistantPage(w http.ResponseWriter, r *http.Request, status int, v assistantPageView) {
+	name := "assistant-chat-page"
+	v.AssistantSection = "chats"
+	switch v.AssistantMode {
+	case "settings":
+		name = "assistant-settings-page"
+		v.AssistantSection = "models"
+	case "endpoints":
+		name = "assistant-endpoints-page"
+		v.AssistantSection = "endpoints"
+	case "delete-connection":
+		if fragmentTarget(r, "dialog-body") {
+			s.renderHTML(w, status, "delete-ai", v)
+			return
+		}
+		name = "assistant-delete-page"
+		v.AssistantSection = "endpoints"
+	}
+	s.renderPage(w, r, status, name, v)
 }

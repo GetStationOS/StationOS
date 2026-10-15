@@ -53,7 +53,7 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 		http.Error(w, err.Error(), 422)
 		return
 	}
-	v := s.baseView(r)
+	v := stationPageView{pageView: s.baseView(r)}
 	v.Station = st
 	v.StationRepeatInput = r.PostForm.Get("repeat_minutes")
 	v.StationRepeatSupplied = r.PostForm.Has("repeat_minutes")
@@ -65,6 +65,9 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 		v.Section = "settings"
 		v.Title = "Station settings"
 	}
-	w.WriteHeader(422)
-	s.render(w, r, v)
+	name := "new-station-page"
+	if st.ID != "" {
+		name = "station-settings-page"
+	}
+	s.renderPage(w, r, http.StatusUnprocessableEntity, name, v)
 }

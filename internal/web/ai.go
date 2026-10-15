@@ -44,7 +44,7 @@ func routesFromForm(r *http.Request) ai.Routes {
 	}
 	return ai.Routes{Assistant: get("assistant"), Curation: get("curation"), Audience: get("audience"), Speech: get("speech"), Image: get("image")}
 }
-func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v view) {
+func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v assistantPageView) {
 	store, ok := s.d.Assistant.Store.(ai.Store)
 	if !ok {
 		http.Error(w, "Provider settings unavailable", 503)
@@ -81,7 +81,7 @@ func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v view) {
 			return
 		}
 		v.AssistantError = err.Error()
-		s.render(w, r, v)
+		s.renderAssistantPage(w, r, http.StatusOK, v)
 		return
 	}
 	v.AIConnectionMode = true
@@ -138,7 +138,7 @@ func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v view) {
 	if v.AIConnectionSaved {
 		v.Title = v.AIConnection.Name
 	}
-	s.render(w, r, v)
+	s.renderAssistantPage(w, r, http.StatusOK, v)
 }
 
 func storeKey(s *Server, r *http.Request, settings producer.Settings) error {
@@ -159,7 +159,7 @@ func (s *Server) deleteAIPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Provider settings unavailable", 503)
 		return
 	}
-	v := s.baseView(r)
+	v := assistantPageView{pageView: s.baseView(r)}
 	var err error
 	v.AIConnection, err = store.Connection(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -169,7 +169,7 @@ func (s *Server) deleteAIPage(w http.ResponseWriter, r *http.Request) {
 	v.AssistantMode = "delete-connection"
 	v.Section = "assistant"
 	v.Title = "Delete provider connection"
-	s.render(w, r, v)
+	s.renderAssistantPage(w, r, http.StatusOK, v)
 }
 
 // Model discovery reads provider metadata; it never generates or downloads models.

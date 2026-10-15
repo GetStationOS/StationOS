@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -32,7 +31,7 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	v := s.baseView(r)
+	v := playlistPageView{pageView: s.baseView(r)}
 	var err error
 	v.Title = "Playlists"
 	if r.URL.Path == "/producer/playlists/new" {
@@ -72,9 +71,9 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		v.StationID = v.Station.ID
-		v.PlaylistStation = v.Station.Name
+		v.PlaylistID = v.Playlist.ID
 		if v.PlaylistTab == "selections" {
-			if err = s.loadCatalogueChoices(r.Context(), &v); err != nil {
+			if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices); err != nil {
 				s.fail(w, err)
 				return
 			}
@@ -126,11 +125,11 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			v.Stations = []station.Station{v.Station}
 		}
 		if r.URL.Path == "/producer/playlists" {
-			if err = s.loadPlaylistOptions(r.Context(), &v, v.StationID); err != nil {
+			if err = s.loadPlaylistOptions(r.Context(), &v.playlistChoices, v.Station); err != nil {
 				s.fail(w, err)
 				return
 			}
-			if err = s.markDefaultPlaylists(r.Context(), &v); err != nil {
+			if err = s.markDefaultPlaylists(r.Context(), &v.playlistChoices, v.Station); err != nil {
 				s.fail(w, err)
 				return
 			}
@@ -149,7 +148,25 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	s.render(w, r, v)
+	name := "playlists-page"
+	if id != "" {
+		name = "playlist-selections-page"
+		switch v.PlaylistTab {
+		case "details":
+			name = "playlist-details-page"
+		case "tracks":
+			name = "playlist-tracks-page"
+		case "delete":
+			name = "playlist-delete-page"
+		}
+	} else if r.URL.Path == "/producer/playlists/new" {
+		name = "new-playlist-page"
+	}
+	if v.PlaylistTab == "delete" && fragmentTarget(r, "dialog-body") {
+		s.renderHTML(w, http.StatusOK, "delete-playlist", v)
+		return
+	}
+	s.renderPage(w, r, http.StatusOK, name, v)
 }
 func (s *Server) savePlaylist(w http.ResponseWriter, r *http.Request) {
 	p := playlists.Playlist{ID: r.PostForm.Get("id"), StationID: r.PostForm.Get("station"), Name: r.PostForm.Get("name"), Description: r.PostForm.Get("description")}
@@ -228,7 +245,7 @@ func withNotice(destination, message string) string {
 	u.RawQuery = q.Encode()
 	return u.String()
 }
-func (v *view) prepareSelections(rules []playlists.Rule) {
+func (v *playlistPageView) prepareSelections(rules []playlists.Rule) {
 	genres := map[string]bool{}
 	albums := map[string]bool{}
 	for _, rule := range rules {
@@ -352,17 +369,9 @@ func (s *Server) defaultPlaylistResponse(w http.ResponseWriter, r *http.Request,
 		s.fail(w, err)
 		return
 	}
-	v := view{Playlist: p, CSRF: s.csrf, BroadcastPlaylist: assignment}
-	var body bytes.Buffer
-	if err := s.t.ExecuteTemplate(&body, "playlist-default", v); err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := playlistPageView{pageView: pageView{CSRF: s.csrf}, Playlist: p, BroadcastPlaylist: assignment}
 	if s.d.Broadcast != nil && notice != "" {
 		s.d.Broadcast.Changed()
 	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if _, err := w.Write(body.Bytes()); err != nil {
-		s.d.Logger.Error("default playlist rendering failed", "error", err)
-	}
+	s.renderHTML(w, http.StatusOK, "playlist-default", v)
 }

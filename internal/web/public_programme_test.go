@@ -90,7 +90,7 @@ func TestPublicCurrentShowRendersExpandedAndCloseable(t *testing.T) {
 	}
 	var html bytes.Buffer
 	current := publicShow{ID: "current", Name: "Morning", Description: "Current show details", URL: "/radio/s/shows/current?show=airing&day=2026-10-14", ContributionURL: "/radio/s/shows/current/contribute?show=airing&day=2026-10-14", Expanded: true}
-	v := view{AudienceDay: "2026-10-14", PublicDays: []publicDay{{Name: "Today", Shows: []publicShow{current}}}}
+	v := publicPageView{AudienceDay: "2026-10-14", PublicDays: []publicDay{{Name: "Today", Shows: []publicShow{current}}}}
 	if err = tmpl.ExecuteTemplate(&html, "public-programme-day", v); err != nil {
 		t.Fatal(err)
 	}

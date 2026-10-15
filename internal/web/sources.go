@@ -12,7 +12,7 @@ import (
 )
 
 func (s *Server) sourcePage(w http.ResponseWriter, r *http.Request) {
-	v := s.baseView(r)
+	v := sourcePageView{pageView: s.baseView(r)}
 	var err error
 	v.Source, err = s.d.Sources.Get(r.Context(), r.PathValue("id"))
 	if errors.Is(err, sources.ErrNotFound) {
@@ -36,18 +36,18 @@ func (s *Server) sourcePage(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		v.Facets, err = s.d.Catalogue.Facets(r.Context())
+		facets, err := s.d.Catalogue.Facets(r.Context())
 		if err != nil {
 			s.fail(w, err)
 			return
 		}
-		for _, album := range v.Facets.Albums {
+		for _, album := range facets.Albums {
 			if album.SourceID == v.Source.ID {
 				v.SourceAlbums++
 			}
 		}
 	}
-	s.render(w, r, v)
+	s.renderPage(w, r, http.StatusOK, "source-page", v)
 }
 
 type discoveredSource struct {
@@ -55,7 +55,7 @@ type discoveredSource struct {
 	Host, ExistingID string
 }
 
-func (s *Server) findSources(parent context.Context, v *view) {
+func (s *Server) findSources(parent context.Context, v *sourcePageView) {
 	v.SourceDiscoveryAttempted = true
 	if s.d.SourceDiscovery == nil {
 		v.SourceDiscoveryError = "Automatic search is unavailable. Enter your music server’s address below."
@@ -92,7 +92,7 @@ func (s *Server) discoverSources(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/producer/sources/new?discover=1", http.StatusSeeOther)
 		return
 	}
-	v := s.baseView(r)
+	v := sourcePageView{pageView: s.baseView(r)}
 	var err error
 	v.Sources, err = s.d.Sources.List(r.Context())
 	if err != nil {
@@ -100,14 +100,10 @@ func (s *Server) discoverSources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.findSources(r.Context(), &v)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	if err := s.t.ExecuteTemplate(w, "source-discoveries", v); err != nil {
-		s.d.Logger.Error("Source discovery render failed", "error", err)
-	}
+	s.renderHTML(w, http.StatusOK, "source-discoveries", v)
 }
 
-func (s *Server) loadSourceCards(ctx context.Context, v *view) error {
+func (s *Server) loadSourceCards(ctx context.Context, v *sourcePageView) error {
 	var err error
 	v.Sources, err = s.d.Sources.List(ctx)
 	if err != nil {
@@ -122,4 +118,30 @@ func (s *Server) loadSourceCards(ctx context.Context, v *view) error {
 		v.SourceCards = append(v.SourceCards, sourceCard{Source: source, Host: endpoint.Host, Tracks: items.Total})
 	}
 	return nil
+}
+
+func (s *Server) sourcesPage(w http.ResponseWriter, r *http.Request) {
+	v := sourcePageView{pageView: s.baseView(r)}
+	v.Title = "Sources"
+	if err := s.loadSourceCards(r.Context(), &v); err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.renderPage(w, r, http.StatusOK, "sources-page", v)
+}
+func (s *Server) newSourcePage(w http.ResponseWriter, r *http.Request) {
+	v := sourcePageView{pageView: s.baseView(r)}
+	v.Title = "Add source"
+	v.Source.Name = r.URL.Query().Get("name")
+	v.Source.Endpoint = r.URL.Query().Get("endpoint")
+	if r.URL.Query().Get("discover") == "1" {
+		var err error
+		v.Sources, err = s.d.Sources.List(r.Context())
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		s.findSources(r.Context(), &v)
+	}
+	s.renderPage(w, r, http.StatusOK, "new-source-page", v)
 }

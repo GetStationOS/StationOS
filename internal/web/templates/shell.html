@@ -1,0 +1,99 @@
+{{define "layout"}}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>{{.Title}} · StationOS</title>
+    <meta name="theme-color" content="#10243A">
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/app.css?v=dj-status-inline">
+    <script src="/static/htmx.min.js" defer>
+    </script>
+    <script src="/static/app.js" defer>
+    </script>
+  </head>
+  <body hx-boost="true" hx-target="#main" hx-swap="innerHTML show:window:top" hx-indicator="#global-busy">
+    <a class="skip-link" href="#main" hx-boost="false">Skip to content</a>
+    <aside class="sidebar">
+      <a class="brand" href="/producer" aria-label="StationOS home">
+        <img src="/static/stationos-logo.svg" alt="StationOS" width="530" height="100">
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="/producer" data-nav="stations">
+          <span aria-hidden="true">◉</span> Stations</a>
+        <a href="/producer/sources" data-nav="sources">
+          <span aria-hidden="true">↗</span> Sources</a>
+        <a href="/producer/djs" data-nav="djs">
+          <span aria-hidden="true">♫</span> DJs</a>
+        <a href="/producer/assistant" data-nav="assistant">
+          <span aria-hidden="true">✦</span> Assistant</a>
+      </nav>
+    </aside>
+    <div class="workspace">
+      <span id="global-busy" class="htmx-indicator global-busy" role="status">Working…</span>
+      <div id="feedback" class="app-feedback" role="alert" tabindex="-1" hidden>
+      </div>
+      <main id="main" tabindex="-1" hx-history-elt>
+        {{template "content" .}}
+      </main>
+      {{if .BroadcastEnabled}}
+      {{template "radio-player" .Player}}{{end}}
+    </div>
+    <dialog id="confirm-dialog" class="modal" aria-labelledby="dialog-heading" aria-describedby="dialog-description">
+      <div id="dialog-body">
+      </div>
+      <div class="modal-error" data-modal-error role="alert" tabindex="-1" hidden>
+      </div>
+    </dialog>
+    <dialog id="unsaved-dialog" class="modal" aria-labelledby="unsaved-heading" aria-describedby="unsaved-description">
+      <h2 id="unsaved-heading">Discard changes?</h2>
+      <p id="unsaved-description">Your genre and album changes have not been saved.</p>
+      <div class="form-actions">
+        <button type="button" class="secondary" data-keep-editing autofocus>Keep editing</button>
+        <button type="button" class="danger" data-discard-changes>Discard changes</button>
+      </div>
+    </dialog>
+  </body>
+</html>{{end}}
+
+{{define "fragment"}}
+<title>{{.Title}} · StationOS</title>
+{{template "content" .}}{{end}}
+
+{{define "content"}}
+<div class="screen" data-page="{{.Page}}" data-assistant-section="{{.AssistantSection}}">
+  {{if .Notice}}
+  <div class="success notice" role="status">{{.Notice}}
+  </div>{{end}}
+  {{if .Station.ID}}{{template "station-context" .}}{{end}}
+  {{.Content}}
+</div>
+{{end}}
+
+{{define "station-context"}}
+<div class="breadcrumbs">
+  <a href="/producer">Stations</a>
+  <span aria-hidden="true">/</span>
+  <a href="/producer/stations/{{.Station.ID}}">{{.Station.Name}}</a>
+  {{if .PlaylistID}}<span aria-hidden="true">/</span>
+  <a href="/producer/playlists?station={{.Station.ID}}">Playlists</a>{{end}}
+</div>
+{{if not .PlaylistID}}
+<nav class="station-tabs" aria-label="Station navigation">
+  <a href="/producer/stations/{{.Station.ID}}" {{if eq .Section "overview"}}aria-current="page"{{end}}>Overview</a>
+  <a href="/producer/playlists?station={{.Station.ID}}" {{if eq .Section "playlists"}}aria-current="page"{{end}}>Playlists</a>
+  <a href="/producer/stations/{{.Station.ID}}/schedule" {{if eq .Section "schedule"}}aria-current="page"{{end}}>Schedule</a>
+  <a href="/producer/stations/{{.Station.ID}}/audience" {{if eq .Section "audience"}}aria-current="page"{{end}}>Audience</a>
+  <a href="/producer/stations/{{.Station.ID}}/mixer" {{if eq .Section "mixer"}}aria-current="page"{{end}}>Mixer</a>
+  <a href="/producer/stations/{{.Station.ID}}/settings" {{if eq .Section "settings"}}aria-current="page"{{end}}>Settings</a>
+</nav>{{end}}
+{{end}}
+
+{{define "page-heading"}}
+<div class="page-heading">
+  <div class="title-line">
+    <h1>{{.}}</h1>
+  </div>
+</div>
+{{end}}

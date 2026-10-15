@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
@@ -90,8 +89,8 @@ func (s *Server) publicCard(st station.Station) stationCard {
 	card.Broadcast.Error = ""
 	return card
 }
-func (s *Server) publicView(r *http.Request) (view, error) {
-	v := view{Public: true, Page: r.URL.Path, Title: "Radio stations", BroadcastEnabled: s.d.Broadcast != nil}
+func (s *Server) publicView(r *http.Request) (publicPageView, error) {
+	v := publicPageView{pageView: pageView{Page: r.URL.Path, Title: "Radio stations", BroadcastEnabled: s.d.Broadcast != nil}, Public: true}
 	if r.PathValue("slug") == "" {
 		stations, err := s.d.Stations.List(r.Context())
 		if err != nil {
@@ -180,7 +179,7 @@ func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := "public-layout"
-	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-History-Restore-Request") != "true" {
+	if fragmentRequest(r) {
 		name = "public-fragment"
 		if r.PathValue("show") != "" && r.Header.Get("HX-Target") == "show-details-"+r.PathValue("show") {
 			name = "public-show-expanded"
@@ -189,13 +188,7 @@ func (s *Server) publicPage(w http.ResponseWriter, r *http.Request) {
 			name = "audience-form"
 		}
 	}
-	var body bytes.Buffer
-	if err = s.t.ExecuteTemplate(&body, name, v); err != nil {
-		s.fail(w, err)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(body.Bytes())
+	s.renderHTML(w, http.StatusOK, name, v)
 }
 func (s *Server) publicArtwork(w http.ResponseWriter, r *http.Request) {
 	st, err := s.publicStation(r)
@@ -279,16 +272,16 @@ func (s *Server) publicEvents(w http.ResponseWriter, r *http.Request, templateNa
 		return rc.Flush() == nil
 	}
 	var previous [32]byte
-	update := func(v view) bool {
-		var html bytes.Buffer
-		if s.t.ExecuteTemplate(&html, templateName, v) != nil {
+	update := func(v publicPageView) bool {
+		html, err := s.executeHTML(templateName, v)
+		if err != nil {
 			return false
 		}
-		hash := sha256.Sum256(html.Bytes())
+		hash := sha256.Sum256(html)
 		if hash == previous {
 			return true
 		}
-		data, err := json.Marshal(html.String())
+		data, err := json.Marshal(string(html))
 		if err != nil {
 			return false
 		}
@@ -427,6 +420,20 @@ func publicPresenterPortrait(base, id, portrait string) string {
 }
 
 // Default expansion reuses the same details and invitation as an HTMX opening.
-func (show publicShow) Details() view {
-	return view{PublicShow: show, AudiencePanel: "contribution-" + show.ID}
+func (show publicShow) Details() publicPageView {
+	return publicPageView{PublicShow: show, AudiencePanel: "contribution-" + show.ID}
+}
+
+func (s *Server) renderAudienceForm(w http.ResponseWriter, r *http.Request, status int, v publicPageView) {
+	name := "public-layout"
+	if fragmentRequest(r) {
+		name = "public-fragment"
+		if fragmentTarget(r, v.AudiencePanel) {
+			name = "audience-form"
+		}
+		if fragmentTarget(r, "audience-track-options-"+v.AudiencePanel) {
+			name = "audience-tracks"
+		}
+	}
+	s.renderHTML(w, status, name, v)
 }

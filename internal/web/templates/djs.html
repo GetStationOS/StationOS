@@ -1,38 +1,158 @@
-{{define "djs"}}
-{{if eq .DJMode "list"}}
-{{if .DJCards}}<div class="dj-card-grid">{{range .DJCards}}<article class="dj-profile-card">
-<div class="dj-card-photo-column">{{if .Profile.PortraitURL}}<img class="dj-card-portrait" src="{{.Profile.PortraitURL}}" alt="" width="96" height="96" loading="lazy" referrerpolicy="no-referrer">{{else}}<span class="dj-card-portrait dj-card-placeholder" aria-hidden="true">♫</span>{{end}}<a class="button secondary" href="/producer/djs/{{.Profile.ID}}" aria-label="Edit {{.Profile.Name}}">Edit DJ</a></div>
-<div class="dj-card-content"><header class="dj-card-heading"><h2 id="dj-name-{{.Profile.ID}}"><a href="/producer/djs/{{.Profile.ID}}">{{.Profile.Name}}</a></h2><span class="dj-card-status {{.StatusClass}}" title="{{if eq .StatusClass "ready"}}Required configuration is present; credentials have not been tested{{else if eq .StatusClass "scheduled"}}Assigned to scheduled shows{{else if eq .StatusClass "live"}}Presenter of an active broadcast{{else}}Setup needs attention{{end}}">{{if eq .StatusClass "live"}}<span aria-hidden="true">●</span> {{end}}{{.Status}}</span></header>
-{{if .SetupNote}}<p class="dj-card-setup">{{.SetupNote}}</p>{{end}}
-<section class="dj-card-shows" aria-label="Shows and stations"><span class="eyebrow" id="dj-shows-{{.Profile.ID}}">SHOWS &amp; STATIONS</span><div class="dj-card-shows-scroll" role="region" aria-labelledby="dj-name-{{.Profile.ID}} dj-shows-{{.Profile.ID}}" tabindex="0">{{if .LiveStation}}<p class="dj-card-on-air">On air at {{.LiveStation}}</p>{{end}}{{if .Assignments}}<ul>{{range .Assignments}}<li><a href="{{.URL}}">{{.Name}}</a><span>{{.Station}}</span></li>{{end}}</ul>{{if .Next}}<div class="dj-card-next"><span class="hint">Next airing</span><strong>{{.Next}}</strong><span>{{.NextShow}}</span></div>{{end}}{{else}}<p class="hint">No shows assigned</p>{{end}}</div></section>
-
+{{define "dj-list"}}
+{{if .DJCards}}
+<div class="dj-card-grid">
+  {{range .DJCards}}
+  <article class="dj-profile-card">
+    <div class="dj-card-photo-column">
+      {{if .Profile.PortraitURL}}<img class="dj-card-portrait" src="{{.Profile.PortraitURL}}" alt="" width="96" height="96" loading="lazy" referrerpolicy="no-referrer">
+      {{else}}<span class="dj-card-portrait dj-card-placeholder" aria-hidden="true">♫</span>{{end}}<a class="button secondary" href="/producer/djs/{{.Profile.ID}}" aria-label="Edit {{.Profile.Name}}">Edit DJ</a>
+    </div>
+    <div class="dj-card-content">
+      <header class="dj-card-heading">
+        <h2 id="dj-name-{{.Profile.ID}}">
+          <a href="/producer/djs/{{.Profile.ID}}">{{.Profile.Name}}</a>
+        </h2>
+        <span class="dj-card-status {{.StatusClass}}" title="{{if eq .StatusClass "ready"}}Required configuration is present; credentials have not been tested{{else if eq .StatusClass "scheduled"}}Assigned to scheduled shows{{else if eq .StatusClass "live"}}Presenter of an active broadcast{{else}}Setup needs attention{{end}}">
+          {{if eq .StatusClass "live"}}<span aria-hidden="true">●</span> {{end}}{{.Status}}</span>
+      </header>
+      {{if .SetupNote}}
+      <p class="dj-card-setup">{{.SetupNote}}</p>{{end}}
+      <section class="dj-card-shows" aria-label="Shows and stations">
+        <span class="eyebrow" id="dj-shows-{{.Profile.ID}}">SHOWS &amp; STATIONS</span>
+        <div class="dj-card-shows-scroll" role="region" aria-labelledby="dj-name-{{.Profile.ID}} dj-shows-{{.Profile.ID}}" tabindex="0">
+          {{if .LiveStation}}
+          <p class="dj-card-on-air">On air at {{.LiveStation}}</p>{{end}}{{if .Assignments}}
+          <ul>
+            {{range .Assignments}}
+            <li>
+              <a href="{{.URL}}">{{.Name}}</a>
+              <span>{{.Station}}</span>
+            </li>{{end}}
+          </ul>
+          {{if .Next}}
+          <div class="dj-card-next">
+            <span class="hint">Next airing</span>
+            <strong>{{.Next}}</strong>
+            <span>{{.NextShow}}</span>
+          </div>{{end}}{{else}}
+          <p class="hint">No shows assigned</p>{{end}}
+        </div>
+      </section>
+    </div>
+  </article>{{end}}
 </div>
-</article>{{end}}</div>{{else}}<section class="empty-state"><h2>No DJs yet</h2><p>Create a fictional presenter with their own prompt and voice direction.</p><a class="button" href="/producer/djs/new">Create DJ</a></section>{{end}}
-{{else if eq .DJMode "delete"}}{{template "delete-dj" .}}
 {{else}}
-<section class="dj-settings">{{if .DJError}}<p class="notice error" role="alert">{{.DJError}}</p>{{end}}
-<form method="post" action="/producer/djs" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
-<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.DJ.ID}}">
-<fieldset class="dj-form-group"><legend>Profile</legend>
-<input type="hidden" name="photo_removed" value="" data-photo-removed>
-<div class="dj-profile-header"><div class="dj-photo-preview"><img class="dj-portrait" data-photo-preview {{if .DJ.PortraitURL}}src="{{.DJ.PortraitURL}}"{{else}}hidden{{end}} alt="DJ photo" referrerpolicy="no-referrer"><span class="dj-photo-placeholder" data-photo-placeholder aria-hidden="true" {{if .DJ.PortraitURL}}hidden{{end}}>♫</span><button type="submit" name="clear_photo" value="yes" class="dj-photo-remove" data-remove-photo aria-label="Remove photo" title="Remove photo" {{if not .DJ.PortraitURL}}hidden{{end}}><svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div><div class="dj-profile-fields">
-<label>Name<input name="name" value="{{.DJ.Name}}" required maxlength="200" placeholder="e.g. The Midnight Archivist" {{if eq .DJMode "new"}}autofocus{{end}}></label>
-<label>Photo <span class="optional">Optional</span><input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-describedby="photo-help"><span id="photo-help" class="hint">Choose a JPEG or PNG, up to 5 MB. Saved with this profile.</span></label>
-</div></div>
-<label>Background <span class="optional">Optional</span><textarea name="background" rows="6" maxlength="16000" placeholder="Fictional background, musical tastes and interests.">{{.DJ.Background}}</textarea><span class="hint">Give the presenter a fictional history and perspective.</span></label>
-</fieldset>
-<fieldset class="dj-form-group"><legend>Editorial style</legend>
-<label>Prompt<textarea name="prompt" rows="6" maxlength="32000" placeholder="Personality, music choices and how to introduce tracks.">{{.DJ.Prompt}}</textarea><span class="hint">Direct the DJ’s selections and on-air commentary.</span></label>
-</fieldset>
-<fieldset class="dj-form-group"><legend>Voice</legend>
-<label>Voice<select name="voice" required>{{range .DJVoices}}<option value="{{.ID}}" {{if eq .ID $.DJ.Voice}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
-<label for="conversation-speed">Conversation speed</label><div class="speed-control"><input id="conversation-speed" type="range" name="conversation_speed" min="0.25" max="4" step="0.05" value="{{.DJ.ConversationSpeed}}" aria-describedby="conversation-speed-help" data-conversation-speed><output for="conversation-speed" data-speed-value>{{printf "%.2f" .DJ.ConversationSpeed}}×</output></div>
-<p id="conversation-speed-help" class="hint">1.00× is normal. Applies to newly generated speech.</p>
-<label>Vibe<textarea name="vibe" rows="4" maxlength="16000" placeholder="e.g. Warm, relaxed, conversational, with clear phrasing.">{{.DJ.Vibe}}</textarea><span class="hint">Voice direction, phrasing and tone.</span></label><button type="button" class="text-button" data-example-vibe>Use example vibe</button>
-</fieldset>
-<p class="hint">All DJs use the curation and writing provider and model configured in <a href="/producer/assistant/settings">Assistant settings</a>. Current model: {{.AssistantSettings.CurationModel}}. Speech uses the independent speech connection.</p>
-<div class="form-footer">{{if .DJ.ID}}<a class="button danger" href="/producer/djs/{{.DJ.ID}}/delete" hx-get="/producer/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}<div class="form-actions"><a class="button secondary" href="/producer/djs">Cancel</a><button>{{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button></div></div>
-</form></section>
-{{end}}{{end}}
+<section class="empty-state">
+  <h2>No DJs yet</h2>
+  <p>Create a fictional presenter with their own prompt and voice direction.</p>
+  <a class="button" href="/producer/djs/new">Create DJ</a>
+</section>{{end}}
+{{end}}
 
-{{define "delete-dj"}}<section class="form-panel"><h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2><p id="dialog-description">This permanently deletes this DJ’s profile.</p><form method="post" action="/producer/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="confirm" value="yes"><div class="form-actions"><a class="button secondary" href="/producer/djs/{{.DJ.ID}}" data-close-dialog>Cancel</a><button class="danger">Delete DJ</button></div></form></section>{{end}}
+{{define "dj-form"}}
+<section class="dj-settings">
+  {{if .DJError}}
+  <p class="notice error" role="alert">{{.DJError}}</p>{{end}}
+  <form method="post" action="/producer/djs" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="id" value="{{.DJ.ID}}">
+    <fieldset class="dj-form-group">
+      <legend>Profile</legend>
+      <input type="hidden" name="photo_removed" value="" data-photo-removed>
+      <div class="dj-profile-header">
+        <div class="dj-photo-preview">
+          <img class="dj-portrait" data-photo-preview {{if .DJ.PortraitURL}}src="{{.DJ.PortraitURL}}"{{else}}hidden{{end}} alt="DJ photo" referrerpolicy="no-referrer">
+          <span class="dj-photo-placeholder" data-photo-placeholder aria-hidden="true" {{if .DJ.PortraitURL}}hidden{{end}}>♫</span>
+          <button type="submit" name="clear_photo" value="yes" class="dj-photo-remove" data-remove-photo aria-label="Remove photo" title="Remove photo" {{if not .DJ.PortraitURL}}hidden{{end}}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="dj-profile-fields">
+          <label>Name<input name="name" value="{{.DJ.Name}}" required maxlength="200" placeholder="e.g. The Midnight Archivist" {{if eq .DJMode "new"}}autofocus{{end}}>
+          </label>
+          <label>Photo <span class="optional">Optional</span>
+            <input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-describedby="photo-help">
+            <span id="photo-help" class="hint">Choose a JPEG or PNG, up to 5 MB. Saved with this profile.</span>
+          </label>
+        </div>
+      </div>
+      <label>Background <span class="optional">Optional</span>
+        <textarea name="background" rows="6" maxlength="16000" placeholder="Fictional background, musical tastes and interests.">{{.DJ.Background}}</textarea>
+        <span class="hint">Give the presenter a fictional history and perspective.</span>
+      </label>
+    </fieldset>
+    <fieldset class="dj-form-group">
+      <legend>Editorial style</legend>
+      <label>Prompt<textarea name="prompt" rows="6" maxlength="32000" placeholder="Personality, music choices and how to introduce tracks.">{{.DJ.Prompt}}</textarea>
+        <span class="hint">Direct the DJ’s selections and on-air commentary.</span>
+      </label>
+    </fieldset>
+    <fieldset class="dj-form-group">
+      <legend>Voice</legend>
+      <label>Voice<select name="voice" required>
+          {{range .DJVoices}}
+          <option value="{{.ID}}" {{if eq .ID $.DJ.Voice}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+      </label>
+      <label for="conversation-speed">Conversation speed</label>
+      <div class="speed-control">
+        <input id="conversation-speed" type="range" name="conversation_speed" min="0.25" max="4" step="0.05" value="{{.DJ.ConversationSpeed}}" aria-describedby="conversation-speed-help" data-conversation-speed>
+        <output for="conversation-speed" data-speed-value>{{printf "%.2f" .DJ.ConversationSpeed}}×</output>
+      </div>
+      <p id="conversation-speed-help" class="hint">1.00× is normal. Applies to newly generated speech.</p>
+      <label>Vibe<textarea name="vibe" rows="4" maxlength="16000" placeholder="e.g. Warm, relaxed, conversational, with clear phrasing.">{{.DJ.Vibe}}</textarea>
+        <span class="hint">Voice direction, phrasing and tone.</span>
+      </label>
+      <button type="button" class="text-button" data-example-vibe>Use example vibe</button>
+    </fieldset>
+    <p class="hint">All DJs use the curation and writing provider and model configured in <a href="/producer/assistant/settings">Assistant settings</a>. Current model: {{.AssistantSettings.CurationModel}}. Speech uses the independent speech connection.</p>
+    <div class="form-footer">
+      {{if .DJ.ID}}<a class="button danger" href="/producer/djs/{{.DJ.ID}}/delete" hx-get="/producer/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}
+      <div class="form-actions">
+        <a class="button secondary" href="/producer/djs">Cancel</a>
+        <button>
+          {{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button>
+      </div>
+    </div>
+  </form>
+</section>
+{{end}}
+
+{{define "delete-dj"}}
+<section class="form-panel">
+  <h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2>
+  <p id="dialog-description">This permanently deletes this DJ’s profile.</p>
+  <form method="post" action="/producer/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/djs/{{.DJ.ID}}" data-close-dialog>Cancel</a>
+      <button class="danger">Delete DJ</button>
+    </div>
+  </form>
+</section>{{end}}
+
+{{define "dj-list-page"}}
+<div class="page-heading">
+  <h1>{{.Title}}</h1>
+  <a class="button" href="/producer/djs/new">+ Create DJ</a>
+</div>
+{{template "dj-list" .}}
+{{end}}
+
+{{define "dj-form-page"}}
+{{template "dj-breadcrumbs" .}}{{template "page-heading" .Title}}{{template "dj-form" .}}
+{{end}}
+
+{{define "dj-delete-page"}}
+{{template "dj-breadcrumbs" .}}{{template "page-heading" .Title}}{{template "delete-dj" .}}
+{{end}}
+
+{{define "dj-breadcrumbs"}}
+<div class="breadcrumbs">
+  <a href="/producer/djs">DJs</a>
+  <span aria-hidden="true">/</span>
+  <span>{{.Title}}</span>
+</div>
+{{end}}

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -51,7 +50,8 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	var previous [32]byte
 	update := func() bool {
-		var html bytes.Buffer
+		var html []byte
+		var err error
 		eventName := "stations"
 		if id != "" {
 			eventName = "player"
@@ -59,24 +59,24 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return false
 			}
-			if err := s.t.ExecuteTemplate(&html, "player-tracks", view{Station: st, Broadcast: s.d.Broadcast.State(id)}); err != nil {
+			if html, err = s.executeHTML("player-tracks", playerView{Station: st, Broadcast: s.d.Broadcast.State(id)}); err != nil {
 				return false
 			}
 		} else {
-			v := s.baseView(r)
+			v := stationDirectoryView{pageView: s.baseView(r)}
 			err := s.loadStationCards(r, &v)
 			if err != nil {
 				return false
 			}
-			if err = s.t.ExecuteTemplate(&html, "station-cards", v); err != nil {
+			if html, err = s.executeHTML("station-cards", v); err != nil {
 				return false
 			}
 		}
-		version := sha256.Sum256(html.Bytes())
+		version := sha256.Sum256(html)
 		if version == previous {
 			return true
 		}
-		data, err := json.Marshal(html.String())
+		data, err := json.Marshal(string(html))
 		if err != nil {
 			return false
 		}

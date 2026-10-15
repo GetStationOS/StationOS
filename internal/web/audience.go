@@ -79,11 +79,11 @@ func (s *Server) audienceForm(w http.ResponseWriter, r *http.Request) {
 		s.publicError(w, r, err)
 		return
 	}
-	s.render(w, r, v)
+	s.renderAudienceForm(w, r, http.StatusOK, v)
 }
-func (s *Server) audienceFormView(r *http.Request) (view, error) {
+func (s *Server) audienceFormView(r *http.Request) (publicPageView, error) {
 	if s.d.Audience == nil || s.d.Schedule == nil || s.d.BroadcastConfig == nil {
-		return view{}, audience.ErrClosed
+		return publicPageView{}, audience.ErrClosed
 	}
 	v, err := s.publicView(r)
 	if err != nil {
@@ -203,11 +203,10 @@ func (s *Server) audienceFormError(w http.ResponseWriter, r *http.Request, statu
 			}
 		}
 	}
-	if r.Header.Get("HX-Request") != "true" {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(status)
+	if r.Header.Get("HX-Request") == "true" {
+		status = http.StatusOK
 	}
-	s.render(w, r, v)
+	s.renderAudienceForm(w, r, status, v)
 }
 func (s *Server) submitAudience(w http.ResponseWriter, r *http.Request) {
 	if s.d.Audience == nil {
@@ -304,7 +303,7 @@ func (s *Server) audiencePage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Audience participation unavailable", 503)
 		return
 	}
-	v := s.baseView(r)
+	v := audienceQueueView{pageView: s.baseView(r)}
 	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
@@ -314,7 +313,6 @@ func (s *Server) audiencePage(w http.ResponseWriter, r *http.Request) {
 	v.StationID = v.Station.ID
 	v.Section = "audience"
 	v.Title = "Audience"
-	v.AudienceMode = "queue"
 	if s.d.Broadcast != nil {
 		v.Broadcast = s.d.Broadcast.State(v.Station.ID)
 	}
@@ -337,7 +335,11 @@ func (s *Server) audiencePage(w http.ResponseWriter, r *http.Request) {
 	if offset+50 < v.AudienceTotal {
 		v.AudienceNext = base + strconv.Itoa(offset+50)
 	}
-	s.render(w, r, v)
+	if fragmentTarget(r, "audience-queue-results") {
+		s.renderHTML(w, http.StatusOK, "audience-queue-results", v)
+		return
+	}
+	s.renderPage(w, r, http.StatusOK, "audience-queue-page", v)
 }
 func (s *Server) decideAudience(w http.ResponseWriter, r *http.Request) {
 	if s.d.Audience == nil {

@@ -14,15 +14,15 @@ type mixerChannel struct {
 	Key, Number, Name, Description, Field, Volume string
 }
 
-func populateMixerChannels(v *view) {
+func populateMixerChannels(v *mixerPageView) {
 	v.MixerChannels = []mixerChannel{
 		{"music", "01", "Music", "Original music level", "music_volume", v.MusicVolume},
 		{"dj", "02", "DJ", "Levelled presenter voice", "dj_volume", v.DJVolume},
 	}
 }
 
-func (s *Server) mixerView(r *http.Request) (view, error) {
-	v := s.baseView(r)
+func (s *Server) mixerView(r *http.Request) (mixerPageView, error) {
+	v := mixerPageView{pageView: s.baseView(r)}
 	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	v.StationID = v.Station.ID
@@ -54,7 +54,7 @@ func (s *Server) mixerPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	populateMixerChannels(&v)
-	s.render(w, r, v)
+	s.renderPage(w, r, http.StatusOK, "mixer-page", v)
 }
 func (s *Server) saveMixer(w http.ResponseWriter, r *http.Request) {
 	if s.d.Mixer == nil {
@@ -83,7 +83,7 @@ func (s *Server) saveMixer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		populateMixerChannels(&v)
-		s.render(w, r, v)
+		s.renderPage(w, r, http.StatusOK, "mixer-page", v)
 		return
 	}
 	if err = s.d.Mixer.Save(r.Context(), v.Station.ID, levels); err != nil {
@@ -93,7 +93,7 @@ func (s *Server) saveMixer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		populateMixerChannels(&v)
-		s.render(w, r, v)
+		s.renderPage(w, r, http.StatusOK, "mixer-page", v)
 		return
 	}
 	if autosave {

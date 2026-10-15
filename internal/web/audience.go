@@ -304,11 +304,8 @@ func (s *Server) audiencePage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Audience participation unavailable", 503)
 		return
 	}
-	v, err := s.baseView(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := s.baseView(r)
+	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.publicError(w, r, err)

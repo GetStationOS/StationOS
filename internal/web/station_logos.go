@@ -53,11 +53,7 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 		http.Error(w, err.Error(), 422)
 		return
 	}
-	v, e := s.baseView(r)
-	if e != nil {
-		s.fail(w, e)
-		return
-	}
+	v := s.baseView(r)
 	v.Station = st
 	v.StationRepeatInput = r.PostForm.Get("repeat_minutes")
 	v.StationRepeatSupplied = r.PostForm.Has("repeat_minutes")

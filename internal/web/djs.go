@@ -15,11 +15,8 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "DJs unavailable", 503)
 		return
 	}
-	v, err := s.baseView(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := s.baseView(r)
+	var err error
 	if s.d.Assistant != nil {
 		v.AssistantSettings, err = s.d.Assistant.Store.Settings(r.Context())
 		if err != nil {
@@ -128,11 +125,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Normal form fallback retains non-secret input; credentials are never echoed.
-		v, viewErr := s.baseView(r)
-		if viewErr != nil {
-			s.fail(w, viewErr)
-			return
-		}
+		v := s.baseView(r)
 		uploaded := p.Photo != nil && len(p.Photo.Data) > 0
 		p.Photo = nil
 		v.DJ = p

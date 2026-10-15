@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"stationos.local/stationos/internal/playlists"
+	"stationos.local/stationos/internal/station"
 )
 
 func (s *Server) playlistService() playlists.Service {
@@ -31,11 +32,8 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	v, err := s.baseView(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := s.baseView(r)
+	var err error
 	v.Title = "Playlists"
 	if r.URL.Path == "/producer/playlists/new" {
 		v.Title = "Add playlist"
@@ -74,54 +72,77 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		v.StationID = v.Station.ID
-		for _, station := range v.Stations {
-			if station.ID == v.Playlist.StationID {
-				v.PlaylistStation = station.Name
-				break
+		v.PlaylistStation = v.Station.Name
+		if v.PlaylistTab == "selections" {
+			if err = s.loadCatalogueChoices(r.Context(), &v); err != nil {
+				s.fail(w, err)
+				return
+			}
+			rules, err := s.d.Playlists.Rules(r.Context(), id)
+			if err != nil {
+				s.fail(w, err)
+				return
+			}
+			v.prepareSelections(rules)
+		}
+		if v.PlaylistTab == "tracks" {
+			v.Sources, err = s.d.Sources.List(r.Context())
+			if err != nil {
+				s.fail(w, err)
+				return
 			}
 		}
-		rules, err := s.d.Playlists.Rules(r.Context(), id)
-		if err != nil {
-			s.fail(w, err)
-			return
-		}
-		for _, rule := range rules {
-			row := ruleRow{Rule: rule}
-			for _, source := range v.Sources {
-				if source.ID == rule.SourceID {
-					row.Source = source.Name
-					break
-				}
+		if v.PlaylistTab != "delete" {
+			page, size, err := pageRequest(r.URL.Query())
+			if err != nil {
+				http.Error(w, err.Error(), 400)
+				return
 			}
-			v.Rules = append(v.Rules, row)
-		}
-		v.prepareSelections(rules)
-		page, size, err := pageRequest(r.URL.Query())
-		if err != nil {
-			http.Error(w, err.Error(), 400)
-			return
-		}
-		v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (page-1)*size, size)
-		if err != nil {
-			s.playlistError(w, err)
-			return
-		}
-		v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, v.PlaylistResult.Total)
-		v.Pagination.ActionURL = "/producer/content?playlist=" + id
-		if page != v.Pagination.Number {
-			v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (v.Pagination.Number-1)*size, size)
+			v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (page-1)*size, size)
 			if err != nil {
 				s.playlistError(w, err)
 				return
 			}
-		}
-		v.PlaylistDuration = duration(&v.PlaylistResult.Duration)
-		v.ReturnTo = r.URL.RequestURI()
-		for n, entry := range v.PlaylistResult.Entries {
-			v.Rows = append(v.Rows, track(entry.Item, v.Sources, (v.Pagination.Number-1)*size+n+1, entry.Available))
+			v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, v.PlaylistResult.Total)
+			v.Pagination.ActionURL = "/producer/content?playlist=" + id
+			if page != v.Pagination.Number {
+				v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (v.Pagination.Number-1)*size, size)
+				if err != nil {
+					s.playlistError(w, err)
+					return
+				}
+			}
+			v.PlaylistDuration = duration(&v.PlaylistResult.Duration)
+			v.ReturnTo = r.URL.RequestURI()
+			if v.PlaylistTab == "tracks" {
+				for n, entry := range v.PlaylistResult.Entries {
+					v.Rows = append(v.Rows, track(entry.Item, v.Sources, (v.Pagination.Number-1)*size+n+1, entry.Available))
+				}
+			}
 		}
 	}
-	if v.StationID != "" && s.d.BroadcastConfig != nil {
+	if id == "" {
+		if v.Station.ID != "" {
+			v.Stations = []station.Station{v.Station}
+		}
+		if r.URL.Path == "/producer/playlists" {
+			if err = s.loadPlaylistOptions(r.Context(), &v, v.StationID); err != nil {
+				s.fail(w, err)
+				return
+			}
+			if err = s.markDefaultPlaylists(r.Context(), &v); err != nil {
+				s.fail(w, err)
+				return
+			}
+		} else if v.StationID == "" {
+			v.Stations, err = s.d.Stations.List(r.Context())
+			if err != nil {
+				s.fail(w, err)
+				return
+			}
+		}
+	}
+	if v.PlaylistTab == "details" && v.StationID != "" && s.d.BroadcastConfig != nil {
 		v.BroadcastPlaylist, err = s.d.BroadcastConfig.Assignment(r.Context(), v.StationID)
 		if err != nil {
 			s.fail(w, err)

@@ -159,11 +159,8 @@ func (s *Server) deleteAIPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Provider settings unavailable", 503)
 		return
 	}
-	v, err := s.baseView(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := s.baseView(r)
+	var err error
 	v.AIConnection, err = store.Connection(r.Context(), r.PathValue("id"))
 	if err != nil {
 		http.NotFound(w, r)

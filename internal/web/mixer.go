@@ -22,10 +22,8 @@ func populateMixerChannels(v *view) {
 }
 
 func (s *Server) mixerView(r *http.Request) (view, error) {
-	v, err := s.baseView(r)
-	if err != nil {
-		return v, err
-	}
+	v := s.baseView(r)
+	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	v.StationID = v.Station.ID
 	v.Section = "mixer"

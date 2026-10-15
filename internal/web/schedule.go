@@ -38,10 +38,8 @@ func calendarCards(shows []schedule.Show) []scheduleCard {
 	return cards
 }
 func (s *Server) scheduleView(r *http.Request) (view, error) {
-	v, err := s.baseView(r)
-	if err != nil {
-		return v, err
-	}
+	v := s.baseView(r)
+	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		return v, err
@@ -67,7 +65,7 @@ func (s *Server) scheduleView(r *http.Request) (view, error) {
 	v.Show = schedule.Show{StationID: v.Station.ID, Start: 9 * 60, End: 10 * 60}
 	v.ShowStart = "09:00"
 	v.ShowEnd = "10:00"
-	if strings.HasSuffix(r.URL.Path, "/new") {
+	if strings.HasSuffix(r.URL.Path, "/new") || r.Method == http.MethodPost {
 		v.ScheduleMode = "form"
 		v.Title = "Add show"
 	}
@@ -83,6 +81,11 @@ func (s *Server) scheduleView(r *http.Request) (view, error) {
 		if strings.HasSuffix(r.URL.Path, "/delete") {
 			v.ScheduleMode = "delete"
 			v.Title = "Delete show"
+		}
+	}
+	if v.ScheduleMode == "form" {
+		if err := s.loadPlaylistOptions(r.Context(), &v, v.Station.ID); err != nil {
+			return v, err
 		}
 	}
 	switch r.URL.Query().Get("notice") {

@@ -8,11 +8,8 @@ import (
 )
 
 func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
-	v, err := s.baseView(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := s.baseView(r)
+	var err error
 	v.Station, err = s.d.Stations.Get(r.Context(), r.PathValue("id"))
 	if errors.Is(err, station.ErrNotFound) {
 		http.NotFound(w, r)
@@ -24,16 +21,6 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
 	}
 	v.StationID = v.Station.ID
 	v.StreamURL = s.streamURL(r, v.Station.StreamSlug)
-	if s.d.BroadcastConfig != nil {
-		v.BroadcastPlaylist, err = s.d.BroadcastConfig.Assignment(r.Context(), v.Station.ID)
-		if err != nil {
-			s.fail(w, err)
-			return
-		}
-	}
-	if s.d.Broadcast != nil {
-		v.Broadcast = s.d.Broadcast.State(v.Station.ID)
-	}
 	v.Title = v.Station.Name
 	v.Section = "overview"
 	if strings.HasSuffix(r.URL.Path, "/settings") {
@@ -43,6 +30,17 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(r.URL.Path, "/delete") {
 		v.Section = "delete"
 		v.Title = "Delete station"
+	}
+	if v.Section == "overview" && s.d.Broadcast != nil {
+		v.Broadcast = s.d.Broadcast.State(v.Station.ID)
+	}
+	if (v.Section == "overview" || v.Section == "delete") && s.d.Playlists != nil {
+		pools, err := s.d.Playlists.List(r.Context(), v.Station.ID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		v.StationPlaylistCount = len(pools)
 	}
 	s.render(w, r, v)
 }

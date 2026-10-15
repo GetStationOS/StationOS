@@ -202,8 +202,8 @@ func (s *Server) streamURL(r *http.Request, id string) string {
 }
 
 func (s *Server) liveCards(w http.ResponseWriter, r *http.Request) {
-	v, err := s.baseView(r)
-	if err != nil {
+	v := s.baseView(r)
+	if err := s.loadStationCards(r, &v); err != nil {
 		s.fail(w, err)
 		return
 	}

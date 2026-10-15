@@ -63,7 +63,8 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 				return false
 			}
 		} else {
-			v, err := s.baseView(r)
+			v := s.baseView(r)
+			err := s.loadStationCards(r, &v)
 			if err != nil {
 				return false
 			}

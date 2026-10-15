@@ -293,92 +293,14 @@ type view struct {
 	PlaylistDuration                                                                                     string
 }
 
-func (s *Server) baseView(r *http.Request) (view, error) {
+func (s *Server) baseView(r *http.Request) view {
 	v := view{Page: r.URL.Path, CSRF: s.csrf}
 	v.BroadcastEnabled = s.d.Broadcast != nil
 
 	v.Notice = map[string]string{"station-deleted": "Station deleted.", "playlist-deleted": "Playlist deleted.", "station-saved": "Station saved.", "playlist-saved": "Playlist saved.", "selections-saved": "Selections saved.", "tracks-added": "Tracks added to the playlist.", "track-removed": "Track excluded from this playlist.", "source-saved": "Source saved.", "imported": "Library refreshed."}[r.URL.Query().Get("notice")]
-	var err error
-	v.Stations, err = s.d.Stations.List(r.Context())
-	if err != nil {
-		return v, err
-	}
-	v.Sources, err = s.d.Sources.List(r.Context())
-	if err != nil {
-		return v, err
-	}
-	v.Facets, err = s.d.Catalogue.Facets(r.Context())
-	if err != nil {
-		return v, err
-	}
-	for _, album := range v.Facets.Albums {
-		token, _ := json.Marshal(albumChoice{SourceID: album.SourceID, Name: album.Name})
-		v.Albums = append(v.Albums, albumOption{Value: string(token), Name: album.Name, Source: album.SourceName, Tracks: album.Tracks})
-	}
-	if s.d.Playlists != nil {
-		items, err := s.d.Playlists.List(r.Context(), "")
-		if err != nil {
-			return v, err
-		}
-		for _, p := range items {
-			name := "Unknown station"
-			for _, station := range v.Stations {
-				if station.ID == p.StationID {
-					name = station.Name
-					break
-				}
-			}
-			v.PlaylistOptions = append(v.PlaylistOptions, playlistOption{Playlist: p, Station: name})
-		}
-	}
-	for _, st := range v.Stations {
-		card := stationCard{Station: st}
-		card.Broadcast = broadcast.State{Status: "Dormant"}
-		if s.d.Broadcast != nil {
-			card.Broadcast = s.d.Broadcast.State(st.ID)
-		}
-		for _, p := range v.PlaylistOptions {
-			if p.Playlist.StationID == st.ID {
-				card.Playlists++
-			}
-		}
-		if s.d.BroadcastConfig != nil {
-			card.PlaylistID, err = s.d.BroadcastConfig.Assignment(r.Context(), st.ID)
-			if err != nil {
-				return v, err
-			}
-		}
-		for i := range v.PlaylistOptions {
-			if v.PlaylistOptions[i].Playlist.ID == card.PlaylistID {
-				v.PlaylistOptions[i].Default = true
-			}
-		}
-		if card.Broadcast.Current.ID != "" && card.Broadcast.Programme.PlaylistID != "" {
-			card.PlaylistID = card.Broadcast.Programme.PlaylistID
-		}
-		for _, p := range v.PlaylistOptions {
-			if p.Playlist.ID == card.PlaylistID {
-				card.PlaylistName = p.Playlist.Name
-				break
-			}
-		}
-		if card.PlaylistName == "" && card.Broadcast.Current.ID != "" {
-			card.PlaylistName = card.Broadcast.Programme.PlaylistName
-		}
-		card.ProgrammeTime, _ = programmeDetails(card.Broadcast, st.Timezone, time.Now())
-		card.DJIndicators = djIndicators(card.Broadcast)
-		if !card.Broadcast.Following.Start.IsZero() {
-			loc, e := time.LoadLocation(st.Timezone)
-			if e != nil {
-				loc = time.UTC
-			}
-			card.FollowingTime = card.Broadcast.Following.Start.In(loc).Format("Mon 15:04")
-		}
-		card.NextTrack = stationTrack(st.ID, "Up next", "Not queued", card.Broadcast.Next)
-		v.StationCards = append(v.StationCards, card)
-	}
-	return v, nil
+	return v
 }
+
 func (s *Server) render(w http.ResponseWriter, r *http.Request, v view) {
 	for _, p := range v.PlaylistOptions {
 		if v.StationID == "" || p.Playlist.StationID == v.StationID {
@@ -428,14 +350,12 @@ func (s *Server) render(w http.ResponseWriter, r *http.Request, v view) {
 	}
 }
 func (s *Server) page(w http.ResponseWriter, r *http.Request) {
-	v, err := s.baseView(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := s.baseView(r)
+	var err error
 	switch r.URL.Path {
 	case "/producer":
 		v.Title = "Your stations"
+		err = s.loadStationCards(r, &v)
 	case "/producer/station", "/producer/stations/new":
 		v.Title = "Create a station"
 	case "/producer/sources/new":
@@ -443,12 +363,40 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		v.Source.Name = r.URL.Query().Get("name")
 		v.Source.Endpoint = r.URL.Query().Get("endpoint")
 		if r.URL.Query().Get("discover") == "1" {
+			v.Sources, err = s.d.Sources.List(r.Context())
+			if err != nil {
+				s.fail(w, err)
+				return
+			}
 			s.findSources(r.Context(), &v)
 		}
 	case "/producer/sources":
 		v.Title = "Sources"
+		err = s.loadSourceCards(r.Context(), &v)
 	case "/producer/content":
 		v.Title = "Browse tracks"
+	}
+
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if r.URL.Path != "/producer/content" {
+		s.render(w, r, v)
+		return
+	}
+	if err = s.loadCatalogueChoices(r.Context(), &v); err != nil {
+		s.fail(w, err)
+		return
+	}
+	v.Sources, err = s.d.Sources.List(r.Context())
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	if err = s.loadPlaylistOptions(r.Context(), &v, ""); err != nil {
+		s.fail(w, err)
+		return
 	}
 	q, err := catalogueQuery(r.URL.Query())
 	if err != nil {
@@ -495,17 +443,6 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		}
 		v.StationID = v.Station.ID
 		v.Section = "playlists"
-	}
-	if r.URL.Path == "/producer/sources" {
-		for _, source := range v.Sources {
-			items, err := s.d.Catalogue.Search(r.Context(), catalogue.Query{SourceID: source.ID, Limit: 1})
-			if err != nil {
-				s.fail(w, err)
-				return
-			}
-			endpoint, _ := url.Parse(source.Endpoint)
-			v.SourceCards = append(v.SourceCards, sourceCard{Source: source, Host: endpoint.Host, Tracks: items.Total})
-		}
 	}
 	v.ReturnTo = r.URL.RequestURI()
 	for n, item := range v.Catalogue.Items {

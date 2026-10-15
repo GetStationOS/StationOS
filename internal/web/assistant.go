@@ -22,11 +22,8 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 		http.Error(w, "Assistant unavailable", 503)
 		return
 	}
-	v, err := s.baseView(r)
-	if err != nil {
-		s.fail(w, err)
-		return
-	}
+	v := s.baseView(r)
+	var err error
 	v.AssistantMode = "chat"
 	v.Title = "Producer assistant"
 	v.Section = "assistant"
@@ -230,11 +227,8 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Assistant unavailable", 503)
 		return
 	}
-	v, e := s.baseView(r)
-	if e != nil {
-		s.fail(w, e)
-		return
-	}
+	v := s.baseView(r)
+	var e error
 	v.AssistantMode = "settings"
 	v.Title = "Models for features"
 	if r.URL.Path == "/producer/assistant/endpoints" || r.URL.Query().Get("connection") != "" || r.PostForm.Get("connection_action") != "" {

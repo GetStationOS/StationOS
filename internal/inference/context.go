@@ -253,7 +253,7 @@ func controlKind(m message) string {
 	if m.Role != "system" && m.Role != "developer" {
 		return ""
 	}
-	for _, prefix := range []string{"Mandatory schedule readback", "Progress recovery:", "Continue the same human request from the saved task checklist and recorded results.", "The saved task still has actionable unfinished steps."} {
+	for _, prefix := range []string{"Selected StationOS work step:", "Mandatory schedule readback", "Progress recovery:", "Continue the same human request from the saved task checklist and recorded results.", "The saved task still has actionable unfinished steps."} {
 		if strings.HasPrefix(m.Content, prefix) {
 			return prefix
 		}

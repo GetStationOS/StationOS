@@ -47,3 +47,17 @@ func TestFocusedToolsCapReadsAndPreserveWrites(t *testing.T) {
 		t.Fatal(names)
 	}
 }
+
+func TestUnscopedRecoveryOnlyOffersStepSelection(t *testing.T) {
+	tools := []Tool{{Name: "list_stations"}, {Name: "list_playlists"}, {Name: "get_station"}, {Name: "save_station", Mutates: true}, {Name: "save_task_progress", Mutates: true}}
+	for _, focus := range []string{"choose", "remaining", "unknown"} {
+		offered := focusedTools(tools, focus, nil)
+		names := map[string]bool{}
+		for _, tool := range offered {
+			names[tool.Name] = true
+		}
+		if len(names) != 2 || !names["select_work_step"] || !names["save_task_progress"] {
+			t.Fatal("unscoped recovery reopened discovery", focus, names)
+		}
+	}
+}

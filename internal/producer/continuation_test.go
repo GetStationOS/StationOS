@@ -55,13 +55,23 @@ func (m *fullStationModel) Respond(ctx context.Context, model, key, prompt strin
 	switch {
 	case n == 0:
 		return responseCall(n, "save_task_progress", producer.Task{Brief: fullBrief, Remaining: []string{"Create station and playlist", "Create DJ", "Schedule Friday and Sunday shows", "Assign default playlist"}}), nil
-	case n <= 30:
-		return responseCall(n, "search_music", map[string]any{"text": fmt.Sprintf("explore-%d", n), "limit": 1}), nil
-	case n == 31:
+	case n == 1:
 		return responseCall(n, "save_station", map[string]string{"name": "The Listening Room"}), nil
-	case n == 32:
+	case n == 2:
 		m.station = resultID(input)
 		return responseCall(n, "save_playlist", map[string]string{"station_id": m.station, "name": "Jazz"}), nil
+	case n <= 30:
+		if n == 3 {
+			m.playlist = resultID(input)
+		}
+		// Exercise a long sequence of actual configuration edits across batch
+		// compaction; read-only churn is deliberately bounded by the runner.
+		return responseCall(n, "save_playlist", map[string]string{"id": m.playlist, "description": fmt.Sprintf("Eligibility refinement %d", n)}), nil
+	case n == 31:
+		return responseCall(n, "save_station", map[string]string{"id": m.station, "description": "Jazz station"}), nil
+	case n == 32:
+		m.station = resultID(input)
+		return responseCall(n, "save_playlist", map[string]string{"id": m.playlist, "description": "Verified jazz pool"}), nil
 	case n == 33:
 		m.playlist = resultID(input)
 		return responseCall(n, "add_playlist_rule", map[string]any{"playlist_id": m.playlist, "rule": map[string]string{"kind": "genre", "value": "Jazz"}}), nil

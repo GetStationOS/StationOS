@@ -92,7 +92,7 @@ func (s *Service) configurationReview(ctx context.Context, stations map[string]b
 			if err != nil {
 				return nil, "", fmt.Errorf("playlist review: %w", err)
 			}
-			poolCounts = append(poolCounts, map[string]any{"id": pool.ID, "total": counts.Total, "unavailable": counts.Unavailable})
+			poolCounts = append(poolCounts, map[string]any{"id": pool.ID, "name": pool.Name, "total": counts.Total, "unavailable": counts.Unavailable})
 			if counts.Total <= counts.Unavailable {
 				emptyPools = append(emptyPools, pool.ID)
 			}

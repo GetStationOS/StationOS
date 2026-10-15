@@ -15,25 +15,47 @@ func focusedTools(tools []Tool, focus string, reads map[string]int) []Tool {
 	allowed := map[string]bool{"save_task_progress": true}
 	switch focus {
 	case "playlists":
-		for _, name := range []string{"summarize_music", "explore_music", "search_music", "get_playlist", "add_playlist_rule", "replace_playlist_rules", "remove_playlist_rule", "select_tracks", "assign_default_playlist"} {
+		for _, name := range []string{"summarize_music", "explore_music", "search_music", "get_playlist", "save_playlist", "add_playlist_rule", "replace_playlist_rules", "remove_playlist_rule", "select_tracks", "assign_default_playlist"} {
 			allowed[name] = true
 		}
 	case "schedule":
-		for _, name := range []string{"list_djs", "get_dj", "save_dj", "get_playlist", "save_show", "create_shows", "assign_default_playlist"} {
+		for _, name := range []string{"list_djs", "get_dj", "save_dj", "get_playlist", "save_show", "create_shows", "delete_show", "assign_default_playlist"} {
 			allowed[name] = true
 		}
-	default:
-		for _, tool := range tools {
-			allowed[tool.Name] = true
+	case "station":
+		for _, name := range []string{"get_station", "save_station", "get_status", "get_mixer", "save_mixer", "assign_default_playlist"} {
+			allowed[name] = true
 		}
+	case "presenters":
+		for _, name := range []string{"list_djs", "get_dj", "save_dj", "list_voices", "generate_dj_photo"} {
+			allowed[name] = true
+		}
+	case "sources":
+		for _, name := range []string{"list_sources", "save_source", "refresh_source", "summarize_music"} {
+			allowed[name] = true
+		}
+	case "audience":
+		for _, tool := range tools {
+			if strings.Contains(tool.Name, "audience") {
+				allowed[tool.Name] = true
+			}
+		}
+	case "review":
+		for _, tool := range tools {
+			if !tool.Mutates {
+				allowed[tool.Name] = true
+			}
+		}
+		// Unknown scope must select a work step, rather than exposing everything.
 	}
+
 	out := []Tool{}
 	for _, tool := range tools {
 		if allowed[tool.Name] && (tool.Mutates || reads[tool.Name] < 2) {
 			out = append(out, tool)
 		}
 	}
-	return out
+	return append(out, workStepTool())
 }
 
 func stalledMessage(checks map[string]int, lastError string) string {

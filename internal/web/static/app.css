@@ -722,12 +722,14 @@ textarea{font-weight:400;line-height:1.5}
 @media(max-width:900px){.sidebar .brand{margin-bottom:0}.sidebar .brand img{width:174px}}
 @media(max-width:650px){.public-header{gap:18px;flex-wrap:wrap}.public-header .brand img{width:185px}}
 /* Quiet DJ capability indicators, with explanations on hover, keyboard focus or tap. */
-.dj-statuses{display:flex;align-items:center;gap:8px;min-width:0}
-.dj-status-icon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-height:36px;padding:7px;border:1px solid var(--line);border-radius:50%;background:white;color:var(--muted);box-shadow:none;cursor:help}
+.dj-name-row{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;min-width:0}.dj-name-row>a{min-width:0;overflow-wrap:anywhere}.dj-statuses{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.dj-status-icon{position:relative;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;min-height:28px;padding:4px;border:0;border-radius:50%;background:transparent;color:var(--muted);box-shadow:none;cursor:help}
 .dj-status-icon:hover,.dj-status-icon:focus{background:var(--tint);color:var(--text)}
 .dj-status-icon.ready,.dj-status-icon.speaking{color:var(--accent-dark)}
 .dj-status-icon.unavailable{color:#962e26}
-.dj-status-mark{position:absolute;right:-3px;bottom:-2px;display:grid;place-items:center;width:16px;height:16px;border-radius:50%;background:white;border:1px solid currentColor;font-size:12px;font-weight:700;line-height:1}
-.dj-status-tooltip{display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:5;width:max-content;max-width:min(240px,70vw);padding:8px 10px;border-radius:6px;background:var(--text);color:white;font-size:12px;font-weight:400;line-height:1.4;text-align:left;white-space:normal;pointer-events:none}
-.dj-status-icon:hover .dj-status-tooltip,.dj-status-icon:focus .dj-status-tooltip{display:block}
-@media(max-width:700px){.dj-status-icon{width:44px;height:44px;min-height:44px}}
+.dj-status-mark{position:absolute;right:-1px;bottom:-1px;display:grid;place-items:center;width:12px;height:12px;border-radius:50%;background:white;border:1px solid currentColor;font-size:10px;font-weight:700;line-height:1}
+.dj-status-tooltip{display:none;position:absolute;right:0;top:calc(100% + 8px);z-index:5;width:max-content;max-width:min(240px,70vw);padding:8px 10px;border-radius:6px;background:var(--text);color:white;font-size:12px;font-weight:400;line-height:1.4;text-align:left;white-space:normal;pointer-events:none}
+.dj-status-icon:hover .dj-status-tooltip,.dj-status-icon:focus .dj-status-tooltip{display:block!important}
+@media(max-width:700px){.dj-status-icon{width:44px;height:44px;min-height:44px;padding:12px}.dj-status-mark{right:7px;bottom:7px}}
+
+.card-programme-caption{display:flex;align-items:center;justify-content:space-between;gap:8px}.card-programme-time{font-size:12px;color:var(--muted);white-space:nowrap}

@@ -63,7 +63,7 @@ type Server struct {
 }
 
 func New(d Dependencies) (http.Handler, error) {
-	t, err := template.New("pages").Funcs(template.FuncMap{"presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	t, err := template.New("pages").Funcs(template.FuncMap{"djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}

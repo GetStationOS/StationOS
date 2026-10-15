@@ -124,7 +124,7 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 }
 
 func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
-	templates, err := template.New("pages").Funcs(template.FuncMap{"presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	templates, err := template.New("pages").Funcs(template.FuncMap{"djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -192,12 +192,12 @@ type genreOption struct {
 	Selected, Missing bool
 }
 type stationCard struct {
-	DJIndicators                                                            []djIndicator
-	Broadcast                                                               broadcast.State
-	Station                                                                 station.Station
-	Playlists                                                               int
-	PlaylistID, PlaylistName, ProgrammeTime, PresenterStatus, FollowingTime string
-	CurrentTrack, NextTrack                                                 cardTrack
+	DJIndicators                                           []djIndicator
+	Broadcast                                              broadcast.State
+	Station                                                station.Station
+	Playlists                                              int
+	PlaylistID, PlaylistName, ProgrammeTime, FollowingTime string
+	CurrentTrack, NextTrack                                cardTrack
 }
 type sourceCard struct {
 	Source sources.Config
@@ -365,11 +365,8 @@ func (s *Server) baseView(r *http.Request) (view, error) {
 		if card.PlaylistName == "" && card.Broadcast.Current.ID != "" {
 			card.PlaylistName = card.Broadcast.Programme.PlaylistName
 		}
-		card.ProgrammeTime, card.PresenterStatus = programmeDetails(card.Broadcast, st.Timezone, time.Now())
+		card.ProgrammeTime, _ = programmeDetails(card.Broadcast, st.Timezone, time.Now())
 		card.DJIndicators = djIndicators(card.Broadcast)
-		if card.PresenterStatus != "Finishing current track" && card.PresenterStatus != "Handing over" {
-			card.PresenterStatus = ""
-		}
 		if !card.Broadcast.Following.Start.IsZero() {
 			loc, e := time.LoadLocation(st.Timezone)
 			if e != nil {

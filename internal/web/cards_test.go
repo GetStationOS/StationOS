@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/schedule"
@@ -181,11 +182,11 @@ func TestSpeechReadinessDoesNotHideCurationFailure(t *testing.T) {
 }
 
 func TestDJStatusIconsKeepCapabilitiesIndependent(t *testing.T) {
-	templates, err := template.New("pages").Funcs(template.FuncMap{"presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	templates, err := template.New("pages").Funcs(template.FuncMap{"djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		t.Fatal(err)
 	}
-	state := broadcast.State{Programme: schedule.Occurrence{ShowID: "show"}, Current: content.AudioItem{ID: "track"}, PresenterStatus: "Unavailable", CurationStatus: "Ready"}
+	state := broadcast.State{Programme: schedule.Occurrence{ShowID: "show", DJ: djs.Profile{ID: "miles", Name: "Miles Mercer"}}, Current: content.AudioItem{ID: "track"}, PresenterStatus: "Unavailable", CurationStatus: "Ready"}
 	for _, test := range []struct{ speech, selection, speechLabel, selectionLabel string }{
 		{"Unavailable", "Ready", "DJ speech is unavailable; music continues", "DJ music selection is ready"},
 		{"Ready", "Unavailable", "DJ speech is ready", "DJ music selection is unavailable; music continues"},
@@ -193,18 +194,29 @@ func TestDJStatusIconsKeepCapabilitiesIndependent(t *testing.T) {
 		{"Speaking", "Ready", "DJ is speaking", "DJ music selection is ready"},
 	} {
 		state.PresenterStatus, state.CurationStatus = test.speech, test.selection
-		var html bytes.Buffer
-		err := templates.ExecuteTemplate(&html, "station-cards", view{StationCards: []stationCard{{Broadcast: state, DJIndicators: djIndicators(state)}}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, label := range []string{test.speechLabel, test.selectionLabel} {
-			if !strings.Contains(html.String(), `aria-label="`+label+`"`) {
-				t.Fatal("missing accessible capability explanation", label, html.String())
+		state.AINotice = "Internal provider notice should not be displayed"
+		v := view{Broadcast: state, StationCards: []stationCard{{Broadcast: state, DJIndicators: djIndicators(state)}}}
+		for _, name := range []string{"station-cards", "station-live"} {
+			var html bytes.Buffer
+			if err := templates.ExecuteTemplate(&html, name, v); err != nil {
+				t.Fatal(err)
 			}
-		}
-		if strings.Count(html.String(), `class="dj-status-icon `) != 2 || strings.Contains(html.String(), `class="card-dj-status"`) {
-			t.Fatal("card must show independent icons without combined status text", html.String())
+			markup := html.String()
+			for _, label := range []string{test.speechLabel, test.selectionLabel} {
+				if !strings.Contains(markup, `aria-label="`+label+`"`) {
+					t.Fatal("missing accessible capability explanation", name, label)
+				}
+			}
+			if strings.Count(markup, `class="dj-status-icon `) != 2 || strings.Contains(markup, `class="card-dj-status"`) || strings.Contains(markup, `overview-dj-state`) || strings.Contains(markup, state.AINotice) {
+				t.Fatal("playback view repeated status text or provider notices", name, markup)
+			}
+			if strings.Count(markup, `class="dj-status-tooltip" hidden`) != 2 {
+				t.Fatal("status explanations must be hidden by default, including before styles load", name)
+			}
+			nameRow := `<div class="dj-name-row"><a href="/producer/djs/miles">Miles Mercer</a><div class="dj-statuses"`
+			if !strings.Contains(markup, nameRow) {
+				t.Fatal("DJ icons must sit immediately after the DJ name", name, markup)
+			}
 		}
 	}
 	state.Current.ID = ""

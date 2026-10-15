@@ -142,3 +142,34 @@ func presenterStatus(state broadcast.State) string {
 	}
 	return speech
 }
+
+// Keep the two DJ capabilities independent; readiness of one never implies the other.
+type djIndicator struct {
+	Kind, State, Label string
+}
+
+func djIndicators(state broadcast.State) []djIndicator {
+	if state.Programme.ShowID == "" || state.Current.ID == "" {
+		return nil
+	}
+	var indicators []djIndicator
+	speech := map[string]djIndicator{
+		"Preparing":   {"speech", "preparing", "DJ speech is being prepared"},
+		"Ready":       {"speech", "ready", "DJ speech is ready"},
+		"Speaking":    {"speech", "speaking", "DJ is speaking"},
+		"Unavailable": {"speech", "unavailable", "DJ speech is unavailable; music continues"},
+		"Music only":  {"speech", "unavailable", "DJ speech is off; music continues"},
+	}
+	selection := map[string]djIndicator{
+		"Preparing":   {"selection", "preparing", "DJ music selection is being prepared"},
+		"Ready":       {"selection", "ready", "DJ music selection is ready"},
+		"Unavailable": {"selection", "unavailable", "DJ music selection is unavailable; music continues"},
+	}
+	if indicator, ok := speech[state.PresenterStatus]; ok {
+		indicators = append(indicators, indicator)
+	}
+	if indicator, ok := selection[state.CurationStatus]; ok {
+		indicators = append(indicators, indicator)
+	}
+	return indicators
+}

@@ -124,7 +124,14 @@ func TestLocalCurationCorrectsChoicesOnceBeforeSpeech(t *testing.T) {
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("mp3"))}, nil
 			})}
 			pool := []content.AudioItem{{ID: "opaque-catalogue-track-a", Title: "First"}, {ID: "opaque-catalogue-track-b", Title: "Second"}}
-			plan, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{}, pool)
+			var notices []string
+			ctx := production.WithInferenceNotice(context.Background(), func(message string) {
+				notices = append(notices, message)
+			})
+			plan, err := p.Prepare(ctx, profile(), schedule.Occurrence{}, pool)
+			if len(notices) != 0 {
+				t.Fatal("internal curation correction surfaced as a playback notice", notices)
+			}
 			if len(l.requests) != 2 {
 				t.Fatal("correction was not exactly one new request", len(l.requests))
 			}

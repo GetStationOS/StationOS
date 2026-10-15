@@ -191,19 +191,16 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil {
 		return production.Prepared{}, err
 	}
-	corrected := false
 	err = production.Validate(plan, offered)
 	if err != nil && localCuration && (errors.Is(err, production.ErrUnknownTrack) || errors.Is(err, production.ErrDuplicateTrack)) {
 		// A confirmed completed, read-only plan can get one corrective request.
 		// Transport failures and incomplete output are never replayed here.
-		production.ReportInference(ctx, "Correcting invalid DJ track choices; music continues.")
 		body["instructions"] = instructions + "\nYour previous completed plan failed StationOS validation: " + err.Error() + ". Return a corrected plan using only the offered IDs once each. Do not include a previous answer or explanation."
 		plan, err = p.generatePlan(ctx, key, body)
 		if err != nil {
 			return production.Prepared{}, err
 		}
 		err = production.Validate(plan, offered)
-		corrected = err == nil
 	}
 	if err != nil {
 		return production.Prepared{}, err
@@ -216,9 +213,6 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	plan.NextKey = next.Key
 	if err = production.Validate(plan, pool); err != nil {
 		return production.Prepared{}, err
-	}
-	if corrected {
-		production.ReportInference(ctx, "DJ curation corrected and validated.")
 	}
 	prepared := production.Prepared{Plan: plan}
 	if key == "" {

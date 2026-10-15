@@ -1,8 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"html/template"
 	"io"
 	"log/slog"
 	"net/http"
@@ -175,5 +177,48 @@ func TestSpeechReadinessDoesNotHideCurationFailure(t *testing.T) {
 	state.CurationStatus = "Ready"
 	if label = presenterStatus(state); label != "Speech ready · Curation ready" {
 		t.Fatal(label)
+	}
+}
+
+func TestDJStatusIconsKeepCapabilitiesIndependent(t *testing.T) {
+	templates, err := template.New("pages").Funcs(template.FuncMap{"presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := broadcast.State{Programme: schedule.Occurrence{ShowID: "show"}, Current: content.AudioItem{ID: "track"}, PresenterStatus: "Unavailable", CurationStatus: "Ready"}
+	for _, test := range []struct{ speech, selection, speechLabel, selectionLabel string }{
+		{"Unavailable", "Ready", "DJ speech is unavailable; music continues", "DJ music selection is ready"},
+		{"Ready", "Unavailable", "DJ speech is ready", "DJ music selection is unavailable; music continues"},
+		{"Preparing", "Preparing", "DJ speech is being prepared", "DJ music selection is being prepared"},
+		{"Speaking", "Ready", "DJ is speaking", "DJ music selection is ready"},
+	} {
+		state.PresenterStatus, state.CurationStatus = test.speech, test.selection
+		var html bytes.Buffer
+		err := templates.ExecuteTemplate(&html, "station-cards", view{StationCards: []stationCard{{Broadcast: state, DJIndicators: djIndicators(state)}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, label := range []string{test.speechLabel, test.selectionLabel} {
+			if !strings.Contains(html.String(), `aria-label="`+label+`"`) {
+				t.Fatal("missing accessible capability explanation", label, html.String())
+			}
+		}
+		if strings.Count(html.String(), `class="dj-status-icon `) != 2 || strings.Contains(html.String(), `class="card-dj-status"`) {
+			t.Fatal("card must show independent icons without combined status text", html.String())
+		}
+	}
+	state.Current.ID = ""
+	if len(djIndicators(state)) != 0 {
+		t.Fatal("dormant station displayed DJ readiness")
+	}
+	state.Current.ID = "track"
+	state.Programme.ShowID = ""
+	if len(djIndicators(state)) != 0 {
+		t.Fatal("continuous music displayed DJ readiness")
+	}
+	state.Programme.ShowID = "show"
+	state.PresenterStatus, state.CurationStatus = "", ""
+	if len(djIndicators(state)) != 0 {
+		t.Fatal("unknown capability was presented as ready")
 	}
 }

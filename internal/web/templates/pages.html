@@ -55,7 +55,7 @@
 </div>
 <div class="card-tracks">{{template "card-track" (currentBroadcastTrack .Station.ID .Broadcast)}}{{template "card-track" .NextTrack}}</div>
 </div>
-{{if or .PresenterStatus (and .Broadcast.Current.ID .Broadcast.Following.ShowID)}}<div class="producer-context">{{if .PresenterStatus}}<span class="card-dj-status">{{.PresenterStatus}}</span>{{end}}
+{{if or .DJIndicators .PresenterStatus (and .Broadcast.Current.ID .Broadcast.Following.ShowID)}}<div class="producer-context">{{if or .DJIndicators .PresenterStatus}}<div class="dj-statuses" role="group" aria-label="DJ status">{{range .DJIndicators}}{{template "dj-status-icon" .}}{{end}}{{if .PresenterStatus}}<span class="card-dj-status">{{.PresenterStatus}}</span>{{end}}</div>{{end}}
 {{if and .Broadcast.Current.ID .Broadcast.Following.ShowID}}<div class="card-handover"><span class="eyebrow">NEXT SHOW{{if .FollowingTime}} · {{.FollowingTime}}{{end}}</span><strong>{{.Broadcast.Following.Title}}</strong>{{if .Broadcast.Following.DJ.Name}}<span>{{.Broadcast.Following.DJ.Name}}</span>{{end}}</div>{{end}}
 </div>{{end}}
 {{if .Broadcast.Error}}<p class="card-error" role="status">{{.Broadcast.Error}}</p>{{end}}
@@ -250,3 +250,5 @@
     <button type="button" class="player-control" data-stop-radio aria-label="Stop" title="Stop"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="1"/></svg></button>
   </div>
 </aside>{{end}}
+
+{{define "dj-status-icon"}}<button type="button" class="dj-status-icon {{.State}}" aria-label="{{.Label}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{{if eq .Kind "speech"}}<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0014 0v-1M12 18v4M8 22h8"/>{{else}}<path d="M4 5h12M4 10h12M4 15h6M18 12v7"/><ellipse cx="15" cy="19" rx="3" ry="2"/>{{end}}</svg><span class="dj-status-mark" aria-hidden="true">{{if eq .State "ready"}}✓{{else if eq .State "unavailable"}}×{{else if eq .State "speaking"}}♪{{else}}…{{end}}</span><span class="dj-status-tooltip" aria-hidden="true">{{.Label}}</span></button>{{end}}

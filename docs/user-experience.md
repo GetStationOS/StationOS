@@ -330,7 +330,7 @@ Do not imply a longer deadline guarantees a model's speed. DJ requests disable
 thinking only when the provider advertises that option. No deadline or thinking
 change starts a broadcast, downloads a model or silently enables cloud fallback.
 
-Show speech and curation readiness separately on station cards and the producer overview. Use “Speech ready” for a prepared spoken link, and “Curation unavailable · music continues” when the music plan failed. A curation failure must not hide ready speech or claim the whole DJ is ready.
+Show speech and curation readiness separately. Producer station cards use compact microphone and music-selection icons, with distinct ready, preparing, speaking and unavailable marks. Provide plain-language explanations on hover, keyboard focus and tap, plus screen-reader labels; never communicate status through colour alone. Keep handover and finishing-track information as text. The producer overview retains explicit readiness labels. Use “Speech ready” for a prepared spoken link, and “Curation unavailable · music continues” when the music plan failed. A curation failure must not hide ready speech or claim the whole DJ is ready. Automatic correction of invalid DJ track choices stays internal; do not display retry or successful-validation notices during playback.
 
 ### Assistant navigation and setup
 

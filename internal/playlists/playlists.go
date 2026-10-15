@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -46,20 +47,27 @@ type Rule struct {
 }
 
 func (r Rule) Validate() error {
-	if strings.TrimSpace(r.Value) == "" || len(r.Value) > 4096 || len(r.SourceID) > 128 {
-		return ErrInvalid
+	invalid := func(reason string) error { return fmt.Errorf("%w: %s", ErrInvalid, reason) }
+	if strings.TrimSpace(r.Value) == "" {
+		return invalid("rule.value must contain one exact catalogue genre or album name")
+	}
+	if len(r.Value) > 4096 {
+		return invalid("rule.value must be at most 4096 bytes")
+	}
+	if len(r.SourceID) > 128 {
+		return invalid("rule.source_id must be an existing source ID, at most 128 bytes")
 	}
 	switch r.Kind {
 	case "genre":
 		if r.SourceID != "" {
-			return ErrInvalid
+			return invalid("genre rules must omit source_id; use kind=genre and one exact genre value returned by explore_music")
 		}
 	case "album":
 		if r.SourceID == "" {
-			return ErrInvalid
+			return invalid("album rules require source_id returned with that album by explore_music")
 		}
 	default:
-		return ErrInvalid
+		return invalid("rule.kind must be exactly genre or album, in lowercase; use separate rules for multiple genres or albums")
 	}
 	return nil
 }

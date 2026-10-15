@@ -27,3 +27,23 @@ func TestMeasuredGapsHandleSundayOvernight(t *testing.T) {
 		}
 	}
 }
+
+func TestFocusedToolsCapReadsAndPreserveWrites(t *testing.T) {
+	tools := []Tool{{Name: "list_voices"}, {Name: "get_playlist"}, {Name: "explore_music"}, {Name: "add_playlist_rule", Mutates: true}, {Name: "save_task_progress", Mutates: true}, {Name: "save_show", Mutates: true}}
+	got := focusedTools(tools, "playlists", map[string]int{"get_playlist": 2})
+	names := map[string]bool{}
+	for _, tool := range got {
+		names[tool.Name] = true
+	}
+	if names["list_voices"] || names["get_playlist"] || names["save_show"] || !names["explore_music"] || !names["add_playlist_rule"] || !names["save_task_progress"] {
+		t.Fatal(names)
+	}
+	got = focusedTools(tools, "schedule", nil)
+	names = map[string]bool{}
+	for _, tool := range got {
+		names[tool.Name] = true
+	}
+	if names["add_playlist_rule"] || !names["save_show"] || !names["get_playlist"] {
+		t.Fatal(names)
+	}
+}

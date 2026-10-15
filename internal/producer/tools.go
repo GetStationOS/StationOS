@@ -163,6 +163,16 @@ func schema(t reflect.Type) any {
 			props[name] = schema(f.Type)
 		}
 		definition := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+		if t == reflect.TypeOf(rule{}) {
+			props["kind"] = map[string]any{"type": "string", "enum": []string{"genre", "album"}}
+			props["value"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "One exact genre or album name returned by explore_music; never an array or comma-separated list."}
+			props["source_id"] = map[string]any{"type": "string", "maxLength": 128, "description": "Omit for a genre rule. Required for an album rule: use that album's existing source_id from explore_music."}
+			definition["required"] = []string{"kind", "value"}
+		}
+		if t == reflect.TypeOf(playlistRuleArgs{}) {
+			props["playlist_id"] = map[string]any{"type": "string", "minLength": 1, "description": "Existing playlist ID returned by list_playlists or save_playlist."}
+			definition["required"] = []string{"playlist_id", "rule"}
+		}
 		if t == reflect.TypeOf(showPatch{}) {
 			props["day"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 6, "description": "Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6."}
 			props["start"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 1439, "multipleOf": 15, "description": "Station-local minutes after midnight; 08:00 is 480 and 20:00 is 1200. Never use HHMM values such as 2000."}
@@ -302,6 +312,11 @@ func (a showPatch) merge(ctx context.Context, d Dependencies) (schedule.Show, er
 	set(&v.AcceptRequests, a.AcceptRequests)
 	set(&v.AcceptShoutouts, a.AcceptShoutouts)
 	return v.Normalized(), nil
+}
+
+type playlistRuleArgs struct {
+	PlaylistID string `json:"playlist_id"`
+	Rule       rule   `json:"rule"`
 }
 
 type rule struct {
@@ -531,7 +546,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(map[string]any{"playlist": v, "rules": rules, "tracks": out, "total": items.Total, "unavailable": items.Unavailable, "seconds": items.Duration.Seconds(), "unknown_durations": items.UnknownDurations}, nil)
 	})
-	register(r, "save_playlist", "Create or update a station-owned playlist. First inspect existing playlists in the requested station and reuse a suitable pool by ID. Create only if none fits or a distinct pool was explicitly requested. Duplicate names in the same station are rejected; the same name may exist in different stations. Supply station_id when creating; omitted fields on edits are preserved. For a new show pool, use the programme name or musical identity, describe its intended music, and reuse it across recurring days; avoid day-only or generic time-slot names.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
+	register(r, "save_playlist", "Create a station-owned eligibility pool (omit id), or update supplied fields. Inspect and reuse suitable existing pools first. New pools require station_id and a distinct programme or musical identity name; recurring editions share one pool. Preserve unrelated fields and rules.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
 		r.playlistMu.Lock()
 		defer r.playlistMu.Unlock()
 		v := playlists.Playlist{StationID: a.StationID}
@@ -583,10 +598,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(nil, "Deleted playlist: "+v.Name, "/producer/playlists?station="+v.StationID)
 	})
-	register(r, "add_playlist_rule", "Add a dynamic genre or album rule. Genres use exact imported value; albums require source_id. New matching imports join automatically.", true, func(ctx context.Context, a struct {
-		PlaylistID string `json:"playlist_id"`
-		Rule       rule   `json:"rule"`
-	}) (Result, error) {
+	register(r, "add_playlist_rule", "Add ONE dynamic eligibility rule to an existing playlist. Use exact catalogue values from explore_music. Genre rules omit source_id; album rules require the source_id returned for that album. New matching imports join automatically.", true, func(ctx context.Context, a playlistRuleArgs) (Result, error) {
 		if e := ps.AddRule(ctx, a.PlaylistID, a.Rule.domain()); e != nil {
 			return Result{}, e
 		}
@@ -721,7 +733,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(v, "Saved show: "+v.Name, "/producer/stations/"+v.StationID+"/schedule/"+v.ID)
 	})
-	register(r, "create_shows", "Create ONE programme on multiple selected days, atomically. Arguments: show is ONE object (never an array), days is an integer array with Monday=0 through Sunday=6. Call separately for each distinct programme. Example: {\"show\":{\"station_id\":\"existing station ID\",\"name\":\"The Morning Brew\",\"dj_id\":\"existing DJ ID\",\"playlist_id\":\"existing playlist ID\",\"start\":480,\"end\":660},\"days\":[0,1,2,3,4]}. No shows are created if any selected day conflicts. Show uses the same fields as save_show, with no ID. Start/end are minutes after midnight, in multiples of 15. A midnight end may be 0 or 1440 (24:00), never 2400. Supply existing dj_id and a playlist_id belonging to the station.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
+	register(r, "create_shows", "Create one programme on selected weekdays atomically. Supply ONE show object and days, never an array in show. Call separately for distinct programmes. Monday=0 through Sunday=6. Start/end use quarter-hour minutes after midnight; midnight end is 0 or 1440, never 2400. Use existing presenter and station-owned playlist IDs; omit show.id. Conflicts reject every selected day.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
 		if a.Show.ID != "" {
 			return Result{}, schedule.Invalid("omit show.id in create_shows; use save_show to edit an existing show")
 		}

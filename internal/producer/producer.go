@@ -381,12 +381,23 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		raw, _ := json.Marshal(compactHistory(input))
 		return s.Store.Checkpoint(ctx, id, raw, task)
 	}
+	focus := ""
+	focusReads := map[string]int{}
+	checkCounts := map[string]int{}
+	lastActionError := ""
+	observationRounds := 0
 	reviewStations := conversationStations(c)
 	if c.Task.Brief != "" && len(reviewStations) > 0 {
-		review, err := s.scheduleReview(ctx, reviewStations, true)
+		review, nextFocus, err := s.configurationReview(ctx, reviewStations, true)
 		if err != nil {
 			fail("The saved configuration could not be read before resuming. Completed work remains saved; retry when storage is available.")
 			return
+		}
+		if len(task.Remaining) > 0 && resumingStalled(c) {
+			focus = nextFocus
+			if focus == "" {
+				focus = "remaining"
+			}
 		}
 		input = append(input, review)
 	}
@@ -395,15 +406,20 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			return true
 		}
 		s.activity(id, "Checking saved configuration and remaining work", false)
+		focus = "remaining"
+		focusReads = map[string]int{}
 		if len(reviewStations) > 0 {
-			review, err := s.scheduleReview(ctx, reviewStations, true)
+			review, nextFocus, err := s.configurationReview(ctx, reviewStations, true)
 			if err != nil {
 				fail("The saved configuration could not be checked during recovery. Completed work remains saved.")
 				return false
 			}
+			if len(task.Remaining) > 0 && nextFocus != "" {
+				focus = nextFocus
+			}
 			input = append(input, review)
 		}
-		input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Progress recovery: recent replies have not advanced the task. Use the fresh measured configuration above and original human brief to choose ONE concrete unfinished step. Empty show pools need verified music rules or tracks; unscheduled requested evenings and weekend hours need shows. Inspect only the specific missing information needed, then perform the next authorised correction. Reuse saved IDs. Do not repeat failed arguments, unchanged reads, completed creations or the full plan. A checklist edit alone does not configure the station. If genuinely blocked, save the exact blocker and finish other possible work."}))
+		input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Progress recovery: recent replies have not advanced the task. Use the fresh measured configuration above and original human brief to choose ONE concrete unfinished step. Empty show pools need verified music rules or tracks; unscheduled requested evenings and weekend hours need shows. Inspect only the specific missing information needed, then perform the next authorised correction. Reuse saved IDs. Do not repeat failed arguments, unchanged reads, completed creations or the full plan. A checklist edit alone does not configure the station. Only the tools for this recovery step are now available. Each kind of read is limited to two calls before the next saved change. If genuinely blocked, save the exact blocker and finish other possible work."}))
 		if err := checkpoint(); err != nil {
 			fail("The recovery checkpoint could not be saved. Completed work remains saved.")
 			return false
@@ -423,7 +439,12 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 	for round := 0; ; round++ {
 		taskJSON, _ := json.Marshal(task)
 		s.activity(id, "Waiting for the AI response", false)
-		response, err := s.respondWithOptions(ctx, id, model, key, prompt+"\nSaved task checklist:\n"+string(taskJSON), input, tools, generationOptions)
+		offered := focusedTools(tools, focus, focusReads)
+		allowed := map[string]bool{}
+		for _, tool := range offered {
+			allowed[tool.Name] = true
+		}
+		response, err := s.respondWithOptions(ctx, id, model, key, prompt+"\nSaved task checklist:\n"+string(taskJSON), input, offered, generationOptions)
 		if err == nil && len(response.Calls) > MaxToolCalls {
 			err = ErrToolBatchLimit
 		}
@@ -475,7 +496,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 					return
 				}
 				if noProgress >= MaxNoProgressRounds {
-					fail("The assistant stopped making progress. The original brief and remaining checklist are saved; use Continue to resume.")
+					fail(stalledMessage(checkCounts, lastActionError))
 					return
 				}
 				input = append(input, mustJSON(map[string]any{"role": "developer", "content": "The saved task still has actionable unfinished steps. Record tasks that genuinely require human input separately as blockers, then finish the other steps. Continue performing the remaining work now. Do not ask the human to repeat the brief or to continue. If genuinely blocked, record the exact blocker with save_task_progress and complete all other possible steps first."}))
@@ -509,6 +530,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		// All provider output items, including reasoning, must be passed back within this run.
 		input = append(input, response.Items...)
 		madeProgress := false
+		configurationChanged := false
 		for _, call := range response.Calls {
 			if call.ID == "" || seen[call.ID] {
 				fail("The assistant repeated an action identifier. Execution stopped to avoid duplicate changes.")
@@ -518,6 +540,10 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			if err = ctx.Err(); err != nil {
 				fail("The assistant stopped. Completed actions remain saved.")
 				return
+			}
+			if !allowed[call.Name] {
+				input = append(input, toolOutput(call.ID, Result{Error: "This tool is not offered in the current recovery step. Use the available tools for one unfinished action, or record an exact blocker with save_task_progress. No action ran."}))
+				continue
 			}
 			if call.Name == "save_task_progress" {
 				s.activity(id, "Updating the task checklist", false)
@@ -532,11 +558,6 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 				if err != nil {
 					result = Result{Error: err.Error()}
 				} else {
-					before, _ := json.Marshal(task)
-					after, _ := json.Marshal(next)
-					if string(before) != string(after) {
-						madeProgress = true
-					}
 					task = next
 				}
 				input = append(input, toolOutput(call.ID, result))
@@ -552,6 +573,16 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 				input = append(input, toolOutput(call.ID, Result{Error: "Unknown tool"}))
 				continue
 			}
+			if focus != "" && !tool.Mutates && focusReads[tool.Name] >= 2 {
+				input = append(input, toolOutput(call.ID, Result{Error: "This recovery step has already used its two reads of this tool. Use the saved results for the next action, or record an exact blocker. No action ran."}))
+				continue
+			}
+			if !tool.Mutates {
+				checkCounts[tool.Name]++
+				if focus != "" {
+					focusReads[tool.Name]++
+				}
+			}
 			s.activity(id, toolActivity(tool), false)
 			if tool.Mutates {
 				// Persist intent before invoking a write. Never replay unfinished actions on restart.
@@ -565,6 +596,17 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			if !cached {
 				result = s.Tools.call(ctx, call.Name, call.Arguments, false)
 				s.recordUsage(id, result.Usage)
+			}
+			if result.Error != "" && tool.Mutates {
+				lastActionError = call.Name + ": " + result.Error
+				if len(lastActionError) > 500 {
+					lastActionError = lastActionError[:500]
+				}
+			}
+			if result.Error == "" && tool.Mutates && !cached {
+				configurationChanged = true
+				focus = ""
+				focusReads = map[string]int{}
 			}
 			if result.Error == "" {
 				if stationID := changedScheduleStation(call); stationID != "" {
@@ -628,6 +670,14 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 				}
 			}
 		}
+		if configurationChanged {
+			observationRounds = 0
+		} else if len(reviewStations) > 0 && len(task.Remaining) > 0 {
+			observationRounds++
+			if observationRounds >= 4 {
+				madeProgress = false
+			}
+		}
 		if madeProgress {
 			noProgress = 0
 		} else {
@@ -637,7 +687,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			return
 		}
 		if noProgress >= MaxNoProgressRounds {
-			fail("The assistant stopped making progress. Completed actions, the original brief and remaining work are saved; use Continue to resume.")
+			fail(stalledMessage(checkCounts, lastActionError))
 			return
 		}
 		raw, _ := json.Marshal(input)

@@ -3,6 +3,7 @@ package producer_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -20,10 +21,15 @@ type partialRecoveryModel struct {
 	t                 *testing.T
 	n                 int
 	station, pool, dj string
+	recovered         bool
+	firstFocus        bool
 }
 
-func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, input []producer.Item, _ []producer.Tool) (producer.Response, error) {
+func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, input []producer.Item, tools []producer.Tool) (producer.Response, error) {
 	n := m.n
+	if m.firstFocus {
+		n += 4
+	}
 	m.n++
 	all, _ := json.Marshal(input)
 	text := string(all)
@@ -34,11 +40,26 @@ func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, i
 			}
 		}
 	}
-	if n < 4 {
-		return responseCall(n, "list_voices", map[string]any{}), nil
+	// This model keeps choosing a harmless check whenever it is offered.
+	// A reminder alone cannot make this test advance: recovery must narrow tools.
+	if !m.recovered {
+		for _, tool := range tools {
+			if tool.Name == "list_voices" {
+				return responseCall(n, "list_voices", map[string]any{}), nil
+			}
+		}
+		m.recovered = true
+		if n != 4 {
+			m.t.Errorf("unexpected recovery round %d", n)
+		}
+		for _, tool := range tools {
+			if tool.Name == "save_show" || tool.Name == "delete_station" {
+				m.t.Errorf("unrelated tool remained in playlist recovery: %s", tool.Name)
+			}
+		}
 	}
 	if n == 4 {
-		if !strings.Contains(text, "Progress recovery:") {
+		if !m.firstFocus && !strings.Contains(text, "Progress recovery:") {
 			m.t.Error("no early recovery before stall")
 		}
 		return responseCall(n, "add_playlist_rule", map[string]any{"playlist_id": m.pool, "rule": map[string]string{"kind": "genre", "value": "Jazz"}}), nil
@@ -59,72 +80,85 @@ func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, i
 	}
 	return producer.Response{Text: "The saved schedule and music pool are complete."}, nil
 }
+
 func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
-	ctx := context.Background()
-	store, r, stations, pools, shows, _ := fixture(t)
-	owner := call(t, r, "save_station", map[string]string{"name": "Partial Radio"}).Data.(station.Station)
-	pool := call(t, r, "save_playlist", map[string]string{"station_id": owner.ID, "name": "Jazz"}).Data.(playlists.Playlist)
-	dj := call(t, r, "save_dj", map[string]string{"name": "Existing Presenter"}).Data.(djs.Profile)
-	call(t, r, "create_shows", map[string]any{"show": map[string]any{"station_id": owner.ID, "name": "Existing Daytime", "dj_id": dj.ID, "playlist_id": pool.ID, "start": 0, "end": 1080}, "days": []int{0, 1, 2, 3, 4}})
-	before, _ := shows.List(ctx, owner.ID)
-	src := sources.Config{ID: "library", Name: "Music", Kind: "upnp", Endpoint: "http://server/desc", Revision: 1}
-	if err := (persistence.Sources{DB: stations.DB}).Save(ctx, src); err != nil {
-		t.Fatal(err)
-	}
-	item := content.AudioItem{ID: content.ID(src.ID, "one"), SourceID: src.ID, SourceItemID: "one", Title: "Library Jazz", Genre: "Jazz", Kind: content.Track, Origin: content.Original}
-	if err := (persistence.Catalogue{DB: stations.DB}).Replace(ctx, src, []content.AudioItem{item}); err != nil {
-		t.Fatal(err)
-	}
-	_ = store.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "test-key"})
-	model := &partialRecoveryModel{t: t, station: owner.ID, pool: pool.ID, dj: dj.ID}
-	svc, err := producer.New(ctx, store, r, model)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer svc.Close()
-	// A project-wide conversation finds its station through the durable action
-	// link rather than guessing which of the server's stations to configure.
-	id, _ := svc.Create(ctx, "")
-	if err := store.Begin(ctx, id, producer.ID(), "Complete our 24/7 jazz schedule and populate the music pool"); err != nil {
-		t.Fatal(err)
-	}
-	_ = store.Append(ctx, id, producer.Message{Role: "action", Text: "Saved station", URL: "/producer/stations/" + owner.ID})
-	task := producer.Task{Brief: "Complete our 24/7 jazz schedule and populate the music pool", Remaining: []string{"Fill evenings and weekends", "Populate pool"}}
-	if err := store.Checkpoint(ctx, id, []byte(`[]`), task); err != nil {
-		t.Fatal(err)
-	}
-	_ = store.Finish(ctx, id, "failed", []byte(`[]`), producer.Message{Role: "assistant", Text: "Previous run stopped"})
-	if err := svc.Start(ctx, id, producer.ID(), "Continue the saved request"); err != nil {
-		t.Fatal(err)
-	}
-	c := waitDone(t, store, id)
-	if c.Status != "idle" || model.n != 10 {
-		t.Fatalf("recovery failed: %s %d %+v", c.Status, model.n, c.Messages)
-	}
-	saved, err := shows.List(ctx, owner.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var covered [schedule.WeekMinutes]int
-	for _, show := range saved {
-		for minute := 0; minute < show.Duration(); minute++ {
-			covered[(show.Day*1440+show.Start+minute)%schedule.WeekMinutes]++
-		}
-	}
-	for minute, count := range covered {
-		if count != 1 {
-			t.Fatalf("minute %d has %d shows", minute, count)
-		}
-	}
-	for _, old := range before {
-		current, err := shows.Get(ctx, owner.ID, old.ID)
-		if err != nil || current.Revision != old.Revision {
-			t.Fatal("earlier edition changed", current, err)
-		}
-	}
-	resolved, err := pools.Resolve(ctx, pool.ID, 0, 1)
-	if err != nil || resolved.Total-resolved.Unavailable != 1 {
-		t.Fatal("music pool still empty", resolved, err)
+	for _, focused := range []bool{false, true} {
+		t.Run(fmt.Sprintf("focused_resume_%t", focused), func(t *testing.T) {
+			ctx := context.Background()
+			store, r, stations, pools, shows, _ := fixture(t)
+			owner := call(t, r, "save_station", map[string]string{"name": "Partial Radio"}).Data.(station.Station)
+			pool := call(t, r, "save_playlist", map[string]string{"station_id": owner.ID, "name": "Jazz"}).Data.(playlists.Playlist)
+			dj := call(t, r, "save_dj", map[string]string{"name": "Existing Presenter"}).Data.(djs.Profile)
+			call(t, r, "create_shows", map[string]any{"show": map[string]any{"station_id": owner.ID, "name": "Existing Daytime", "dj_id": dj.ID, "playlist_id": pool.ID, "start": 0, "end": 1080}, "days": []int{0, 1, 2, 3, 4}})
+			before, _ := shows.List(ctx, owner.ID)
+			src := sources.Config{ID: "library", Name: "Music", Kind: "upnp", Endpoint: "http://server/desc", Revision: 1}
+			if err := (persistence.Sources{DB: stations.DB}).Save(ctx, src); err != nil {
+				t.Fatal(err)
+			}
+			item := content.AudioItem{ID: content.ID(src.ID, "one"), SourceID: src.ID, SourceItemID: "one", Title: "Library Jazz", Genre: "Jazz", Kind: content.Track, Origin: content.Original}
+			if err := (persistence.Catalogue{DB: stations.DB}).Replace(ctx, src, []content.AudioItem{item}); err != nil {
+				t.Fatal(err)
+			}
+			_ = store.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "test-key"})
+			model := &partialRecoveryModel{t: t, station: owner.ID, pool: pool.ID, dj: dj.ID, firstFocus: focused}
+			svc, err := producer.New(ctx, store, r, model)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer svc.Close()
+			// A project-wide conversation finds its station through the durable action
+			// link rather than guessing which of the server's stations to configure.
+			id, _ := svc.Create(ctx, "")
+			if err := store.Begin(ctx, id, producer.ID(), "Complete our 24/7 jazz schedule and populate the music pool"); err != nil {
+				t.Fatal(err)
+			}
+			_ = store.Append(ctx, id, producer.Message{Role: "action", Text: "Saved station", URL: "/producer/stations/" + owner.ID})
+			task := producer.Task{Brief: "Complete our 24/7 jazz schedule and populate the music pool", Remaining: []string{"Fill evenings and weekends", "Populate pool"}}
+			if err := store.Checkpoint(ctx, id, []byte(`[]`), task); err != nil {
+				t.Fatal(err)
+			}
+			previousStop := "Previous run stopped"
+			if focused {
+				previousStop = "The assistant stopped making progress. Completed actions remain saved."
+			}
+			_ = store.Finish(ctx, id, "failed", []byte(`[]`), producer.Message{Role: "assistant", Text: previousStop})
+			if err := svc.Start(ctx, id, producer.ID(), "Continue the saved request"); err != nil {
+				t.Fatal(err)
+			}
+			c := waitDone(t, store, id)
+			expected := 10
+			if focused {
+				expected = 6
+			}
+			if c.Status != "idle" || model.n != expected {
+				t.Fatalf("recovery failed: %s %d %+v", c.Status, model.n, c.Messages)
+			}
+			saved, err := shows.List(ctx, owner.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var covered [schedule.WeekMinutes]int
+			for _, show := range saved {
+				for minute := 0; minute < show.Duration(); minute++ {
+					covered[(show.Day*1440+show.Start+minute)%schedule.WeekMinutes]++
+				}
+			}
+			for minute, count := range covered {
+				if count != 1 {
+					t.Fatalf("minute %d has %d shows", minute, count)
+				}
+			}
+			for _, old := range before {
+				current, err := shows.Get(ctx, owner.ID, old.ID)
+				if err != nil || current.Revision != old.Revision {
+					t.Fatal("earlier edition changed", current, err)
+				}
+			}
+			resolved, err := pools.Resolve(ctx, pool.ID, 0, 1)
+			if err != nil || resolved.Total-resolved.Unavailable != 1 {
+				t.Fatal("music pool still empty", resolved, err)
+			}
+		})
 	}
 }
 
@@ -171,5 +205,64 @@ func TestPlaylistAvailabilityMatchesResolvedEligibility(t *testing.T) {
 	counts, err = pools.Availability(ctx, pool.ID)
 	if err != nil || counts.Total != resolved.Total || counts.Unavailable != resolved.Unavailable || counts.Total != 2 || counts.Unavailable != 1 {
 		t.Fatal("aggregate diverged from membership", counts, resolved, err)
+	}
+}
+
+type ignoredFocusModel struct {
+	n       int
+	station string
+}
+
+func (m *ignoredFocusModel) Respond(_ context.Context, _, _, _ string, _ []producer.Item, _ []producer.Tool) (producer.Response, error) {
+	n := m.n
+	m.n++
+	if n < 4 {
+		return responseCall(n, "list_voices", map[string]any{}), nil
+	}
+	if n == 4 {
+		return responseCall(n, "delete_station", map[string]string{"id": m.station}), nil
+	}
+	return responseCall(n, "save_task_progress", producer.Task{Brief: "Configure the requested station", Remaining: []string{fmt.Sprintf("Still checking revision %d", n)}}), nil
+}
+func TestFocusedRecoveryRejectsUnofferedWritesAndChecklistLoops(t *testing.T) {
+	ctx := context.Background()
+	store, r, stations, _, _, _ := fixture(t)
+	owner := call(t, r, "save_station", map[string]string{"name": "Preserved Radio"}).Data.(station.Station)
+	call(t, r, "save_playlist", map[string]string{"station_id": owner.ID, "name": "Unfilled"})
+	_ = store.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "test-key"})
+	model := &ignoredFocusModel{station: owner.ID}
+	svc, err := producer.New(ctx, store, r, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	id, _ := svc.Create(ctx, owner.ID)
+	if err := store.Begin(ctx, id, producer.ID(), "Configure this station"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Checkpoint(ctx, id, []byte(`[]`), producer.Task{Brief: "Configure this station", Remaining: []string{"Populate its pool"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Finish(ctx, id, "failed", []byte(`[]`), producer.Message{Role: "assistant", Text: "Previous run stopped"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Start(ctx, id, producer.ID(), "Configure this station"); err != nil {
+		t.Fatal(err)
+	}
+	c := waitDone(t, store, id)
+	if c.Status != "failed" || model.n > producer.MaxNoProgressRounds+1 {
+		t.Fatal("checklist rewrites bypassed stall limit", c.Status, model.n)
+	}
+	if _, err := stations.Get(ctx, owner.ID); err != nil {
+		t.Fatal("unoffered write ran", err)
+	}
+	for _, message := range c.Messages {
+		if message.Text == "Started: delete station" {
+			t.Fatal("unoffered mutation was started")
+		}
+	}
+	last := c.Messages[len(c.Messages)-1].Text
+	if !strings.Contains(last, "Most frequent checks: list_voices") || strings.Contains(last, "use Continue to resume") {
+		t.Fatal("missing actionable stall diagnosis", last)
 	}
 }

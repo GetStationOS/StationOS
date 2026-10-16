@@ -2,7 +2,7 @@
 {{template "assistant-navigation" .}}
 {{template "page-heading" .Title}}
 <p class="hint">Shared instructions for AI features. Each prompt starts with the StationOS default. DJ personality and voice direction remain on the DJ profile.</p>
-<div class="table-scroll"><table>
+<div class="table"><table>
   <thead><tr><th>Prompt</th><th>Used for</th></tr></thead>
   <tbody>{{range .Definitions}}<tr><td><a href="/producer/assistant/prompts/{{.ID}}/edit">{{.Name}}</a></td><td>{{.Description}}</td></tr>{{end}}</tbody>
 </table></div>

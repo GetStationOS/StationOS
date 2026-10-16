@@ -7,10 +7,10 @@
     <title>{{.Title}} · StationOS</title>
     <meta name="theme-color" content="#10243A">
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/static/app.css?v=dj-status-inline">
-    <script src="/static/htmx.min.js" defer>
+    <link rel="stylesheet" href="{{assetURL "app.css"}}">
+    <script src="{{assetURL "htmx.min.js"}}" defer>
     </script>
-    <script src="/static/app.js" defer>
+    <script src="{{assetURL "app.js"}}" defer>
     </script>
   </head>
   <body hx-boost="true" hx-target="#main" hx-swap="innerHTML show:window:top" hx-indicator="#global-busy">

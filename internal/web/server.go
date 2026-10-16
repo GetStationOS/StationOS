@@ -70,7 +70,7 @@ type Server struct {
 }
 
 func templateFunctions() template.FuncMap {
-	return template.FuncMap{"stationPhotoEditor": stationPhotoEditor, "djPhotoEditor": djPhotoEditor, "djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}
+	return template.FuncMap{"assetURL": assetURL, "stationPhotoEditor": stationPhotoEditor, "djPhotoEditor": djPhotoEditor, "djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}
 }
 
 func New(d Dependencies) (http.Handler, error) {

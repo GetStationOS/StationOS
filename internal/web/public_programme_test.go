@@ -84,7 +84,7 @@ func TestPublicTodayHidesCompletedAndExpandsCurrent(t *testing.T) {
 }
 
 func TestPublicCurrentShowRendersExpandedAndCloseable(t *testing.T) {
-	tmpl, err := template.New("public").ParseFS(assets, "templates/public.html", "templates/audience.html")
+	tmpl, err := template.New("public").Funcs(templateFunctions()).ParseFS(assets, "templates/public.html", "templates/audience.html")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	token := csrf(t, h)
 	w := request(h, "GET", "/producer/djs/new", nil, nil)
-	if w.Code != 200 || strings.Contains(w.Body.String(), `name="api_key"`) || !strings.Contains(w.Body.String(), "Assistant settings") || !strings.Contains(w.Body.String(), "Use example vibe") {
+	if w.Code != 200 || strings.Contains(w.Body.String(), `name="api_key"`) || strings.Contains(w.Body.String(), "All DJs use the curation") || strings.Contains(w.Body.String(), "Use example vibe") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	key := "sk-test-do-not-expose"

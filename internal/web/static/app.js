@@ -134,7 +134,6 @@ document.body.addEventListener('input', event => {
   group.querySelector('.choice-empty').hidden = visible > 0;
 });
 document.body.addEventListener('click', event => {
-  if(event.target.closest('[data-example-vibe]')) {const field=event.target.closest('form').querySelector('[name=vibe]');field.value=field.placeholder;field.focus();}
   const button = event.target.closest('[data-choose]');
   if (!button) return;
   const group = button.closest('[data-choice-group]');

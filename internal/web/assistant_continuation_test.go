@@ -78,8 +78,8 @@ func TestAssistantSettingsRoleChoicesPreserveTheSharedKey(t *testing.T) {
 		t.Fatal("model edit changed key", e)
 	}
 	w = request(h, "GET", "/producer/djs/new", nil, nil)
-	if strings.Contains(w.Body.String(), `name="api_key"`) || !strings.Contains(w.Body.String(), "curation-choice") {
-		t.Fatal("DJ form missed shared settings", w.Body.String())
+	if strings.Contains(w.Body.String(), `name="api_key"`) || strings.Contains(w.Body.String(), "Current model:") {
+		t.Fatal("DJ form exposes shared settings controls or explanation", w.Body.String())
 	}
 }
 

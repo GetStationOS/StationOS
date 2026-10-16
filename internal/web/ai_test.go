@@ -61,7 +61,7 @@ func TestDJFormCannotOverrideGlobalModel(t *testing.T) {
 	token := csrf(t, h)
 	for _, path := range []string{"/producer/djs/new", "/producer/djs/default-pop"} {
 		w := request(h, "GET", path, nil, nil)
-		if w.Code != 200 || strings.Contains(w.Body.String(), `name="model"`) || strings.Contains(w.Body.String(), `name="custom_model"`) || !strings.Contains(w.Body.String(), "gemma4:12b") {
+		if w.Code != 200 || strings.Contains(w.Body.String(), `name="model"`) || strings.Contains(w.Body.String(), `name="custom_model"`) || strings.Contains(w.Body.String(), "Current model:") {
 			t.Fatal("DJ form still has an override", w.Code, w.Body.String())
 		}
 	}

@@ -40,7 +40,7 @@
     {{range .Conversations}}<a href="/producer/assistant?conversation={{.ID}}" {{if eq .ID $.Conversation.ID}}aria-current="page"{{end}}>{{.Title}} <span class="hint" data-assistant-badge="{{.ID}}">
         {{if eq .Status "running"}}Working…{{end}}</span>
     </a>{{end}}
-  </nav>{{end}}
+</nav>{{end}}
   <section class="assistant-chat" aria-label="Producer conversation">
     {{template "assistant-messages" .}}
     {{if .AssistantError}}
@@ -251,6 +251,7 @@
 {{define "assistant-navigation"}}
 <nav class="station-tabs assistant-tabs" aria-label="Assistant navigation">
   <a href="/producer/assistant" data-assistant-nav="chats" {{if eq .AssistantMode "chat"}}aria-current="page"{{end}}>Chats</a>
+  <a href="/producer/assistant/prompts" data-assistant-nav="prompts" {{if eq .AssistantMode "prompts"}}aria-current="page"{{end}}>Prompts</a>
   <a href="/producer/assistant/settings" data-assistant-nav="models" {{if eq .AssistantMode "settings"}}aria-current="page"{{end}}>Models</a>
   <a href="/producer/assistant/endpoints" data-assistant-nav="endpoints" {{if or (eq .AssistantMode "endpoints") (eq .AssistantMode "delete-connection")}}aria-current="page"{{end}}>Endpoints</a>
 </nav>{{end}}

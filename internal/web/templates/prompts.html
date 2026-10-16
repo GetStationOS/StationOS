@@ -1,0 +1,35 @@
+{{define "prompts-page"}}
+{{template "assistant-navigation" .}}
+{{template "page-heading" .Title}}
+<p class="hint">Shared instructions for AI features. Each prompt starts with the StationOS default. DJ personality and voice direction remain on the DJ profile.</p>
+<div class="table-scroll"><table>
+  <thead><tr><th>Prompt</th><th>Used for</th></tr></thead>
+  <tbody>{{range .Definitions}}<tr><td><a href="/producer/assistant/prompts/{{.ID}}/edit">{{.Name}}</a></td><td>{{.Description}}</td></tr>{{end}}</tbody>
+</table></div>
+{{end}}
+{{define "prompt-page"}}
+{{template "assistant-navigation" .}}
+<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/producer/assistant/prompts">Prompts</a> / {{.Prompt.Name}}</nav>
+{{template "page-heading" .Title}}
+<p class="hint">{{.Prompt.Description}} Changes apply to new AI requests. Existing audio and running assistant requests finish with their current instructions.</p>
+<section class="form-panel">
+ {{if .Problem}}<p class="notice error" role="alert">{{.Problem}}</p>{{end}}
+ <form method="post" action="/producer/assistant/prompts/{{.Prompt.ID}}/edit" data-prompt-form data-prompt-error="{{if .Problem}}true{{else}}false{{end}}" hx-disabled-elt="#prompt-reset, #prompt-save">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  {{if eq .Prompt.ID "audience-decisions"}}<p class="hint">Keep the submission ID placeholder <code>{{"{{submission_id}}"}}</code> where the listener submission should be identified.</p>{{end}}
+  <label>Instructions<textarea name="prompt" rows="20" required maxlength="64000">{{.Text}}</textarea></label>
+  <p class="hint" data-prompt-unsaved role="status"></p>
+  <div class="form-footer">
+   <button id="prompt-reset" type="submit" name="action" value="reset" class="secondary" formnovalidate>Restore default</button>
+   <div class="form-actions">
+   <a class="button secondary" href="/producer/assistant/prompts">Cancel</a>
+   <button id="prompt-save" type="submit" name="action" value="save">Save</button>
+   </div>
+  </div>
+ </form>
+</section>
+<dialog class="modal" data-prompt-discard aria-labelledby="prompt-discard-heading">
+ <h2 id="prompt-discard-heading">Discard changes?</h2><p>Your prompt changes have not been saved.</p>
+ <div class="form-actions"><button type="button" class="secondary" data-prompt-keep autofocus>Keep editing</button><button type="button" class="danger" data-prompt-leave>Discard changes</button></div>
+</dialog>
+{{end}}

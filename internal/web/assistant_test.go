@@ -66,7 +66,8 @@ func setupAssistant(t *testing.T, password string, model producer.Model) (http.H
 		t.Fatal(e)
 	}
 	t.Cleanup(svc.Close)
-	h, e := New(Dependencies{Assistant: svc, Stations: st, Sources: src, Catalogue: cat, Playlists: pl, DJs: dj, Schedule: shows, BroadcastConfig: b, Ready: db.PingContext, Password: password, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	svc.Prompts = persistence.Prompts{DB: db}
+	h, e := New(Dependencies{Prompts: persistence.Prompts{DB: db}, Assistant: svc, Stations: st, Sources: src, Catalogue: cat, Playlists: pl, DJs: dj, Schedule: shows, BroadcastConfig: b, Ready: db.PingContext, Password: password, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if e != nil {
 		t.Fatal(e)
 	}

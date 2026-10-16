@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"stationos.local/stationos/internal/mixer"
+	"stationos.local/stationos/internal/prompts"
 	"testing"
 
 	"stationos.local/stationos/internal/catalogue"
@@ -17,7 +18,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -177,6 +178,14 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer db.Close()
+			for _, definition := range prompts.Definitions() {
+				got, e := (Prompts{DB: db}).Prompt(ctx, definition.ID)
+				want, _ := prompts.Default(definition.ID)
+				if e != nil || got != want {
+					t.Fatal("upgrade prompt default", definition.ID, e)
+				}
+			}
+
 			if version >= 17 {
 				show, err := (Schedule{DB: db}).Get(ctx, "station", "legacy-show")
 				if err != nil || show.Description != "" || !show.AcceptRequests || !show.AcceptShoutouts || show.Name != "Preserved show" {

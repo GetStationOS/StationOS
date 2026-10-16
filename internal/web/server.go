@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/prompts"
 	"strconv"
 	"strings"
 
@@ -40,6 +41,7 @@ type ImageGenerator interface {
 }
 
 type Dependencies struct {
+	Prompts         prompts.Store
 	Operations      operations.Store
 	Recording       *operations.Recorder
 	Images          ImageGenerator
@@ -98,6 +100,9 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /readyz", s.ready)
 	mux.Handle("GET /static/", http.FileServerFS(assets))
 	mux.HandleFunc("GET /producer", s.page)
+	mux.HandleFunc("GET /producer/assistant/prompts", s.promptsPage)
+	mux.HandleFunc("GET /producer/assistant/prompts/{id}/edit", s.promptPage)
+	mux.HandleFunc("POST /producer/assistant/prompts/{id}/edit", s.promptPage)
 	mux.HandleFunc("GET /producer/assistant", s.assistantPage)
 	mux.HandleFunc("GET /producer/assistant/providers/{id}/delete", s.deleteAIPage)
 	mux.HandleFunc("GET /producer/assistant/providers/{id}/models", s.discoverModels)

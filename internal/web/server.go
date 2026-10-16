@@ -73,7 +73,7 @@ type Server struct {
 }
 
 func templateFunctions() template.FuncMap {
-	return template.FuncMap{"operationKinds": func() []string {
+	return template.FuncMap{"operationTypeLabel": operationTypeLabel, "operationOutcomeLabel": operationOutcomeLabel, "operationKinds": func() []string {
 		return []string{"music", "speech", "started", "stopped", "handover", "ai", "failure", "recovery", "stall", "listener", "intervention", "unavailable"}
 	}, "operationOutcomes": func() []string {
 		return []string{"transmitting", "completed", "interrupted", "failed", "unknown", "observed"}

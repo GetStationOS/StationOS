@@ -17,6 +17,7 @@ type Event struct {
 	AudioBytes                                                      int64
 	Title, Artist, Composer, Album, TrackID, SourceID, SourceItemID string
 	ShowID, Show, DJID, DJ, PlaylistID, Phase, Reason, Speech       string
+	Playlist                                                        string
 	IncidentCode, Severity, Effect, Action                          string
 	Recover                                                         bool
 }
@@ -35,11 +36,17 @@ type Incident struct {
 	Count                                                           int
 }
 type Filter struct {
-	StationID, Query, Kind, Outcome, ShowID, DJID, Before string
-	From, Until                                           time.Time
-	Limit                                                 int
+	StationID, Query, Kind, Outcome, ShowID, ShowName, DJID, Before, Anchor string
+	From, Until                                                             time.Time
+	Limit                                                                   int
+}
+type HistoryPage struct {
+	Anchor              string
+	Events              []Event
+	Total, Number, Size int
 }
 type Store interface {
+	History(context.Context, Filter, int, int) (HistoryPage, error)
 	Save(context.Context, Event) error
 	Recover(context.Context, time.Time) error
 	Events(context.Context, Filter) ([]Event, error)

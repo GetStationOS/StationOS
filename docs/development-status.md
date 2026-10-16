@@ -177,3 +177,28 @@ Operational notices appear only for active incidents or recording-health problem
 Live overview contents explicitly target the main workspace for navigation; the
 outer polling container retains its own update target. This prevents nested pages
 when following presenter or future content links inside the live region.
+
+
+### Producer history table and quiet updates
+
+Replaced technical event cards with a compact named broadcast-history table and producer
+CSV. Removed visible IDs, source paths, emitted bytes and generic selection messages;
+retained speech, credits and useful failure explanations. In-progress broadcasts no longer
+show a changing checkpoint duration or unknown end. New snapshots capture the playlist
+name; legacy rows can show a labelled current name without altering stored history.
+
+Fixed false refresh notices caused by byte checkpoints, live preparation state and
+unrelated events outside active filters. Initial and polled versions now use the same
+filtered/page-scoped semantic history; completion remains a meaningful update. Repeated
+weekly editions of a named show share one dropdown option and one cross-day filter.
+
+
+### Counted history pagination and results card
+
+Placed history results, CSV export and one shared pagination toolbar inside a card.
+Added matching range/total, first/previous/next/last, page jump and 25/50/100 page sizes,
+with preserved filters and out-of-range clamping. Count and page rows share one read
+transaction; newest-record anchors keep older pages stable while new broadcasts arrive.
+Refresh checks follow the selected page and count, and exports retain the full semantic
+filter while ignoring page bounds. Regression tests cover filters, size changes, page
+clamping, equal-timestamp ordering and new-arrival stability.

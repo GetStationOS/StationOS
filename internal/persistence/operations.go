@@ -103,8 +103,8 @@ func (o Operations) Recover(ctx context.Context, at time.Time) error {
 	}
 	return tx.Commit()
 }
-func (o Operations) Events(ctx context.Context, f operations.Filter) ([]operations.Event, error) {
-	query := `SELECT snapshot FROM transmission_events WHERE station_id=?`
+func historyWhere(f operations.Filter) (string, []any) {
+	query := ` FROM transmission_events WHERE station_id=?`
 	args := []any{f.StationID}
 	if !f.From.IsZero() {
 		query += ` AND started>=?`
@@ -126,6 +126,10 @@ func (o Operations) Events(ctx context.Context, f operations.Filter) ([]operatio
 		query += ` AND json_extract(snapshot,'$.ShowID')=?`
 		args = append(args, f.ShowID)
 	}
+	if f.ShowName != "" {
+		query += ` AND json_extract(snapshot,'$.Show')=?`
+		args = append(args, f.ShowName)
+	}
 	if f.DJID != "" {
 		query += ` AND json_extract(snapshot,'$.DJID')=?`
 		args = append(args, f.DJID)
@@ -138,6 +142,15 @@ func (o Operations) Events(ctx context.Context, f operations.Filter) ([]operatio
 		query += ` AND (started,sequence)<(SELECT started,sequence FROM transmission_events WHERE id=? AND station_id=?)`
 		args = append(args, f.Before, f.StationID)
 	}
+	if f.Anchor != "" {
+		query += ` AND (started,sequence)<=(SELECT started,sequence FROM transmission_events WHERE id=? AND station_id=?)`
+		args = append(args, f.Anchor, f.StationID)
+	}
+	return query, args
+}
+func (o Operations) Events(ctx context.Context, f operations.Filter) ([]operations.Event, error) {
+	where, args := historyWhere(f)
+	query := "SELECT snapshot" + where
 	query += ` ORDER BY started DESC,sequence DESC LIMIT ?`
 	limit := f.Limit
 	if limit <= 0 || limit > 1001 {
@@ -162,6 +175,54 @@ func (o Operations) Events(ctx context.Context, f operations.Filter) ([]operatio
 		result = append(result, e)
 	}
 	return result, rows.Err()
+}
+
+// Count and read one bounded page from the same database snapshot.
+func (o Operations) History(ctx context.Context, f operations.Filter, page, size int) (operations.HistoryPage, error) {
+	result := operations.HistoryPage{}
+	if page < 1 || page > 40001 || (size != 25 && size != 50 && size != 100) {
+		return result, errors.New("invalid history page")
+	}
+	where, args := historyWhere(f)
+	tx, err := o.DB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return result, err
+	}
+	defer tx.Rollback()
+	if err = tx.QueryRowContext(ctx, "SELECT count(*)"+where, args...).Scan(&result.Total); err != nil {
+		return result, err
+	}
+	result.Number = min(page, max(1, (result.Total+size-1)/size))
+	result.Size = size
+	if result.Total > 0 {
+		if err = tx.QueryRowContext(ctx, "SELECT id"+where+" ORDER BY started DESC,sequence DESC LIMIT 1", args...).Scan(&result.Anchor); err != nil {
+			return result, err
+		}
+	}
+	params := append(append([]any(nil), args...), size, (result.Number-1)*size)
+	rows, err := tx.QueryContext(ctx, "SELECT snapshot"+where+" ORDER BY started DESC,sequence DESC LIMIT ? OFFSET ?", params...)
+	if err != nil {
+		return result, err
+	}
+	for rows.Next() {
+		var raw string
+		var event operations.Event
+		if err = rows.Scan(&raw); err != nil {
+			rows.Close()
+			return result, err
+		}
+		if err = json.Unmarshal([]byte(raw), &event); err != nil {
+			rows.Close()
+			return result, err
+		}
+		result.Events = append(result.Events, event)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return result, err
+	}
+	return result, tx.Commit()
 }
 func (o Operations) Incidents(ctx context.Context, station string, active bool) ([]operations.Incident, error) {
 	query := `SELECT id,first_at,latest_at,recovered_at,acknowledged_at,occurrences,snapshot FROM transmission_incidents WHERE station_id=?`

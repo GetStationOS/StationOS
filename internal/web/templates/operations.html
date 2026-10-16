@@ -11,45 +11,50 @@
 {{template "page-heading" .Title}}
 {{template "operational-summary" .Summary}}
 <p class="hint">Times: {{.Station.Timezone}}. History records server transmission, not confirmed listener playback.</p>
-<div data-operations-version="{{.Version}}" data-operations-url="/producer/stations/{{.Station.ID}}/operations/version">
-  <p class="notice" data-operations-notice hidden role="status"><a href="{{.RefreshURL}}">New events available · refresh this view</a></p>
+<div data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
+  <p class="notice" data-operations-notice hidden role="status"><a href="{{.RefreshURL}}">{{if eq .Section "timeline"}}Broadcast history updated{{else}}Incidents updated{{end}} · refresh this view</a></p>
   <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}">Refresh to reconnect</a>.</p>
 </div>
 {{if eq .Section "timeline"}}
 <form method="get" action="/producer/stations/{{.Station.ID}}/timeline" class="operations-filters">
-  <label>Search<input name="q" value="{{.Query}}" maxlength="200" placeholder="Title, artist, speech or reason"></label>
+  <label>Search<input name="q" value="{{.Query}}" maxlength="200" placeholder="Title, artist or spoken text"></label>
   <label>From<input type="date" name="from" value="{{.From}}"></label>
   <label>Through<input type="date" name="until" value="{{.Until}}"></label>
-  <label>Type<select name="kind"><option value="">All types</option>{{range $kind := (operationKinds)}}<option value="{{$kind}}" {{if eq $.Kind $kind}}selected{{end}}>{{$kind}}</option>{{end}}</select></label>
-  <label>Outcome<select name="outcome"><option value="">All outcomes</option>{{range $outcome := (operationOutcomes)}}<option value="{{$outcome}}" {{if eq $.Outcome $outcome}}selected{{end}}>{{$outcome}}</option>{{end}}</select></label>
+  <label>Type<select name="kind"><option value="">All types</option>{{range $kind := (operationKinds)}}<option value="{{$kind}}" {{if eq $.Kind $kind}}selected{{end}}>{{operationTypeLabel $kind}}</option>{{end}}</select></label>
+  <label>Outcome<select name="outcome"><option value="">All outcomes</option>{{range $outcome := (operationOutcomes)}}<option value="{{$outcome}}" {{if eq $.Outcome $outcome}}selected{{end}}>{{operationOutcomeLabel $outcome}}</option>{{end}}</select></label>
   <label>Show<select name="show"><option value="">All shows</option>{{range .ShowChoices}}<option value="{{.ID}}" {{if eq $.ShowID .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
   <label>DJ<select name="dj"><option value="">All DJs</option>{{range .DJChoices}}<option value="{{.ID}}" {{if eq $.DJID .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
   <div class="operations-filter-actions">
+    <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
     <button>Apply filters</button>
     <a href="/producer/stations/{{.Station.ID}}/timeline">Clear</a>
   </div>
 </form>
-<nav class="operations-toolbar" aria-label="History navigation"><a class="button secondary" href="{{.ExportURL}}" hx-boost="false">Export CSV</a><span>Up to 50 events per page</span>{{if .NextURL}}<a href="{{.NextURL}}">Older events →</a>{{end}}</nav>
-<div class="operations-timeline">
-{{range .Events}}
-<article class="operation-event" id="event-{{.ID}}">
-  <header><time>{{.StartLabel}}</time><span class="status">{{.Kind}} · {{.Outcome}}</span></header>
-  <h2>{{if .Title}}{{.Title}}{{else}}{{.Reason}}{{end}}</h2>
-  {{if .Artist}}<p>{{.Artist}}{{if .Album}} · {{.Album}}{{end}}</p>{{end}}
-  {{if .Show}}<p class="hint">{{.Show}}{{if .DJ}} · {{.DJ}}{{end}}</p>{{end}}
-  <details><summary>Event details</summary><dl class="operation-details">
-    <dt>Event ID</dt><dd>{{.ID}}</dd><dt>End</dt><dd>{{.EndLabel}}</dd><dt>Audio emitted</dt><dd>{{.Duration}}</dd>
-    {{if .Composer}}<dt>Composer</dt><dd>{{.Composer}}</dd>{{end}}
-    {{if .Reason}}<dt>Reason</dt><dd>{{.Reason}}</dd>{{end}}
-    {{if .SourceID}}<dt>Source / item</dt><dd>{{.SourceID}} / {{.SourceItemID}}</dd>{{end}}
-    {{if .PlaylistID}}<dt>Playlist ID</dt><dd>{{.PlaylistID}}</dd>{{end}}
-    {{if .ShowID}}<dt>Show ID</dt><dd>{{.ShowID}}</dd>{{end}}
-    {{if .DJID}}<dt>DJ ID</dt><dd>{{.DJID}}</dd>{{end}}
-    {{if .Speech}}<dt>Spoken text</dt><dd>{{.Speech}}</dd>{{end}}
-  </dl></details>
-</article>
-{{else}}<section class="empty-state"><h2>No matching events</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
+<section class="history-card" aria-label="Broadcast history results">
+{{template "pagination" .Pagination}}
+{{if .Events}}
+<div class="table-scroll history-table-scroll" tabindex="0" aria-label="Broadcast history">
+<table class="history-table">
+  <thead><tr><th scope="col">Started</th><th scope="col">Recording / activity</th><th scope="col">Show / presenter</th><th scope="col">Playlist</th><th scope="col">Duration</th><th scope="col">Outcome</th></tr></thead>
+  <tbody>
+  {{range .Events}}
+  <tr id="event-{{.ID}}">
+    <td><time>{{.StartLabel}}</time></td>
+    <td><span class="eyebrow">{{.TypeLabel}}</span><strong>{{if .Title}}{{.Title}}{{else}}{{.TypeLabel}}{{end}}</strong>
+      {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint">{{.Album}}</span>{{end}}
+      {{if or .Composer .Speech}}<details><summary>{{if .Speech}}Spoken text{{else}}Recording credits{{end}}</summary>{{if .Composer}}<p>Composer: {{.Composer}}</p>{{end}}{{if .Speech}}<p>{{.Speech}}</p>{{end}}</details>{{end}}
+    </td>
+    <td>{{if .Show}}<strong>{{.Show}}</strong>{{else}}<span class="hint">Not recorded</span>{{end}}{{if .DJ}}<span>{{.DJ}}</span>{{end}}</td>
+    <td>{{if .Playlist}}{{.Playlist}}{{else}}<span class="hint">Not recorded</span>{{end}}</td>
+    <td>{{.Duration}}</td>
+    <td><span class="status">{{.OutcomeLabel}}</span>{{if .Notes}}<p class="history-note">{{.Notes}}</p>{{end}}{{if and (not .Ended.IsZero) (or (eq .Kind "music") (eq .Kind "speech"))}}<span class="hint">Ended {{.EndLabel}}</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
 </div>
+{{else}}<section class="empty-state"><h2>No matching broadcasts</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
+</section>
 {{else if eq .Section "incidents"}}
 <p>Acknowledgement records that a producer has seen an incident. Recovery is recorded separately when measured. Showing the latest 100 incidents.</p>
 {{range .Incidents}}

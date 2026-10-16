@@ -300,3 +300,21 @@ an incomplete-history warning while audio continues. A restart marks unfinished 
 as unknown rather than claiming completion. Checkpoints save byte progress approximately every 15 seconds; hard crashes can also lose queued writes. These records do
 not prove what a listener heard. History currently has no automatic expiry; monitor database
 size and include it in normal backups. Only one server should own a StationOS database.
+
+
+Broadcast history uses a compact table of recording/activity, show, presenter, playlist,
+duration and outcome. Spoken text and recording credits can be expanded. Internal IDs,
+byte counters and generic selection messages stay out of the producer view and CSV.
+New records capture the playlist name at transmission; older records may show a clearly
+labelled current name, or Not recorded if unavailable. Recurring editions of the same
+named show share one filter across weekdays. Update notices follow the active filters
+and historical page, ignore ongoing byte checkpoints and report meaningful changes such
+as completion rather than treating preparation status as a new broadcast.
+
+
+History results sit in one card with one pagination toolbar: matching range/total,
+first/previous/next/last pages, page jump, 25/50/100 rows per page and CSV export.
+Filters are preserved between pages. Paging anchors to the newest matching record
+when browsing so later broadcasts do not shift older pages. Applying filters again
+starts a fresh view; exports include the complete filtered history within the 1,000-row
+export limit rather than just the visible page.

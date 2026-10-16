@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +42,7 @@ func (s *Server) operationalSummary(r *http.Request, id string) operationSummary
 
 type operationalEvent struct {
 	operations.Event
-	StartLabel, EndLabel, Duration string
+	StartLabel, EndLabel, Duration, TypeLabel, OutcomeLabel, Notes string
 }
 type operationalIncident struct {
 	operations.Incident
@@ -51,6 +50,7 @@ type operationalIncident struct {
 }
 type operationChoice struct{ ID, Name string }
 type operationsView struct {
+	Pagination             pagination
 	ShowChoices, DJChoices []operationChoice
 	pageView
 	Broadcast                                       broadcast.State
@@ -58,7 +58,7 @@ type operationsView struct {
 	Events                                          []operationalEvent
 	Incidents                                       []operationalIncident
 	Query, Kind, Outcome, From, Until, ShowID, DJID string
-	NextURL, ExportURL, Version, RefreshURL         string
+	ExportURL, Version, RefreshURL, VersionURL      string
 }
 
 func (v operationsView) player() playerView {
@@ -72,8 +72,12 @@ func operationalTime(t time.Time, loc *time.Location) string {
 }
 func operationFilter(r *http.Request, loc *time.Location) (operations.Filter, error) {
 	q := r.URL.Query()
-	f := operations.Filter{StationID: r.PathValue("id"), Query: q.Get("q"), Kind: q.Get("kind"), Outcome: q.Get("outcome"), ShowID: q.Get("show"), DJID: q.Get("dj"), Before: q.Get("before"), Limit: 51}
-	if len(f.Query) > 200 || len(f.Before) > 64 || len(f.ShowID) > 128 || len(f.DJID) > 128 {
+	f := operations.Filter{StationID: r.PathValue("id"), Query: q.Get("q"), Kind: q.Get("kind"), Outcome: q.Get("outcome"), ShowID: q.Get("show"), DJID: q.Get("dj"), Before: q.Get("before"), Anchor: q.Get("anchor"), Limit: 51}
+	if strings.HasPrefix(f.ShowID, "name:") {
+		f.ShowName = strings.TrimPrefix(f.ShowID, "name:")
+		f.ShowID = ""
+	}
+	if len(f.Query) > 200 || len(f.Before) > 64 || len(f.Anchor) > 64 || len(f.ShowID) > 128 || len(f.ShowName) > 200 || len(f.DJID) > 128 {
 		return f, errors.New("Filter is too long")
 	}
 	var err error
@@ -125,7 +129,7 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(r.URL.Path, "/incidents") {
 		v.Section = "incidents"
 	}
-	v.Title = map[string]string{"timeline": "Transmission timeline", "incidents": "Incidents"}[v.Section]
+	v.Title = map[string]string{"timeline": "Broadcast history", "incidents": "Incidents"}[v.Section]
 	if s.d.Broadcast != nil {
 		v.Broadcast = s.d.Broadcast.State(st.ID)
 	} else {
@@ -137,33 +141,43 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	v.From = r.URL.Query().Get("from")
 	v.Until = r.URL.Query().Get("until")
 	v.ShowID = f.ShowID
+	if f.ShowName != "" {
+		v.ShowID = "name:" + f.ShowName
+	}
 	v.DJID = f.DJID
 	v.RefreshURL = r.URL.RequestURI()
 	if strings.HasSuffix(r.URL.Path, "/history.csv") {
 		s.exportOperations(w, r, f, loc)
 		return
 	}
-	events, err := s.d.Operations.Events(r.Context(), f)
+	page, size, err := pageRequest(r.URL.Query())
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	history, err := s.d.Operations.History(r.Context(), f, page, size)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	if len(events) > 50 {
-		events = events[:50]
-		q := r.URL.Query()
-		q.Set("before", events[49].ID)
-		v.NextURL = "?" + q.Encode()
+	events := history.Events
+	pageValues := r.URL.Query()
+	if f.Anchor == "" && len(events) > 0 {
+		pageValues.Set("anchor", history.Anchor)
 	}
-	for _, e := range events {
-		d := "—"
-		if e.Kind == "music" || e.Kind == "speech" {
-			d = fmt.Sprintf("%.2f s", float64(e.AudioBytes)/16000)
-		}
-		v.Events = append(v.Events, operationalEvent{e, operationalTime(e.Started, loc), operationalTime(e.Ended, loc), d})
+	v.Pagination = paging("/producer/stations/"+url.PathEscape(st.ID)+"/timeline", pageValues, history.Number, size, history.Total)
+	v.Pagination.SizeLabel = "Events per page"
+	for _, e := range s.historyDisplayEvents(r, st.ID, events) {
+		v.Events = append(v.Events, producerEvent(e, loc))
 	}
+
 	q := r.URL.Query()
 	q.Del("before")
+	q.Del("anchor")
+	q.Del("page")
+	q.Del("per_page")
 	v.ExportURL = "/producer/stations/" + url.PathEscape(st.ID) + "/history.csv?" + q.Encode()
+	v.Pagination.ExportURL = v.ExportURL
 	incidents, err := s.d.Operations.Incidents(r.Context(), st.ID, false)
 	if err != nil {
 		s.fail(w, err)
@@ -172,10 +186,10 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	for _, i := range incidents {
 		v.Incidents = append(v.Incidents, operationalIncident{i, operationalTime(i.First, loc), operationalTime(i.Latest, loc), operationalTime(i.Recovered, loc)})
 	}
-	shows, djs := map[string]string{}, map[string]string{}
+	shows, djs := map[string]bool{}, map[string]string{}
 	for _, e := range events {
-		if e.ShowID != "" {
-			shows[e.ShowID] = e.Show
+		if e.Show != "" {
+			shows[e.Show] = true
 		}
 		if e.DJID != "" {
 			djs[e.DJID] = e.DJ
@@ -188,9 +202,10 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		for _, show := range rows {
-			shows[show.ID] = show.Name
+			shows[show.Name] = true
 		}
 	}
+
 	if s.d.DJs != nil {
 		rows, err := s.d.DJs.List(r.Context())
 		if err != nil {
@@ -201,65 +216,181 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 			djs[dj.ID] = dj.Name
 		}
 	}
-	if f.ShowID != "" && shows[f.ShowID] == "" {
-		shows[f.ShowID] = "Historical show"
+	if f.ShowName != "" {
+		shows[f.ShowName] = true
+	}
+	if f.ShowID != "" {
+		v.ShowChoices = append(v.ShowChoices, operationChoice{f.ShowID, "Selected show edition"})
 	}
 	if f.DJID != "" && djs[f.DJID] == "" {
 		djs[f.DJID] = "Historical DJ"
 	}
-	for id, name := range shows {
-		v.ShowChoices = append(v.ShowChoices, operationChoice{id, name})
+	for name := range shows {
+		v.ShowChoices = append(v.ShowChoices, operationChoice{"name:" + name, name})
 	}
 	for id, name := range djs {
 		v.DJChoices = append(v.DJChoices, operationChoice{id, name})
 	}
 	sort.Slice(v.ShowChoices, func(i, j int) bool { return v.ShowChoices[i].Name < v.ShowChoices[j].Name })
 	sort.Slice(v.DJChoices, func(i, j int) bool { return v.DJChoices[i].Name < v.DJChoices[j].Name })
-	v.Version, err = s.operationsFingerprint(r, st.ID)
-	if err != nil {
-		s.fail(w, err)
-		return
+	q = r.URL.Query()
+	q.Del("section")
+	for key, values := range q {
+		if len(values) == 1 && values[0] == "" {
+			q.Del(key)
+		}
 	}
+	if v.Section == "incidents" {
+		q.Set("section", "incidents")
+		v.Version = incidentFingerprint(incidents)
+	} else {
+		v.Version = historyPageFingerprint(history)
+	}
+	v.VersionURL = "/producer/stations/" + url.PathEscape(st.ID) + "/operations/version?" + q.Encode()
+
 	s.renderPage(w, r, 200, "operations-page", v)
 }
-func (s *Server) operationsFingerprint(r *http.Request, id string) (string, error) {
-	e, err := s.d.Operations.Events(r.Context(), operations.Filter{StationID: id, Limit: 50})
-	if err != nil {
-		return "", err
+
+// Byte checkpoints are technical progress, not producer-visible history changes.
+// Use the same filtered, paginated records as the rendered table.
+func historyPageFingerprint(page operations.HistoryPage) string {
+	return fmt.Sprintf("%s:%d", historyFingerprint(page.Events), page.Total)
+}
+func historyFingerprint(events []operations.Event) string {
+	snapshot := make([]operations.Event, len(events))
+	copy(snapshot, events)
+	for i := range snapshot {
+		if snapshot[i].Outcome == "transmitting" {
+			snapshot[i].AudioBytes = 0
+		}
 	}
-	i, err := s.d.Operations.Incidents(r.Context(), id, true)
-	if err != nil {
-		return "", err
-	}
-	var runtime broadcast.State
-	if s.d.Broadcast != nil {
-		runtime = s.d.Broadcast.State(id)
-	}
-	raw, _ := json.Marshal(struct {
-		Current, Next, Presenter, Curation, Programme, Following string
-		Events                                                   []operations.Event
-		Incidents                                                []operations.Incident
-		Healthy                                                  bool
-	}{runtime.Current.ID, runtime.Next.ID, runtime.PresenterStatus, runtime.CurationStatus, runtime.Programme.Key, runtime.Following.Key, e, i, s.d.Recording == nil || s.d.Recording.Healthy()})
+	raw, _ := json.Marshal(snapshot)
 	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return hex.EncodeToString(sum[:])
+}
+func incidentFingerprint(incidents []operations.Incident) string {
+	raw, _ := json.Marshal(incidents)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
 }
 func (s *Server) operationsVersion(w http.ResponseWriter, r *http.Request) {
 	if s.d.Operations == nil {
 		http.NotFound(w, r)
 		return
 	}
-	if _, err := s.d.Stations.Get(r.Context(), r.PathValue("id")); err != nil {
+	st, err := s.d.Stations.Get(r.Context(), r.PathValue("id"))
+	if errors.Is(err, station.ErrNotFound) {
 		http.NotFound(w, r)
 		return
 	}
-	v, err := s.operationsFingerprint(r, r.PathValue("id"))
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
+	var version string
+	if r.URL.Query().Get("section") == "incidents" {
+		incidents, err := s.d.Operations.Incidents(r.Context(), st.ID, false)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		version = incidentFingerprint(incidents)
+	} else {
+		loc, err := time.LoadLocation(st.Timezone)
+		if err != nil {
+			loc = time.UTC
+		}
+		f, err := operationFilter(r, loc)
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		page, size, err := pageRequest(r.URL.Query())
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		history, err := s.d.Operations.History(r.Context(), f, page, size)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		version = historyPageFingerprint(history)
+	}
 	w.Header().Set("Cache-Control", "no-store")
-	s.json(w, 200, map[string]string{"version": v})
+	s.json(w, 200, map[string]string{"version": version})
+}
+
+// Prefer the immutable name captured at transmission. Older records can show
+// an explicitly labelled current playlist name without rewriting their snapshot.
+func (s *Server) historyDisplayEvents(r *http.Request, stationID string, events []operations.Event) []operations.Event {
+	if s.d.Playlists == nil {
+		return events
+	}
+	needsNames := false
+	for _, e := range events {
+		if e.Playlist == "" && e.PlaylistID != "" {
+			needsNames = true
+			break
+		}
+	}
+	if !needsNames {
+		return events
+	}
+	pools, err := s.d.Playlists.List(r.Context(), stationID)
+	if err != nil {
+		s.d.Logger.Warn("Historical playlist names unavailable", "station_id", stationID, "error", err)
+		return events
+	}
+	names := map[string]string{}
+	for _, p := range pools {
+		names[p.ID] = p.Name
+	}
+	display := append([]operations.Event(nil), events...)
+	for i := range display {
+		if display[i].Playlist == "" && names[display[i].PlaylistID] != "" {
+			display[i].Playlist = names[display[i].PlaylistID] + " (current name)"
+		}
+	}
+	return display
+}
+func operationTypeLabel(kind string) string {
+	label := map[string]string{"music": "Music", "speech": "DJ speech", "started": "Station started", "stopped": "Station stopped", "handover": "Show handover", "ai": "DJ preparation", "failure": "Playback problem", "recovery": "Recovered", "stall": "Audio delayed", "listener": "Listener disconnected", "intervention": "Producer action", "unavailable": "Station unavailable"}[kind]
+	if label == "" {
+		label = "Station activity"
+	}
+	return label
+}
+func operationOutcomeLabel(outcome string) string {
+	label := map[string]string{"transmitting": "In progress", "completed": "Completed", "interrupted": "Interrupted", "failed": "Failed", "unknown": "Not confirmed", "observed": "Recorded"}[outcome]
+	if label == "" {
+		label = "Not recorded"
+	}
+	return label
+}
+func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
+	v := operationalEvent{Event: e, StartLabel: operationalTime(e.Started, loc), EndLabel: operationalTime(e.Ended, loc), Duration: "—"}
+	v.TypeLabel = operationTypeLabel(e.Kind)
+	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
+	if e.Outcome == "transmitting" {
+		v.EndLabel = "In progress"
+	} else if e.Ended.IsZero() {
+		v.EndLabel = "Not recorded"
+	}
+	if e.Kind == "music" || e.Kind == "speech" {
+		if e.Outcome == "transmitting" {
+			v.Duration = "In progress"
+		} else {
+			seconds := e.AudioBytes / 16000
+			v.Duration = fmt.Sprintf("%d:%02d", seconds/60, seconds%60)
+		}
+		if e.Outcome == "failed" || e.Outcome == "interrupted" || e.Outcome == "unknown" {
+			v.Notes = e.Reason
+		}
+	} else {
+		v.Notes = e.Reason
+	}
+	return v
 }
 func (s *Server) acknowledgeIncident(w http.ResponseWriter, r *http.Request) {
 	if s.d.Operations == nil {
@@ -290,6 +421,7 @@ func csvText(v string) string {
 }
 func (s *Server) exportOperations(w http.ResponseWriter, r *http.Request, f operations.Filter, loc *time.Location) {
 	f.Before = ""
+	f.Anchor = ""
 	f.Limit = 1001
 	events, err := s.d.Operations.Events(r.Context(), f)
 	if err != nil {
@@ -303,9 +435,10 @@ func (s *Server) exportOperations(w http.ResponseWriter, r *http.Request, f oper
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="station-transmissions.csv"`)
 	writer := csv.NewWriter(w)
-	_ = writer.Write([]string{"Event ID", "Started", "Ended", "Type", "Outcome", "Title", "Artist", "Composer", "Album", "Show", "DJ", "Audio bytes", "Reason", "Speech"})
-	for _, e := range events {
-		row := []string{e.ID, operationalTime(e.Started, loc), operationalTime(e.Ended, loc), e.Kind, e.Outcome, e.Title, e.Artist, e.Composer, e.Album, e.Show, e.DJ, strconv.FormatInt(e.AudioBytes, 10), e.Reason, e.Speech}
+	_ = writer.Write([]string{"Started", "Ended", "Type", "Title", "Artist", "Album", "Composer", "Show", "DJ", "Playlist", "Duration", "Outcome", "Notes", "Spoken text"})
+	for _, e := range s.historyDisplayEvents(r, f.StationID, events) {
+		v := producerEvent(e, loc)
+		row := []string{v.StartLabel, v.EndLabel, v.TypeLabel, e.Title, e.Artist, e.Album, e.Composer, e.Show, e.DJ, e.Playlist, v.Duration, v.OutcomeLabel, v.Notes, e.Speech}
 		for j := range row {
 			row[j] = csvText(row[j])
 		}

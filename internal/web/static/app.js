@@ -820,7 +820,7 @@ document.body.addEventListener('htmx:timeout', event => {
       const result = await response.json();
       if (!region.isConnected) return;
       region.querySelector('[data-operations-disconnected]').hidden = true;
-      if (result.version !== region.dataset.operationsVersion) region.querySelector('[data-operations-notice]').hidden = false;
+      region.querySelector('[data-operations-notice]').hidden = result.version === region.dataset.operationsVersion;
     } catch (_) {
       if (region.isConnected) region.querySelector('[data-operations-disconnected]').hidden = false;
     } finally { pending = false; }

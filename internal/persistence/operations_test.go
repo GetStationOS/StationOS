@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"stationos.local/stationos/internal/operations"
 	"testing"
@@ -17,7 +18,7 @@ func TestTransmissionHistoryRestartSnapshotsAndFilters(t *testing.T) {
 	}
 	o := Operations{DB: db}
 	at := time.Date(2026, 10, 25, 1, 15, 0, 0, time.UTC)
-	e := operations.Event{ID: "music", StationID: "s", Started: at, Kind: "music", Outcome: "transmitting", Title: "Original title", Artist: "Artist", Composer: "Composer", ShowID: "show", DJID: "dj", AudioBytes: 4096}
+	e := operations.Event{ID: "music", StationID: "s", Started: at, Kind: "music", Outcome: "transmitting", Title: "Original title", Playlist: "Original pool", Artist: "Artist", Composer: "Composer", ShowID: "show", DJID: "dj", AudioBytes: 4096}
 	if err = o.Save(ctx, e); err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestTransmissionHistoryRestartSnapshotsAndFilters(t *testing.T) {
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("filters: %+v %v", rows, err)
 	}
-	if !rows[0].Ended.IsZero() || rows[0].AudioBytes != 240000 || rows[0].Composer != "Composer" {
+	if !rows[0].Ended.IsZero() || rows[0].AudioBytes != 240000 || rows[0].Composer != "Composer" || rows[0].Playlist != "Original pool" {
 		t.Fatalf("invented end or lost snapshot: %+v", rows[0])
 	}
 	rows, err = o.Events(ctx, operations.Filter{StationID: "s", Query: "lovely"})
@@ -138,5 +139,54 @@ func TestTransmissionIncidentsGroupAcknowledgeRecoverAndRecur(t *testing.T) {
 	i, _ = o.Incidents(ctx, "s", true)
 	if len(i) != 1 || i[0].Count != 1 || !i[0].Acknowledged.IsZero() {
 		t.Fatalf("recurrence %+v", i)
+	}
+}
+
+func TestHistoryPaginationCountsClampsAndKeepsSnapshot(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store := Operations{DB: db}
+	at := time.Now()
+	for n := 0; n < 60; n++ {
+		e := operations.Event{ID: fmt.Sprintf("event-%02d", n), StationID: "s", Started: at, Kind: "music", Outcome: "completed", Show: "Breakfast", ShowID: fmt.Sprintf("day-%d", n%7)}
+		if err = store.Save(ctx, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := operations.Filter{StationID: "s", Kind: "music", ShowName: "Breakfast"}
+	page, err := store.History(ctx, f, 2, 25)
+	if err != nil || page.Total != 60 || page.Number != 2 || len(page.Events) != 25 || page.Anchor != "event-59" || page.Events[0].ID != "event-34" || page.Events[24].ID != "event-10" {
+		t.Fatalf("page: %+v %v", page, err)
+	}
+	f.Anchor = page.Anchor
+	if err = store.Save(ctx, operations.Event{ID: "new", StationID: "s", Started: at.Add(time.Minute), Kind: "music", Outcome: "completed", Show: "Breakfast"}); err != nil {
+		t.Fatal(err)
+	}
+	stable, err := store.History(ctx, f, 2, 25)
+	if err != nil || stable.Total != 60 || stable.Events[0].ID != page.Events[0].ID {
+		t.Fatalf("new broadcast shifted older page: %+v %v", stable, err)
+	}
+	last, err := store.History(ctx, f, 999, 25)
+	if err != nil || last.Number != 3 || len(last.Events) != 10 {
+		t.Fatalf("clamp: %+v %v", last, err)
+	}
+	larger, err := store.History(ctx, f, 1, 50)
+	if err != nil || len(larger.Events) != 50 || larger.Total != 60 {
+		t.Fatalf("size: %+v %v", larger, err)
+	}
+	f.StationID = "other"
+	foreign, err := store.History(ctx, f, 1, 25)
+	if err != nil || foreign.Total != 0 || len(foreign.Events) != 0 {
+		t.Fatal("foreign anchor leaked data", foreign, err)
+	}
+	if _, err = store.History(ctx, f, 0, 25); err == nil {
+		t.Fatal("invalid page accepted")
+	}
+	if _, err = store.History(ctx, f, 1, 500); err == nil {
+		t.Fatal("unbounded page accepted")
 	}
 }

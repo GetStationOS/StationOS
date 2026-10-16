@@ -388,3 +388,26 @@ repeat these as a shortcut row inside the station overview or show a zero-incide
 status. Surface only active incidents and history-recording problems as notices.
 Navigation links inside a live region explicitly inherit a main-workspace target,
 separate from the region's polling target, so clicks cannot nest a page inside a card.
+
+### Producer broadcast history
+
+Timeline is a compact broadcast-history table: when, recording/activity, show, presenter,
+playlist, duration and outcome. Keep database IDs, source object paths, byte counters
+and routine selection diagnostics out of visible history and its producer CSV. Retain
+spoken text, credits and useful failure explanations. In-progress items say In progress,
+not Unknown or a periodically changing emitted-byte duration. Use names captured at
+transmission; label any current-name fallback on older records honestly. Group recurring
+show editions by their saved show name, with one filter including every weekday.
+
+A refresh notice must compare the same filtered page the producer is reading. Ignore
+byte checkpoints, unrelated broadcasts and runtime preparation/listener state. Completion
+and interruption are meaningful changes; say Broadcast history updated rather than
+claiming every update is a new event. Timeline history survives log rotation; low-level
+fault diagnosis belongs in the server logs.
+
+
+Keep broadcast history results and their single shared pagination toolbar inside one
+card, with filters above it. Provide the matching range and total, first/previous/next/last,
+page jump, 25/50/100 rows per page and export together. Preserve date/show/DJ/type/outcome
+filters and page size. Use a stable history anchor while browsing older pages so new
+broadcasts do not move records between pages. Applying filters resets the anchor.

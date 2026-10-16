@@ -615,3 +615,22 @@ It neither starts production nor requests AI. Selected audio remains revalidatab
 This first release does not add audio recording, exact selection provenance, a durable
 future running order, external alerts, aggregate metrics or automatic retention. History
 is retained until explicitly managed; include it in database backup/capacity planning.
+
+
+Producer history renders semantic music/speech outcomes and station activity in a table;
+IDs and byte checkpoints remain in storage rather than the visible table or CSV. Event
+JSON now carries an optional immutable playlist-name snapshot; old events require no
+migration and may show an explicitly labelled current-name fallback. Named show filters
+match the saved Show value across per-weekday show IDs. History fingerprints use the
+same filtered/keyset-paginated raw records as the rendered page and exclude byte counts
+while transmitting. They do not include runtime queues or incident state. Incident pages
+fingerprint their own incident records separately. The initial fingerprint comes from
+the already-loaded page records, avoiding a second-read race before the first poll.
+
+
+History pages use a counted bounded read in one SQLite transaction. The shared pagination
+component preserves history filters and an optional newest-record anchor, alongside
+page number and 25/50/100 page size. The anchor bounds the existing (started, sequence)
+ordering so newer arrivals do not shift older pages; legacy before cursors remain valid.
+Out-of-range pages clamp to the last page. History version checks use the same paginated
+records and matching total. Exports clear pagination bounds and retain semantic filters.

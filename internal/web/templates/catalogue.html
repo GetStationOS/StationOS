@@ -1,5 +1,6 @@
 {{define "pagination"}}
 <div class="pagination-bar">
+ {{if .ExportURL}}<a class="button secondary" href="{{.ExportURL}}" hx-boost="false">Export CSV</a>{{end}}
   {{if .ActionURL}}<a class="button secondary add-tracks" href="{{.ActionURL}}">+ Add tracks</a>{{end}}
   <span class="page-range">{{.Start}}–{{.End}} of {{.Total}}</span>
   <nav class="pagination" aria-label="Pagination">
@@ -17,8 +18,8 @@
     <input type="hidden" name="{{.Key}}" value="{{.Value}}">{{end}}{{end}}
     <label>Page <input type="number" name="page" min="1" max="{{.Pages}}" value="{{.Number}}" required> / {{.Pages}}</label>
     <label>
-      <span class="visually-hidden">Tracks per page</span>
-      <select name="per_page" aria-label="Tracks per page">
+      <span class="visually-hidden">{{if .SizeLabel}}{{.SizeLabel}}{{else}}Tracks per page{{end}}</span>
+      <select name="per_page" aria-label="{{if .SizeLabel}}{{.SizeLabel}}{{else}}Tracks per page{{end}}">
         <option value="25" {{if eq .Size 25}}selected{{end}}>25 / page</option>
         <option value="50" {{if eq .Size 50}}selected{{end}}>50 / page</option>
         <option value="100" {{if eq .Size 100}}selected{{end}}>100 / page</option>

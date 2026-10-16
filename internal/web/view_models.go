@@ -117,6 +117,8 @@ type djPageView struct {
 	DJs                          []djs.Profile
 	DJVoices                     []djs.Voice
 	DJError, DJMode, ExampleVibe string
+	DJPhotoDraft                 string
+	DJPhotoGeneration            bool
 	AssistantSettings            producer.Settings
 }
 type mixerPageView struct {

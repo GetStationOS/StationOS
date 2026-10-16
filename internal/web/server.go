@@ -33,13 +33,13 @@ import (
 //go:embed templates/*.html static/*
 var assets embed.FS
 
-type LogoGenerator interface {
+type ImageGenerator interface {
 	producer.ImageGenerator
 	Available(context.Context) (bool, error)
 }
 
 type Dependencies struct {
-	Logos           LogoGenerator
+	Images          ImageGenerator
 	Assistant       *producer.Service
 	Audience        audience.Repository
 	Mixer           mixer.Repository
@@ -65,12 +65,16 @@ type Server struct {
 	t             *template.Template
 	csrf          string
 	artworkSlots  chan struct{}
-	logoSlots     chan struct{}
+	imageSlots    chan struct{}
 	eventSlots    chan struct{}
 }
 
+func templateFunctions() template.FuncMap {
+	return template.FuncMap{"stationPhotoEditor": stationPhotoEditor, "djPhotoEditor": djPhotoEditor, "djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}
+}
+
 func New(d Dependencies) (http.Handler, error) {
-	t, err := template.New("pages").Funcs(template.FuncMap{"djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}).ParseFS(assets, "templates/*.html")
+	t, err := template.New("pages").Funcs(templateFunctions()).ParseFS(assets, "templates/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +85,7 @@ func New(d Dependencies) (http.Handler, error) {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
 	}
-	s := &Server{d: d, t: t, csrf: hex.EncodeToString(b[:]), artworkSlots: make(chan struct{}, 4), logoSlots: make(chan struct{}, 1), eventSlots: make(chan struct{}, 64)}
+	s := &Server{d: d, t: t, csrf: hex.EncodeToString(b[:]), artworkSlots: make(chan struct{}, 4), imageSlots: make(chan struct{}, 1), eventSlots: make(chan struct{}, 64)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { s.json(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /readyz", s.ready)
@@ -342,7 +346,7 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == nil && change == nil && r.PostForm.Get("generated_logo") != "" {
 		var data []byte
-		data, err = decodeLogoDraft(r.PostForm.Get("generated_logo"))
+		data, err = decodeImageDraft(r.PostForm.Get("generated_logo"))
 		if err == nil {
 			v.Logo = &station.LogoChange{Data: data}
 		}

@@ -23,6 +23,13 @@ func (s *Server) readDJPhoto(r *http.Request) (*djs.PhotoChange, error) {
 	if err != nil {
 		return nil, errors.Join(djs.ErrInvalid, err)
 	}
+	if change == nil && r.PostForm.Get("generated_photo") != "" {
+		data, err := decodeImageDraft(r.PostForm.Get("generated_photo"))
+		if err != nil {
+			return nil, errors.Join(djs.ErrInvalid, err)
+		}
+		return &djs.PhotoChange{Data: data}, nil
+	}
 	if change == nil {
 		return nil, nil
 	}

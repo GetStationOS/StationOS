@@ -404,29 +404,30 @@ textarea{font-weight:400;line-height:1.5}
 .dj-portrait { width: 144px; height: 144px; border-radius: var(--radius, 12px); object-fit: cover; margin-bottom: 1rem; }
 
 /* One reading column and fixed text areas keep DJ settings compact and stable. */
-.dj-settings{max-width:840px}.dj-form-group{margin:0 0 24px;padding:0 0 24px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}.dj-form-group legend{font-size:16px;padding:0;margin-bottom:16px}.dj-form-group:last-of-type{padding-bottom:0;border-bottom:0}.dj-form-group label:last-child{margin-bottom:0}.dj-form-group textarea{height:160px;min-height:160px;max-height:160px;overflow-y:auto;resize:none}.dj-profile-header{display:flex;gap:24px;align-items:flex-start;margin-bottom:18px}.dj-profile-fields{flex:1;min-width:0}.dj-profile-fields .check{margin:0}.dj-photo-preview{position:relative;flex:0 0 112px;width:112px;height:112px}.dj-photo-preview .dj-portrait,.dj-photo-placeholder{width:112px;height:112px;margin:0;border-radius:10px}.dj-photo-placeholder{display:grid;place-items:center;background:var(--tint);color:var(--accent);font-size:38px}.dj-settings input[type=file]{height:42px;min-height:42px;padding:0;border:0;border-radius:0;background:transparent;font-size:13px;line-height:42px}.dj-settings input[type=file]::file-selector-button{border:1px solid var(--line);border-radius:5px;background:white;color:var(--text);height:42px;padding:0 14px;margin:0 12px 0 0;font:inherit;cursor:pointer}.dj-settings .form-footer{margin-top:0}
-@media(max-width:800px){.dj-profile-header{gap:16px}}
-@media(max-width:480px){.dj-profile-header{flex-direction:column}.dj-profile-fields{width:100%}.dj-photo-preview{flex-basis:auto}}
+.dj-settings{max-width:840px}.dj-form-group{margin:0 0 24px;padding:0 0 24px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}.dj-form-group legend{font-size:16px;padding:0;margin-bottom:16px}.dj-form-group:last-of-type{padding-bottom:0;border-bottom:0}.dj-form-group label:last-child{margin-bottom:0}.dj-form-group textarea{height:160px;min-height:160px;max-height:160px;overflow-y:auto;resize:none}.dj-photo-preview{position:relative;flex:0 0 112px;width:112px;height:112px}.dj-photo-preview .dj-portrait,.dj-photo-placeholder{width:112px;height:112px;margin:0;border-radius:10px}.dj-photo-placeholder{display:grid;place-items:center;background:var(--tint);color:var(--accent);font-size:38px}.dj-settings input[type=file]{height:42px;min-height:42px;padding:0;border:0;border-radius:0;background:transparent;font-size:13px;line-height:42px}.dj-settings input[type=file]::file-selector-button{border:1px solid var(--line);border-radius:5px;background:white;color:var(--text);height:42px;padding:0 14px;margin:0 12px 0 0;font:inherit;cursor:pointer}.dj-settings .form-footer{margin-top:0}
 
-.dj-photo-remove{position:absolute;top:6px;right:6px;display:grid;place-items:center;width:32px;height:32px;min-height:32px;padding:0;border:1px solid #ffffffb3;border-radius:50%;background:#182b35d9;color:white;font-size:24px;line-height:1;box-shadow:0 1px 4px #0003}.dj-photo-remove svg{display:block}.dj-photo-remove:hover{background:#182b35}.dj-photo-remove:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 
-/* Keep the logo control to its preview and available actions. */
-.station-logo-editor { display:grid; grid-template-columns:80px minmax(0,1fr); gap:14px; align-items:center; margin-bottom:24px; }
-.station-logo-editor .dj-photo-preview,.station-logo-editor .dj-portrait { width:80px; height:80px; margin:0; }
-.station-logo-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
-.station-logo-controls .station-logo-action { width:44px; height:44px; min-height:44px; padding:10px; flex:0 0 44px; }
-.station-logo-action svg { display:block; }
-.station-logo-remove { color:#b42318; }
-.station-logo-remove:hover { background:#fff0ee; border-color:#e5b3ad; }
-.station-logo-generate .logo-generate-busy svg { animation:logo-spin 1s linear infinite; }
-@keyframes logo-spin { to { transform:rotate(360deg); } }
-@media(prefers-reduced-motion:reduce) { .station-logo-generate .logo-generate-busy svg { animation:none; } }
-.station-logo-controls .station-logo-picker { position:relative; margin:0; max-width:100%; }
-.dj-settings .station-logo-picker input[type=file] { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
-.station-logo-picker:focus-within { outline:2px solid var(--accent); outline-offset:3px; }
-.station-logo-picker:has(input:disabled) { opacity:.45; cursor:wait; }
-.station-logo-generate .logo-generate-busy,.station-logo-editor.htmx-request .logo-generate-ready { display:none; }
-.station-logo-editor.htmx-request .logo-generate-busy { display:inline; }
+
+/* Station logos and DJ portraits share one preview and icon action layout. */
+.photo-editor { display:grid; grid-template-columns:80px minmax(0,1fr); gap:14px; align-items:center; margin-bottom:24px; }
+.photo-editor .dj-photo-preview,.photo-editor .dj-portrait,.photo-editor .dj-photo-placeholder { width:80px; height:80px; margin:0; }
+@media(max-width:450px) { .photo-editor { column-gap:8px; } .photo-editor .photo-editor-controls { gap:6px; } }
+.photo-editor .dj-portrait { object-fit:cover; }
+.photo-editor .station-logo { object-fit:contain; }
+.photo-editor-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
+.photo-editor-controls .photo-editor-action { width:44px; height:44px; min-height:44px; padding:10px; flex:0 0 44px; }
+.photo-editor-action svg { display:block; }
+.photo-editor-remove { color:#b42318; }
+.photo-editor-remove:hover { background:#fff0ee; border-color:#e5b3ad; }
+.photo-editor-generate .photo-generate-busy svg { animation:photo-spin 1s linear infinite; }
+@keyframes photo-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .photo-editor-generate .photo-generate-busy svg { animation:none; } }
+.photo-editor-controls .photo-editor-picker { position:relative; margin:0; max-width:100%; }
+.dj-settings .photo-editor-picker input[type=file] { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
+.photo-editor-picker:focus-within { outline:2px solid var(--accent); outline-offset:3px; }
+.photo-editor-picker:has(input:disabled) { opacity:.45; cursor:wait; }
+.photo-editor-generate .photo-generate-busy,.photo-editor.htmx-request .photo-generate-ready { display:none; }
+.photo-editor.htmx-request .photo-generate-busy { display:inline; }
 .visually-hidden { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
 
 .dj-settings label[for=conversation-speed]{margin-bottom:0}.dj-settings .speed-control{margin-top:6px}.dj-settings .speed-control input[type=range]{margin-top:0}

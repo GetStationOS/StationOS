@@ -543,14 +543,14 @@ Recovery with no usable station/checklist binding offers only `select_work_step`
 
 Observation-only rounds are bounded even in fresh project-wide conversations without a saved checklist. Recovery does not replenish read allowances without a saved configuration write. Successful selections seed an unfinished task if needed, and tool results are delivered before subsequent developer readbacks to preserve provider protocol ordering. Playlist snapshots include pool names, and playlist work can create a requested new pool. The selector reports that release-year metadata is unavailable but explicitly permits musical knowledge plus verified artist/album/track matches. A missing year field alone is not a blocker. Exact album rules or individual track selections can implement era programming; editions and compilation/reissue extras must be assessed, and unavailable music or uncertain release knowledge must be reported honestly.
 
-### Station logo drafts
+### Station logo and DJ portrait drafts
 
-Station forms expose image generation only when the configured artwork model and
+Station and DJ forms share a photo editor template and expose generation only when the configured artwork model and
 credential are available. Generation uses an injected image port with a bounded
-single-request slot and no automatic retries. HTMX replaces only the logo editor;
+single-request slot and no automatic retries. HTMX replaces only the relevant photo editor;
 ordinary forms render the full draft. Generated images are normalized to JPEG and
 carried as an unsaved form value and image preview. Save validates the draft again
-and persists it through the station service; generation never writes station data.
+and persists it through the station or DJ service; generation never writes entity data.
 Image data URLs are allowed for these previews; scripts retain their existing CSP.
 
 ### Conversational assistant presentation

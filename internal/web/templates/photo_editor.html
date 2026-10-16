@@ -1,0 +1,38 @@
+{{define "photo-editor"}}
+<div id="{{.ID}}" class="photo-editor">
+  <input type="hidden" name="photo_removed" value="" data-photo-removed>
+  <input type="hidden" name="{{.DraftName}}" value="{{.Draft}}" data-photo-generated>
+  <div class="dj-photo-preview">
+    <img class="dj-portrait{{if .DefaultURL}} station-logo{{end}}" data-photo-preview {{if .Draft}}src="data:image/jpeg;base64,{{.Draft}}"{{else if .SavedURL}}src="{{.SavedURL}}"{{else}}hidden{{end}} data-default-src="{{.DefaultURL}}" alt="{{.Alt}}" width="80" height="80">
+    <span class="dj-photo-placeholder" data-photo-placeholder aria-hidden="true" {{if or .SavedURL .Draft}}hidden{{end}}>♫</span>
+  </div>
+  <div class="photo-editor-controls">
+    <label class="button secondary photo-editor-picker photo-editor-action" title="{{.UploadLabel}}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>
+      </svg>
+      <input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-label="{{.UploadLabel}}">
+    </label>
+    {{if .CanGenerate}}
+    <button type="submit" class="secondary photo-editor-generate photo-editor-action" aria-label="{{.GenerateLabel}}" title="{{.GenerateLabel}}" name="{{.GenerateName}}" value="yes" hx-post="{{.Action}}" hx-target="#{{.ID}}" hx-swap="outerHTML" hx-indicator="#{{.ID}}" hx-disabled-elt="#{{.ID}} button, #{{.ID}} input">
+      <span class="photo-generate-ready">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Zm7-1v4m-2-2h4"/>
+        </svg>
+      </span>
+      <span class="photo-generate-busy">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+          <path d="M21 12a9 9 0 1 1-9-9"/>
+        </svg>
+        <span class="visually-hidden">Generating…</span>
+      </span>
+    </button>{{end}}
+    <button type="submit" name="clear_photo" value="yes" class="secondary photo-editor-action photo-editor-remove" data-remove-photo aria-label="{{.RemoveLabel}}" title="{{.RemoveLabel}}" {{if not .Removable}}hidden{{end}}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>
+      </svg>
+    </button>
+  </div>
+  <span class="visually-hidden" data-photo-status role="status">{{if .Draft}}{{.DraftStatus}}{{end}}</span>
+</div>
+{{end}}

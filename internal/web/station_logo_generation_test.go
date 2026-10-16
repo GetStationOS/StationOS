@@ -34,7 +34,7 @@ func (g *testLogoGenerator) Generate(_ context.Context, r producer.ImageRequest)
 func setupLogoGeneration(t *testing.T, g *testLogoGenerator) (http.Handler, persistence.Stations) {
 	t.Helper()
 	_, st, src, cat := setupWeb(t, "")
-	h, err := New(Dependencies{Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: st.DB}, Logos: g, Ready: st.DB.PingContext})
+	h, err := New(Dependencies{Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: st.DB}, Images: g, Ready: st.DB.PingContext})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -1,8 +1,10 @@
 package web
 
 import (
+	"encoding/base64"
 	"errors"
 	"net/http"
+	"stationos.local/stationos/internal/producer"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +73,9 @@ func (s *Server) djPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if v.DJMode == "new" || v.DJMode == "edit" {
+		v.DJPhotoGeneration = s.imageGenerationAvailable(r.Context())
+	}
 	if v.DJMode == "list" {
 		v.DJCards, err = s.djCards(r.Context(), v.DJs, time.Now())
 		if err != nil {
@@ -114,6 +119,21 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		if r.PostForm.Get("api_key") != "" || r.PostForm.Get("clear_key") == "yes" {
 			err = errors.Join(djs.ErrInvalid, errors.New("Manage the shared OpenAI API key in Assistant settings."))
+		} else if r.PostForm.Get("generate_photo") == "yes" {
+			if p.Voice == "" {
+				p.Voice = djs.DefaultVoice
+			}
+			if validation := p.Validate(); validation != nil {
+				err = errors.Join(djs.ErrInvalid, validation)
+			} else {
+				draft, e := s.generateImageDraft(r.Context(), producer.ImageRequest{Kind: "dj", Name: p.Name, Background: boundedPortraitText(p.Background, 4000), Vibe: boundedPortraitText(p.Vibe, 2000)})
+				if e != nil {
+					err = errors.Join(djs.ErrInvalid, e)
+				} else {
+					s.renderDJPhotoDraft(w, r, p, draft)
+					return
+				}
+			}
 		} else {
 			_, err = (djs.Service{Repo: s.d.DJs}).Save(r.Context(), p, djs.KeyChange{})
 		}
@@ -132,7 +152,13 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		v.DJMode = "new"
 		v.Title = "Create DJ"
 		v.DJError = message
-		if uploaded {
+		v.DJPhotoGeneration = s.imageGenerationAvailable(r.Context())
+		if value := r.PostForm.Get("generated_photo"); value != "" {
+			if data, e := decodeImageDraft(value); e == nil {
+				v.DJPhotoDraft = base64.StdEncoding.EncodeToString(data)
+			}
+		}
+		if uploaded && v.DJPhotoDraft == "" {
 			v.DJError += " Choose the photo again before saving."
 		}
 		v.DJVoices = djs.Voices()
@@ -199,4 +225,31 @@ func (s *Server) renderDJPage(w http.ResponseWriter, r *http.Request, status int
 		name = "dj-delete-page"
 	}
 	s.renderPage(w, r, status, name, v)
+}
+
+func boundedPortraitText(value string, limit int) string {
+	runes := []rune(strings.TrimSpace(value))
+	return string(runes[:min(len(runes), limit)])
+}
+
+func (s *Server) renderDJPhotoDraft(w http.ResponseWriter, r *http.Request, p djs.Profile, draft string) {
+	v := djPageView{pageView: s.baseView(r), DJ: p, DJPhotoDraft: draft, DJPhotoGeneration: true, DJVoices: djs.Voices(), ExampleVibe: djs.ExampleVibe, DJMode: "new"}
+	v.Title = "Create DJ"
+	if p.ID != "" {
+		v.DJMode = "edit"
+		v.Title = p.Name
+	}
+	if fragmentTarget(r, "dj-photo-editor") {
+		s.renderHTML(w, http.StatusOK, "dj-photo-field", v)
+		return
+	}
+	if s.d.Assistant != nil {
+		var err error
+		v.AssistantSettings, err = s.d.Assistant.Store.Settings(r.Context())
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+	}
+	s.renderDJPage(w, r, http.StatusOK, v)
 }

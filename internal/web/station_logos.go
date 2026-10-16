@@ -2,11 +2,9 @@ package web
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"errors"
 	"net/http"
-	"stationos.local/stationos/internal/artwork"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/station"
 	"strings"
@@ -58,9 +56,9 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 		return
 	}
 	v := stationPageView{pageView: s.baseView(r)}
-	v.StationLogoGeneration = s.logoGenerationAvailable(r.Context())
+	v.StationLogoGeneration = s.imageGenerationAvailable(r.Context())
 	if value := r.PostForm.Get("generated_logo"); value != "" {
-		if data, e := decodeLogoDraft(value); e == nil {
+		if data, e := decodeImageDraft(value); e == nil {
 			v.StationLogoDraft = base64.StdEncoding.EncodeToString(data)
 		}
 	}
@@ -82,48 +80,9 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 	s.renderPage(w, r, http.StatusUnprocessableEntity, name, v)
 }
 
-func (s *Server) logoGenerationAvailable(ctx context.Context) bool {
-	if s.d.Logos == nil {
-		return false
-	}
-	available, err := s.d.Logos.Available(ctx)
-	if err != nil {
-		s.d.Logger.Warn("logo generation configuration unavailable", "error", err)
-	}
-	return err == nil && available
-}
-
-func decodeLogoDraft(value string) ([]byte, error) {
-	if len(value) > 7<<20 {
-		return nil, errors.New("Generated logo is too large")
-	}
-	data, err := base64.StdEncoding.DecodeString(value)
-	if err != nil {
-		return nil, errors.New("Generated logo could not be read; generate it again")
-	}
-	return artwork.Normalize(data)
-}
-
 // Generation prepares a draft image. Only the ordinary Save action persists it.
 func (s *Server) generateStationLogo(w http.ResponseWriter, r *http.Request, st station.Station) {
-	if !s.logoGenerationAvailable(r.Context()) {
-		s.stationFormError(w, r, st, errors.New("Logo generation is unavailable. Configure artwork in Assistant settings"))
-		return
-	}
-	select {
-	case s.logoSlots <- struct{}{}:
-		defer func() { <-s.logoSlots }()
-	default:
-		s.stationFormError(w, r, st, errors.New("A logo is already being generated. Wait for it to finish"))
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), 4*time.Minute)
-	defer cancel()
-	image, err := s.d.Logos.Generate(ctx, producer.ImageRequest{Kind: "station", Name: st.Name, Description: st.Description})
-	var data []byte
-	if err == nil {
-		data, err = artwork.Normalize(image.Data)
-	}
+	draft, err := s.generateImageDraft(r.Context(), producer.ImageRequest{Kind: "station", Name: st.Name, Description: st.Description})
 	if err != nil {
 		s.stationFormError(w, r, st, err)
 		return
@@ -131,7 +90,7 @@ func (s *Server) generateStationLogo(w http.ResponseWriter, r *http.Request, st 
 	v := stationPageView{pageView: s.baseView(r)}
 	v.Station = st
 	v.StationLogoGeneration = true
-	v.StationLogoDraft = base64.StdEncoding.EncodeToString(data)
+	v.StationLogoDraft = draft
 	v.StationRepeatInput = r.PostForm.Get("repeat_minutes")
 	v.StationRepeatSupplied = r.PostForm.Has("repeat_minutes")
 	if fragmentTarget(r, "station-logo-editor") {

@@ -58,26 +58,9 @@
     <input type="hidden" name="id" value="{{.DJ.ID}}">
     <fieldset class="dj-form-group">
       <legend>Profile</legend>
-      <input type="hidden" name="photo_removed" value="" data-photo-removed>
-      <div class="dj-profile-header">
-        <div class="dj-photo-preview">
-          <img class="dj-portrait" data-photo-preview {{if .DJ.PortraitURL}}src="{{.DJ.PortraitURL}}"{{else}}hidden{{end}} alt="DJ photo" referrerpolicy="no-referrer">
-          <span class="dj-photo-placeholder" data-photo-placeholder aria-hidden="true" {{if .DJ.PortraitURL}}hidden{{end}}>♫</span>
-          <button type="submit" name="clear_photo" value="yes" class="dj-photo-remove" data-remove-photo aria-label="Remove photo" title="Remove photo" {{if not .DJ.PortraitURL}}hidden{{end}}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
-              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </button>
-        </div>
-        <div class="dj-profile-fields">
-          <label>Name<input name="name" value="{{.DJ.Name}}" required maxlength="200" placeholder="e.g. The Midnight Archivist" {{if eq .DJMode "new"}}autofocus{{end}}>
-          </label>
-          <label>Photo <span class="optional">Optional</span>
-            <input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-describedby="photo-help">
-            <span id="photo-help" class="hint">Choose a JPEG or PNG, up to 5 MB. Saved with this profile.</span>
-          </label>
-        </div>
-      </div>
+      {{template "dj-photo-field" .}}
+      <label>Name<input name="name" value="{{.DJ.Name}}" required maxlength="200" placeholder="e.g. The Midnight Archivist" {{if eq .DJMode "new"}}autofocus{{end}}>
+      </label>
       <label>Background <span class="optional">Optional</span>
         <textarea name="background" rows="6" maxlength="16000" placeholder="Fictional background, musical tastes and interests.">{{.DJ.Background}}</textarea>
         <span class="hint">Give the presenter a fictional history and perspective.</span>
@@ -111,7 +94,7 @@
       <div class="form-actions">
         <a class="button secondary" href="/producer/djs">Cancel</a>
         <button>
-          {{if .DJ.ID}}Save changes{{else}}Create DJ{{end}}</button>
+          {{if .DJ.ID}}Save{{else}}Create DJ{{end}}</button>
       </div>
     </div>
   </form>
@@ -158,4 +141,8 @@
   <span aria-hidden="true">/</span>
   <span>{{.Title}}</span>
 </div>
+{{end}}
+
+{{define "dj-photo-field"}}
+{{template "photo-editor" (djPhotoEditor .)}}
 {{end}}

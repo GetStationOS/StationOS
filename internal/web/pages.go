@@ -220,7 +220,7 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	case "/producer/station", "/producer/stations/new":
 		v := stationPageView{pageView: s.baseView(r)}
 		v.Title = "Create a station"
-		v.StationLogoGeneration = s.logoGenerationAvailable(r.Context())
+		v.StationLogoGeneration = s.imageGenerationAvailable(r.Context())
 		s.renderPage(w, r, http.StatusOK, "new-station-page", v)
 	case "/producer/sources":
 		s.sourcesPage(w, r)

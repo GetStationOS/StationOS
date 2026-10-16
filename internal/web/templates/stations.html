@@ -53,7 +53,7 @@
     <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="64" height="64">
     <div class="overview-station-details">
       {{if .Station.Description}}
-      <p class="overview-description">{{.Station.Description}}</p>
+      <p class="overview-description" tabindex="0" role="region" aria-label="Station description">{{.Station.Description}}</p>
       {{else}}<strong>{{.Station.Name}}</strong>{{end}}{{if .Station.Timezone}}<span class="hint">{{.Station.Timezone}}</span>{{end}}
     </div>
   </div>

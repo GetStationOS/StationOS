@@ -161,14 +161,25 @@
     </button>
   </div>
   <div class="station-logo-controls">
-    <label class="button secondary station-logo-picker">
-      Upload logo
+    <label class="button secondary station-logo-picker station-logo-action" title="Upload logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M12 16V3m-5 5 5-5 5 5M4 16v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/>
+      </svg>
       <input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-label="Upload logo">
     </label>
     {{if .StationLogoGeneration}}
-    <button type="submit" class="secondary station-logo-generate" name="generate_logo" value="yes" hx-post="/producer/station" hx-target="#station-logo-editor" hx-swap="outerHTML" hx-indicator="#station-logo-editor" hx-disabled-elt="#station-logo-editor button, #station-logo-editor input">
-      <span class="logo-generate-ready">Generate logo</span>
-      <span class="logo-generate-busy">Generating…</span>
+    <button type="submit" class="secondary station-logo-generate station-logo-action" aria-label="Generate logo" title="Generate logo" name="generate_logo" value="yes" hx-post="/producer/station" hx-target="#station-logo-editor" hx-swap="outerHTML" hx-indicator="#station-logo-editor" hx-disabled-elt="#station-logo-editor button, #station-logo-editor input">
+      <span class="logo-generate-ready">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="m12 3 2.4 6.6L21 12l-6.6 2.4L12 21l-2.4-6.6L3 12l6.6-2.4L12 3Zm7-1v4m-2-2h4"/>
+        </svg>
+      </span>
+      <span class="logo-generate-busy">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false">
+          <path d="M21 12a9 9 0 1 1-9-9"/>
+        </svg>
+        <span class="visually-hidden">Generating…</span>
+      </span>
     </button>{{end}}
   </div>
   <span class="visually-hidden" data-photo-status role="status">{{if .StationLogoDraft}}Generated logo ready to save{{end}}</span>

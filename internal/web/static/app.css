@@ -403,6 +403,11 @@ textarea{font-weight:400;line-height:1.5}
 .station-logo-editor { display:grid; grid-template-columns:80px minmax(0,1fr); gap:14px; align-items:center; margin-bottom:24px; }
 .station-logo-editor .dj-photo-preview,.station-logo-editor .dj-portrait { width:80px; height:80px; margin:0; }
 .station-logo-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
+.station-logo-controls .station-logo-action { width:44px; height:44px; min-height:44px; padding:10px; flex:0 0 44px; }
+.station-logo-action svg { display:block; }
+.station-logo-generate .logo-generate-busy svg { animation:logo-spin 1s linear infinite; }
+@keyframes logo-spin { to { transform:rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .station-logo-generate .logo-generate-busy svg { animation:none; } }
 .station-logo-controls .station-logo-picker { position:relative; margin:0; max-width:100%; }
 .dj-settings .station-logo-picker input[type=file] { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
 .station-logo-picker:focus-within { outline:2px solid var(--accent); outline-offset:3px; }

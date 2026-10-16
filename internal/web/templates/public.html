@@ -124,18 +124,20 @@
   <div class="public-station-grid">
     {{range .StationCards}}
     <article class="station-card public-card" data-station-card="{{.Station.ID}}">
-      <div class="public-card-heading">
-        <div class="station-heading">
-          <img class="station-logo" src="{{.Station.LogoURL}}" alt="" width="64" height="64">
-          <div class="public-card-identity">
-            <h2>
-              <a href="/radio/{{.Station.StreamSlug}}">{{.Station.Name}}</a>
-            </h2>
+      <div class="public-card-intro">
+        <div class="public-card-heading">
+          <div class="station-heading">
+            <img class="station-logo" src="{{.Station.LogoURL}}" alt="" width="64" height="64">
+            <div class="public-card-identity">
+              <h2>
+                <a href="/radio/{{.Station.StreamSlug}}">{{.Station.Name}}</a>
+              </h2>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="public-card-description hint" {{if .Station.Description}}tabindex="0" role="region" aria-label="About {{.Station.Name}}"{{end}}>
-        {{if .Station.Description}}<p>{{.Station.Description}}</p>{{end}}
+        <div class="public-card-description hint" {{if .Station.Description}}tabindex="0" role="region" aria-label="About {{.Station.Name}}"{{end}}>
+          {{if .Station.Description}}<p>{{.Station.Description}}</p>{{end}}
+        </div>
       </div>
       <div class="public-card-live">
         <div class="card-programme public-card-programme">

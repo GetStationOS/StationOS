@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/schedule"
@@ -21,7 +20,7 @@ type fundedPreparation struct {
 	gate      <-chan struct{}
 }
 
-func (p *fundedPreparation) Prepare(ctx context.Context, _ schedule.Occurrence, _ schedule.Occurrence, pool []content.AudioItem) (production.Prepared, error) {
+func (p *fundedPreparation) Prepare(ctx context.Context, _ schedule.Occurrence, _ schedule.Occurrence) (production.Prepared, error) {
 	n := int(p.attempts.Add(1))
 	p.called <- n
 	if p.gate != nil {
@@ -34,7 +33,7 @@ func (p *fundedPreparation) Prepare(ctx context.Context, _ schedule.Occurrence, 
 	if !p.available.Load() {
 		return production.Prepared{}, production.ErrUnavailable
 	}
-	return production.Prepared{Plan: production.Plan{TrackIDs: []string{pool[0].ID}}}, nil
+	return production.Prepared{}, nil
 }
 func recoveryBroadcast(t *testing.T, p *fundedPreparation, seconds *atomic.Int64, local ...bool) (*Manager, *fakeEncoder, *Subscription, opening) {
 	t.Helper()
@@ -193,7 +192,7 @@ func TestReadyLinkRetainsFailedCurationAndStillPlays(t *testing.T) {
 	source := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pop", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
 	encoder := &fakeEncoder{calls: make(chan opening, 16)}
 	links := readyLinks{called: make(chan production.LinkRequest, 8)}
-	manager := New(showPools{}, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Producer: statusPreparation{fail: true}, Links: links, Now: func() time.Time { return now }})
+	manager := New(showPools{}, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Producer: statusPreparation{fail: true}, Links: links, Selector: failingSelection{}, Now: func() time.Time { return now }})
 	defer manager.Close()
 	sub, err := manager.Subscribe(context.Background(), "radio")
 	if err != nil {

@@ -360,8 +360,8 @@ remains the assistant’s editorial judgment.
 
 Failed live show preparation is retried at the next song boundary, without an
 application retry timer. Boundary admission is non-blocking: music continues
-while preparation runs. Pending or successful plans are not requested again.
-Success clears the failure state, with the ready plan used at a subsequent music
+while preparation runs. Pending or successful show speech preparations are not requested again.
+Success clears the failure state, with the ready speech used at a subsequent music
 boundary. Upcoming DJ preparation also retries through boundary prefetching;
 expired shows are not retried. Requests remain listener-driven and stop with the
 broadcast. This permits recovery when API credits or availability change after
@@ -406,7 +406,7 @@ not copied into local connections. Metadata and readiness flags contain no secre
 A missing sidecar fails startup if *any* connection holds an encrypted credential.
 
 The text port separates show planning and link writing from speech synthesis.
-Local curation can produce an eligible validated plan without speech credentials;
+Local next-track selection works without speech credentials;
 music continues and a producer runtime notice explains missing speech. Native
 Ollama uses function arguments as JSON objects, named tool results, a JSON schema
 in `format`, and bounded `num_ctx`/`num_predict`. Compatible services use string
@@ -432,9 +432,10 @@ estimated at three UTF-8 bytes per token, including tools; essential requirement
 are never trimmed to fit. For assistant conversations, completed tool results are reduced to exact outcome/identity references, while original human messages, the approved proposal, current summary and task instructions remain protected. This runs before dispatch against the endpoint budget, including tool schemas and reserved output. The configured output limit is a ceiling: after removing optional completed read results, the assistant reduces the per-request output allowance if needed to fit protected requirements, approved proposals, summaries and committed-action outcomes. It reserves a small framing margin when adapting, never changes the saved endpoint configuration, and still pauses if the essential minimum cannot fit alongside a 256-token reply.
 Ollama responses are not rejected merely for exceeding context minus the maximum output allowance: that allowance is a ceiling. Assistant requests disable input truncation and context shifting in the Ollama API, and replies reporting a prompt at the full context boundary are discarded before tool execution. Typed full-window and HTTP 413 input failures retain the saved request and receive one bounded recovery attempt with compacted history and a small tool set.
 Exact tokenizer-independent preflight counts are not available for every provider.
-Local curation offers at most 64 compact candidates per preparation, identified by short request-local references. The response schema enumerates exactly these references; validation rejects unavailable or repeated choices before mapping them back to catalogue IDs. A completed local plan with invalid choices receives at most one corrective text request within the existing preparation deadline. Transport failures, incomplete responses and invalid JSON are not replayed, and speech starts only after validation. Music reads
-never acquire the inference gate, and existing pending/success deduplication and
-song-boundary preparation retry remain authoritative.
+Next-track curation is separate from show introductions and handovers. Broadcasting filters station rotation and excludes the current track when alternatives exist, then supplies at most ten candidates. The shortlist favours least recently played recordings, varies ties using current-track identity, and narrows to known fitting durations near show end (or the normal duration planner's fallback when none fit). During the current track, one bounded worker asks the selector for one recording, validates its ID against that shortlist, then prepares the spoken link for that exact choice. Listener requests retain priority and bypass AI selection. The choice updates live next-track state independently of speech success. At playback boundaries, current playlist membership, rotation and show identity are revalidated; stale spoken introductions are suppressed. Late, refused, invalid or failed choices leave normal music playback running, and workers are cancelled when listening stops.
+
+The production selector port returns one catalogue ID. The OpenAI adapter uses a Decisions `choice` question for `gpt-6-luna`, with the curation connection's credential independently of speech. Other models/providers use a strict single-field JSON schema enumerating the offered references. Both paths receive short request-local IDs, bounded recording metadata, current-track context, DJ editorial style and remaining show time; source URLs, artwork and credentials are excluded. A singleton shortlist needs no inference. No provider builds a show-wide track list, and no duplicate-list correction path remains. Show preparation caches only bounded introduction/sign-off speech, with a new cache contract version to avoid reusing old plans. Speech and curation readiness remain independent.
+Music reads never acquire the inference gate. Existing pending/success deduplication and song-boundary retries apply to show speech preparation.
 
 Durable checkpoints normalize completed results and assistant text. Recovery
 removes provider-private reasoning and unfinished protocol calls, independently
@@ -479,7 +480,7 @@ then producer conversations. Running calls are never preempted or automatically
 replayed, and music never waits for the inference slot. Queue expiration logs include
 the actual wait limit; a shorter parent deadline can still end an admission early.
 
-Speech readiness and curation readiness are separate broadcast state fields. A ready spoken link remains playable when show curation fails; both statuses and AI notices participate in live update comparison.
+Speech readiness and curation readiness are separate broadcast state fields. A ready spoken link remains playable when next-track curation fails; both statuses and AI notices participate in live update comparison.
 
 The Assistant navigation separates endpoint management at `/producer/assistant/endpoints`, feature routing at `/producer/assistant/settings`, and chats at `/producer/assistant`. Historical settings connection URLs continue to render endpoint forms. Endpoint credential changes preserve all role routes and model IDs, using the existing encrypted configuration store and CSRF/origin protections.
 

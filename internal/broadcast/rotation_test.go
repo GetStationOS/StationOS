@@ -36,7 +36,7 @@ func TestRotationCandidates(t *testing.T) {
 			}
 			for _, remaining := range []time.Duration{0, 5 * time.Minute} {
 				for i := 0; i < 10; i++ {
-					if picked := selectTrack(got, tc.previous, []string{"c", "a", "b"}, remaining); picked.ID != tc.want {
+					if picked := selectTrack(got, tc.previous, remaining); picked.ID != tc.want {
 						t.Fatal("selector bypassed rotation", picked)
 					}
 				}
@@ -199,19 +199,19 @@ func TestRotationSurvivesShowHandover(t *testing.T) {
 	}
 }
 
-type rotationPreparation struct{ pool chan []content.AudioItem }
+type rotationSelector struct{ pool chan []content.AudioItem }
 
-func (p rotationPreparation) Prepare(ctx context.Context, show, next schedule.Occurrence, pool []content.AudioItem) (production.Prepared, error) {
-	p.pool <- pool
-	// Return a stale/misbehaving AI plan: playout must still enforce eligibility.
-	return production.Prepared{Plan: production.Plan{TrackIDs: []string{"one", "two", "three"}}}, nil
+func (p rotationSelector) SelectTrack(ctx context.Context, request production.SelectionRequest) (string, error) {
+	p.pool <- request.Candidates
+	// Misbehaving providers cannot bypass the offered eligible candidates.
+	return "one", nil
 }
 func TestRotationFiltersCurationAndRejectsStaleChoices(t *testing.T) {
 	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
 	history := &memoryHistory{played: map[string]map[string]time.Time{"radio": {"one": now.Add(-time.Minute)}}}
-	producer := rotationPreparation{pool: make(chan []content.AudioItem, 4)}
+	producer := rotationSelector{pool: make(chan []content.AudioItem, 4)}
 	source := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
-	m, e, repo := fixture(t, Options{History: history, Schedule: source, Producer: producer, Now: func() time.Time { return now }})
+	m, e, repo := fixture(t, Options{History: history, Schedule: source, Selector: producer, Now: func() time.Time { return now }})
 	repo.pool = append(repo.pool, content.AudioItem{ID: "three"})
 	sub, err := m.Subscribe(context.Background(), "radio")
 	if err != nil {
@@ -235,7 +235,7 @@ func TestRotationFiltersCurationAndRejectsStaleChoices(t *testing.T) {
 	first.write.Close()
 	next := opened(t, e)
 	if next.item.ID == "one" || next.item.ID == first.item.ID {
-		t.Fatal("stale curated plan bypassed rotation", next.item)
+		t.Fatal("invalid choice bypassed rotation", next.item)
 	}
 }
 func TestRotationUsesExactTrackIdentity(t *testing.T) {

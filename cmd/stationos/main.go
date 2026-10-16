@@ -130,7 +130,7 @@ func run(args []string, logger *slog.Logger) error {
 	presenter := ai.New(persistence.ProducerKeys{Producer: sharedAI}, persistence.PresenterAssets{DB: db}, production.FFmpeg{Path: ffmpeg})
 	presenter.Models = sharedAI
 	presenter.Text = textProviders
-	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Audience: audienceRepo})
+	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: presenter, Audience: audienceRepo})
 	defer broadcasts.Close()
 	playlistsRepo := persistence.Playlists{DB: db}
 	images := producerAI.NewImages(sharedAI)

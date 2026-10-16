@@ -54,6 +54,7 @@ type Options struct {
 	Schedule                                schedule.Source
 	Producer                                production.Producer
 	Links                                   production.LinkProducer
+	Selector                                production.TrackSelector
 }
 type Manager struct {
 	repo     Repository
@@ -315,8 +316,7 @@ func (m *Manager) Close() {
 	m.wg.Wait()
 }
 
-// Temporary selector; playlist order never determines the programme. An AI
-// curator can replace this boundary without changing membership or delivery.
+// Normal playback fallback chooses independently of playlist browsing order.
 func choose(pool []content.AudioItem, previous string) content.AudioItem {
 	choices := make([]content.AudioItem, 0, len(pool))
 	for _, item := range pool {
@@ -374,7 +374,6 @@ func (m *Manager) timelineAt(ctx context.Context, id string, at time.Time) (sche
 
 type prepareRequest struct {
 	show, next schedule.Occurrence
-	pool       []content.AudioItem
 }
 type preparedResult struct {
 	key          string
@@ -383,6 +382,12 @@ type preparedResult struct {
 	err          error
 }
 type linkStatus struct{ show, status string }
+
+type selectionResult struct {
+	show, current string
+	item          content.AudioItem
+	err           error
+}
 
 type linkResult struct {
 	audienceIDs      []string
@@ -417,7 +422,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 					default:
 					}
 				})
-				prepared, err := m.options.Producer.Prepare(workCtx, req.show, req.next, req.pool)
+				prepared, err := m.options.Producer.Prepare(workCtx, req.show, req.next)
 				var intro, outro *preparedSpeech
 				if err == nil {
 					intro, err = m.prepareSpeech(prepCtx, id, prepared.Intro)
@@ -439,6 +444,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 	attempted := map[string]bool{}
 	failed := map[string]bool{}
 	var recent []string
+	var queued content.AudioItem
+	var queuedShow, queuedAfter string
+	selectionResults := make(chan selectionResult, 2)
+	selectionStates := map[string]string{}
 	drain := func() {
 		for {
 			select {
@@ -460,6 +469,16 @@ func (m *Manager) playProgramme(id string, r *run) {
 					clear(noticeStates)
 				}
 				noticeStates[update.show] = update.message
+			case result := <-selectionResults:
+				if result.show == queuedShow && result.current == queuedAfter {
+					clear(selectionStates)
+					selectionStates[result.show] = "Ready"
+					if result.err != nil {
+						selectionStates[result.show] = "Unavailable"
+					} else {
+						queued = result.item
+					}
+				}
 			case update := <-linkUpdates:
 				// Keep state bounded and ignore older shows when updating playout.
 				clear(linkStates)
@@ -470,7 +489,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 	}
 	var rotation Rotation
-	request := func(show, next schedule.Occurrence, pool []content.AudioItem) {
+	request := func(show, next schedule.Occurrence) {
 		if m.options.Producer == nil || show.DJ.ID == "" || !(show.DJ.HasKey || show.DJ.TextReady) {
 			return
 		}
@@ -483,16 +502,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if attempted[key] && !failed[key] {
 			return
 		}
-		at := m.now()
-		if show.Start.After(at) {
-			at = show.Start
-		}
-		pool, _ = rotationPool(pool, rotation, at, rotation.LastTrackID)
-		if len(pool) == 0 {
-			return
-		}
 		select {
-		case requests <- prepareRequest{show, next, pool}:
+		case requests <- prepareRequest{show, next}:
 			delete(failed, key)
 			if attempted[key] {
 				return
@@ -519,14 +530,9 @@ func (m *Manager) playProgramme(id string, r *run) {
 		// Draining ready results never waits for external generation.
 		drain()
 		state.AINotice = noticeStates[state.Programme.Key]
-		key := production.CacheKey(state.Programme, state.Following)
-		state.CurationStatus = ""
-		if _, ok := prepared[key]; ok {
-			state.CurationStatus = "Ready"
-		} else if failed[key] {
-			state.CurationStatus = "Unavailable"
-		} else if attempted[key] {
-			state.CurationStatus = "Preparing"
+		state.CurationStatus = selectionStates[state.Programme.Key]
+		if state.Phase == "music" && state.Current.ID == queuedAfter {
+			state.Next = queued
 		}
 
 		if state.Phase == "music" && (state.Programme.DJ.HasKey || state.Programme.DJ.TextReady) {
@@ -698,9 +704,6 @@ func (m *Manager) playProgramme(id string, r *run) {
 		linkWorkers.Wait()
 		audioWorkers.Wait()
 	}()
-	var queued content.AudioItem
-	var queuedShow string
-	var selectedIDs []string
 	introPlayed := false
 	failures := 0
 	for r.ctx.Err() == nil {
@@ -757,7 +760,6 @@ func (m *Manager) playProgramme(id string, r *run) {
 			key = production.CacheKey(timeline.Current, timeline.Next)
 			plan, ready = prepared[key]
 			introPlayed = false
-			selectedIDs = nil
 			// Keep bounded prefetched assets across the boundary; no duplicate API
 			// preparation just because the next show has started.
 		}
@@ -777,10 +779,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		m.mu.Lock()
 		r.playlist = playing.PlaylistID
 		m.mu.Unlock()
-		request(playing, timeline.Next, pool)
-		if ready && len(selectedIDs) == 0 {
-			selectedIDs = append([]string(nil), plan.Plan.TrackIDs...)
-		}
+		request(playing, timeline.Next)
 		current := content.AudioItem{}
 		if queuedShow == playing.Key {
 			for _, a := range candidates {
@@ -802,13 +801,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if current.ID == "" {
 			// Audience requests enter the prepared next-track link. A cold start
 			// continues normal music until a request introduction is ready.
-			current = selectTrack(candidates, previous, selectedIDs, remaining)
-		}
-		for i, id := range selectedIDs {
-			if id == current.ID {
-				selectedIDs = append(selectedIDs[:i], selectedIDs[i+1:]...)
-				break
-			}
+			current = selectTrack(candidates, previous, remaining)
 		}
 		levels, levelErr := m.levels(r.ctx, id)
 		if levelErr != nil {
@@ -886,16 +879,19 @@ func (m *Manager) playProgramme(id string, r *run) {
 		rotation.LastTrackID = current.ID
 		nextPool, _ = rotationPool(nextPool, rotation, predictedEnd, current.ID)
 		queued = requestTrack(m.approvedAudience(r.ctx, nextTimeline.Current, playoutNow()), nextPool, nextRemaining)
+		requestedTrack := queued.ID != ""
 		if queued.ID == "" {
-			queued = selectTrack(nextPool, current.ID, selectedIDs, nextRemaining)
+			queued = selectTrack(nextPool, current.ID, nextRemaining)
 		}
 		queuedShow = nextTimeline.Current.Key
+		queuedAfter = current.ID
+		clear(selectionStates)
 		// Prepare the next DJ in advance while the outgoing programme is playing.
 		if timeline.Next.DJ.ID != "" && !playing.End.IsZero() && playing.End.Sub(playoutNow()) <= 10*time.Minute {
 			after, err := m.options.Schedule.Resolve(r.ctx, id, timeline.Next.Start.Add(time.Second))
 			if err == nil {
-				if p, err := m.repo.Pool(r.ctx, after.Current.PlaylistID); err == nil {
-					request(after.Current, after.Next, p)
+				if p, err := m.repo.Pool(r.ctx, after.Current.PlaylistID); err == nil && len(p) > 0 {
+					request(after.Current, after.Next)
 				}
 			}
 		}
@@ -906,9 +902,12 @@ func (m *Manager) playProgramme(id string, r *run) {
 				presenter = "Ready"
 			}
 		}
-		if m.options.Links != nil && (playing.DJ.HasKey || playing.DJ.TextReady) {
+		if (m.options.Links != nil || m.options.Selector != nil) && (playing.DJ.HasKey || playing.DJ.TextReady) {
 			select {
 			case linkSlots <- struct{}{}:
+				if m.options.Selector != nil {
+					selectionStates[queuedShow] = "Preparing"
+				}
 				clear(linkStates)
 				linkStates[playing.Key] = "Preparing"
 				linkCtx, c := context.WithCancel(r.ctx)
@@ -917,9 +916,27 @@ func (m *Manager) playProgramme(id string, r *run) {
 				pendingLink = out
 				linkWorkers.Add(1)
 				req := production.LinkRequest{Show: playing, Following: nextTimeline.Current, Current: current, Next: queued, Handover: nextTimeline.Current.Key != playing.Key, RemainingSeconds: int64(remaining.Seconds())}
+				selection := production.SelectionRequest{Show: nextTimeline.Current, Current: current, Candidates: trackShortlist(nextPool, current.ID, rotation, nextRemaining), RemainingSeconds: int64(nextRemaining.Seconds())}
 				go func() {
 					defer linkWorkers.Done()
 					defer func() { <-linkSlots }()
+					if m.options.Selector != nil {
+						chosen := req.Next
+						var selectionErr error
+						chosen, selectionErr = m.selectNextTrack(linkCtx, selection, chosen, requestedTrack)
+						if selectionErr != nil && !errors.Is(selectionErr, context.Canceled) {
+							m.logger.Warn("DJ music selection unavailable", "station_id", id, "error", selectionErr)
+						}
+						select {
+						case selectionResults <- selectionResult{selection.Show.Key, selection.Current.ID, chosen, selectionErr}:
+						case <-linkCtx.Done():
+							return
+						}
+						req.Next = chosen
+					}
+					if m.options.Links == nil {
+						return
+					}
 					audio, audienceIDs, audienceValidIDs, err := m.audienceLink(production.WithInferenceNotice(linkCtx, func(message string) {
 						select {
 						case inferenceNotices <- inferenceNotice{req.Show.Key, message}:

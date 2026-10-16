@@ -6,33 +6,20 @@ import (
 	"time"
 )
 
-// Curated choices remain separate from playlist membership. Near the handover,
+// Normal music fallback remains independent of AI selection. Near the handover,
 // bounded duration planning picks a first track leading to the smallest overrun.
 // Unknown lengths never masquerade as zero-duration filler.
-func selectTrack(pool []content.AudioItem, previous string, curated []string, remaining time.Duration) content.AudioItem {
-	ranked := []content.AudioItem{}
-	used := map[string]bool{}
+func selectTrack(pool []content.AudioItem, previous string, remaining time.Duration) content.AudioItem {
 	byID := map[string]content.AudioItem{}
-	for _, a := range pool {
-		byID[a.ID] = a
-	}
-	for _, id := range curated {
-		if a, ok := byID[id]; ok && !used[id] {
-			ranked = append(ranked, a)
-			used[id] = true
-		}
-	}
-	for _, a := range pool {
-		if !used[a.ID] {
-			ranked = append(ranked, a)
-		}
+	for _, item := range pool {
+		byID[item.ID] = item
 	}
 	if remaining > 0 && remaining <= 20*time.Minute {
 		target := int(math.Ceil(remaining.Seconds()))
 		limit := target + 1200
 		candidates := []content.AudioItem{}
 		seenDuration := map[int]int{}
-		for _, a := range ranked {
+		for _, a := range pool {
 			if a.Duration == nil || *a.Duration <= 0 {
 				continue
 			}
@@ -78,7 +65,7 @@ func selectTrack(pool []content.AudioItem, previous string, curated []string, re
 		// Very long/short or single-track pools may have no bounded plan.
 		best := content.AudioItem{}
 		overrun := time.Duration(1<<63 - 1)
-		for _, a := range ranked {
+		for _, a := range pool {
 			if a.Duration == nil || *a.Duration <= 0 || a.ID == previous && len(pool) > 1 {
 				continue
 			}
@@ -93,11 +80,6 @@ func selectTrack(pool []content.AudioItem, previous string, curated []string, re
 		}
 		if best.ID != "" {
 			return best
-		}
-	}
-	for _, id := range curated {
-		if a, ok := byID[id]; ok && (id != previous || len(pool) == 1) {
-			return a
 		}
 	}
 	return choose(pool, previous)

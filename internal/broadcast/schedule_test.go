@@ -98,7 +98,7 @@ func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
 
 type slowPreparation struct{ started chan struct{} }
 
-func (p slowPreparation) Prepare(ctx context.Context, _ schedule.Occurrence, _ schedule.Occurrence, _ []content.AudioItem) (production.Prepared, error) {
+func (p slowPreparation) Prepare(ctx context.Context, _ schedule.Occurrence, _ schedule.Occurrence) (production.Prepared, error) {
 	close(p.started)
 	<-ctx.Done()
 	return production.Prepared{}, ctx.Err()
@@ -124,11 +124,11 @@ func TestSlowAIIsNeverRequiredToStartMusic(t *testing.T) {
 
 type statusPreparation struct{ fail bool }
 
-func (p statusPreparation) Prepare(_ context.Context, _ schedule.Occurrence, _ schedule.Occurrence, pool []content.AudioItem) (production.Prepared, error) {
+func (p statusPreparation) Prepare(_ context.Context, _ schedule.Occurrence, _ schedule.Occurrence) (production.Prepared, error) {
 	if p.fail {
 		return production.Prepared{}, production.ErrUnavailable
 	}
-	return production.Prepared{Plan: production.Plan{TrackIDs: []string{pool[0].ID}}}, nil
+	return production.Prepared{}, nil
 }
 func TestDJPreparationStatusUpdatesDuringCurrentTrack(t *testing.T) {
 	for _, fail := range []bool{false, true} {

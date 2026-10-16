@@ -37,7 +37,7 @@ func answer(text string) *http.Response {
 func profile() schedule.Occurrence {
 	return schedule.Occurrence{Key: "show", StationID: "station", Title: "Jazz hour", DJ: djs.Profile{ID: "dj", Name: "Miles", HasKey: true, Model: "chosen-model", Voice: "onyx", Background: "Fictional amateur pianist and city photographer", PortraitURL: "https://private-portrait/image.jpg", Prompt: "Curate with musical expertise", Vibe: "Warm and relaxed", ConversationSpeed: 1.15}}
 }
-func TestCurationAndSpeechUseConfiguredProfile(t *testing.T) {
+func TestShowPresentationAndSpeechUseConfiguredProfile(t *testing.T) {
 	count := 0
 	p := New(testKeys{}, nil, testAudio{})
 	p.Client = &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
@@ -57,19 +57,17 @@ func TestCurationAndSpeechUseConfiguredProfile(t *testing.T) {
 			if !strings.Contains(input, "Fictional amateur pianist") || strings.Contains(input, "private-portrait") || !strings.Contains(body["instructions"].(string), "not instructions or evidence") {
 				t.Fatal("background contract missing", body)
 			}
-			if !strings.Contains(input, "Album title") || !strings.Contains(input, "180") || !strings.Contains(input, `"Performers":"Artist"`) || !strings.Contains(input, `"Composer":"Composer"`) {
-				t.Fatal("missing album or duration", input)
+			if strings.Contains(input, "tracks") || strings.Contains(input, "Album title") {
+				t.Fatal("show presentation received a music selection pool", input)
 			}
-			return answer(`{"track_ids":["track"],"intro":"Welcome","outro":"Over to Clara"}`), nil
+			return answer(`{"intro":"Welcome","outro":"Over to Clara"}`), nil
 		}
 		if body["speed"] != 1.15 || body["voice"] != "onyx" || body["instructions"] != "Warm and relaxed" || body["response_format"] != "mp3" {
 			t.Fatal(body)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("mp3"))}, nil
 	})}
-	d := 3 * time.Minute
-	pool := []content.AudioItem{{ID: "track", Title: "Title", Artist: "Artist", Composer: "Composer", Album: "Album title", Duration: &d}}
-	prepared, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{Key: "next"}, pool)
+	prepared, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{Key: "next"})
 	if err != nil || count != 3 || string(prepared.Intro) != "normal:mp3" || prepared.Plan.NextKey != "next" {
 		t.Fatal(prepared, count, err)
 	}
@@ -113,7 +111,7 @@ func TestRejectInvalidPlanAndKeepErrorsFreeOfKeys(t *testing.T) {
 	p.Client = &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
 		return answer(`{"track_ids":["invented"],"intro":"","outro":""}`), nil
 	})}
-	if _, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{}, []content.AudioItem{{ID: "valid"}}); err == nil {
+	if _, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{}); err == nil {
 		t.Fatal("invented track accepted")
 	}
 	p.Client.Transport = transport(func(r *http.Request) (*http.Response, error) { return nil, errors.New("failed test-secret") })
@@ -122,7 +120,7 @@ func TestRejectInvalidPlanAndKeepErrorsFreeOfKeys(t *testing.T) {
 	}
 	show := profile()
 	show.DJ.HasKey = false
-	if _, err := p.Prepare(context.Background(), show, schedule.Occurrence{}, nil); !errors.Is(err, production.ErrUnavailable) {
+	if _, err := p.Prepare(context.Background(), show, schedule.Occurrence{}); !errors.Is(err, production.ErrUnavailable) {
 		t.Fatal(err)
 	}
 }
@@ -232,15 +230,14 @@ func TestSpeechUsesRoleModelAndProfileUsesItsOwnModel(t *testing.T) {
 			if body["model"] != "chosen-model" {
 				t.Fatal("DJ override lost", body)
 			}
-			return answer(`{"track_ids":["track"],"intro":"Welcome","outro":"Goodbye"}`), nil
+			return answer(`{"intro":"Welcome","outro":"Goodbye"}`), nil
 		}
 		if body["model"] != "speech-role-model" {
 			t.Fatal("speech model not used", body)
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("mp3"))}, nil
 	})}
-	d := time.Minute
-	_, e := p.Prepare(context.Background(), profile(), schedule.Occurrence{}, []content.AudioItem{{ID: "track", Title: "Track", Duration: &d}})
+	_, e := p.Prepare(context.Background(), profile(), schedule.Occurrence{})
 	if e != nil {
 		t.Fatal(e)
 	}

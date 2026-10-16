@@ -7,30 +7,25 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/schedule"
 	"time"
 )
 
-var ErrUnknownTrack = errors.New("DJ selected an unavailable track")
-var ErrDuplicateTrack = errors.New("DJ repeated a track in its curation")
-
 var ErrUnavailable = errors.New("DJ preparation unavailable; continuing with music")
 
 type Plan struct {
-	TrackIDs  []string `json:"track_ids"`
-	IntroText string   `json:"intro"`
-	OutroText string   `json:"outro"`
-	NextKey   string   `json:"next_key"`
+	IntroText string `json:"intro"`
+	OutroText string `json:"outro"`
+	NextKey   string `json:"next_key"`
 }
 type Prepared struct {
 	Plan         Plan
 	Intro, Outro []byte
 }
 type Producer interface {
-	Prepare(context.Context, schedule.Occurrence, schedule.Occurrence, []content.AudioItem) (Prepared, error)
+	Prepare(context.Context, schedule.Occurrence, schedule.Occurrence) (Prepared, error)
 }
 type Store interface {
 	Get(context.Context, string) (Prepared, error)
@@ -52,29 +47,30 @@ func CacheKey(show, next schedule.Occurrence) string {
 	raw, _ := json.Marshal(struct {
 		AudioVersion int
 		Show, Next   schedule.Occurrence
-	}{5, show, next})
+	}{6, show, next})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
-func Validate(p Plan, pool []content.AudioItem) error {
-	if len(p.TrackIDs) == 0 || len(p.TrackIDs) > 64 || len(p.IntroText) > 600 || len(p.OutroText) > 600 {
-		return errors.New("DJ plan exceeds limits")
-	}
-	allowed := map[string]bool{}
-	for _, track := range pool {
-		allowed[track.ID] = true
-	}
-	seen := map[string]bool{}
-	for i, id := range p.TrackIDs {
-		if !allowed[id] {
-			return fmt.Errorf("%w (choice %d)", ErrUnknownTrack, i+1)
-		}
-		if seen[id] {
-			return fmt.Errorf("%w (choice %d)", ErrDuplicateTrack, i+1)
-		}
-		seen[id] = true
+
+// ValidatePresentation bounds show speech independently of music selection.
+func ValidatePresentation(p Plan) error {
+	if len(p.IntroText) > 600 || len(p.OutroText) > 600 {
+		return errors.New("DJ presentation exceeds limits")
 	}
 	return nil
+}
+
+// SelectionRequest contains only eligible candidates supplied by broadcasting.
+// Providers choose one ID; broadcasting revalidates it before it can play.
+type SelectionRequest struct {
+	Show             schedule.Occurrence
+	Current          content.AudioItem
+	Candidates       []content.AudioItem
+	RemainingSeconds int64
+}
+
+type TrackSelector interface {
+	SelectTrack(context.Context, SelectionRequest) (string, error)
 }
 
 // ReadBounded rejects oversized model/audio responses without retaining more than the limit.

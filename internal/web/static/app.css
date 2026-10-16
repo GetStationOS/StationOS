@@ -79,8 +79,8 @@ select:disabled{background-color:var(--bg);color:var(--muted);cursor:not-allowed
 
 /* Quiet destructive launchers remain separate from the primary form actions. */
 .entity-delete-action { margin:12px 0 28px; }
-.entity-delete-link { display:inline-flex; align-items:center; min-height:44px; padding:6px 0; color:#962e26; font-size:13px; }
-.entity-delete-link:hover { color:#751e18; text-decoration:underline; }
+.entity-delete-link,.entity-delete-link:visited { display:inline-flex; align-items:center; min-height:44px; padding:6px 0; color:#b42318; font-size:13px; }
+.entity-delete-link:hover,.entity-delete-link:focus-visible { color:#8a1c13; text-decoration:underline; }
 textarea{font-weight:400;line-height:1.5}
 .check{display:flex;align-items:center;gap:8px;font-weight:400}.check input{margin:0}
 

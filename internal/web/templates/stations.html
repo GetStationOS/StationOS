@@ -127,7 +127,7 @@
       <a class="button danger" href="/producer/stations/{{.Station.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete station</a>
       <div class="form-actions">
         <a class="button secondary" href="/producer/stations/{{.Station.ID}}">Cancel</a>
-        <button>Save changes</button>
+        <button>Save</button>
       </div>
     </div>
   </form>
@@ -154,11 +154,6 @@
   <div class="dj-photo-preview">
     <img class="dj-portrait station-logo" data-photo-preview {{if .StationLogoDraft}}src="data:image/jpeg;base64,{{.StationLogoDraft}}"{{else}}src="{{producerLogo .Station}}"{{end}} data-default-src="/static/station-logo.jpg" alt="Station logo" width="80" height="80">
     <span data-photo-placeholder hidden></span>
-    <button type="submit" name="clear_photo" value="yes" class="dj-photo-remove" data-remove-photo aria-label="Remove logo" title="Remove logo" {{if not (or .Station.LogoVersion .StationLogoDraft)}}hidden{{end}}>
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
-        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>
-    </button>
   </div>
   <div class="station-logo-controls">
     <label class="button secondary station-logo-picker station-logo-action" title="Upload logo">
@@ -181,6 +176,11 @@
         <span class="visually-hidden">Generating…</span>
       </span>
     </button>{{end}}
+    <button type="submit" name="clear_photo" value="yes" class="secondary station-logo-action station-logo-remove" data-remove-photo aria-label="Remove logo" title="Remove logo" {{if not (or .Station.LogoVersion .StationLogoDraft)}}hidden{{end}}>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+        <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>
+      </svg>
+    </button>
   </div>
   <span class="visually-hidden" data-photo-status role="status">{{if .StationLogoDraft}}Generated logo ready to save{{end}}</span>
 </div>

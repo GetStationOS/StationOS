@@ -70,6 +70,14 @@ select:disabled{background-color:var(--bg);color:var(--muted);cursor:not-allowed
 @media(max-width:700px){.broadcast-setup form,.stream-access{grid-template-columns:1fr}.broadcast-setup .form-actions{justify-content:flex-end}}
 
 .form-footer > .form-actions{margin-left:auto}
+/* Narrow editing footers use explicit rows rather than incidental flex wrapping. */
+@media(max-width:650px) {
+ .form-footer { display:grid; grid-template-columns:minmax(0,1fr); align-items:stretch; gap:12px; }
+ .form-footer>.button,.form-footer>button { width:100%; min-width:0; white-space:normal; text-align:center; }
+ .form-footer>.form-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; width:100%; margin:0; }
+ .form-footer>.form-actions>.button,.form-footer>.form-actions>button { width:100%; min-width:0; min-height:44px; white-space:normal; text-align:center; }
+}
+
 textarea{font-weight:400;line-height:1.5}
 .check{display:flex;align-items:center;gap:8px;font-weight:400}.check input{margin:0}
 
@@ -405,6 +413,8 @@ textarea{font-weight:400;line-height:1.5}
 .station-logo-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; min-width:0; }
 .station-logo-controls .station-logo-action { width:44px; height:44px; min-height:44px; padding:10px; flex:0 0 44px; }
 .station-logo-action svg { display:block; }
+.station-logo-remove { color:#b42318; }
+.station-logo-remove:hover { background:#fff0ee; border-color:#e5b3ad; }
 .station-logo-generate .logo-generate-busy svg { animation:logo-spin 1s linear infinite; }
 @keyframes logo-spin { to { transform:rotate(360deg); } }
 @media(prefers-reduced-motion:reduce) { .station-logo-generate .logo-generate-busy svg { animation:none; } }

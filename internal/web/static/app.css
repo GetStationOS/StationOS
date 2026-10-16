@@ -645,7 +645,7 @@ textarea{font-weight:400;line-height:1.5}
 .public-card .card-footer { margin-top:auto; padding-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .public-card .card-footer>button { flex-shrink:0; }
 @media(max-width:650px) { .public-card .public-card-portrait { width:64px; height:64px; flex-basis:64px; } }
-@media(max-width:450px) { .public-card-heading .station-logo { width:48px; height:48px; } .public-card .card-footer>button { padding:9px 12px; } }
+@media(max-width:450px) { .public-card-heading { min-height:48px; } .public-card-heading .station-logo { width:48px; height:48px; } .public-card .card-footer>button { padding:9px 12px; } }
 
 /* Overview hierarchy: identity, programme, tracks, then listening controls. */
 .overview-live-header { align-items:center; margin-bottom:16px; }

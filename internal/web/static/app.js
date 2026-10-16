@@ -445,15 +445,19 @@ function previewDJPhoto(form, removed) {
  if(!('savedSrc' in image.dataset)){image.dataset.savedSrc=image.getAttribute('src')||'';image.dataset.savedRemovable=String(!form.querySelector('[data-remove-photo]').hidden);}
  if(image.dataset.previewUrl){URL.revokeObjectURL(image.dataset.previewUrl);delete image.dataset.previewUrl;}
  form.querySelector('[data-photo-removed]').value=removed?'yes':'';
- if(removed)input.value='';
+ if(removed){
+  input.value='';
+  const generated=form.querySelector('[data-photo-generated]');
+  if(generated)generated.value='';
+ }
  const file=input.files[0];
  const src=removed?(image.dataset.defaultSrc||''):file?URL.createObjectURL(file):image.dataset.savedSrc;
  if(file&&src)image.dataset.previewUrl=src;
  if(src)image.src=src;else image.removeAttribute('src');
  image.hidden=!src;
  form.querySelector('[data-photo-placeholder]').hidden=!!src;
- const logoFile=form.querySelector('[data-logo-file]');
- if(logoFile)logoFile.textContent=file?file.name:removed||image.dataset.savedRemovable!=='true'?'Default logo':'Saved logo';
+ const status=form.querySelector('[data-photo-status]');
+ if(status)status.textContent=file?'Selected '+file.name:removed?'Logo removed. Save changes to apply.':'';
  form.querySelector('[data-remove-photo]').hidden=!src||!!image.dataset.defaultSrc&&(removed||!file&&image.dataset.savedRemovable!=='true');
 }
 document.body.addEventListener('change',event=>{

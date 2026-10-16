@@ -25,6 +25,20 @@ type Images struct {
 func NewImages(settings ImageSettings) Images {
 	return Images{Settings: settings, Client: &http.Client{Timeout: 4 * time.Minute, CheckRedirect: func(*http.Request, []*http.Request) error { return errors.New("Image redirects are not allowed") }}}
 }
+
+// Available reports configured image access without making a provider request.
+func (g Images) Available(ctx context.Context) (bool, error) {
+	settings, err := g.Settings.Settings(ctx)
+	if err != nil {
+		return false, err
+	}
+	if settings.ImageModel == "" {
+		return false, nil
+	}
+	key, err := g.Settings.APIKey(ctx)
+	return key != "" && err == nil, err
+}
+
 func (g Images) Generate(parent context.Context, brief producer.ImageRequest) (producer.Image, error) {
 	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
 	defer cancel()

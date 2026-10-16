@@ -54,6 +54,8 @@ type stationPageView struct {
 	StreamURL                        string
 	StationRepeatSupplied            bool
 	StationRepeatInput, StationError string
+	StationLogoDraft                 string
+	StationLogoGeneration            bool
 	StationPlaylistCount             int
 }
 

@@ -26,6 +26,7 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(r.URL.Path, "/settings") {
 		v.Section = "settings"
 		v.Title = "Station settings"
+		v.StationLogoGeneration = s.logoGenerationAvailable(r.Context())
 	}
 	if strings.HasSuffix(r.URL.Path, "/delete") {
 		v.Section = "delete"

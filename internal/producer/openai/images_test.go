@@ -71,3 +71,32 @@ func TestArtworkUsesSelectedConnectionWithoutLegacyKey(t *testing.T) {
 		t.Fatal("artwork incorrectly required the legacy key", err)
 	}
 }
+
+type availabilityImageSettings struct {
+	model, key string
+	err        error
+}
+
+func (s availabilityImageSettings) Settings(context.Context) (producer.Settings, error) {
+	return producer.Settings{ImageModel: s.model}, s.err
+}
+func (s availabilityImageSettings) APIKey(context.Context) (string, error) { return s.key, s.err }
+func TestImageAvailabilityUsesConfiguredModelAndCredential(t *testing.T) {
+	for _, test := range []struct {
+		name, model, key string
+		want             bool
+	}{
+		{name: "not configured"},
+		{name: "missing credential", model: "image-model"},
+		{name: "missing model", key: "image-key"},
+		{name: "configured", model: "image-model", key: "image-key", want: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			g := NewImages(availabilityImageSettings{model: test.model, key: test.key})
+			available, err := g.Available(context.Background())
+			if err != nil || available != test.want {
+				t.Fatal(available, err)
+			}
+		})
+	}
+}

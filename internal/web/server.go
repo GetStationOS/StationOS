@@ -33,7 +33,13 @@ import (
 //go:embed templates/*.html static/*
 var assets embed.FS
 
+type LogoGenerator interface {
+	producer.ImageGenerator
+	Available(context.Context) (bool, error)
+}
+
 type Dependencies struct {
+	Logos           LogoGenerator
 	Assistant       *producer.Service
 	Audience        audience.Repository
 	Mixer           mixer.Repository
@@ -59,6 +65,7 @@ type Server struct {
 	t             *template.Template
 	csrf          string
 	artworkSlots  chan struct{}
+	logoSlots     chan struct{}
 	eventSlots    chan struct{}
 }
 
@@ -74,7 +81,7 @@ func New(d Dependencies) (http.Handler, error) {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
 	}
-	s := &Server{d: d, t: t, csrf: hex.EncodeToString(b[:]), artworkSlots: make(chan struct{}, 4), eventSlots: make(chan struct{}, 64)}
+	s := &Server{d: d, t: t, csrf: hex.EncodeToString(b[:]), artworkSlots: make(chan struct{}, 4), logoSlots: make(chan struct{}, 1), eventSlots: make(chan struct{}, 64)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { s.json(w, 200, map[string]string{"status": "ok"}) })
 	mux.HandleFunc("GET /readyz", s.ready)
@@ -185,7 +192,7 @@ func (s *Server) protect(next http.Handler) http.Handler {
 		// Native form POSTs can send Origin: null under no-referrer, even to this server.
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("Cache-Control", "no-store")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: blob:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: blob: data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
 		publicStream := (r.Method == http.MethodGet || r.Method == http.MethodHead) && len(r.URL.Path) > len("/streams/") && strings.HasPrefix(r.URL.Path, "/streams/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/streams/"), "/")
 		publicLogo := (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/station-logos/") && !strings.Contains(strings.TrimPrefix(r.URL.Path, "/station-logos/"), "/")
 		if s.d.Password != "" && r.URL.Path != "/healthz" && r.URL.Path != "/readyz" && !publicStream && !publicLogo && !publicRead(r) && !publicAudienceWrite(r) {
@@ -333,11 +340,22 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 	if change != nil {
 		v.Logo = &station.LogoChange{Data: change.Data, Clear: change.Clear}
 	}
+	if err == nil && change == nil && r.PostForm.Get("generated_logo") != "" {
+		var data []byte
+		data, err = decodeLogoDraft(r.PostForm.Get("generated_logo"))
+		if err == nil {
+			v.Logo = &station.LogoChange{Data: data}
+		}
+	}
 	if err == nil {
 		err = v.Validate()
 	}
 	if err != nil {
 		s.stationFormError(w, r, v, err)
+		return
+	}
+	if r.PostForm.Get("generate_logo") == "yes" {
+		s.generateStationLogo(w, r, v)
 		return
 	}
 	saved, err := (station.Service{Repo: s.d.Stations}).Save(r.Context(), v)

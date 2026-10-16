@@ -149,23 +149,25 @@
 
 {{define "station-logo-field"}}
 <input type="hidden" name="photo_removed" value="" data-photo-removed>
-<div class="dj-profile-header">
+<div class="station-logo-editor">
   <div class="dj-photo-preview">
-    <img class="dj-portrait station-logo" data-photo-preview src="{{producerLogo .Station}}" data-default-src="/static/station-logo.jpg" alt="Station logo">
-    <span data-photo-placeholder hidden>
-    </span>
+    <img class="dj-portrait station-logo" data-photo-preview src="{{producerLogo .Station}}" data-default-src="/static/station-logo.jpg" alt="Station logo" width="80" height="80">
+    <span data-photo-placeholder hidden></span>
     <button type="submit" name="clear_photo" value="yes" class="dj-photo-remove" data-remove-photo aria-label="Remove logo" title="Remove logo" {{if not .Station.LogoVersion}}hidden{{end}}>
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
         <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
-  <div class="dj-profile-fields">
-    <label>Logo <span class="optional">Optional</span>
-      <input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-describedby="logo-help">
-      <span id="logo-help" class="hint">Choose a JPEG or PNG, up to 5 MB. The default logo is used until you upload one.</span>
+  <div class="station-logo-controls">
+    <span class="station-logo-label">Logo <span class="optional">Optional</span></span>
+    <label class="button secondary station-logo-picker">
+      Choose image
+      <input type="file" name="photo" accept="image/jpeg,image/png" data-dj-photo aria-label="Choose station logo" aria-describedby="logo-help logo-file">
     </label>
+    <span id="logo-file" class="hint" data-logo-file aria-live="polite">{{if .Station.LogoVersion}}Saved logo{{else}}Default logo{{end}}</span>
   </div>
+  <p id="logo-help" class="hint station-logo-help">JPEG or PNG, up to 5 MB. Changes apply when you save.</p>
 </div>
 {{end}}
 

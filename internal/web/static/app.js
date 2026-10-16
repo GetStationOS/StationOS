@@ -452,6 +452,8 @@ function previewDJPhoto(form, removed) {
  if(src)image.src=src;else image.removeAttribute('src');
  image.hidden=!src;
  form.querySelector('[data-photo-placeholder]').hidden=!!src;
+ const logoFile=form.querySelector('[data-logo-file]');
+ if(logoFile)logoFile.textContent=file?file.name:removed||image.dataset.savedRemovable!=='true'?'Default logo':'Saved logo';
  form.querySelector('[data-remove-photo]').hidden=!src||!!image.dataset.defaultSrc&&(removed||!file&&image.dataset.savedRemovable!=='true');
 }
 document.body.addEventListener('change',event=>{

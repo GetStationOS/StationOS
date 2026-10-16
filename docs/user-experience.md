@@ -100,7 +100,7 @@ DJ creation and editing group Profile, Editorial style, Voice and API access in 
 
 ## Station logos
 
-Station creation and Settings reuse the DJ photo preview, JPEG/PNG chooser and accessible remove X. Local preview changes commit with the form. Empty upload preserves the saved logo; removal restores the bundled radio logo. Limits match DJ photos (5 MB, 12 megapixels). Station cards, Overview and the persistent player show station identity separately from album covers; player identity updates through its existing event connection.
+Station creation and Settings use a compact 80px logo preview beside a styled Choose image control and selected filename/status, with shared DJ preview behaviour and an accessible remove X. Keep the preview and chooser side by side on phones, with format/size help below. Local preview changes commit with the form. Empty upload preserves the saved logo; removal restores the bundled radio logo. Limits match DJ photos (5 MB, 12 megapixels). Station cards, Overview and the persistent player show station identity separately from album covers; player identity updates through its existing event connection.
 
 Station names sit beside their logos on listing cards and the station Overview heading, including narrow screens. The floating player uses a dedicated logo column beside its station name/status so branding remains visible without overlapping track metadata. Supported browser and phone media controls receive the selected station logo, actual current title/performer and station name through the Media Session API; metadata follows station/track changes and clears on Stop. Native Play/Pause/Stop actions use the same listener lifecycle as the app controls.
 

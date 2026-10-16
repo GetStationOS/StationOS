@@ -112,7 +112,6 @@
       <p class="hint">The AI reviews submissions during this show. Requests must fit its playlist and timing; airtime is not guaranteed.</p>
     </fieldset>
     <div class="form-footer">
-      {{if .Show.ID}}<a class="button danger" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete show</a>{{end}}
       <div class="form-actions">
         <a class="button secondary" href="/producer/stations/{{.Station.ID}}/schedule">Cancel</a>
         <button>
@@ -121,6 +120,10 @@
     </div>
   </form>
 </section>
+{{if .Show.ID}}
+<div class="entity-delete-action">
+  <a class="entity-delete-link" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete show</a>
+</div>{{end}}
 {{end}}
 {{define "delete-show"}}
 <section class="form-panel">

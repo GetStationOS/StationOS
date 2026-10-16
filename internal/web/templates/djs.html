@@ -108,7 +108,6 @@
     </fieldset>
     <p class="hint">All DJs use the curation and writing provider and model configured in <a href="/producer/assistant/settings">Assistant settings</a>. Current model: {{.AssistantSettings.CurationModel}}. Speech uses the independent speech connection.</p>
     <div class="form-footer">
-      {{if .DJ.ID}}<a class="button danger" href="/producer/djs/{{.DJ.ID}}/delete" hx-get="/producer/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>{{end}}
       <div class="form-actions">
         <a class="button secondary" href="/producer/djs">Cancel</a>
         <button>
@@ -117,6 +116,10 @@
     </div>
   </form>
 </section>
+{{if .DJ.ID}}
+<div class="entity-delete-action">
+  <a class="entity-delete-link" href="/producer/djs/{{.DJ.ID}}/delete" hx-get="/producer/djs/{{.DJ.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete DJ</a>
+</div>{{end}}
 {{end}}
 
 {{define "delete-dj"}}

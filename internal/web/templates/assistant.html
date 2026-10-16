@@ -5,6 +5,10 @@
 <section class="form-panel">
   {{template "ai-connection" .}}
 </section>
+{{if and .AIConnectionSaved (ne .AIConnection.ID "openai")}}
+<div class="entity-delete-action">
+  <a class="entity-delete-link" href="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-get="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete connection</a>
+</div>{{end}}
 {{else}}
 <p class="hint">Connect an AI service, then choose where to use it in <a href="/producer/assistant/settings">Models for features</a>.</p>
 {{template "ai-connections" .}}
@@ -210,7 +214,6 @@
     </label>
   </details>
   <div class="form-footer">
-    {{if .AIConnectionSaved}}<a class="button danger" href="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-get="/producer/assistant/providers/{{.AIConnection.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete connection</a>{{end}}
     <div class="form-actions">
       <a class="button secondary" href="/producer/assistant/endpoints">Cancel</a>
       <button>Save endpoint</button>

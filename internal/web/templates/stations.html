@@ -124,14 +124,17 @@
     </div>
     {{template "station-publication-field" .}}{{template "station-repeat-field" .}}
     <div class="form-footer">
-      <a class="button danger" href="/producer/stations/{{.Station.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete station</a>
       <div class="form-actions">
         <a class="button secondary" href="/producer/stations/{{.Station.ID}}">Cancel</a>
         <button>Save</button>
       </div>
     </div>
   </form>
-</section>{{end}}
+</section>
+<div class="entity-delete-action">
+  <a class="entity-delete-link" href="/producer/stations/{{.Station.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete station</a>
+</div>
+{{end}}
 
 {{define "delete-station"}}
 <section class="form-panel">

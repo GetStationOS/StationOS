@@ -45,7 +45,7 @@ select:disabled{background-color:var(--bg);color:var(--muted);cursor:not-allowed
 .screen:has(.playlist-meta) .station-tabs[aria-label="Playlist navigation"]{margin-bottom:16px}.screen:has(.playlist-meta) .pagination-bar{margin:0 0 14px}
 @media(max-width:650px){.title-line{gap:8px 14px}.playlist-meta{white-space:normal}}
 
-/* Editing forms: destructive action left, Cancel and primary action right. */
+/* Editing forms keep Cancel and Save together; deletion lives below the card. */
 .form-actions{justify-content:flex-end;gap:12px}.form-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;border-top:1px solid var(--line);margin-top:24px;padding-top:20px}.form-footer .form-actions,.selection-save .form-actions{margin:0}.selection-save .form-actions{margin-left:auto}
 @media(max-width:650px){.form-footer{gap:12px;flex-wrap:wrap}.form-footer .form-actions{margin-left:auto}.form-actions{flex-wrap:wrap}.selection-save{flex-wrap:wrap}.form-footer .button,.form-footer button{padding-left:12px;padding-right:12px}}
 
@@ -73,11 +73,14 @@ select:disabled{background-color:var(--bg);color:var(--muted);cursor:not-allowed
 /* Narrow editing footers use explicit rows rather than incidental flex wrapping. */
 @media(max-width:650px) {
  .form-footer { display:grid; grid-template-columns:minmax(0,1fr); align-items:stretch; gap:12px; }
- .form-footer>.button,.form-footer>button { width:100%; min-width:0; white-space:normal; text-align:center; }
  .form-footer>.form-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; width:100%; margin:0; }
  .form-footer>.form-actions>.button,.form-footer>.form-actions>button { width:100%; min-width:0; min-height:44px; white-space:normal; text-align:center; }
 }
 
+/* Quiet destructive launchers remain separate from the primary form actions. */
+.entity-delete-action { margin:12px 0 28px; }
+.entity-delete-link { display:inline-flex; align-items:center; min-height:44px; padding:6px 0; color:#962e26; font-size:13px; }
+.entity-delete-link:hover { color:#751e18; text-decoration:underline; }
 textarea{font-weight:400;line-height:1.5}
 .check{display:flex;align-items:center;gap:8px;font-weight:400}.check input{margin:0}
 

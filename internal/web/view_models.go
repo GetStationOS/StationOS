@@ -49,6 +49,7 @@ type stationDirectoryView struct {
 	StationCards []stationCard
 }
 type stationPageView struct {
+	Operations operationSummary
 	pageView
 	Broadcast                        broadcast.State
 	StreamURL                        string

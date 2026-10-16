@@ -23,6 +23,7 @@ import (
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/mixer"
+	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/schedule"
@@ -39,6 +40,8 @@ type ImageGenerator interface {
 }
 
 type Dependencies struct {
+	Operations      operations.Store
+	Recording       *operations.Recorder
 	Images          ImageGenerator
 	Assistant       *producer.Service
 	Audience        audience.Repository
@@ -70,7 +73,11 @@ type Server struct {
 }
 
 func templateFunctions() template.FuncMap {
-	return template.FuncMap{"assetURL": assetURL, "stationPhotoEditor": stationPhotoEditor, "djPhotoEditor": djPhotoEditor, "djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}
+	return template.FuncMap{"operationKinds": func() []string {
+		return []string{"music", "speech", "started", "stopped", "handover", "ai", "failure", "recovery", "stall", "listener", "intervention", "unavailable"}
+	}, "operationOutcomes": func() []string {
+		return []string{"transmitting", "completed", "interrupted", "failed", "unknown", "observed"}
+	}, "assetURL": assetURL, "stationPhotoEditor": stationPhotoEditor, "djPhotoEditor": djPhotoEditor, "djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}
 }
 
 func New(d Dependencies) (http.Handler, error) {
@@ -135,6 +142,12 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/station", s.page)
 	mux.HandleFunc("GET /producer/stations/new", s.page)
 	mux.HandleFunc("GET /producer/stations/{id}", s.stationPage)
+	mux.HandleFunc("GET /producer/stations/{id}/timeline", s.operationsPage)
+	mux.HandleFunc("GET /producer/stations/{id}/upcoming", s.upcomingOverview)
+	mux.HandleFunc("GET /producer/stations/{id}/incidents", s.operationsPage)
+	mux.HandleFunc("GET /producer/stations/{id}/history.csv", s.operationsPage)
+	mux.HandleFunc("GET /producer/stations/{id}/operations/version", s.operationsVersion)
+	mux.HandleFunc("POST /producer/stations/{id}/incidents/{incident}/acknowledge", s.acknowledgeIncident)
 	mux.HandleFunc("GET /producer/stations/live", s.liveCards)
 	mux.HandleFunc("GET /producer/stations/events", s.stationEvents)
 	mux.HandleFunc("GET /producer/stations/{id}/player", s.stationEvents)

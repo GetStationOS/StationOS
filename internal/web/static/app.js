@@ -426,7 +426,8 @@ document.body.addEventListener('htmx:beforeSwap',event=>{
  if(target?.id!=='station-live'||!event.detail.shouldSwap||event.detail.xhr.status!==200)return;
  const incoming=target.cloneNode(false);
  incoming.innerHTML=event.detail.serverResponse;
- patchStationNode(target,incoming);
+ const active=target.contains(document.activeElement)?document.activeElement:null;
+ patchStationNode(target,incoming,active);
  event.detail.shouldSwap=false;
 });
 
@@ -804,3 +805,24 @@ for(const name of ['htmx:sendError','htmx:responseError','htmx:timeout']){
 document.body.addEventListener('htmx:timeout', event => {
  if(event.detail.elt?.matches('[data-assistant-compose]')) showError('The request timed out. Your draft is retained. Reload to check whether it was received before sending again.');
 });
+
+// Historical views never replace the producer's reading position or details.
+// One document-level timer follows HTMX navigation without accumulating timers.
+(() => {
+  let pending = false;
+  setInterval(async () => {
+    const region = document.querySelector('[data-operations-version]');
+    if (!region || pending || document.hidden) return;
+    pending = true;
+    try {
+      const response = await fetch(region.dataset.operationsUrl, {headers: {'Accept': 'application/json'}, cache: 'no-store', signal: AbortSignal.timeout(8000)});
+      if (!response.ok) throw new Error('Updates unavailable');
+      const result = await response.json();
+      if (!region.isConnected) return;
+      region.querySelector('[data-operations-disconnected]').hidden = true;
+      if (result.version !== region.dataset.operationsVersion) region.querySelector('[data-operations-notice]').hidden = false;
+    } catch (_) {
+      if (region.isConnected) region.querySelector('[data-operations-disconnected]').hidden = false;
+    } finally { pending = false; }
+  }, 10000);
+})();

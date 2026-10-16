@@ -369,3 +369,22 @@ expandable section; never infer missing reasoning or display opaque provider
 payloads. Background updates preserve the composer, focus and reading position;
 follow new content only when the reader is already near the bottom. Submission
 retains input on errors and returns focus to the composer after the response.
+
+### Compact upcoming audio
+
+Upcoming tracks belong on station Overview beside the current audio, not in a separate
+tab. Use compact rows with 64px album artwork, title, performing artist, album and known
+duration. Show only the runtime's actual selected next item; never fill a queue from
+playlist browsing order or a speculative plan. Mark selections as revalidated before
+playback. Dormant stations explain when selections become available. Keep the following
+show in the programme band. Live overview reconciliation preserves unchanged images,
+focused controls and reading position. Old Upcoming bookmarks lead to Overview's Up next
+section.
+
+### Operational notices and live-region navigation
+
+Use Timeline and Incidents tabs for station history and incident navigation. Do not
+repeat these as a shortcut row inside the station overview or show a zero-incident
+status. Surface only active incidents and history-recording problems as notices.
+Navigation links inside a live region explicitly inherit a main-workspace target,
+separate from the region's polling target, so clicks cannot nest a page inside a card.

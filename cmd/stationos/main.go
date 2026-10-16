@@ -22,6 +22,7 @@ import (
 
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/inference"
+	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/producer"
 	producerAI "stationos.local/stationos/internal/producer/openai"
@@ -114,6 +115,12 @@ func run(args []string, logger *slog.Logger) error {
 	if err != nil {
 		return errors.New("FFmpeg is required for station broadcasting; install ffmpeg and restart")
 	}
+	operationalStore := persistence.Operations{DB: db}
+	recorder, err := operations.New(ctx, operationalStore, logger)
+	if err != nil {
+		return err
+	}
+	defer recorder.Close()
 	config := persistence.Broadcast{DB: db}
 	mixerConfig := persistence.Mixer{DB: db}
 	djsRepo, err := persistence.OpenDJs(ctx, db, *dbPath+".secrets-key")
@@ -130,7 +137,7 @@ func run(args []string, logger *slog.Logger) error {
 	presenter := ai.New(persistence.ProducerKeys{Producer: sharedAI}, persistence.PresenterAssets{DB: db}, production.FFmpeg{Path: ffmpeg})
 	presenter.Models = sharedAI
 	presenter.Text = textProviders
-	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: presenter, Audience: audienceRepo})
+	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: presenter, Audience: audienceRepo})
 	defer broadcasts.Close()
 	playlistsRepo := persistence.Playlists{DB: db}
 	images := producerAI.NewImages(sharedAI)
@@ -139,7 +146,7 @@ func run(args []string, logger *slog.Logger) error {
 		return err
 	}
 	defer assistant.Close()
-	handler, err := web.New(web.Dependencies{Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
+	handler, err := web.New(web.Dependencies{Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
 	if err != nil {
 		return err
 	}

@@ -19,6 +19,7 @@
           <span class="card-listeners">{{.Broadcast.Listeners}} {{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}</span>
         </div>
       </div>
+      {{template "operational-summary" .Operations}}
       <div class="producer-body">
         <div class="producer-programming">
           <div class="card-programme">
@@ -123,7 +124,7 @@
       {{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</h2>
     {{if .Item.Artist}}
     <p>{{.Item.Artist}}</p>{{end}}{{if .Item.Album}}
-    <p class="hint">{{.Item.Album}}</p>{{end}}
+    <p class="hint">{{.Item.Album}}{{if .Item.Duration}} · {{.Duration}}{{end}}</p>{{else if .Item.Duration}}<p class="hint">{{.Duration}}</p>{{end}}
   </div>
 </div>{{end}}
 

@@ -575,3 +575,43 @@ is excluded from reconstructed recovery prompts. Existing migrations are unchang
 Providers return completed responses, so reasoning appears after each model
 request completes, rather than token by token. History retains the existing
 100-record display window; full human requirements remain independently saved.
+
+## Transmission observations and producer operations
+
+`internal/operations` defines immutable metadata snapshots, incident records and a
+bounded asynchronous recorder. Broadcasting emits observations at shared fan-out,
+not per HTTP listener and never during read-only dashboard inspection. Music and
+speech begin with the first emitted audio bytes; progress checkpoints occur every
+240,000 bytes (15 seconds at the fixed 128 kbps output). Final records distinguish
+completion, interruption and no-audio failure. They measure server emission, not
+confirmed reception or audibility. Speech adapters may report the exact synthesis
+text through an optional production context callback; missing text remains unknown.
+
+The recorder serializes writes outside the audio loop. Queue overflow or a failed
+write latches a producer-visible incomplete-history warning until restart. Shutdown
+stops producers before draining the recorder, allowing five seconds before cancelling
+remaining database work. A hard process failure can lose queued observations and
+bytes since the most recent persisted checkpoint. Serve startup marks unfinished
+transmissions as outcome unknown without inventing an end timestamp. Merely opening
+the database for catalogue or integrity commands does not recover records. As with
+broadcast ownership, only one serving process may own a database.
+
+Migration 26 creates transmission events and grouped incidents independently of the
+rebuildable catalogue. Event sequence breaks equal-timestamp ties. Event snapshots
+contain identity and credits, never source URLs, DJ profiles or credentials. Repeated
+active incidents share a code per station; acknowledgement is separate from measured
+recovery, and recurrence after recovery creates a new incident. Slow listener eviction
+is a timeline observation rather than an indefinitely active station incident.
+
+Producer station cards and overview include operational summaries. Timeline and Incidents are dedicated protected station pages. Upcoming selected audio
+appears beside current playback in the station Overview with source-proxied album artwork. Timeline browsing uses bounded
+keyset pagination, literal search and date/type/outcome/show/DJ filters. Exports are
+limited to 1,000 matching records and neutralize spreadsheet formula cells. Timestamps
+show station timezone and numeric UTC offset, including repeated autumn hours.
+Historical pages remain still and poll a fingerprint to offer an explicit refresh;
+Overview shows only actual runtime selections and the following scheduled programme.
+It neither starts production nor requests AI. Selected audio remains revalidatable.
+
+This first release does not add audio recording, exact selection provenance, a durable
+future running order, external alerts, aggregate metrics or automatic retention. History
+is retained until explicitly managed; include it in database backup/capacity planning.

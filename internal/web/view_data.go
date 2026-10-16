@@ -88,7 +88,7 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 	}
 	var err error
 	for _, st := range v.Stations {
-		card := stationCard{Station: st}
+		card := stationCard{Station: st, Operations: s.operationalSummary(r, st.ID)}
 		card.Broadcast = broadcast.State{Status: "Dormant"}
 		if s.d.Broadcast != nil {
 			card.Broadcast = s.d.Broadcast.State(st.ID)

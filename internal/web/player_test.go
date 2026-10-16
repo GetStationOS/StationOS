@@ -179,7 +179,7 @@ func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
 			if err := templates.ExecuteTemplate(&overview, "station-live", stationPageView{pageView: pageView{Station: station.Station{ID: "radio"}}, Broadcast: current}); err != nil {
 				t.Fatal(err)
 			}
-			overviewHTML := strings.SplitN(overview.String(), `<div class="playout-grid">`, 2)[1]
+			overviewHTML := strings.SplitN(overview.String(), `<div class="overview-playout">`, 2)[1]
 			if strings.Contains(overviewHTML, `src="`+photo+`"`) != (phase == "chatter" || phase == "handover") {
 				t.Fatal("overview did not follow the speaking presenter's artwork", overviewHTML)
 			}

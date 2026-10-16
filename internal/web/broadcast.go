@@ -180,7 +180,7 @@ func (s *Server) liveStation(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	v := stationPageView{pageView: pageView{Station: st}, Broadcast: broadcast.State{Status: "Dormant"}}
+	v := stationPageView{Operations: s.operationalSummary(r, st.ID), pageView: pageView{Station: st}, Broadcast: broadcast.State{Status: "Dormant"}}
 	if s.d.Broadcast != nil {
 		v.Broadcast = s.d.Broadcast.State(st.ID)
 	}

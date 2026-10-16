@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/schedule"
 	"sync/atomic"
@@ -32,17 +33,24 @@ func (showPools) Pool(_ context.Context, id string) ([]content.AudioItem, error)
 
 type readyLinks struct{ called chan production.LinkRequest }
 
-func (p readyLinks) Link(_ context.Context, r production.LinkRequest) ([]byte, error) {
+func (p readyLinks) Link(ctx context.Context, r production.LinkRequest) ([]byte, error) {
 	p.called <- r
+	production.ReportSpeechTranscript(ctx, "Handing over to the next presenter.")
 	return []byte("HANDOVER"), nil
 }
 func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
+	store := &recordingStore{events: map[string]operations.Event{}}
+	recorder, err := operations.New(context.Background(), store, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer recorder.Close()
 	start := time.Date(2026, 10, 12, 9, 59, 0, 0, time.UTC)
 	var seconds atomic.Int64
 	source := timedSchedule{start: start, shows: []schedule.Show{{ID: "pop", StationID: "radio", Name: "Pop", Day: 0, Start: 540, End: 600, PlaylistID: "pop-pool", DJ: djs.Profile{ID: "alex", Name: "Alex", HasKey: true}}, {ID: "jazz", StationID: "radio", Name: "Jazz", Day: 0, Start: 600, End: 660, PlaylistID: "jazz-pool", DJ: djs.Profile{ID: "miles", Name: "Miles"}}}}
 	links := readyLinks{called: make(chan production.LinkRequest, 4)}
 	encoder := &fakeEncoder{calls: make(chan opening, 16)}
-	m := New(showPools{}, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Links: links, Now: func() time.Time { return start.Add(time.Duration(seconds.Load()) * time.Second) }})
+	m := New(showPools{}, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Operations: recorder, Schedule: source, Links: links, Now: func() time.Time { return start.Add(time.Duration(seconds.Load()) * time.Second) }})
 	defer m.Close()
 	a, err := m.Subscribe(context.Background(), "radio")
 	if err != nil {
@@ -93,6 +101,31 @@ func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
 	case <-a.Done:
 		t.Fatal("handover disconnected listener")
 	default:
+	}
+	a.Close()
+	b.Close()
+	m.Close()
+	recorder.Close()
+	music, speech, handover := 0, 0, 0
+	for _, e := range store.events {
+		if e.Kind == "music" {
+			music++
+			if e.TrackID == "pop-pool" && e.Outcome != "completed" {
+				t.Fatalf("completed music: %+v", e)
+			}
+		}
+		if e.Kind == "speech" {
+			speech++
+			if e.Speech != "Handing over to the next presenter." || e.DJ != "Alex" {
+				t.Fatalf("speech attribution: %+v", e)
+			}
+		}
+		if e.Kind == "handover" {
+			handover++
+		}
+	}
+	if music != 2 || speech != 1 || handover != 1 {
+		t.Fatalf("history music=%d speech=%d handover=%d", music, speech, handover)
 	}
 }
 

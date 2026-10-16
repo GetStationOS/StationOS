@@ -293,6 +293,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
+	production.ReportSpeechTranscript(parent, spoken)
 	return audio, used, nil
 }
 

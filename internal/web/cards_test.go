@@ -103,6 +103,12 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 	state := m.State("radio")
 	for _, path := range []string{"/producer/stations/radio", "/producer/stations/radio/live"} {
 		html := request(h, "GET", path, nil, nil).Body.String()
+		if !strings.Contains(html, `id="upcoming"`) || !strings.Contains(html, `aria-label="Upcoming tracks"`) || !strings.Contains(html, "Selected · checked again before playback") {
+			t.Fatal("overview missing actual upcoming selection", path, html)
+		}
+		if strings.Contains(html, ">Upcoming</a>") {
+			t.Fatal("upcoming still has a separate tab", path)
+		}
 		if strings.Count(html, `class="overview-track"`) != 2 {
 			t.Fatal("overview missing playback panels", path, html)
 		}

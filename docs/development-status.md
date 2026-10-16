@@ -137,3 +137,43 @@ Regression checks cover paced startup bursts, bounded source fetching, partial r
 ## DJ backgrounds and portraits
 
 Implemented editable fictional backgrounds, picture URLs and portrait previews, with generated bundled portraits for Alex Bright, Miles Mercer and Clara Vale. Backgrounds reach both show preparation and per-track links; existing editorial, factual-credit and brief-link constraints remain. Profiles are not persistent presenter memories and do not retrieve news or verify new music facts. Upgrade migration preserves credentials and operator configuration.
+
+## Producer transmission history and operational views — 16 October 2026
+
+Added durable shared music/speech observations with immutable credit snapshots,
+15-second byte checkpoints, completion/interruption/failure outcomes, restart recovery,
+production start/stop and handover observations. Preparation failures and missed speech
+boundaries, source/decoder failures, supply stalls and recoveries create grouped incidents;
+slow listener eviction is recorded without creating an indefinitely active incident.
+Producer acknowledgement does not resolve an incident. Exact generated link text and
+prepared introduction/handover text accompany speech where supplied by the producer.
+
+Producer cards and station Overview expose history health, active incident count and
+latest activity. Station Timeline provides literal search, bounded pagination, station-local
+date/type/outcome/show/DJ filters, event details and bounded CSV export. Upcoming separates
+transmitting/selected/preparing audio from schedule periods and default gaps. Incidents
+show first/latest occurrence, repeat count, impact, next action and independent acknowledgement
+and recovery. Historical views show a quiet refresh link rather than replacing read content.
+
+The initial release observes server emission, not listener reception. A crash may lose
+queued observations or progress after the last checkpoint; unfinished persisted transmissions
+retain an unknown end. Aggregate metrics, automatic retention, audio recordings, external
+notifications and a durable editable future running order remain separate work.
+
+
+### Upcoming audio consolidated into station Overview
+
+Removed the separate Upcoming tab and moved its navigation to Overview's Up next
+section. Compact current/next rows show source-proxied album images, recording metadata
+and known durations; only the actual next runtime selection appears. Existing Upcoming
+bookmarks redirect to the overview anchor. Live overview polling now reconciles changed
+nodes in place, retaining unchanged artwork and focused controls.
+
+
+### Overview navigation correction
+
+Removed redundant incident/history/up-next shortcuts and the zero-incident row.
+Operational notices appear only for active incidents or recording-health problems.
+Live overview contents explicitly target the main workspace for navigation; the
+outer polling container retains its own update target. This prevents nested pages
+when following presenter or future content links inside the live region.

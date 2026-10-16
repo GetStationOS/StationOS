@@ -279,3 +279,24 @@ STATIONOS_PUBLIC_URL=https://radio.example.com
 Run Compose from the same project directory. With `COMPOSE_FILE` saved, the normal update command remains `sudo docker compose up --build -d`; no repeated `-f` flags or shell-only environment settings are needed. Explicit `-f` flags override `COMPOSE_FILE`, so avoid selecting only `compose.yaml` on a discovery-enabled deployment. Keep the project name/directory stable to retain the existing named volume. Ordinary pulls and rebuilds preserve `.env`; deploy tools that replace the whole directory must preserve or recreate `.env` and retain the volume.
 
 When upgrading an installation whose `compose.discovery.yaml` was edited locally, first record its actual address and public origin in `.env`. Then restore only that tracked Compose file before pulling the updated parameterised version. Do not discard unrelated changes or overwrite `.env`. Keep `.env` private and back it up separately from Git.
+
+### Producer transmission history
+
+Open a station's **Timeline** or **Incidents** tab; current and upcoming audio appear on **Overview**. The station overview
+and producer cards show active incidents and recording-health warnings only when attention is needed.
+Timeline records shared server emission once per item, regardless of listener count,
+with music/speech details and actual outcomes. It begins after this version is installed;
+no older playback is reconstructed from repeat-prevention data. Times use the station's
+timezone and UTC offset. Filter by date, type, outcome, show, DJ or literal text, then
+export up to 1,000 matching records as CSV. Narrow the filters for larger histories.
+
+Overview shows the actual current and selected next track in compact rows with album
+artwork, artists, albums and durations, alongside the next scheduled programme. Opening these views never starts audio or AI. Incident acknowledgement means
+seen, not fixed; recovery is recorded separately. New history offers a refresh link without
+moving the producer's reading position.
+
+History is saved outside the audio delivery loop. A recording failure or full queue shows
+an incomplete-history warning while audio continues. A restart marks unfinished records
+as unknown rather than claiming completion. Checkpoints save byte progress approximately every 15 seconds; hard crashes can also lose queued writes. These records do
+not prove what a listener heard. History currently has no automatic expiry; monitor database
+size and include it in normal backups. Only one server should own a StationOS database.

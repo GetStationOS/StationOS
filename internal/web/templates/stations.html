@@ -48,6 +48,8 @@
 {{end}}
 
 {{define "station-live"}}
+<div class="overview-live-content" hx-target="#main" hx-swap="innerHTML show:window:top">
+{{template "operational-summary" .Operations}}
 <header class="overview-live-header">
   <div class="overview-station-identity">
     <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="64" height="64">
@@ -87,18 +89,20 @@
     {{if .Broadcast.Following.DJ.Name}}<span class="hint">with {{.Broadcast.Following.DJ.Name}}</span>{{end}}
   </div>{{end}}
 </div>
-<div class="playout-grid">
-  <section class="now-playing">
+<div class="overview-playout">
+  <section class="overview-audio now-playing" aria-label="Current audio">
     {{template "overview-track" (currentBroadcastTrack .Station.ID .Broadcast)}}
   </section>
-  <section>
-    {{template "overview-track" (stationTrack .Station.ID "UP NEXT" "Waiting for listeners" .Broadcast.Next)}}
+  <section id="upcoming" class="overview-audio overview-upcoming" aria-label="Upcoming tracks">
+    {{template "overview-track" (stationTrack .Station.ID "UP NEXT" "No track selected yet" .Broadcast.Next)}}
+    <p class="overview-queue-note">{{if .Broadcast.Next.ID}}Selected · checked again before playback{{else if .Broadcast.Current.ID}}Selecting the next track…{{else}}Tracks are selected when listeners connect.{{end}}</p>
   </section>
 </div>
 {{if .Broadcast.RepeatRelaxed}}
 <p class="notice" role="status">Repeat interval relaxed to keep music playing.</p>{{end}}
 {{if .Broadcast.Error}}
 <p class="notice" role="status">{{.Broadcast.Error}}</p>{{end}}
+</div>
 {{end}}
 
 {{define "station-settings"}}

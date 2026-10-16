@@ -110,3 +110,16 @@ func ReportInference(ctx context.Context, notice string) {
 		notify(notice)
 	}
 }
+
+// WithSpeechTranscript carries the exact text used to synthesize a prepared link.
+// Reporting is optional for third-party producers; absence remains unknown.
+type transcriptKey struct{}
+
+func WithSpeechTranscript(ctx context.Context, report func(string)) context.Context {
+	return context.WithValue(ctx, transcriptKey{}, report)
+}
+func ReportSpeechTranscript(ctx context.Context, text string) {
+	if report, ok := ctx.Value(transcriptKey{}).(func(string)); ok {
+		report(text)
+	}
+}

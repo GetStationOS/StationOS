@@ -3,6 +3,7 @@ package web
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"stationos.local/stationos/internal/station"
 	"strings"
 )
@@ -20,6 +21,9 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.StationID = v.Station.ID
+	if v.Section != "settings" {
+		v.Operations = s.operationalSummary(r, v.Station.ID)
+	}
 	v.StreamURL = s.streamURL(r, v.Station.StreamSlug)
 	v.Title = v.Station.Name
 	v.Section = "overview"
@@ -75,4 +79,18 @@ func (s *Server) deleteStation(w http.ResponseWriter, r *http.Request) {
 		s.d.Broadcast.Stop(r.PathValue("id"))
 	}
 	s.redirect(w, r, "/producer?notice=station-deleted")
+}
+
+// Preserve old bookmarks after consolidating upcoming audio into Overview.
+func (s *Server) upcomingOverview(w http.ResponseWriter, r *http.Request) {
+	_, err := s.d.Stations.Get(r.Context(), r.PathValue("id"))
+	if errors.Is(err, station.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	http.Redirect(w, r, "/producer/stations/"+url.PathEscape(r.PathValue("id"))+"#upcoming", http.StatusFound)
 }

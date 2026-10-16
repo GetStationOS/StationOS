@@ -32,7 +32,7 @@ func TestStationWorkspaceAndHTMXNavigation(t *testing.T) {
 		t.Fatal(w.Body.String())
 	}
 	w = request(h, "GET", path, nil, map[string]string{"HX-Request": "true"})
-	if w.Code != 200 || strings.Contains(w.Body.String(), "<!doctype") || !strings.Contains(w.Body.String(), "Nothing playing") || !strings.Contains(w.Body.String(), "Waiting for listeners") || !strings.Contains(w.Body.String(), "<title>") {
+	if w.Code != 200 || strings.Contains(w.Body.String(), "<!doctype") || !strings.Contains(w.Body.String(), "Nothing playing") || !strings.Contains(w.Body.String(), "Tracks are selected when listeners connect.") || !strings.Contains(w.Body.String(), "<title>") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	w = request(h, "GET", path+"/settings", nil, nil)

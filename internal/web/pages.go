@@ -186,6 +186,7 @@ type genreOption struct {
 	Selected, Missing bool
 }
 type stationCard struct {
+	Operations                                             operationSummary
 	DJIndicators                                           []djIndicator
 	Broadcast                                              broadcast.State
 	Station                                                station.Station

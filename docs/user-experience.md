@@ -112,7 +112,7 @@ Station creation and Settings include Minimum time between plays (minutes), defa
 
 ## Public radio pages
 
-The public homepage `/` lists only stations explicitly set to Listed. Each station has a direct page at `/radio/<stream-address>` with its logo, description, Play action, actual current/next tracks, running show/presenter, weekly schedule and a copyable MP3 stream URL. Show times use the station timezone, and overnight shows label their next-day end. Scheduled names are programme listings, never an assertion that a presenter is currently on air.
+The public homepage `/` lists only stations explicitly set to Listed. Directory cards have equal dimensions, with the logo beside the station name, a full-width fixed-height scrollable description, and Explore station at the bottom left opposite Play at the bottom right. Each station has a direct page at `/radio/<stream-address>` with its logo, description, Play action, actual current/next tracks, running show/presenter, weekly schedule and a copyable MP3 stream URL. Show times use the station timezone, and overnight shows label their next-day end. Scheduled names are programme listings, never an assertion that a presenter is currently on air.
 
 Station creation and Settings offer Listed, Unlisted and Private visibility. New and upgraded stations start Unlisted: existing direct streams remain available but stations do not appear in the directory until the producer chooses Listed. Private stations have no public page, stream or logo; the protected producer player can preview them. Switching to Private disconnects the existing broadcast. Names can change without changing public page/stream addresses; editing the stream address deliberately changes both.
 

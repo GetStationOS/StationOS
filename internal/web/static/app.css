@@ -410,7 +410,7 @@ textarea{font-weight:400;line-height:1.5}
 .public-main { max-width:1160px; margin:auto; padding:36px 28px; }
 .public-intro { margin-bottom:36px; max-width:720px; }
 .public-intro h1 { font-size:clamp(30px,5vw,44px); line-height:1.15; margin:12px 0; }
-.public-station-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+.public-station-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-auto-rows:1fr; gap:24px; }
 .public-card { display:flex; flex-direction:column; gap:20px; }
 .public-card p { margin:0; white-space:pre-line; }
 .public-card-live { display:flex; flex-direction:column; gap:12px; margin-top:auto; min-width:0; }
@@ -626,15 +626,14 @@ textarea{font-weight:400;line-height:1.5}
 @media(max-width:900px) { .overview-live-header { flex-wrap:wrap; } }
 @media(max-width:650px) { .overview-live-header .station-status { align-self:flex-end; order:-1; } .overview-station-identity { gap:14px; } .overview-station-identity>.station-logo { width:64px; height:64px; flex-basis:64px; } }
 
-.public-card-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
+.public-card-heading { display:flex; align-items:center; min-height:64px; }
 .public-card-heading .station-heading { flex:1; min-width:0; }
 .public-card-heading h2 { margin:0; }
-.public-card-heading>button { flex-shrink:0; }
-/* Keep each station card compact: identity, programme, then track information. */
+/* Equal directory cards: identity, full-width description, live details and actions. */
 .public-card { gap:18px; }
-.public-card-heading { align-items:center; }
 .public-card-identity { min-width:0; display:flex; flex-direction:column; gap:4px; }
-.public-card-identity .hint { font-size:13px; line-height:1.45; overflow-wrap:anywhere; }
+.public-card-description { height:52px; flex:0 0 52px; overflow-y:auto; overscroll-behavior:contain; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+.public-card-description:focus-visible { outline:2px solid var(--accent); outline-offset:4px; border-radius:4px; }
 .public-card-live { margin-top:0; gap:12px; }
 .public-card .public-card-programme { display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:16px; padding:16px; }
 .public-card-programme-copy { display:flex; flex-direction:column; gap:4px; min-width:0; }
@@ -642,9 +641,10 @@ textarea{font-weight:400;line-height:1.5}
 .public-card-presenter { font-size:14px; color:var(--muted); overflow-wrap:anywhere; }
 .public-card .public-card-portrait { width:80px; height:80px; flex:0 0 80px; }
 .public-card .card-track { padding:10px 0; }
-.public-card .card-footer { margin-top:0; padding-top:14px; }
+.public-card .card-footer { margin-top:auto; padding-top:14px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.public-card .card-footer>button { flex-shrink:0; }
 @media(max-width:650px) { .public-card .public-card-portrait { width:64px; height:64px; flex-basis:64px; } }
-@media(max-width:450px) { .public-card-heading { gap:10px; } .public-card-heading .station-logo { width:48px; height:48px; } .public-card-heading>button { padding:9px 12px; } }
+@media(max-width:450px) { .public-card-heading .station-logo { width:48px; height:48px; } .public-card .card-footer>button { padding:9px 12px; } }
 
 /* Overview hierarchy: identity, programme, tracks, then listening controls. */
 .overview-live-header { align-items:center; margin-bottom:16px; }

@@ -131,11 +131,11 @@
             <h2>
               <a href="/radio/{{.Station.StreamSlug}}">{{.Station.Name}}</a>
             </h2>
-            {{if .Station.Description}}
-            <p class="hint">{{.Station.Description}}</p>{{end}}
           </div>
         </div>
-        {{if $.BroadcastEnabled}}{{template "public-play" .Station}}{{end}}
+      </div>
+      <div class="public-card-description hint" {{if .Station.Description}}tabindex="0" role="region" aria-label="About {{.Station.Name}}"{{end}}>
+        {{if .Station.Description}}<p>{{.Station.Description}}</p>{{end}}
       </div>
       <div class="public-card-live">
         <div class="card-programme public-card-programme">
@@ -154,6 +154,7 @@
       </div>
       <div class="card-footer">
         <a href="/radio/{{.Station.StreamSlug}}">Explore station →</a>
+        {{if $.BroadcastEnabled}}{{template "public-play" .Station}}{{end}}
       </div>
     </article>
     {{else}}

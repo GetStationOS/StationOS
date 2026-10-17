@@ -1020,3 +1020,12 @@ textarea{font-weight:400;line-height:1.5}
 
 .empty-state.table-outline { padding:32px 16px; margin:0; }
 .empty-state.table-outline p:last-child { margin-bottom:0; }
+
+
+/* Keep scrollable station tabs steady and distinguish selection from hover. */
+.station-tabs[data-tab-scroll-key] { overflow-x:auto; white-space:nowrap; scroll-behavior:auto; overflow-anchor:none; }
+.station-tabs[data-tab-scroll-key]>a { flex-shrink:0; }
+.station-tabs a:not([aria-current=page]):hover { color:var(--muted); }
+@media (hover:hover) and (pointer:fine) {
+ .station-tabs a:not([aria-current=page]):hover { color:var(--text); }
+}

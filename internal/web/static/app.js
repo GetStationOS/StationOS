@@ -1,4 +1,6 @@
 const mixerSaves = new WeakMap();
+const tabScrollPositions = new Map();
+const restoredTabMenus = new WeakSet();
 const liveSubscriptions=new Map();
 let stationEvents=null;
 let stationEventOwner=null;
@@ -43,7 +45,34 @@ let resultsNavigation = false;
 document.addEventListener('click', event => {
   if (event.target.closest('[data-results-navigation]')) resultsNavigation = true;
 });
+// Station tabs are replaced with the page; retain their horizontal viewport.
+// Reveal the active tab on direct loads/history without scrolling the whole page.
+function restoreTabScroll() {
+ document.querySelectorAll('[data-tab-scroll-key]').forEach(nav => {
+  if(restoredTabMenus.has(nav))return;
+  restoredTabMenus.add(nav);
+  const previous=tabScrollPositions.get(nav.dataset.tabScrollKey);
+  if(previous!==undefined)nav.scrollLeft=previous;
+  const active=nav.querySelector('a[aria-current="page"]');
+  if(active){
+   const viewport=nav.getBoundingClientRect(),tab=active.getBoundingClientRect();
+   if(tab.left<viewport.left)nav.scrollLeft-=viewport.left-tab.left;
+   else if(tab.right>viewport.right)nav.scrollLeft+=tab.right-viewport.right;
+  }
+  tabScrollPositions.set(nav.dataset.tabScrollKey,nav.scrollLeft);
+ });
+}
+document.addEventListener('scroll',event=>{
+ const nav=event.target;
+ if(nav.matches?.('[data-tab-scroll-key]')&&nav.isConnected)tabScrollPositions.set(nav.dataset.tabScrollKey,nav.scrollLeft);
+},{capture:true,passive:true});
+document.body.addEventListener('htmx:beforeSwap',event=>{
+ if(event.detail.target?.id!=='main'||!event.detail.shouldSwap)return;
+ document.querySelectorAll('[data-tab-scroll-key]').forEach(nav=>tabScrollPositions.set(nav.dataset.tabScrollKey,nav.scrollLeft));
+});
+
 function initialise() {
+  restoreTabScroll();
   document.querySelectorAll('[data-history-filter-toggle]:not([data-ready])').forEach(button => {
     button.dataset.ready = 'true';
     const fields = document.getElementById(button.getAttribute('aria-controls'));

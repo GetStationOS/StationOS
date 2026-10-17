@@ -494,3 +494,9 @@ shows a quiet local reconnecting state and recovers with a fresh snapshot.
 Preserve editing forms, keyboard focus, artwork, horizontal scroll and reading position.
 Timeline and Incidents subscriptions enable their refresh controls; they never
 replace history rows until the producer requests it.
+
+
+Station navigation retains its horizontal scroll position when changing tabs on small
+screens. Keep the current tab visible on direct links, reload and history restoration,
+without moving the page to reveal it. Only the current tab uses the selected accent and
+underline; hover must not resemble a second selection or remain highlighted on touch.

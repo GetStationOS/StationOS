@@ -80,7 +80,7 @@
   <a href="/producer/playlists?station={{.Station.ID}}">Playlists</a>{{end}}
 </div>
 {{if not .PlaylistID}}
-<nav class="station-tabs" aria-label="Station navigation">
+<nav class="station-tabs" aria-label="Station navigation" data-tab-scroll-key="station:{{.Station.ID}}">
   <a href="/producer/stations/{{.Station.ID}}" {{if eq .Section "overview"}}aria-current="page"{{end}}>Overview</a>
   <a href="/producer/playlists?station={{.Station.ID}}" {{if eq .Section "playlists"}}aria-current="page"{{end}}>Playlists</a>
   <a href="/producer/stations/{{.Station.ID}}/schedule" {{if eq .Section "schedule"}}aria-current="page"{{end}}>Schedule</a>

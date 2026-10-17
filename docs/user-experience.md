@@ -471,3 +471,9 @@ Keep incident rows compact: latest time/status above the problem, with transmiss
 link and review action sharing a footer. Use an eye for review and eye + Reviewed
 for the completed review state. Show occurrence counts only above one, omit repeated
 effect wording, and show repair guidance only for active incidents.
+
+Timeline uses the Incidents tab indicator rather than repeating an active-incident
+banner. Keep actual transmission-history recording failures visible separately.
+
+Place Active / Needs review / All incidents inside the incident results card, above
+its toolbar, so filtering, rows and pagination form one clear section.

@@ -85,6 +85,9 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 	if !strings.Contains(html.UnescapeString(w.Body.String()), "GMT +00:00") || !strings.Contains(w.Body.String(), "Breakfast") {
 		t.Fatal("time or snapshot missing", w.Body.String())
 	}
+	if strings.Contains(w.Body.String(), "Review the Incidents tab.") || !strings.Contains(w.Body.String(), `aria-label="1 active incident"`) {
+		t.Fatal("timeline must use menu indicator instead of incident banner", w.Body.String())
+	}
 	if strings.Contains(w.Body.String(), "Recording credits") || strings.Contains(w.Body.String(), "Composer:") {
 		t.Fatal("recording cell contains nonessential credits", w.Body.String())
 	}

@@ -17,11 +17,16 @@
 </div>
 {{if eq .Section "timeline"}}
 <form method="get" action="/producer/stations/{{.Station.ID}}/timeline" class="operations-filters history-filters">
-  <label>Search<input name="q" value="{{.Query}}" maxlength="200" placeholder="Title, artist or spoken text"></label>
+  <div class="history-search">
+    <label for="history-search">Search</label>
+    <div class="history-search-input">
+      <input id="history-search" name="q" value="{{.Query}}" maxlength="200" placeholder="Title, artist or spoken text">
+      <a class="history-search-clear" href="/producer/stations/{{.Station.ID}}/timeline" aria-label="Clear search and filters" title="Clear search and filters">{{template "ui-icon" "failed"}}</a>
+    </div>
+  </div>
   <div class="operations-filter-actions">
     <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
     <button>Apply</button>
-    <a href="/producer/stations/{{.Station.ID}}/timeline">Clear</a>
   </div>
   <div class="history-filter-options">
     <button type="button" class="secondary history-filter-toggle" aria-expanded="true" aria-controls="history-filter-fields" data-history-filter-toggle hidden>Filters <span data-filter-sign aria-hidden="true">−</span>{{if .FilterCount}}<span class="hint">{{.FilterCount}} active</span>{{end}}</button>

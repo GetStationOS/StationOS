@@ -430,3 +430,6 @@ the desktop view and CSV retain the full data.
 Avoid arrow disclosures for producer content. Show transmission spoken text in full,
 inline in its speech entry. Use a plain Filters + / Filters − button for optional
 history fields, with an accessible expanded state and visible fields without JavaScript.
+
+History search places the clear-all action as an accessible X inside the right edge
+of its input, rather than a separate Clear text link.

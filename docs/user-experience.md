@@ -426,3 +426,7 @@ on phones use compact entries showing start date/time, title, artist, show/prese
 outcome and useful failure explanations. Keep show context aligned with the title.
 Small screens use range and page navigation without page-jump and page-size controls;
 the desktop view and CSV retain the full data.
+
+Avoid arrow disclosures for producer content. Show transmission spoken text in full,
+inline in its speech entry. Use a plain Filters + / Filters − button for optional
+history fields, with an accessible expanded state and visible fields without JavaScript.

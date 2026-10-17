@@ -23,9 +23,9 @@
     <button>Apply</button>
     <a href="/producer/stations/{{.Station.ID}}/timeline">Clear</a>
   </div>
-  <details class="history-filter-options" open>
-    <summary>{{template "ui-icon" "filter"}} Filters{{if .FilterCount}}<span class="hint">{{.FilterCount}} active</span>{{end}}</summary>
-    <div class="history-filter-grid">
+  <div class="history-filter-options">
+    <button type="button" class="secondary history-filter-toggle" aria-expanded="true" aria-controls="history-filter-fields" data-history-filter-toggle hidden>Filters <span data-filter-sign aria-hidden="true">−</span>{{if .FilterCount}}<span class="hint">{{.FilterCount}} active</span>{{end}}</button>
+    <div class="history-filter-grid" id="history-filter-fields">
   <label>From<input type="date" name="from" value="{{.From}}"></label>
   <label>Through<input type="date" name="until" value="{{.Until}}"></label>
   <label>Type<select name="kind"><option value="">All types</option>{{range $kind := (operationKinds)}}<option value="{{$kind}}" {{if eq $.Kind $kind}}selected{{end}}>{{operationTypeLabel $kind}}</option>{{end}}</select></label>
@@ -33,7 +33,7 @@
   <label>Show<select name="show"><option value="">All shows</option>{{range .ShowChoices}}<option value="{{.ID}}" {{if eq $.ShowID .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
   <label>DJ<select name="dj"><option value="">All DJs</option>{{range .DJChoices}}<option value="{{.ID}}" {{if eq $.DJID .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
     </div>
-  </details>
+  </div>
 
 </form>
 <section class="history-card" aria-label="Broadcast history results">
@@ -52,7 +52,7 @@
         <div class="history-recording-content">
           <strong>{{if .Title}}{{.Title}}{{else}}{{.TypeLabel}}{{end}}</strong>
           {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint history-album">{{.Album}}</span>{{end}}
-          {{if and (eq .Kind "speech") .Speech}}<details><summary>Spoken text</summary><p>{{.Speech}}</p></details>{{end}}
+          {{if and (eq .Kind "speech") .Speech}}<p class="history-speech">{{.Speech}}</p>{{end}}
           {{if .Notes}}<p class="history-note">{{.Notes}}</p>{{end}}
         </div>
       </div>

@@ -39,9 +39,18 @@ function syncAssistant() {
  document.querySelectorAll('[data-assistant-badge]').forEach(badge => {if (badge.dataset.assistantBadge === status?.dataset.assistantConversation) badge.textContent=running ? 'Working…' : '';});
 }
 function initialise() {
-  document.querySelectorAll('.history-filter-options:not([data-responsive-ready])').forEach(details => {
-    details.dataset.responsiveReady = 'true';
-    if (window.matchMedia('(max-width:1100px)').matches) details.open = false;
+  document.querySelectorAll('[data-history-filter-toggle]:not([data-ready])').forEach(button => {
+    button.dataset.ready = 'true';
+    const fields = document.getElementById(button.getAttribute('aria-controls'));
+    if (!fields) return;
+    button.hidden = false;
+    const setExpanded = expanded => {
+      button.setAttribute('aria-expanded', String(expanded));
+      button.querySelector('[data-filter-sign]').textContent = expanded ? '−' : '+';
+      fields.hidden = !expanded;
+    };
+    setExpanded(!window.matchMedia('(max-width:1100px)').matches);
+    button.addEventListener('click', () => setExpanded(button.getAttribute('aria-expanded') !== 'true'));
   });
   syncAssistant();
   discoverFeatureModels();

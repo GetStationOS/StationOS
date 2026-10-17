@@ -259,7 +259,7 @@ func TestPublicAudienceConsentCSRFPolicyAndQueue(t *testing.T) {
 
 	queueAuth := map[string]string{"Authorization": "Basic YWRtaW46c2VjcmV0"}
 	queue := request(h, "GET", "/producer/stations/s/audience", nil, queueAuth)
-	if queue.Code != 200 || !strings.Contains(queue.Body.String(), `id="audience-queue-results"`) || !strings.Contains(queue.Body.String(), `hx-trigger="every 5s"`) || !strings.Contains(queue.Body.String(), `title="Approve"`) || !strings.Contains(queue.Body.String(), `title="Dismiss"`) {
+	if queue.Code != 200 || !strings.Contains(queue.Body.String(), `id="audience-queue-results"`) || !strings.Contains(queue.Body.String(), `data-live-url=`) || !strings.Contains(queue.Body.String(), `title="Approve"`) || !strings.Contains(queue.Body.String(), `title="Dismiss"`) {
 		t.Fatal("queue feedback or icon actions missing", queue.Code, queue.Body.String())
 	}
 	queueAuth["HX-Request"] = "true"

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/changefeed"
 	"strings"
 	"syscall"
 	"time"
@@ -115,7 +116,8 @@ func run(args []string, logger *slog.Logger) error {
 	if err != nil {
 		return errors.New("FFmpeg is required for station broadcasting; install ffmpeg and restart")
 	}
-	operationalStore := persistence.Operations{DB: db}
+	changes := &changefeed.Bus{}
+	operationalStore := persistence.Operations{DB: db, Changes: changes}
 	recorder, err := operations.New(ctx, operationalStore, logger)
 	if err != nil {
 		return err
@@ -128,8 +130,9 @@ func run(args []string, logger *slog.Logger) error {
 		return err
 	}
 	shows := persistence.Schedule{DB: db}
-	audienceRepo := persistence.Audience{DB: db}
+	audienceRepo := persistence.Audience{DB: db, Changes: changes}
 	sharedAI := persistence.NewProducer(djsRepo)
+	sharedAI.Changes = changes
 	if err = sharedAI.AdoptLegacyKey(ctx); err != nil {
 		return err
 	}
@@ -150,11 +153,11 @@ func run(args []string, logger *slog.Logger) error {
 	}
 	defer assistant.Close()
 	assistant.Prompts = promptStore
-	handler, err := web.New(web.Dependencies{Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
+	handler, err := web.New(web.Dependencies{Changes: changes, Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
 	if err != nil {
 		return err
 	}
-	server := &http.Server{Addr: *listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
+	server := &http.Server{BaseContext: func(net.Listener) context.Context { return ctx }, Addr: *listen, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 15 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 32 << 10}
 	listener, err := net.Listen("tcp", *listen)
 	if err != nil {
 		return err

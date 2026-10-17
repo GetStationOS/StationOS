@@ -61,9 +61,9 @@
 </div>
 {{end}}
 {{define "assistant-messages"}}
-<div id="assistant-messages" class="assistant-messages" data-assistant-running="{{eq .Conversation.Status "running"}}" data-assistant-conversation="{{.Conversation.ID}}" {{if eq .Conversation.Status "running"}}hx-get="/producer/assistant/{{.Conversation.ID}}/messages" hx-trigger="every 2s" hx-target="this" hx-swap="outerHTML show:none" hx-indicator="this"{{end}}>
+<div id="assistant-messages" class="assistant-messages" data-assistant-running="{{eq .Conversation.Status "running"}}" data-assistant-conversation="{{.Conversation.ID}}" {{if .Conversation.ID}}data-live-url="/producer/assistant/{{.Conversation.ID}}/messages"{{end}}>
   {{if .AssistantMessages}}
-  <ol aria-label="Conversation history" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true" hx-indicator="#global-busy">
+  <ol aria-label="Conversation history" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true">
     {{range $index, $message := .AssistantMessages}}
     <li class="assistant-message assistant-{{.Role}}" data-assistant-turn="{{$index}}">
       <strong>
@@ -77,7 +77,7 @@
         <p>{{.AssistantActivity}}</p>
         {{if .AssistantTiming}}
         <p class="hint">{{.AssistantTiming}}</p>{{end}}
-        <p class="hint assistant-poll-error" role="alert" hidden>Live updates have disconnected. Reload this page to check the assistant’s current state.</p>
+        <p class="hint assistant-live-error" role="alert" hidden>Live updates have disconnected. Reload this page to check the assistant’s current state.</p>
       </section>{{end}}
       {{if .Conversation.Task.Brief}}
       <section class="assistant-task" aria-label="Saved task progress">

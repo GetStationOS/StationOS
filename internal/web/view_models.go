@@ -13,6 +13,7 @@ import (
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
+	"time"
 )
 
 // pageView contains only the stable shell and station navigation context.
@@ -157,6 +158,7 @@ func (v audienceQueueView) player() playerView {
 
 // Listener pages share their public programme and contribution context.
 type publicPageView struct {
+	LiveDeadline time.Time
 	pageView
 	Public                                               bool
 	StationCards                                         []stationCard

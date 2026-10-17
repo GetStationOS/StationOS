@@ -4,11 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"stationos.local/stationos/internal/audience"
+	"stationos.local/stationos/internal/changefeed"
 	"strings"
 	"time"
 )
 
-type Audience struct{ DB *sql.DB }
+type Audience struct {
+	DB      *sql.DB
+	Changes *changefeed.Bus
+}
 
 var _ audience.Repository = Audience{}
 
@@ -34,7 +38,12 @@ func expireAudience(ctx context.Context, tx *sql.Tx, now time.Time) error {
 	_, err = tx.ExecContext(ctx, `DELETE FROM audience_messages WHERE expires_at<?`, now.Add(-30*24*time.Hour).Unix())
 	return err
 }
-func (r Audience) Submit(ctx context.Context, m audience.Message) error {
+func (r Audience) Submit(ctx context.Context, m audience.Message) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			r.Changes.Publish("audience")
+		}
+	}()
 	if err := m.Validate(); err != nil {
 		return err
 	}
@@ -156,7 +165,12 @@ func (r Audience) ForShow(ctx context.Context, station, key string, status audie
 	}
 	return out, tx.Commit()
 }
-func (r Audience) Decide(ctx context.Context, station, id string, status audience.Status, reason string, now time.Time) error {
+func (r Audience) Decide(ctx context.Context, station, id string, status audience.Status, reason string, now time.Time) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			r.Changes.Publish("audience")
+		}
+	}()
 	if status != audience.Approved && status != audience.Rejected {
 		return audience.ErrInvalid
 	}
@@ -201,7 +215,12 @@ func (r Audience) Usable(ctx context.Context, station, key string, ids []string,
 	}
 	return true, nil
 }
-func (r Audience) MarkUsed(ctx context.Context, station string, ids []string, at time.Time) error {
+func (r Audience) MarkUsed(ctx context.Context, station string, ids []string, at time.Time) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			r.Changes.Publish("audience")
+		}
+	}()
 	if len(ids) == 0 {
 		return nil
 	}
@@ -220,7 +239,12 @@ func (r Audience) MarkUsed(ctx context.Context, station string, ids []string, at
 
 // Review only decides still-pending items. An operator decision during an AI
 // request wins, and changing a show while reviewing cannot revive its messages.
-func (r Audience) Review(ctx context.Context, station string, decisions []audience.Decision, at time.Time) error {
+func (r Audience) Review(ctx context.Context, station string, decisions []audience.Decision, at time.Time) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			r.Changes.Publish("audience")
+		}
+	}()
 	if len(decisions) > audience.MaxBatch {
 		return audience.ErrInvalid
 	}
@@ -250,4 +274,14 @@ func (r Audience) Review(ctx context.Context, station string, decisions []audien
 		}
 	}
 	return tx.Commit()
+}
+
+// NextExpiry identifies the next clock transition affecting the station queue.
+func (r Audience) NextExpiry(ctx context.Context, station string, now time.Time) (time.Time, error) {
+	var at sql.NullInt64
+	err := r.DB.QueryRowContext(ctx, `SELECT min(expires_at) FROM audience_messages WHERE station_id=? AND status IN ('pending','review','approved') AND expires_at>?`, station, now.Unix()).Scan(&at)
+	if err != nil || !at.Valid {
+		return time.Time{}, err
+	}
+	return time.Unix(at.Int64, 0), nil
 }

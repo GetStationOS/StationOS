@@ -12,7 +12,7 @@ Main navigation contains Stations, Sources and DJs. DJs are shared fictional pre
 
 Show a small number of useful, current facts on station cards. Playlist counts are measured; listener counts come from active broadcast subscriptions, including the app player. Browser probe and playback requests from one app listening session count once. Tiny bare-stream media probes finish after initial audio instead of remaining as duplicate listeners; separate app players and external playback connections remain independent. Dormant stations have a measured zero. Never use zero to represent unknown, invent listener numbers, show a playlist's first track as now playing, or label a station on air without an active output.
 
-Station Overview separates current playback, upcoming programme, listeners and stream health. On phones and tablets, place the logo beside the live listener/status badges and give the description a full-width, fixed-height scrollable region below; retain the desktop layout and keep stream controls below programme/track information. Playback is listener-driven; weekly schedules select the active programme at track boundaries. Show current/next only from the actual producer, with Dormant, Starting, Broadcasting, Retrying and Unavailable states. When those systems exist, render their actual state through their own service contracts. Use HTMX polling or server events for the status region only; do not repeatedly replace an editing form or reset its scroll/focus. Distinguish offline, loading, stale, failed and unknown states with text as well as colour.
+Station Overview separates current playback, upcoming programme, listeners and stream health. On phones and tablets, place the logo beside the live listener/status badges and give the description a full-width, fixed-height scrollable region below; retain the desktop layout and keep stream controls below programme/track information. Playback is listener-driven; weekly schedules select the active programme at track boundaries. Show current/next only from the actual producer, with Dormant, Starting, Broadcasting, Retrying and Unavailable states. When those systems exist, render their actual state through their own service contracts. Use server event subscriptions for the status region only; do not repeatedly replace an editing form or reset its scroll/focus. Distinguish offline, loading, stale, failed and unknown states with text as well as colour.
 
 ## Navigation and HTMX
 
@@ -32,7 +32,7 @@ Sources follow the same workspace pattern: a concise source list, dedicated Add 
 
 ## Feedback and recovery
 
-Every successful write gives a short, concrete confirmation. Disable the submitted action during the request and show a loading indicator. Background status polling must stay quiet: scope its HTMX indicator and aria-busy state to the refreshed region, without showing the global Working indicator. Reserve global loading feedback for operator-initiated navigation and actions. On validation, server or connection errors, retain the form and operator input; show an accessible error message with a useful next step. Do not replace the whole screen with a raw error response. Bound request sizes and validate on the server even when the browser already validates.
+Every successful write gives a short, concrete confirmation. Disable the submitted action during the request and use action-local progress feedback. Background updates must stay quiet: scope HTMX indicators and aria-busy state to the refreshed region. Do not show a global Working banner for navigation, actions or background updates. On validation, server or connection errors, retain the form and operator input; show an accessible error message with a useful next step. Do not replace the whole screen with a raw error response. Bound request sizes and validate on the server even when the browser already validates.
 
 Choose labels that describe the effect: Exclude for a track excluded from dynamic rules, Save selections for a combined rule update. Reserve red destructive styling for actions that destroy operator data. Playlist Details and station Settings expose delete actions. Use the shared styled dialog for delete confirmation and unsaved-change prompts: name the affected entity, describe the scope, focus the safe action, contain keyboard focus, support Escape and return focus on close. Keep normal confirmation-page fallbacks for delete links. Station deletion removes its playlists atomically; shared sources and music remain. Empty states explain what is missing and give one useful next action. Avoid inactive controls for future functionality.
 
@@ -62,7 +62,7 @@ Every control needs a label, visible focus and keyboard access. Use fieldset/leg
 
 ## Current implementation and limits
 
-Station cards, per-station Overview/Playlists/Settings, playlist Selections/Tracks/Details, dedicated creation pages, single-row pagination, contextual track browsing, responsive components, HTMX navigation/forms/history, successful-save notices, error handling, searchable bulk checkboxes and unsaved-change protection are implemented. Station overview polls runtime state every three seconds. Homepage cards use a live event connection and patch only changed content in place; unchanged station nodes, artwork and controls are retained. Stream URLs are stable and editable in Settings; default playlist assignment is managed in each playlist’s Details tab. Playlist cards identify the station default with a labelled star badge in the top right. Set/remove actions refresh only the default control panel, preserving the other fields and page position. The changed badge and action confirm the new default state without an additional saved/removed message. A compact player in the persistent shell survives navigation and history, with Pause/Resume, volume and Stop controls. Pausing releases its listener connection and resumes at the live point. Never expose a seek bar for live radio. Playback starts only on explicit Listen; full reloads end playback.
+Station cards, per-station Overview/Playlists/Settings, playlist Selections/Tracks/Details, dedicated creation pages, single-row pagination, contextual track browsing, responsive components, HTMX navigation/forms/history, successful-save notices, error handling, searchable bulk checkboxes and unsaved-change protection are implemented. Station overview subscribes to runtime changes through server-sent events. Homepage cards use a live event connection and patch only changed content in place; unchanged station nodes, artwork and controls are retained. Stream URLs are stable and editable in Settings; default playlist assignment is managed in each playlist’s Details tab. Playlist cards identify the station default with a labelled star badge in the top right. Set/remove actions refresh only the default control panel, preserving the other fields and page position. The changed badge and action confirm the new default state without an additional saved/removed message. A compact player in the persistent shell survives navigation and history, with Pause/Resume, volume and Stop controls. Pausing releases its listener connection and resumes at the live point. Never expose a seek bar for live radio. Playback starts only on explicit Listen; full reloads end playback.
 
 ## Weekly shows
 
@@ -70,7 +70,7 @@ Use a station Schedule tab with a weekly calendar, explicit local timezone and o
 
 ## Producer cards
 
-Homepage station cards show measured stream state and listener count, the actually running programme/DJ/time window/playlist, or the configured default playlist when no show is running. Dormant stations show empty current/next states, never a fabricated song or on-air DJ based only on the clock. Current and next rows include title, artist, album, duration and available artwork. During speech the current row shows DJ on air and the speaking presenter’s photo, using the same artwork selection as the persistent player; music restores the album cover. Show readiness, missing DJ credentials, handovers, overrunning tracks and the following show when known. Keep editorial/profile and playlist links contextual, with Listen and Open station actions. Live event updates preserve keyboard focus and stay quiet. Do not replace card nodes or reload unchanged artwork just to update a listener count. Explicitly target the main workspace for card links so a polling region cannot capture ordinary navigation.
+Homepage station cards show measured stream state and listener count, the actually running programme/DJ/time window/playlist, or the configured default playlist when no show is running. Dormant stations show empty current/next states, never a fabricated song or on-air DJ based only on the clock. Current and next rows include title, artist, album, duration and available artwork. During speech the current row shows DJ on air and the speaking presenter’s photo, using the same artwork selection as the persistent player; music restores the album cover. Show readiness, missing DJ credentials, handovers, overrunning tracks and the following show when known. Keep editorial/profile and playlist links contextual, with Listen and Open station actions. Live event updates preserve keyboard focus and stay quiet. Do not replace card nodes or reload unchanged artwork just to update a listener count. Explicitly target the main workspace for card links so a live region cannot capture ordinary navigation.
 
 Artwork uses authenticated same-origin station URLs for currently playing/queued items. Sources fetch it through their checked transport; browsers do not need direct access to LAN servers. Raster images are size/time bounded and privately cached; unavailable artwork retains a neutral placeholder. Keep cards compact and responsive without disclosures or invented metrics. Use one full-width station card per row. On desktop, arrange programme information, current track and next track horizontally; stack them on smaller screens. Each station determines its own height, so a long programme never leaves a gap above another station.
 
@@ -209,9 +209,9 @@ Within an expanded show, align the contribution area beneath the description col
 
 Schedule show titles keep the same position when opened or closed. Desktop rows share the presenter-column width, gap and horizontal padding with the expanded details, aligning titles, descriptions and contribution invitations. Preserve that alignment even when a presenter has no photo; mobile uses the shared stacked-content left edge.
 
-The producer audience queue explains that review runs during spoken-link preparation. Its results refresh quietly every five seconds, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-presenter-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
+The producer audience queue explains that review runs during spoken-link preparation. Its results subscribe to committed contribution/review/use changes and actual expiry deadlines, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-presenter-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
 
-The producer Audience tab uses one bordered table with clear submission types, status badges and accessible icon actions. Status checkboxes refresh only its results on change, defaulting to pending, producer review and approved; clearing every checkbox shows an empty table. Filters remain selected during polling, pagination and review actions, with no page jump. Ordinary GET submission remains available without JavaScript.
+The producer Audience tab uses one bordered table with clear submission types, status badges and accessible icon actions. Status checkboxes refresh only its results on change, defaulting to pending, producer review and approved; clearing every checkbox shows an empty table. Filters remain selected during live updates, pagination and review actions, with no page jump. Ordinary GET submission remains available without JavaScript.
 
 ### Producer DJ cards
 
@@ -253,12 +253,12 @@ Keep the live status, task summary and recovery controls above the response log.
 Append new chatter, reasoning and action records at the bottom of that log in
 chronological order; growing replies must not insert content above the summary.
 
-Keep the compose form mounted while polling only the messages/status region.
-Polling must preserve draft text, focus and scroll and must not display the global
+Keep the compose form mounted while subscribing only the messages/status region.
+Event updates must preserve draft text, focus and scroll and must not display the global
 Working indicator. Disable Send while the conversation is running; navigating away
 does not stop a run. Successful sends get a fresh submission identifier, preventing
 repeated form delivery from replaying a turn. Normal forms, direct URLs, refresh
-and history navigation remain supported. Links in conversation messages, including View in StationOS, navigate the main workspace and update browser history; they must not inherit the message polling target.
+and history navigation remain supported. Links in conversation messages, including View in StationOS, navigate the main workspace and update browser history; they must not inherit the message-region target.
 
 Show concrete saved outcomes and failed actions in the conversation. Never claim
 that the whole request rolled back when some actions succeeded. Interrupted runs
@@ -387,7 +387,7 @@ Use Timeline and Incidents tabs for station history and incident navigation. Do 
 repeat these as a shortcut row inside the station overview or show a zero-incident
 status. Surface only active incidents and history-recording problems as notices.
 Navigation links inside a live region explicitly inherit a main-workspace target,
-separate from the region's polling target, so clicks cannot nest a page inside a card.
+separate from the region's live-update target, so clicks cannot nest a page inside a card.
 
 ### Producer broadcast history
 
@@ -437,7 +437,7 @@ of its input, rather than a separate Clear text link.
 History updates use a 44px refresh icon at the left of the results toolbar. Keep it
 muted and disabled until a meaningful update exists; enable and highlight it with
 an accessible announcement when one arrives. Refresh only the results card, retaining
-filters, navigation, URL and reading position; replace the polling baseline with it.
+filters, navigation, URL and reading position; replace the subscription baseline with it.
 
 Do not describe operational errors as Recorded. Observed history events use their
 actual producer status: pale red Error for playback/station failures, amber Warning
@@ -454,7 +454,7 @@ problem/effect/action, active or recovered status, and producer acknowledgement 
 Stack rows on phones; keep explanations visible without disclosures. Acknowledgement
 records review and never implies recovery. Show a small labelled warning icon beside the
 Incidents tab only while active incidents exist, including acknowledged but unresolved
-ones. Poll the indicator independently so navigation does not replace the workspace.
+ones. Subscribe the indicator independently so navigation does not replace the workspace.
 
 Use a 44px eye icon button labelled Mark as reviewed for incident
 acknowledgement; show Reviewed afterwards. This never removes or resolves an incident.
@@ -483,3 +483,14 @@ the standard rounded corners and a white surface, clipping row backgrounds clean
 Keep scrollable tables scrollable and give stacked phone rows an inset inside the outline.
 
 Retain the same table outline around empty result states, including No active incidents.
+
+
+### Live updates
+
+Use the event subscription model in [live-updates.md](live-updates.md) for all
+background screen changes. Never introduce periodic HTMX triggers, timed fetches,
+or a polling fallback. Transport heartbeats stay invisible. A disconnected stream
+shows a quiet local reconnecting state and recovers with a fresh snapshot.
+Preserve editing forms, keyboard focus, artwork, horizontal scroll and reading position.
+Timeline and Incidents subscriptions enable their refresh controls; they never
+replace history rows until the producer requests it.

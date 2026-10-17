@@ -31,7 +31,7 @@ The core packages do not import HTTP handlers, SQLite, UPnP XML types or each ot
 
 **Persistence** uses modernc SQLite, one connection per process, WAL, foreign keys and a five-second busy timeout. This intentionally serialises database work for the initial deployment. Count and search results use one read transaction. Versioned SQL migrations run transactionally, verify applied checksums and reject unsupported newer schemas. Migrations are immutable once released. Frozen versions 1 through 10 fixtures verify upgrades to version 11, preserved identities/metadata, checksum validation and foreign-key integrity. Migration 2 removes source station ownership; migration 3 introduces authoritative station playlists; migration 4 removes saved ordering while preserving playlist membership. Migration 7 adds the selected voice, defaulting existing DJ profiles to Cedar without changing encrypted credentials. Migration 6 adds shared DJ profiles and encrypted credentials. Migration 5 introduces station broadcast assignment and unique editable stream slugs. Its immutable Go backfill runs inside the migration transaction and derives addresses from existing station names. The integrity command checks SQLite storage and foreign keys.
 
-**Web** centres stations: homepage cards lead to per-station Overview/Playlists/Settings. Sources are shared; music browsing opens in playlist context. HTMX replaces the main content inside a stable shell, preserves titles/history, returns HX-Location on writes and falls back to complete ordinary HTML documents. Catalogue filtering/sorting and numbered pagination use ordinary GET URLs; selections use protected forms. Overview and cards poll actual listener/current/next status every three seconds. The player remains outside the main/history swap region. Batch genre/album checkbox selections commit atomically. UI conventions are recorded in user-experience.md. Writes call services and use bounded forms and CSRF tokens. Metadata is HTML-escaped. Authentication is enabled only when `STATIONOS_ADMIN_PASSWORD` is non-empty, regardless of the listen address. An unset or empty password disables login for management routes; CSRF tokens and origin checks still protect writes. The API has one versioned status contract; it does not expose SQL row schemas.
+**Web** centres stations: homepage cards lead to per-station Overview/Playlists/Settings. Sources are shared; music browsing opens in playlist context. HTMX replaces the main content inside a stable shell, preserves titles/history, returns HX-Location on writes and falls back to complete ordinary HTML documents. Catalogue filtering/sorting and numbered pagination use ordinary GET URLs; selections use protected forms. Overview and cards subscribe to actual listener/current/next changes via SSE. See live-updates.md for the subscription contract. The player remains outside the main/history swap region. Batch genre/album checkbox selections commit atomically. UI conventions are recorded in user-experience.md. Writes call services and use bounded forms and CSRF tokens. Metadata is HTML-escaped. Authentication is enabled only when `STATIONOS_ADMIN_PASSWORD` is non-empty, regardless of the listen address. An unset or empty password disables login for management routes; CSRF tokens and origin checks still protect writes. The API has one versioned status contract; it does not expose SQL row schemas.
 
 Page view construction is query-free for shared shell fields. Handlers explicitly load the data their screen uses: catalogue facets for track browsing and playlist selections, source counts for source overviews, and station cards for the producer overview and its live updates. Station workspaces scope playlist lists to their station; settings and creation forms do not depend on unrelated catalogue reads. Keep these dependencies explicit when adding pages or fragments.
 
@@ -83,7 +83,7 @@ This implements playable shared radio with current/next delivery state, but not 
 
 ## Producer card artwork
 
-The optional source `ArtworkReader` retrieves image URLs from known current/next metadata using the adapter’s checked transport. The web edge exposes authenticated station/item artwork URLs and never accepts an arbitrary URL from a request. Raster format, size, timeout and concurrency bounds apply; private caching avoids repeated transfers during card polls. Card presentation combines configured default assignments with immutable runtime programme/current/next snapshots and does not infer on-air state from a schedule clock.
+The optional source `ArtworkReader` retrieves image URLs from known current/next metadata using the adapter’s checked transport. The web edge exposes authenticated station/item artwork URLs and never accepts an arbitrary URL from a request. Raster format, size, timeout and concurrency bounds apply; private caching avoids repeated transfers during card updates. Card presentation combines configured default assignments with immutable runtime programme/current/next snapshots and does not infer on-air state from a schedule clock.
 
 ## Prepared audio transitions
 
@@ -104,7 +104,7 @@ Both DJ curation candidates and current/next chatter inputs use explicit Perform
 
 Broadcast runtime observers use bounded, coalesced notifications for displayed state/listener changes; ordinary audio frames do not notify when state is unchanged. Successful management writes announce committed configuration changes. Observers are independent of audio subscriptions and cannot start a station or change listener counts.
 
-The authenticated `/producer/stations/events` endpoint retains one connection per live homepage, bounds concurrency to 64, resets write deadlines for each flushed message, and releases observers on disconnect. Server-rendered station HTML is hashed so unchanged content emits no data event. A quiet 15-second heartbeat also reconciles changes made outside the process and clock-dependent labels. The browser patches only differing nodes while retaining card identity, unchanged artwork and focused controls; navigation closes the connection and history return opens a fresh one. Station workspace polling remains separate.
+The authenticated `/producer/stations/events` endpoint retains one connection per live homepage, bounds concurrency to 64, resets write deadlines for each flushed message, and releases observers on disconnect. Server-rendered station HTML is hashed so unchanged content emits no data event. A quiet 15-second heartbeat keeps the transport open without re-reading state. Clock-dependent public schedule changes use one-shot boundary timers. The browser patches only differing nodes while retaining card identity, unchanged artwork and focused controls; navigation closes the connection and history return opens a fresh one. Station workspaces, Audience, Assistant and operational fingerprints also use subscriptions; see live-updates.md.
 
 
 ### Persistent player metadata
@@ -260,7 +260,7 @@ Listener track requests search as the user types after a short pause, updating o
 
 Bare MP3 URLs can receive a tiny `Range: bytes=0-1` media probe before the playback GET. Such probes retain the compatible live-point 200/audio-mpeg response, deliver one initial audio chunk and finish, releasing their subscription. Ordinary/open-ended stream GETs remain continuous and independent; app probes carrying an opaque listener ID retain session replacement. Never merge external listeners by IP address, user agent or shared browser cookies. Verify direct Safari playback after deployment.
 
-The producer audience queue explains that review runs during spoken-link preparation. Its results refresh quietly every five seconds, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-shared-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
+The producer audience queue explains that review runs during spoken-link preparation. Its results subscribe to committed contribution/review/use changes and actual expiry deadlines, preserving filters, pagination, scroll and focused actions. Tick/X icon actions retain accessible names and tooltips. No-listener and missing-shared-key notices reflect measured runtime state. AI review failures are logged without listener message text; failed reviews remain pending.
 
 The oldest offered approved shout-out must be acknowledged by the speech adapter, as requests already are; its omission fails preparation and retains approval for a later link. Transport diagnostics identify the OpenAI endpoint, elapsed time and safe failure category without logging raw errors, credentials or listener text. Context cancellation remains identifiable so ordinary playback-boundary cleanup does not generate failure warnings.
 
@@ -329,7 +329,7 @@ shared credential; they never require individual key configuration. Missing shar
 credentials do not block ordinary station, playlist or schedule configuration.
 
 The UI displays the latest 30 conversations in the current context and the last
-100 messages, with older conversations retained at their URLs. Polling updates only
+100 messages, with older conversations retained at their URLs. Event subscriptions update only
 messages/progress and preserves compose controls, draft text, focus and scroll.
 Interrupted runs offer Continue saved request; active runs offer Stop assistant.
 
@@ -561,7 +561,7 @@ Image data URLs are allowed for these previews; scripts retain their existing CS
 The web adapter groups consecutive non-user records into one agent turn after
 its human request, preserving stored chronology. Live activity, task progress,
 actions, recovery controls and readable provider reasoning belong inside that
-turn. Polls patch the message region while retaining the composer, focus,
+turn. Event snapshots patch the message region while retaining the composer, focus,
 selection and expanded reasoning; they follow the conversation only near the
 page bottom. Successful submission returns the canonical conversation URL and
 focuses the composer. Ordinary forms remain supported.
@@ -608,7 +608,7 @@ appears beside current playback in the station Overview with source-proxied albu
 keyset pagination, literal search and date/type/outcome/show/DJ filters. Exports are
 limited to 1,000 matching records and neutralize spreadsheet formula cells. Timestamps
 show station timezone and numeric UTC offset, including repeated autumn hours.
-Historical pages remain still and poll a fingerprint to offer an explicit refresh;
+Historical pages remain still and subscribe to fingerprint changes to offer an explicit refresh;
 Overview shows only actual runtime selections and the following scheduled programme.
 It neither starts production nor requests AI. Selected audio remains revalidatable.
 
@@ -625,7 +625,7 @@ match the saved Show value across per-weekday show IDs. History fingerprints use
 same filtered/keyset-paginated raw records as the rendered page and exclude byte counts
 while transmitting. They do not include runtime queues or incident state. Incident pages
 fingerprint their own incident records separately. The initial fingerprint comes from
-the already-loaded page records, avoiding a second-read race before the first poll.
+the already-loaded page records, avoiding a second-read race before the first subscription snapshot.
 
 
 History pages use a counted bounded read in one SQLite transaction. The shared pagination

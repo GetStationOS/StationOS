@@ -108,7 +108,7 @@
 </section>
 {{end}}
 {{define "audience-queue-results"}}
-<div id="audience-queue-results" tabindex="-1" hx-get="{{.AudienceRefreshURL}}" hx-trigger="every 5s" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest section:drop" hx-indicator="this" hx-push-url="false">
+<div id="audience-queue-results" tabindex="-1" data-live-url="{{.AudienceRefreshURL}}" hx-target="this" hx-swap="outerHTML show:none" hx-sync="closest section:drop" hx-indicator="this" hx-push-url="false">
   {{if not .Broadcast.Listeners}}
   <p class="hint">Automatic review starts while someone is listening to the station.</p>
   {{else}}{{if and .Broadcast.Programme.DJ.ID (not .Broadcast.Programme.DJ.HasKey)}}

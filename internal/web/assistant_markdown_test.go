@@ -64,7 +64,7 @@ func TestAssistantMarkdownFullPageAndPollingPreservePlainUserMessages(t *testing
 		if !strings.Contains(output, "**literal user text** &lt;script&gt;") || !strings.Contains(output, "Saved **literal action**") {
 			t.Fatal("plain messages changed", output)
 		}
-		if !strings.Contains(output, `<ol aria-label="Conversation history" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true" hx-indicator="#global-busy">`) {
+		if !strings.Contains(output, `<ol aria-label="Conversation history" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true">`) {
 			t.Fatal("conversation links inherit polling navigation", output)
 		}
 		if strings.Contains(output, "<script>") {

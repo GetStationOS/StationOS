@@ -86,8 +86,7 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 		previous = version
 		return true
 	}
-	// Keep the connection alive and reconcile clock/config changes made outside
-	// this process. This sends no card event unless visible content changed.
+	// Transport heartbeat only: committed configuration/runtime changes drive snapshots.
 	heartbeat := time.NewTicker(15 * time.Second)
 	defer heartbeat.Stop()
 	for {
@@ -102,7 +101,7 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-heartbeat.C:
-			if !update() || !write([]byte(": keepalive\n\n")) {
+			if !write([]byte(": keepalive\n\n")) {
 				return
 			}
 		}

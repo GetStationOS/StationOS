@@ -14,7 +14,7 @@
     </script>
     <script src="{{assetURL "prompts.js"}}" defer></script>
   </head>
-  <body hx-boost="true" hx-target="#main" hx-swap="innerHTML show:window:top" hx-indicator="#global-busy">
+  <body hx-boost="true" hx-target="#main" hx-swap="innerHTML show:window:top">
     <a class="skip-link" href="#main" hx-boost="false">Skip to content</a>
     <aside class="sidebar">
       <a class="brand" href="/producer" aria-label="StationOS home">
@@ -32,7 +32,6 @@
       </nav>
     </aside>
     <div class="workspace">
-      <span id="global-busy" class="htmx-indicator global-busy" role="status">Working…</span>
       <div id="feedback" class="app-feedback" role="alert" tabindex="-1" hidden>
       </div>
       <main id="main" tabindex="-1" hx-history-elt>
@@ -86,7 +85,7 @@
   <a href="/producer/playlists?station={{.Station.ID}}" {{if eq .Section "playlists"}}aria-current="page"{{end}}>Playlists</a>
   <a href="/producer/stations/{{.Station.ID}}/schedule" {{if eq .Section "schedule"}}aria-current="page"{{end}}>Schedule</a>
   <a href="/producer/stations/{{.Station.ID}}/timeline" {{if eq .Section "timeline"}}aria-current="page"{{end}}>Timeline</a>
-  <a href="/producer/stations/{{.Station.ID}}/incidents" {{if eq .Section "incidents"}}aria-current="page"{{end}}>Incidents<span class="incident-menu-indicator" hx-get="/producer/stations/{{.Station.ID}}/operations/indicator" hx-trigger="every 10s" hx-target="this" hx-swap="innerHTML" hx-push-url="false">{{template "incident-menu-icon" .ActiveIncidents}}</span></a>
+  <a href="/producer/stations/{{.Station.ID}}/incidents" {{if eq .Section "incidents"}}aria-current="page"{{end}}>Incidents<span id="incident-menu-indicator" class="incident-menu-indicator" hx-indicator="this" data-live-url="/producer/stations/{{.Station.ID}}/operations/indicator" hx-target="this" hx-swap="innerHTML" hx-push-url="false">{{template "incident-menu-icon" .ActiveIncidents}}</span></a>
   <a href="/producer/stations/{{.Station.ID}}/audience" {{if eq .Section "audience"}}aria-current="page"{{end}}>Audience</a>
   <a href="/producer/stations/{{.Station.ID}}/mixer" {{if eq .Section "mixer"}}aria-current="page"{{end}}>Mixer</a>
   <a href="/producer/stations/{{.Station.ID}}/settings" {{if eq .Section "settings"}}aria-current="page"{{end}}>Settings</a>

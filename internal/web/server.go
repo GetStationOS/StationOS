@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/changefeed"
 	"stationos.local/stationos/internal/prompts"
 	"strconv"
 	"strings"
@@ -41,6 +42,7 @@ type ImageGenerator interface {
 }
 
 type Dependencies struct {
+	Changes         *changefeed.Bus
 	Prompts         prompts.Store
 	Operations      operations.Store
 	Recording       *operations.Recorder
@@ -112,7 +114,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /producer/assistant/settings", s.assistantSettings)
 	mux.HandleFunc("POST /producer/assistant/conversations", s.newConversation)
 	mux.HandleFunc("POST /producer/assistant/messages", s.assistantSend)
-	mux.HandleFunc("GET /producer/assistant/{id}/messages", s.assistantMessages)
+	mux.HandleFunc("GET /producer/assistant/{id}/messages", s.subscription("assistant", "assistant-messages", s.assistantMessages))
 	mux.HandleFunc("POST /producer/assistant/{id}/stop", s.assistantStop)
 	mux.HandleFunc("POST /producer/assistant/{id}/continue", s.assistantContinue)
 	mux.HandleFunc("GET /producer/{$}", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/producer", 308) })
@@ -130,7 +132,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /radio/{slug}/requests", s.submitAudience)
 	mux.HandleFunc("GET /radio/{slug}/shoutouts", s.audienceForm)
 	mux.HandleFunc("POST /radio/{slug}/shoutouts", s.submitAudience)
-	mux.HandleFunc("GET /producer/stations/{id}/audience", s.audiencePage)
+	mux.HandleFunc("GET /producer/stations/{id}/audience", s.subscription("audience", "audience-queue-results", s.audiencePage))
 	mux.HandleFunc("POST /producer/stations/{id}/audience/{message}", s.decideAudience)
 	mux.HandleFunc("GET /radio/{slug}/live", s.publicLive)
 	mux.HandleFunc("GET /radio/{slug}/player", s.publicPlayerEvents)
@@ -151,8 +153,8 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/stations/{id}/upcoming", s.upcomingOverview)
 	mux.HandleFunc("GET /producer/stations/{id}/incidents", s.operationsPage)
 	mux.HandleFunc("GET /producer/stations/{id}/history.csv", s.operationsPage)
-	mux.HandleFunc("GET /producer/stations/{id}/operations/version", s.operationsVersion)
-	mux.HandleFunc("GET /producer/stations/{id}/operations/indicator", s.incidentIndicator)
+	mux.HandleFunc("GET /producer/stations/{id}/operations/version", s.subscription("operations", "operations-version", s.operationsVersion))
+	mux.HandleFunc("GET /producer/stations/{id}/operations/indicator", s.subscription("operations", "incident-menu-indicator", s.incidentIndicator))
 	mux.HandleFunc("POST /producer/stations/{id}/incidents/{incident}/acknowledge", s.acknowledgeIncident)
 	mux.HandleFunc("GET /producer/stations/live", s.liveCards)
 	mux.HandleFunc("GET /producer/stations/events", s.stationEvents)
@@ -162,7 +164,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/station-logos/{image}", s.stationLogo)
 	mux.HandleFunc("GET /station-logos/{image}", s.stationLogo)
 	mux.HandleFunc("GET /producer/stations/{id}/artwork/{item}", s.stationArtwork)
-	mux.HandleFunc("GET /producer/stations/{id}/live", s.liveStation)
+	mux.HandleFunc("GET /producer/stations/{id}/live", s.subscription("operations", "station-live", s.liveStation))
 	mux.HandleFunc("POST /producer/stations/{id}/broadcast", s.assignBroadcast)
 	mux.HandleFunc("GET /producer/stations/{id}/mixer", s.mixerPage)
 	mux.HandleFunc("POST /producer/stations/{id}/mixer", s.saveMixer)

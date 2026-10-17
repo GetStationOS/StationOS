@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"regexp"
 	"stationos.local/stationos/internal/ai"
+	"stationos.local/stationos/internal/changefeed"
 	"stationos.local/stationos/internal/prompts"
 	"stationos.local/stationos/internal/station"
 	"strings"
@@ -96,6 +97,7 @@ func (s *Service) Activity(id string) (Activity, bool) {
 	return Activity{}, false
 }
 func (s *Service) recordUsage(id string, usage Usage) {
+	defer s.changes.Publish("activity")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if run := s.runs[id]; run != nil {
@@ -166,6 +168,7 @@ func (s *Service) respondWithOptions(ctx context.Context, id, model, key, prompt
 	}
 }
 func (s *Service) activity(id, stage string, finished bool) {
+	defer s.changes.Publish("activity")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if run := s.runs[id]; run != nil {
@@ -274,6 +277,7 @@ type Model interface {
 	Respond(context.Context, string, string, string, []Item, []Tool) (Response, error)
 }
 type Service struct {
+	changes changefeed.Bus
 	Prompts prompts.Store
 	Store   Store
 	Tools   *Registry
@@ -348,6 +352,7 @@ func (s *Service) Start(ctx context.Context, id, requestID, text string) error {
 	}
 	active := &activeRun{cancel: cancel, activity: Activity{Stage: "Starting your request", Started: time.Now(), Changed: time.Now()}}
 	s.runs[id] = active
+	s.changes.Publish("activity")
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -357,6 +362,7 @@ func (s *Service) Start(ctx context.Context, id, requestID, text string) error {
 			s.mu.Lock()
 			if s.runs[id] == active {
 				delete(s.runs, id)
+				s.changes.Publish("activity")
 			}
 			s.mu.Unlock()
 		}()
@@ -949,3 +955,6 @@ func canonicalCall(call Call) string {
 func (s Settings) Enabled() bool {
 	return s.TextReady || (s.Routes.Assistant.Connection == "" && s.HasKey)
 }
+
+// WatchChanges observes real activity without starting or advancing a task.
+func (s *Service) WatchChanges() (<-chan struct{}, func()) { return s.changes.Watch("activity") }

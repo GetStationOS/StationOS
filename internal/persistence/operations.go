@@ -5,11 +5,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"stationos.local/stationos/internal/changefeed"
 	"stationos.local/stationos/internal/operations"
 	"time"
 )
 
-type Operations struct{ DB *sql.DB }
+type Operations struct {
+	DB      *sql.DB
+	Changes *changefeed.Bus
+}
 
 var _ operations.Store = Operations{}
 
@@ -25,7 +29,12 @@ func restored(n int64) time.Time {
 	}
 	return time.Unix(0, n)
 }
-func (o Operations) Save(ctx context.Context, e operations.Event) error {
+func (o Operations) Save(ctx context.Context, e operations.Event) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			o.Changes.Publish("operations")
+		}
+	}()
 	raw, err := json.Marshal(e)
 	if err != nil {
 		return err
@@ -65,7 +74,12 @@ func (o Operations) Save(ctx context.Context, e operations.Event) error {
 
 // Only serve startup invokes recovery. CLI catalogue/integrity tasks must not
 // close records belonging to a running server.
-func (o Operations) Recover(ctx context.Context, at time.Time) error {
+func (o Operations) Recover(ctx context.Context, at time.Time) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			o.Changes.Publish("operations")
+		}
+	}()
 	tx, err := o.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -257,7 +271,12 @@ func (o Operations) Incidents(ctx context.Context, station string, active bool) 
 	}
 	return result, rows.Err()
 }
-func (o Operations) Acknowledge(ctx context.Context, station, id string, at time.Time) error {
+func (o Operations) Acknowledge(ctx context.Context, station, id string, at time.Time) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			o.Changes.Publish("operations")
+		}
+	}()
 	result, err := o.DB.ExecContext(ctx, `UPDATE transmission_incidents SET acknowledged_at=? WHERE station_id=? AND id=? AND acknowledged_at=0`, instant(at), station, id)
 	if err != nil {
 		return err

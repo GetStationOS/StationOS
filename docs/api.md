@@ -38,7 +38,7 @@ Playlist membership is an unordered eligibility pool. There is no move/reorder e
 - GET/HEAD streams do not require management authentication. Stream addresses are stable stored station slugs, never resource URLs. Unknown management paths remain protected.
 - Protected `POST /producer/stations/<id>/broadcast` assigns a station-owned `playlist` or clears assignment with an empty value. Changing assignment ends the old broadcast.
 - Protected `POST /producer/station` accepts `stream_slug` for editing the address; lowercase ASCII letters, digits and single hyphens, maximum 80 characters. A duplicate custom address returns 422. A rename preserves the current address unless a new one is submitted.
-- Protected `GET /producer/stations/<id>/live` supplies the overview status fragment; `/producer/stations/live` supplies current homepage cards. Polling neither starts audio nor replaces editing forms.
+- Protected `GET /producer/stations/<id>/live` supplies the overview status fragment; `/producer/stations/live` supplies current homepage cards. Subscriptions neither start audio nor replace editing forms; see [live-updates.md](live-updates.md).
 
 The app's player is outside `#main` and the HTMX history element. Explicit Listen starts playback; Pause closes the connection and Resume reconnects at the current live point. Full reloads close the player. Stream URLs use `-public-url` when configured, otherwise the request's actual scheme/host; forwarded headers are not trusted.
 
@@ -67,3 +67,17 @@ Set `-public-url` to the exact externally accessed HTTP(S) origin. POST requests
 - Management station forms accept `visibility=listed|unlisted|private`. Omitted visibility preserves an existing setting; new stations default to Unlisted. Invalid choices return 422 without saving. Stream slugs remain stable across name changes.
 
 Management routes are now prefixed `/producer`, including the station overview, Sources, DJs, playlists, schedule, mixer and status API. Old management paths redirect to their corresponding prefixed paths. Configure `STATIONOS_ADMIN_PASSWORD` to protect management on a public deployment; its existing optional-password behaviour is unchanged.
+
+
+## Protected live view subscriptions
+
+The overview `/producer/stations/<id>/live`, Audience `/audience`, Assistant
+`/producer/assistant/<conversation>/messages`, and station `/operations/indicator`
+and `/operations/version` GET routes accept `subscribe=1` for SSE. All retain normal
+authentication, entity validation and filters; ordinary GETs keep their fragment/JSON
+response. Each stream sends an initial `snapshot` and subsequent changed snapshots as
+JSON-encoded response-body strings. Version bodies contain the normal JSON fingerprint
+object. Heartbeats are SSE comments and never refresh/re-query the view. Connections
+release on cancellation and receive a fresh snapshot after reconnect. Timeline/Incident
+subscriptions only offer explicit refresh, preserving the reading position. See
+[live-updates.md](live-updates.md) for writer notifications and lifecycle requirements.

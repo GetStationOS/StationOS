@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"stationos.local/stationos/internal/changefeed"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/station"
@@ -54,7 +55,9 @@ func setupAssistant(t *testing.T, password string, model producer.Model) (http.H
 	if e != nil {
 		t.Fatal(e)
 	}
+	changes := &changefeed.Bus{}
 	store := persistence.NewProducer(dj)
+	store.Changes = changes
 	st := persistence.Stations{DB: db}
 	src := persistence.Sources{DB: db}
 	cat := persistence.Catalogue{DB: db}
@@ -67,7 +70,7 @@ func setupAssistant(t *testing.T, password string, model producer.Model) (http.H
 	}
 	t.Cleanup(svc.Close)
 	svc.Prompts = persistence.Prompts{DB: db}
-	h, e := New(Dependencies{Prompts: persistence.Prompts{DB: db}, Assistant: svc, Stations: st, Sources: src, Catalogue: cat, Playlists: pl, DJs: dj, Schedule: shows, BroadcastConfig: b, Ready: db.PingContext, Password: password, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	h, e := New(Dependencies{Changes: changes, Prompts: persistence.Prompts{DB: db}, Assistant: svc, Stations: st, Sources: src, Catalogue: cat, Playlists: pl, DJs: dj, Schedule: shows, BroadcastConfig: b, Ready: db.PingContext, Password: password, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -108,7 +111,7 @@ func TestAssistantProducerJourneyAndDuplicateFirstMessage(t *testing.T) {
 	}
 	id := list[0].ID
 	poll := request(h, "GET", "/producer/assistant/"+id+"/messages", nil, map[string]string{"HX-Request": "true"})
-	if poll.Code != 200 || strings.Contains(poll.Body.String(), "textarea") || !strings.Contains(poll.Body.String(), "every 2s") {
+	if poll.Code != 200 || strings.Contains(poll.Body.String(), "textarea") || !strings.Contains(poll.Body.String(), "data-live-url=") {
 		t.Fatal("poll reset composer", poll.Body.String())
 	}
 	if !strings.Contains(poll.Body.String(), "Running for") || !strings.Contains(poll.Body.String(), "Current activity:") {

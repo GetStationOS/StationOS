@@ -18,3 +18,9 @@ Keep day, schedule rows and show information unbordered inside the programme
 panel. The active show row and expanded details share a soft tinted background; give contribution choices, forms and confirmation one quiet bordered
 container with comfortable padding. Omit the interaction section when the show
 has no available participation options; never hide the scheduled show itself.
+
+Live UI updates must use event subscriptions, never periodic HTMX/fetch polling.
+Read docs/live-updates.md before adding or changing live views. Publish after
+successful commits (including background writes), preserve region/focus/history,
+and keep transport heartbeats free of database reads. Run the polling regression
+checks and exercise subscription reconnect/navigation in a browser.

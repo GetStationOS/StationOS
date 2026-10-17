@@ -202,3 +202,18 @@ transaction; newest-record anchors keep older pages stable while new broadcasts 
 Refresh checks follow the selected page and count, and exports retain the full semantic
 filter while ignoring page bounds. Regression tests cover filters, size changes, page
 clamping, equal-timestamp ordering and new-arrival stability.
+
+
+### All live screens use event subscriptions (17 October 2026)
+
+Supersedes the polling descriptions in earlier milestone entries. Overview, Audience,
+Assistant messages/activity, incident menu state and operational fingerprints now use
+SSE subscriptions. Committed operations/audience/chat writes notify observers, including
+background writes; runtime activity and recording failure have explicit notifications.
+Heartbeats only keep the transport alive. Actual expiry/show/day boundaries use one-shot
+deadlines. Browser reconnect/navigation preserves region ownership and snapshots;
+Timeline and Incidents retain explicit result refresh. Removed the global Working banner.
+Contributor rules, current architecture/API/UX guidance and a polling regression guard
+are recorded in [live-updates.md](live-updates.md). Full checks, race tests and builds pass;
+browser checks cover cross-tab review notifications, explicit refresh, automatic reconnect
+and phone/tablet layouts.

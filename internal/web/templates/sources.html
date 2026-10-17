@@ -127,7 +127,7 @@
         {{if .Model}}{{.Model}} · {{end}}{{.Host}}</span>
     </div>
     {{if .ExistingID}}<span class="badge">Already added</span>
-    <a class="button secondary" href="/producer/sources/{{.ExistingID}}" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true" hx-indicator="#global-busy">Open source</a>
+    <a class="button secondary" href="/producer/sources/{{.ExistingID}}" hx-target="#main" hx-swap="innerHTML show:window:top" hx-push-url="true">Open source</a>
     {{else}}
     <form method="get" action="/producer/sources/new" data-source-choice hx-boost="false">
       <input type="hidden" name="name" value="{{.Name}}">

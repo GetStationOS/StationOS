@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"stationos.local/stationos/internal/changefeed"
 	"strings"
 	"time"
 
@@ -15,8 +16,9 @@ import (
 
 // Producer shares the existing secrets-key file, with independent associated data.
 type Producer struct {
-	DB     *sql.DB
-	secret cipher.AEAD
+	Changes *changefeed.Bus
+	DB      *sql.DB
+	secret  cipher.AEAD
 }
 
 func NewProducer(d DJs) Producer { return Producer{DB: d.DB, secret: d.secret} }
@@ -187,7 +189,12 @@ func (p Producer) legacyKey(ctx context.Context) (string, error) {
 	}
 	return string(v), nil
 }
-func (p Producer) Create(ctx context.Context, c producer.Conversation) error {
+func (p Producer) Create(ctx context.Context, c producer.Conversation) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			p.Changes.Publish("assistant")
+		}
+	}()
 	_, e := p.DB.ExecContext(ctx, `INSERT INTO producer_conversations(id,station_id,title,created) VALUES(?,?,?,?)`, c.ID, c.StationID, c.Title, time.Now().UTC().Format(time.RFC3339Nano))
 	return e
 }
@@ -254,7 +261,12 @@ func (p Producer) Get(ctx context.Context, id string) (producer.Conversation, er
 	}
 	return c, requests.Err()
 }
-func (p Producer) Begin(ctx context.Context, id, requestID, text string) error {
+func (p Producer) Begin(ctx context.Context, id, requestID, text string) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			p.Changes.Publish("assistant")
+		}
+	}()
 	tx, e := p.DB.BeginTx(ctx, nil)
 	if e != nil {
 		return e
@@ -360,14 +372,24 @@ func (p Producer) Begin(ctx context.Context, id, requestID, text string) error {
 	}
 	return tx.Commit()
 }
-func (p Producer) Append(ctx context.Context, id string, m producer.Message) error {
+func (p Producer) Append(ctx context.Context, id string, m producer.Message) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			p.Changes.Publish("assistant")
+		}
+	}()
 	if len(m.Text) > 32000 {
 		return errors.New("Assistant message exceeds the limit")
 	}
 	_, e := p.DB.ExecContext(ctx, `INSERT INTO producer_messages(conversation_id,role,text,url,created) VALUES(?,?,?,?,?)`, id, m.Role, m.Text, m.URL, time.Now().UTC().Format(time.RFC3339Nano))
 	return e
 }
-func (p Producer) Finish(ctx context.Context, id, status string, raw json.RawMessage, message producer.Message) error {
+func (p Producer) Finish(ctx context.Context, id, status string, raw json.RawMessage, message producer.Message) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			p.Changes.Publish("assistant")
+		}
+	}()
 	if status != "idle" && status != "failed" {
 		return errors.New("Invalid conversation state")
 	}
@@ -391,7 +413,12 @@ func (p Producer) Finish(ctx context.Context, id, status string, raw json.RawMes
 	}
 	return tx.Commit()
 }
-func (p Producer) Interrupt(ctx context.Context) error {
+func (p Producer) Interrupt(ctx context.Context) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			p.Changes.Publish("assistant")
+		}
+	}()
 	tx, e := p.DB.BeginTx(ctx, nil)
 	if e != nil {
 		return e
@@ -406,7 +433,12 @@ func (p Producer) Interrupt(ctx context.Context) error {
 	return tx.Commit()
 }
 
-func (p Producer) Checkpoint(ctx context.Context, id string, raw json.RawMessage, task producer.Task) error {
+func (p Producer) Checkpoint(ctx context.Context, id string, raw json.RawMessage, task producer.Task) (changeErr error) {
+	defer func() {
+		if changeErr == nil {
+			p.Changes.Publish("assistant")
+		}
+	}()
 	if !json.Valid(raw) || len(raw) > producer.MaxTranscript {
 		return errors.New("Invalid assistant checkpoint")
 	}

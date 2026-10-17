@@ -28,7 +28,7 @@
 
 {{define "station-overview"}}
 <section class="station-overview-panel">
-  <div id="station-live" hx-get="/producer/stations/{{.Station.ID}}/live" hx-trigger="every 3s" hx-indicator="this" hx-target="this" hx-swap="innerHTML">
+  <div id="station-live" data-live-url="/producer/stations/{{.Station.ID}}/live" hx-indicator="this" hx-target="this" hx-swap="innerHTML">
     {{template "station-live" .}}
   </div>
   {{if .BroadcastEnabled}}

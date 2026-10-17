@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"log/slog"
+	"stationos.local/stationos/internal/changefeed"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -57,14 +58,15 @@ type Store interface {
 // Recorder never blocks the paced audio loop. Loss or write failures latch a
 // visible health warning until restart: a later successful write cannot repair it.
 type Recorder struct {
-	store  Store
-	log    *slog.Logger
-	queue  chan Event
-	done   chan struct{}
-	mu     sync.RWMutex
-	closed bool
-	failed atomic.Bool
-	cancel context.CancelFunc
+	changes changefeed.Bus
+	store   Store
+	log     *slog.Logger
+	queue   chan Event
+	done    chan struct{}
+	mu      sync.RWMutex
+	closed  bool
+	failed  atomic.Bool
+	cancel  context.CancelFunc
 }
 
 func New(ctx context.Context, store Store, logger *slog.Logger) (*Recorder, error) {
@@ -83,7 +85,9 @@ func New(ctx context.Context, store Store, logger *slog.Logger) (*Recorder, erro
 			err := store.Save(ctx, e)
 			cancel()
 			if err != nil {
-				r.failed.Store(true)
+				if r.failed.CompareAndSwap(false, true) {
+					r.changes.Publish("health")
+				}
 				r.log.Error("Transmission history write failed", "station_id", e.StationID, "event_id", e.ID, "error", err)
 			}
 		}
@@ -105,7 +109,9 @@ func (r *Recorder) Record(e Event) {
 	select {
 	case r.queue <- e:
 	default:
-		r.failed.Store(true)
+		if r.failed.CompareAndSwap(false, true) {
+			r.changes.Publish("health")
+		}
 		r.log.Error("Transmission history queue full", "station_id", e.StationID)
 	}
 }
@@ -125,3 +131,6 @@ func (r *Recorder) Close() {
 	}
 	r.cancel()
 }
+
+// WatchChanges announces the first recording failure, including queue overflow.
+func (r *Recorder) WatchChanges() (<-chan struct{}, func()) { return r.changes.Watch("health") }

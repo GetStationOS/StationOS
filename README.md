@@ -33,7 +33,7 @@ Imports copy metadata and resource addresses only; audio stays on the UPnP serve
 
 Sources must resolve to a trusted server address. Loopback, multicast, link-local and unspecified addresses are rejected. DNS is pinned during each import, resources and redirects remain on that server, and proxy environment variables are ignored. Rebuild to pick up address changes. Playback freshly resolves each source object through the same checked transport. Only checked audio bytes reach FFmpeg; no music files are copied into the database.
 
-The UI uses HTMX for navigation and writes within a stable application shell, with real URLs, back/forward history, save feedback, loading/error states and ordinary-form fallback. Station overview polls measured runtime state every three seconds. Homepage cards and the persistent player use live events and update only changed content; editing forms remain stable. The player shows current and next titles and artists as you navigate.
+The UI uses HTMX for navigation and writes within a stable application shell, with real URLs, back/forward history, save feedback, loading/error states and ordinary-form fallback. Station overview subscribes to measured runtime changes through server-sent events. Homepage cards and the persistent player use live events and update only changed content; editing forms remain stable. The player shows current and next titles and artists as you navigate.
 
 ## Test and develop
 
@@ -131,7 +131,7 @@ Clock-injected tests verify finishing tracks, sharing handovers without reconnec
 
 The homepage now shows each station’s active programme, DJ, local show times and playlist; stations without a running show show the configured default playlist. Current and next tracks include artist, album, duration and artwork where available. Cards also show measured listener count, DJ preparation/failure or missing-key state, finish-track/handover status and the following show. Dormant stations remain clearly empty. DJ and playlist names link to their settings; Listen uses the persistent player.
 
-Cards poll quietly without stealing keyboard focus, and card navigation opens the full station workspace. Artwork is served through StationOS from the source’s checked transport, with an eight-second timeout, a 4 MiB raster-image limit, four concurrent requests and private browser caching. Missing artwork uses a music placeholder. No database migration is required for this UI change.
+Cards receive quiet event updates without stealing keyboard focus, and card navigation opens the full station workspace. Artwork is served through StationOS from the source’s checked transport, with an eight-second timeout, a 4 MiB raster-image limit, four concurrent requests and private browser caching. Missing artwork uses a music placeholder. No database migration is required for this UI change.
 
 
 ## Stream buffering and hardware radios
@@ -318,3 +318,5 @@ Filters are preserved between pages. Paging anchors to the newest matching recor
 when browsing so later broadcasts do not shift older pages. Applying filters again
 starts a fresh view; exports include the complete filtered history within the 1,000-row
 export limit rather than just the visible page.
+
+Live screen updates use event subscriptions throughout. Contributor contracts and regression requirements are documented in [docs/live-updates.md](docs/live-updates.md); periodic screen polling is prohibited.

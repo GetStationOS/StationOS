@@ -73,6 +73,9 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 			return
 		}
 	}
+	if v.Conversation.Status == "failed" {
+		v.AssistantRequestID = fmt.Sprintf("continue-%s-%d", v.Conversation.ID, len(v.Conversation.Messages))
+	}
 	switch v.Conversation.Status {
 	case "running":
 		v.AssistantState = "Working"
@@ -121,7 +124,7 @@ func (s *Server) assistantRender(w http.ResponseWriter, r *http.Request, message
 		v.AssistantMessages[len(v.AssistantMessages)-1].Latest = true
 	}
 	if r.PathValue("id") != "" {
-		// Poll only the messages/status region, preserving the compose form and focus.
+		// Render only the messages/status region, preserving the compose form and focus.
 		s.renderHTML(w, http.StatusOK, "assistant-messages", v)
 		return
 	}

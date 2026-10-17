@@ -56,8 +56,15 @@ func TestRecorderFlushesAndLatchesFailure(t *testing.T) {
 	}
 	store = &testStore{fail: true}
 	r, _ = New(context.Background(), store, nil)
+	changes, release := r.WatchChanges()
+	defer release()
 	r.Record(Event{})
 	r.Close()
+	select {
+	case <-changes:
+	default:
+		t.Fatal("write failure notification missing")
+	}
 	if r.Healthy() {
 		t.Fatal("write failure hidden")
 	}
@@ -65,6 +72,8 @@ func TestRecorderFlushesAndLatchesFailure(t *testing.T) {
 func TestRecorderQueueNeverBlocksAudio(t *testing.T) {
 	store := &testStore{block: make(chan struct{}), entered: make(chan struct{}, 1)}
 	r, _ := New(context.Background(), store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	changes, release := r.WatchChanges()
+	defer release()
 	r.Record(Event{})
 	<-store.entered
 	start := time.Now()
@@ -73,6 +82,11 @@ func TestRecorderQueueNeverBlocksAudio(t *testing.T) {
 	}
 	if time.Since(start) > time.Second {
 		t.Fatal("audio blocked")
+	}
+	select {
+	case <-changes:
+	default:
+		t.Fatal("queue overflow notification missing")
 	}
 	if r.Healthy() {
 		t.Fatal("overflow hidden")

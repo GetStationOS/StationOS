@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -322,13 +323,26 @@ func (s *Server) audiencePage(w http.ResponseWriter, r *http.Request) {
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
 	offset = max(0, offset)
 
-	v.AudienceMessages, v.AudienceTotal, err = s.d.Audience.List(r.Context(), v.Station.ID, status, offset, 50, time.Now())
+	snapshotTime := time.Now()
+	v.AudienceMessages, v.AudienceTotal, err = s.d.Audience.List(r.Context(), v.Station.ID, status, offset, 50, snapshotTime)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
 	base := r.URL.Path + "?" + filters.Encode() + "&offset="
 	v.AudienceRefreshURL = base + strconv.Itoa(offset)
+	if expiry, ok := s.d.Audience.(interface {
+		NextExpiry(context.Context, string, time.Time) (time.Time, error)
+	}); ok {
+		at, err := expiry.NextExpiry(r.Context(), v.Station.ID, snapshotTime)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		if !at.IsZero() {
+			w.Header().Set("X-Live-Deadline", at.Format(time.RFC3339Nano))
+		}
+	}
 	if offset > 0 {
 		v.AudiencePrevious = base + strconv.Itoa(max(0, offset-50))
 	}

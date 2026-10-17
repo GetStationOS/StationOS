@@ -1,4 +1,5 @@
 const mixerSaves = new WeakMap();
+const liveSubscriptions=new Map();
 let stationEvents=null;
 let stationEventOwner=null;
 htmx.config.allowEval = false;
@@ -61,6 +62,7 @@ function initialise() {
   showEndpointModels();
   document.querySelectorAll("[data-provider-type]").forEach(select => providerAddressHelp(select,false));
   syncStationEvents();
+  syncLiveSubscriptions();
   document.querySelectorAll('[data-audience-request]').forEach(initialiseAudienceRequest);
   const path = document.querySelector(".screen")?.dataset.page || location.pathname;
   const active = path.startsWith('/producer/assistant') ? 'assistant' : path.startsWith('/producer/djs') ? 'djs' : path.startsWith('/producer/sources') ? 'sources' : path === '/producer/content' && !document.querySelector('.breadcrumbs') ? 'sources' : 'stations';
@@ -653,7 +655,7 @@ document.body.addEventListener('htmx:afterSwap', event => {
 for (const eventName of ['htmx:responseError', 'htmx:sendError', 'htmx:timeout']) {
   document.addEventListener(eventName, event => {
     if (event.detail?.elt?.id === 'assistant-messages') {
-      const warning = document.querySelector('.assistant-poll-error');
+      const warning = document.querySelector('.assistant-live-error');
       if (warning) warning.hidden = false;
     }
   });
@@ -765,7 +767,7 @@ function patchAssistantParts(current,next) {
 
 // Reconcile chat turns by their server-rendered position, never by shared CSS
 // classes. Explicitly placing each turn also repairs an already scrambled list.
-// Keep unchanged bubbles mounted so selection and open reasoning survive polls.
+// Keep unchanged bubbles mounted so selection and open reasoning survive live snapshots.
 function patchAssistantMessages(current,next) {
  const list=current.querySelector(':scope > ol');
  const incoming=next.querySelector(':scope > ol');
@@ -794,7 +796,7 @@ document.body.addEventListener('htmx:beforeSwap', event => {
  const target=event.detail.target;
  if (target?.id !== 'assistant-messages' || !event.detail.shouldSwap) return;
  const incoming=new DOMParser().parseFromString(event.detail.serverResponse,'text/html').getElementById('assistant-messages');
- // A late poll must never replace a newer page or a different conversation.
+ // A late response must never replace a newer page or a different conversation.
  event.detail.shouldSwap=false;
  if (target!==document.getElementById('assistant-messages') || !incoming || incoming.dataset.assistantConversation !== target.dataset.assistantConversation) return;
  const follow=window.innerHeight+window.scrollY >= document.documentElement.scrollHeight-140;
@@ -827,35 +829,124 @@ document.body.addEventListener('htmx:timeout', event => {
  if(event.detail.elt?.matches('[data-assistant-compose]')) showError('The request timed out. Your draft is retained. Reload to check whether it was received before sending again.');
 });
 
-// Historical views never replace the producer's reading position or details.
-// One document-level timer follows HTMX navigation without accumulating timers.
-(() => {
-  let pending = false;
-  setInterval(async () => {
-    const region = document.querySelector('[data-operations-version]');
-    if (!region || pending || document.hidden) return;
-    pending = true;
-    try {
-      const response = await fetch(region.dataset.operationsUrl, {headers: {'Accept': 'application/json'}, cache: 'no-store', signal: AbortSignal.timeout(8000)});
-      if (!response.ok) throw new Error('Updates unavailable');
-      const result = await response.json();
-      if (!region.isConnected) return;
-      region.querySelector('[data-operations-disconnected]').hidden = true;
-      const updated = result.version !== region.dataset.operationsVersion;
-      const refresh = region.querySelector('[data-operations-refresh]');
-      if (refresh) {
-        refresh.disabled = !updated;
-        refresh.classList.toggle('has-updates', updated);
-        const name = region.dataset.operationsLabel || 'Broadcast history';
-        const label = updated ? name + ' updates available. Refresh results' : name + ' up to date';
-        refresh.setAttribute('aria-label', label);
-        refresh.title = label;
-        const announcement = region.querySelector('[data-operations-announcement]');
-        const message = updated ? name + ' updates available' : '';
-        if (announcement.textContent !== message) announcement.textContent = message;
-      } else region.querySelector('[data-operations-notice]').hidden = !updated;
-    } catch (_) {
-      if (region.isConnected) region.querySelector('[data-operations-disconnected]').hidden = false;
-    } finally { pending = false; }
-  }, 10000);
-})();
+// Live views subscribe to snapshots; no periodic requests or polling fallback.
+// Streams belong to a region identity + URL and survive that region's own swaps.
+
+function operationsVersion(region,raw){
+ const result=JSON.parse(raw);
+ const updated=result.version!==region.dataset.operationsVersion;
+ const disconnected=region.querySelector('[data-operations-disconnected]');
+ if(disconnected)disconnected.hidden=true;
+ const refresh=region.querySelector('[data-operations-refresh]');
+ if(refresh){
+  refresh.disabled=!updated;refresh.classList.toggle('has-updates',updated);
+  const name=region.dataset.operationsLabel||'Broadcast history';
+  const label=updated?name+' updates available. Refresh results':name+' up to date';
+  refresh.setAttribute('aria-label',label);refresh.title=label;
+  const announcement=region.querySelector('[data-operations-announcement]');
+  const message=updated?name+' updates available':'';
+  if(announcement&&announcement.textContent!==message)announcement.textContent=message;
+ }else{const notice=region.querySelector('[data-operations-notice]');if(notice)notice.hidden=!updated;}
+}
+function applyLiveSnapshot(region,html){
+ if(region.hasAttribute('data-operations-version')){operationsVersion(region,html);return;}
+ const template=document.createElement('template');template.innerHTML=html;
+ if(region.id==='assistant-messages'){
+  const incoming=template.content.querySelector('#assistant-messages');
+  if(!incoming||incoming.dataset.assistantConversation!==region.dataset.assistantConversation)return;
+  const follow=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-140;
+  const before=region.textContent;
+  region.querySelectorAll('details[data-assistant-detail][open]').forEach(detail=>{
+   const match=Array.from(incoming.querySelectorAll('details[data-assistant-detail]')).find(next=>next.dataset.assistantDetail===detail.dataset.assistantDetail);
+   if(match)match.open=true;
+  });
+  patchAssistantMessages(region,incoming);htmx.process(region);syncAssistant();
+  if(follow&&before!==region.textContent)document.querySelector('[data-assistant-compose]')?.scrollIntoView({block:'end',behavior:'instant'});
+ }else if(region.id==='audience-queue-results'){
+  const incoming=template.content.querySelector('#audience-queue-results');if(!incoming)return;
+  const scroll=region.querySelector('.table-scroll')?.scrollLeft||0;
+  if(region.isEqualNode(incoming))return;
+  htmx.swap(region,incoming.outerHTML,{swapStyle:'outerHTML'});
+  const scroller=document.querySelector('#audience-queue-results .table-scroll');if(scroller)scroller.scrollLeft=scroll;
+ }else{
+  const incoming=region.cloneNode(false);incoming.append(...template.content.childNodes);
+  patchStationNode(region,incoming,region.contains(document.activeElement)?document.activeElement:null);
+  htmx.process(region);
+ }
+}
+function liveRegionURL(region){
+ const raw=region.dataset.liveUrl||region.dataset.operationsUrl;
+ if(!raw)return null;
+ const url=new URL(raw,location.href);url.searchParams.set('subscribe','1');
+ return url.origin===location.origin?url.href:null;
+}
+function syncLiveSubscriptions(){
+ const wanted=new Map();
+ document.querySelectorAll('[data-live-url],[data-operations-version]').forEach(region=>{
+  const url=liveRegionURL(region);
+  if(region.id&&url)wanted.set(region.id,url);
+ });
+ for(const [id,subscription] of liveSubscriptions){
+  if(wanted.get(id)!==subscription.url){subscription.connection.close();liveSubscriptions.delete(id);}
+ }
+ if(!window.EventSource)return;
+ for(const [id,url] of wanted){
+  if(liveSubscriptions.has(id)){
+   const existing=liveSubscriptions.get(id),owner=document.getElementById(id);
+   if(owner?.hasAttribute('data-operations-version')&&existing.latest!==null)operationsVersion(owner,existing.latest);
+   continue;
+  }
+  const connection=new EventSource(url);
+  const subscription={url,connection,pending:null,latest:null,requesting:false};liveSubscriptions.set(id,subscription);
+  const region=()=>{const owner=document.getElementById(id);return liveSubscriptions.get(id)===subscription&&owner&&liveRegionURL(owner)===url?owner:null;};
+  const disconnected=failed=>{
+   const owner=region();if(!owner)return;
+   let warning=owner.querySelector('[data-operations-disconnected],.assistant-live-error,[data-live-disconnected]');
+   if(!warning&&failed&&id!=='incident-menu-indicator'){
+    warning=document.createElement('p');warning.className='hint';warning.dataset.liveDisconnected='true';warning.setAttribute('role','status');warning.textContent='Live updates disconnected. Reconnecting…';owner.append(warning);
+   }
+   if(warning)warning.hidden=!failed;
+   if(id==='incident-menu-indicator')owner.title=failed?'Incident updates disconnected. Reconnecting…':'';
+   owner.classList.toggle('live-disconnected',failed);
+  };
+  connection.addEventListener('snapshot',event=>{
+   const owner=region();if(!owner)return;
+   let html;try{html=JSON.parse(event.data);}catch{return;}
+   subscription.latest=html;disconnected(false);
+   if(id==='audience-queue-results'&&(subscription.requesting||owner.contains(document.activeElement))){subscription.pending=html;return;}
+   subscription.pending=null;applyLiveSnapshot(owner,html);
+  });
+  connection.addEventListener('error',()=>disconnected(true));
+  connection.addEventListener('unavailable',()=>disconnected(true));
+ }
+}
+document.body.addEventListener('focusout',()=>{
+ queueMicrotask(()=>{for(const [id,subscription] of liveSubscriptions){
+  const owner=document.getElementById(id);
+  if(subscription.pending!==null&&!subscription.requesting&&owner&&!owner.contains(document.activeElement)){
+   const html=subscription.pending;subscription.pending=null;applyLiveSnapshot(owner,html);
+  }
+ }});
+});
+document.body.addEventListener('htmx:afterSettle',syncLiveSubscriptions);
+window.addEventListener('pageshow',syncLiveSubscriptions);
+window.addEventListener('pagehide',()=>{for(const {connection} of liveSubscriptions.values())connection.close();liveSubscriptions.clear();});
+
+// An explicit queue review owns its response; never replay a deferred pre-review snapshot.
+document.body.addEventListener('htmx:beforeRequest',event=>{
+ if(event.detail.target?.id!=='audience-queue-results')return;
+ const subscription=liveSubscriptions.get('audience-queue-results');
+ if(subscription){subscription.requesting=true;subscription.pending=null;}
+});
+document.body.addEventListener('htmx:afterRequest',event=>{
+ if(event.detail.target?.id!=='audience-queue-results')return;
+ const subscription=liveSubscriptions.get('audience-queue-results');
+ if(!subscription)return;
+ subscription.requesting=false;
+ const pending=subscription.pending;subscription.pending=null;
+ if(event.detail.failed&&pending!==null){
+  const owner=document.getElementById('audience-queue-results');
+  if(owner&&!owner.contains(document.activeElement))applyLiveSnapshot(owner,pending);
+  else subscription.pending=pending;
+ }
+});

@@ -130,6 +130,15 @@ func (s *Server) publicView(r *http.Request) (publicPageView, error) {
 		v.PublicDayLinks, date = publicScheduleDays(now, loc, r.URL.Query().Get("day"), v.AudienceBase)
 		v.PublicDate = date.Format("Monday 2 January")
 		v.AudienceDay = date.Format("2006-01-02")
+		local := now.In(loc)
+		v.LiveDeadline = time.Date(local.Year(), local.Month(), local.Day()+1, 0, 0, 0, 0, loc)
+		for _, occurrence := range schedule.Occurrences(shows, now, loc) {
+			for _, boundary := range []time.Time{occurrence.Start, occurrence.End} {
+				if boundary.After(now) && boundary.Before(v.LiveDeadline) {
+					v.LiveDeadline = boundary
+				}
+			}
+		}
 		contributions := map[string]string{}
 		if s.d.Audience != nil && s.d.BroadcastConfig != nil {
 			for _, o := range schedule.Occurrences(shows, now, loc) {
@@ -235,6 +244,12 @@ func (s *Server) publicPlayerEvents(w http.ResponseWriter, r *http.Request) {
 
 // Bounded observers render public projections without subscribing to audio.
 func (s *Server) publicEvents(w http.ResponseWriter, r *http.Request, templateName, eventName string) {
+	var changes <-chan struct{}
+	if s.d.Broadcast != nil {
+		var stop func()
+		changes, stop = s.d.Broadcast.WatchChanges()
+		defer stop()
+	}
 	initial, err := s.publicView(r)
 	if err != nil {
 		s.publicError(w, r, err)
@@ -256,8 +271,6 @@ func (s *Server) publicEvents(w http.ResponseWriter, r *http.Request, templateNa
 		http.Error(w, "too many live views", 503)
 		return
 	}
-	changes, stop := s.d.Broadcast.WatchChanges()
-	defer stop()
 	rc := http.NewResponseController(w)
 	defer rc.SetWriteDeadline(time.Time{})
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -272,7 +285,22 @@ func (s *Server) publicEvents(w http.ResponseWriter, r *http.Request, templateNa
 		return rc.Flush() == nil
 	}
 	var previous [32]byte
+	var deadline <-chan time.Time
+	var timer *time.Timer
+	defer func() {
+		if timer != nil {
+			timer.Stop()
+		}
+	}()
 	update := func(v publicPageView) bool {
+		if timer != nil {
+			timer.Stop()
+		}
+		deadline = nil
+		if !v.LiveDeadline.IsZero() {
+			timer = time.NewTimer(time.Until(v.LiveDeadline))
+			deadline = timer.C
+		}
 		html, err := s.executeHTML(templateName, v)
 		if err != nil {
 			return false
@@ -312,13 +340,17 @@ func (s *Server) publicEvents(w http.ResponseWriter, r *http.Request, templateNa
 			if !update(v) {
 				return
 			}
-		case <-heartbeat.C:
+		case <-deadline:
 			v, err := s.publicView(r)
 			if err != nil {
 				write([]byte("event: unavailable\ndata: {}\n\n"))
 				return
 			}
-			if !update(v) || !write([]byte(": keepalive\n\n")) {
+			if !update(v) {
+				return
+			}
+		case <-heartbeat.C:
+			if !write([]byte(": keepalive\n\n")) {
 				return
 			}
 		}

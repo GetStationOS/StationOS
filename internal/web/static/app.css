@@ -1010,3 +1010,14 @@ textarea{font-weight:400;line-height:1.5}
  .incident-filters { gap:4px; }
  .incident-filters>a { font-size:11px; padding:8px 5px; }
 }
+
+/* Shared Audience-style outline for station data tables. */
+.table-outline,.table.table-outline { border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); overflow:auto; }
+.table-outline:focus-visible { outline-offset:-3px; }
+.calendar-scroll { border-color:var(--line); border-radius:var(--radius); }
+@media(max-width:700px) {
+ .table-outline>.history-table tbody>tr,.table-outline>.incident-table tbody>tr { padding-left:12px; padding-right:12px; }
+}
+
+.empty-state.table-outline { padding:32px 16px; margin:0; }
+.empty-state.table-outline p:last-child { margin-bottom:0; }

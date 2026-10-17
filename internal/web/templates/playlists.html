@@ -203,7 +203,7 @@
 <div class="table-results">
 {{template "results-toolbar" .Pagination}}
 {{if .Rows}}
-<div class="table">
+<div class="table table-outline">
   <table>
     <thead>
       <tr>
@@ -238,7 +238,7 @@
   </table>
 </div>
 {{else}}
-<section>
+<section class="empty-state table-outline">
   <p>No tracks yet. <a href="/producer/playlists/{{.Playlist.ID}}">Choose genres or albums</a>, or add tracks.</p>
 </section>{{end}}
 

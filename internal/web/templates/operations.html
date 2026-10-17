@@ -51,7 +51,7 @@
 <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#history-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
 {{template "results-toolbar" .Pagination}}
 {{if .Events}}
-<div class="table-scroll history-table-scroll" tabindex="0" aria-label="Broadcast history">
+<div class="table-scroll history-table-scroll table-outline" tabindex="0" aria-label="Broadcast history">
 <table class="history-table" role="table" aria-label="Broadcast history">
   <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Aired</th><th scope="col" role="columnheader">Recording / activity</th><th scope="col" role="columnheader">Show / presenter</th><th scope="col" role="columnheader">Playlist</th><th scope="col" role="columnheader">Duration</th><th class="history-outcome-heading" scope="col" role="columnheader">Outcome</th></tr></thead>
   <tbody role="rowgroup">
@@ -78,7 +78,7 @@
   </tbody>
 </table>
 </div>
-{{else}}<section class="empty-state"><h2>No matching broadcasts</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
+{{else}}<section class="empty-state table-outline"><h2>No matching broadcasts</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
 {{template "pagination" .Pagination}}
 </section>
 {{end}}
@@ -95,7 +95,7 @@
 <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#incident-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
 {{template "results-toolbar" .Pagination}}
 {{if .Incidents}}
-<div class="incident-table-scroll">
+<div class="incident-table-scroll table-outline">
 <table class="incident-table" role="table" aria-label="Incidents">
 <thead role="rowgroup"><tr role="row"><th scope="col">Latest occurrence</th><th scope="col">Incident</th><th scope="col">Status</th></tr></thead>
 <tbody role="rowgroup">{{range .Incidents}}
@@ -108,7 +108,7 @@
 <td class="incident-state" role="cell"><span class="incident-status" role="img" aria-label="{{.StatusLabel}}{{if .Recovered.IsZero}}: {{.Severity}}{{end}}" data-state="{{.Tone}}" title="{{if .Recovered.IsZero}}{{.Severity}}{{else}}Recovered {{.RecoveredLabel}}{{end}}">{{template "ui-icon" .Icon}}{{.StatusLabel}}</span></td>
 
 </tr>{{end}}</tbody></table></div>
-{{else}}<div class="empty-state"><h2>{{if eq .IncidentReview "needed"}}No incidents need review{{else if not .IncidentReview}}No active incidents{{else}}No incidents recorded{{end}}</h2><p>{{if eq .IncidentReview "needed"}}All incidents in this history have been reviewed.{{else if not .IncidentReview}}Recovered incidents remain in All incidents.{{else}}Production failures and recoveries will appear here.{{end}}</p></div>{{end}}
+{{else}}<div class="empty-state table-outline"><h2>{{if eq .IncidentReview "needed"}}No incidents need review{{else if not .IncidentReview}}No active incidents{{else}}No incidents recorded{{end}}</h2><p>{{if eq .IncidentReview "needed"}}All incidents in this history have been reviewed.{{else if not .IncidentReview}}Recovered incidents remain in All incidents.{{else}}Production failures and recoveries will appear here.{{end}}</p></div>{{end}}
 {{template "pagination" .Pagination}}
 </section>
 {{end}}

@@ -84,7 +84,7 @@
   {{else}}
   <p>
     <a href="/producer">Open a station and create its playlist</a> to select tracks from this catalogue.</p>{{end}}
-  <div class="table">
+  <div class="table table-outline">
     <table>
       <thead>
         <tr>
@@ -122,7 +122,7 @@
   </div>
 </form>
 {{else}}
-<section>
+<section class="empty-state table-outline">
   <h2>No content found</h2>
   <p>Import a configured source, or change your filters.</p>
   <a href="/producer/sources">Manage sources</a>

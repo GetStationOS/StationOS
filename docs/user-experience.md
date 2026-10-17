@@ -477,3 +477,9 @@ banner. Keep actual transmission-history recording failures visible separately.
 
 Place Active / Needs review / All incidents inside the incident results card, above
 its toolbar, so filtering, rows and pagination form one clear section.
+
+Station data tables share the Audience table outline: a 1px divider-colour border,
+the standard rounded corners and a white surface, clipping row backgrounds cleanly.
+Keep scrollable tables scrollable and give stacked phone rows an inset inside the outline.
+
+Retain the same table outline around empty result states, including No active incidents.

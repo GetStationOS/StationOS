@@ -43,7 +43,7 @@ func (s *Server) operationalSummary(r *http.Request, id string) operationSummary
 type operationalEvent struct {
 	operations.Event
 	StartLabel, EndLabel, Duration, TypeLabel, OutcomeLabel, Notes string
-	StartDate, StartTime                                           string
+	StartDate, StartTime, EndTime                                  string
 }
 type operationalIncident struct {
 	operations.Incident
@@ -378,7 +378,20 @@ func operationOutcomeLabel(outcome string) string {
 func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	v := operationalEvent{Event: e, StartLabel: operationalTime(e.Started, loc), EndLabel: operationalTime(e.Ended, loc), Duration: "—"}
 	v.StartDate = e.Started.In(loc).Format("02 Jan 2006")
-	v.StartTime = e.Started.In(loc).Format("15:04:05 MST")
+	v.StartTime = e.Started.In(loc).Format("15:04:05")
+	if !e.Ended.IsZero() {
+		start, end := e.Started.In(loc), e.Ended.In(loc)
+		v.EndTime = end.Format("15:04:05")
+		if start.Format("2006-01-02") != end.Format("2006-01-02") {
+			v.EndTime = end.Format("02 Jan 15:04:05")
+		}
+		_, startOffset := start.Zone()
+		_, endOffset := end.Zone()
+		if startOffset != endOffset {
+			v.StartTime += start.Format(" MST")
+			v.EndTime += end.Format(" MST")
+		}
+	}
 	v.TypeLabel = operationTypeLabel(e.Kind)
 	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
 	if e.Outcome == "transmitting" {

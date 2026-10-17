@@ -332,3 +332,30 @@ func TestHistoryCardPaginationPreservesFilters(t *testing.T) {
 		t.Fatal("invalid page accepted", w.Code)
 	}
 }
+
+func TestProducerHistoryTimeRange(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name, start, end, wantStart, wantEnd string
+	}{
+		{"same day", "2026-10-17T19:00:00+01:00", "2026-10-17T19:03:30+01:00", "19:00:00", "19:03:30"},
+		{"midnight", "2026-10-17T23:58:00+01:00", "2026-10-18T00:02:00+01:00", "23:58:00", "18 Oct 00:02:00"},
+		{"clock change", "2026-10-25T01:58:00+01:00", "2026-10-25T01:02:00Z", "01:58:00 BST", "01:02:00 GMT"},
+		{"no end", "2026-10-17T19:00:00+01:00", "", "19:00:00", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			start, _ := time.Parse(time.RFC3339, tc.start)
+			var end time.Time
+			if tc.end != "" {
+				end, _ = time.Parse(time.RFC3339, tc.end)
+			}
+			v := producerEvent(operations.Event{Started: start, Ended: end}, loc)
+			if v.StartTime != tc.wantStart || v.EndTime != tc.wantEnd {
+				t.Fatalf("range %q → %q; want %q → %q", v.StartTime, v.EndTime, tc.wantStart, tc.wantEnd)
+			}
+		})
+	}
+}

@@ -37,20 +37,20 @@
 </form>
 <section class="history-card" aria-label="Broadcast history results">
 {{template "pagination" .Pagination}}
-<details class="history-icon-key"><summary>Icon key</summary><div>
+<div class="history-icon-key" role="group" aria-label="Icon key">
   <span>{{template "ui-icon" "music"}} Music</span><span>{{template "ui-icon" "speech"}} DJ speech</span>
   <span>{{template "ui-icon" "transmitting"}} In progress</span><span>{{template "ui-icon" "completed"}} Completed</span>
   <span>{{template "ui-icon" "interrupted"}} Interrupted</span><span>{{template "ui-icon" "failed"}} Failed</span>
   <span>{{template "ui-icon" "unknown"}} Not confirmed</span><span>{{template "ui-icon" "observed"}} Recorded activity</span>
-</div></details>
+</div>
 {{if .Events}}
 <div class="table-scroll history-table-scroll" tabindex="0" aria-label="Broadcast history">
 <table class="history-table" role="table" aria-label="Broadcast history">
-  <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Started</th><th scope="col" role="columnheader">Recording / activity</th><th scope="col" role="columnheader">Show / presenter</th><th scope="col" role="columnheader">Playlist</th><th scope="col" role="columnheader">Duration</th><th scope="col" role="columnheader">Outcome</th></tr></thead>
+  <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Aired</th><th scope="col" role="columnheader">Recording / activity</th><th scope="col" role="columnheader">Show / presenter</th><th scope="col" role="columnheader">Playlist</th><th scope="col" role="columnheader">Duration</th><th class="history-outcome-heading" scope="col" role="columnheader">Outcome</th></tr></thead>
   <tbody role="rowgroup">
   {{range .Events}}
   <tr id="event-{{.ID}}" role="row">
-    <td class="history-start" role="cell"><time datetime="{{.Started.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartLabel}}" aria-label="{{.StartLabel}}"><span class="history-date" aria-hidden="true">{{.StartDate}}</span><span class="history-time" aria-hidden="true">{{.StartTime}}</span></time></td>
+    <td class="history-start" role="cell"><time datetime="{{.Started.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartLabel}}" aria-label="{{.StartLabel}}"><span class="history-date" aria-hidden="true">{{.StartDate}}</span></time><span class="history-time"><span class="visually-hidden">Started </span>{{.StartTime}}{{if .EndTime}}<span class="history-time-separator" aria-hidden="true"> → </span><span class="visually-hidden">; ended </span><time datetime="{{.Ended.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.EndLabel}}">{{.EndTime}}</time>{{end}}</span></td>
     <td class="history-recording" role="cell">
       <div class="history-recording-row">
         <span class="history-type" role="img" aria-label="{{.TypeLabel}}" title="{{.TypeLabel}}">{{template "ui-icon" .Kind}}</span>
@@ -65,7 +65,7 @@
     <td class="history-show" role="cell">{{if .Show}}<strong>{{.Show}}</strong>{{else}}<span class="hint">Not recorded</span>{{end}}{{if .DJ}}<span class="history-presenter">{{.DJ}}</span>{{end}}</td>
     <td class="history-playlist" role="cell">{{if .Playlist}}{{.Playlist}}{{else}}<span class="hint">Not recorded</span>{{end}}</td>
     <td class="history-duration" role="cell">{{.Duration}}</td>
-    <td class="history-outcome" role="cell"><span class="history-state" data-state="{{.Outcome}}" role="img" aria-label="{{.OutcomeLabel}}" title="{{.OutcomeLabel}}">{{template "ui-icon" .Outcome}}</span>{{if and (not .Ended.IsZero) (or (eq .Kind "music") (eq .Kind "speech"))}}<span class="hint history-ended">Ended {{.EndLabel}}</span>{{end}}</td>
+    <td class="history-outcome" role="cell"><span class="history-state" data-state="{{.Outcome}}" role="img" aria-label="{{.OutcomeLabel}}" title="{{.OutcomeLabel}}">{{template "ui-icon" .Outcome}}</span></td>
   </tr>
   {{end}}
   </tbody>

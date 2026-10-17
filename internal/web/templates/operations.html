@@ -18,6 +18,11 @@
 {{if eq .Section "timeline"}}
 <form method="get" action="/producer/stations/{{.Station.ID}}/timeline" class="operations-filters history-filters">
   <label>Search<input name="q" value="{{.Query}}" maxlength="200" placeholder="Title, artist or spoken text"></label>
+  <div class="operations-filter-actions">
+    <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
+    <button>Apply</button>
+    <a href="/producer/stations/{{.Station.ID}}/timeline">Clear</a>
+  </div>
   <details class="history-filter-options" open>
     <summary>{{template "ui-icon" "filter"}} Filters{{if .FilterCount}}<span class="hint">{{.FilterCount}} active</span>{{end}}</summary>
     <div class="history-filter-grid">
@@ -29,20 +34,10 @@
   <label>DJ<select name="dj"><option value="">All DJs</option>{{range .DJChoices}}<option value="{{.ID}}" {{if eq $.DJID .ID}}selected{{end}}>{{.Name}}</option>{{end}}</select></label>
     </div>
   </details>
-  <div class="operations-filter-actions">
-    <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
-    <button>Apply filters</button>
-    <a href="/producer/stations/{{.Station.ID}}/timeline">Clear</a>
-  </div>
+
 </form>
 <section class="history-card" aria-label="Broadcast history results">
 {{template "pagination" .Pagination}}
-<div class="history-icon-key" role="group" aria-label="Icon key">
-  <span>{{template "ui-icon" "music"}} Music</span><span>{{template "ui-icon" "speech"}} DJ speech</span>
-  <span>{{template "ui-icon" "transmitting"}} In progress</span><span>{{template "ui-icon" "completed"}} Completed</span>
-  <span>{{template "ui-icon" "interrupted"}} Interrupted</span><span>{{template "ui-icon" "failed"}} Failed</span>
-  <span>{{template "ui-icon" "unknown"}} Not confirmed</span><span>{{template "ui-icon" "observed"}} Recorded activity</span>
-</div>
 {{if .Events}}
 <div class="table-scroll history-table-scroll" tabindex="0" aria-label="Broadcast history">
 <table class="history-table" role="table" aria-label="Broadcast history">
@@ -50,13 +45,13 @@
   <tbody role="rowgroup">
   {{range .Events}}
   <tr id="event-{{.ID}}" role="row">
-    <td class="history-start" role="cell"><time datetime="{{.Started.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartLabel}}" aria-label="{{.StartLabel}}"><span class="history-date" aria-hidden="true">{{.StartDate}}</span></time><span class="history-time"><span class="visually-hidden">Started </span>{{.StartTime}}{{if .EndTime}}<span class="history-time-separator" aria-hidden="true"> → </span><span class="visually-hidden">; ended </span><time datetime="{{.Ended.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.EndLabel}}">{{.EndTime}}</time>{{end}}</span></td>
+    <td class="history-start" role="cell"><time datetime="{{.Started.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartLabel}}" aria-label="{{.StartLabel}}"><span class="history-date" aria-hidden="true">{{.StartDate}}</span></time><span class="history-time"><span class="visually-hidden">Started </span>{{.StartTime}}{{if .EndTime}}<span class="history-end"><span class="history-time-separator" aria-hidden="true"> → </span><span class="visually-hidden">; ended </span><time datetime="{{.Ended.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.EndLabel}}">{{.EndTime}}</time></span>{{end}}</span></td>
     <td class="history-recording" role="cell">
       <div class="history-recording-row">
         <span class="history-type" role="img" aria-label="{{.TypeLabel}}" title="{{.TypeLabel}}">{{template "ui-icon" .Kind}}</span>
         <div class="history-recording-content">
           <strong>{{if .Title}}{{.Title}}{{else}}{{.TypeLabel}}{{end}}</strong>
-          {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint">{{.Album}}</span>{{end}}
+          {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint history-album">{{.Album}}</span>{{end}}
           {{if and (eq .Kind "speech") .Speech}}<details><summary>Spoken text</summary><p>{{.Speech}}</p></details>{{end}}
           {{if .Notes}}<p class="history-note">{{.Notes}}</p>{{end}}
         </div>

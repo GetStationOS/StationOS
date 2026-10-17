@@ -408,17 +408,21 @@ fault diagnosis belongs in the server logs.
 
 
 Keep broadcast history results and their single shared pagination toolbar inside one
-card, with filters above it. Provide the matching range and total, first/previous/next/last,
+card, with filters in their own compact card above it. Provide the matching range and total, first/previous/next/last,
 page jump, 25/50/100 rows per page and export together. Preserve date/show/DJ/type/outcome
 filters and page size. Use a stable history anchor while browsing older pages so new
 broadcasts do not move records between pages. Applying filters resets the anchor.
 
 On phones, broadcast history reflows into stacked entries without horizontal scrolling.
-Use accessible type and outcome icons with an always-visible icon key. Keep optional filters
+Use accessible type and outcome icons without a separate key. Keep optional filters
 collapsed initially, preserve active filters through pagination, and keep current and
 upcoming audio sections free of inherited section margins.
 
 History answers what aired, when, under which programme and whether it needs attention.
 Show one date with a compact start/end time range; include the end date when it crosses
 midnight and zone names across clock changes. Keep full timestamps in accessible labels,
-tooltips and CSV. Align mobile programme and playlist context with the recording title.
+tooltips and CSV. On tablets omit album, playlist, duration and end time from the table;
+on phones use compact entries showing start date/time, title, artist, show/presenter,
+outcome and useful failure explanations. Keep show context aligned with the title.
+Small screens use range and page navigation without page-jump and page-size controls;
+the desktop view and CSV retain the full data.

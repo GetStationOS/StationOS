@@ -41,7 +41,7 @@ function syncAssistant() {
 function initialise() {
   document.querySelectorAll('.history-filter-options:not([data-responsive-ready])').forEach(details => {
     details.dataset.responsiveReady = 'true';
-    if (window.matchMedia('(max-width:700px)').matches) details.open = false;
+    if (window.matchMedia('(max-width:1100px)').matches) details.open = false;
   });
   syncAssistant();
   discoverFeatureModels();

@@ -1,0 +1,23 @@
+{{define "ui-icon"}}
+<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+{{if eq . "music"}}<path d="M9 18V5l11-2v13M9 8l11-2"/><ellipse cx="6" cy="18" rx="3" ry="2.5"/><ellipse cx="17" cy="16" rx="3" ry="2.5"/>
+{{else if eq . "speech"}}<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/>
+{{else if eq . "started"}}<path d="m8 4 12 8-12 8Z"/>
+{{else if eq . "stopped"}}<rect x="5" y="5" width="14" height="14" rx="2"/>
+{{else if eq . "handover"}}<path d="M3 7h17l-4-4M21 17H4l4 4M20 7l-4 4M4 17l4-4"/>
+{{else if eq . "ai"}}<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>
+{{else if or (eq . "completed") (eq . "recovery")}}<path d="m5 12 4 4L19 6"/>
+{{else if eq . "transmitting"}}<circle cx="12" cy="12" r="2"/><path d="M7 7a7 7 0 0 0 0 10M17 7a7 7 0 0 1 0 10M4 4a11 11 0 0 0 0 16M20 4a11 11 0 0 1 0 16"/>
+{{else if eq . "interrupted"}}<path d="M8 5v14M16 5v14"/>
+{{else if eq . "failed"}}<path d="m6 6 12 12M18 6 6 18"/>
+{{else if eq . "unknown"}}<circle cx="12" cy="12" r="9"/><path d="M9.5 8a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 16h.01"/>
+{{else if eq . "stall"}}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{{else if eq . "listener"}}<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="12" width="4" height="8" rx="2"/><rect x="17" y="12" width="4" height="8" rx="2"/>
+{{else if or (eq . "failure") (eq . "unavailable")}}<path d="m12 3 10 18H2Z M12 9v5M12 17h.01"/>
+{{else if eq . "intervention"}}<path d="M4 7h16M4 17h16M8 4v6M16 14v6"/>
+{{else if eq . "filter"}}<path d="M3 4h18l-7 8v7l-4 2v-9Z"/>
+{{else if eq . "download"}}<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>
+{{else}}<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>
+{{end}}
+</svg>
+{{end}}

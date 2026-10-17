@@ -43,6 +43,7 @@ func (s *Server) operationalSummary(r *http.Request, id string) operationSummary
 type operationalEvent struct {
 	operations.Event
 	StartLabel, EndLabel, Duration, TypeLabel, OutcomeLabel, Notes string
+	StartDate, StartTime                                           string
 }
 type operationalIncident struct {
 	operations.Incident
@@ -51,6 +52,7 @@ type operationalIncident struct {
 type operationChoice struct{ ID, Name string }
 type operationsView struct {
 	Pagination             pagination
+	FilterCount            int
 	ShowChoices, DJChoices []operationChoice
 	pageView
 	Broadcast                                       broadcast.State
@@ -145,6 +147,11 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		v.ShowID = "name:" + f.ShowName
 	}
 	v.DJID = f.DJID
+	for _, value := range []string{v.From, v.Until, v.Kind, v.Outcome, v.ShowID, v.DJID} {
+		if value != "" {
+			v.FilterCount++
+		}
+	}
 	v.RefreshURL = r.URL.RequestURI()
 	if strings.HasSuffix(r.URL.Path, "/history.csv") {
 		s.exportOperations(w, r, f, loc)
@@ -370,6 +377,8 @@ func operationOutcomeLabel(outcome string) string {
 }
 func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	v := operationalEvent{Event: e, StartLabel: operationalTime(e.Started, loc), EndLabel: operationalTime(e.Ended, loc), Duration: "—"}
+	v.StartDate = e.Started.In(loc).Format("02 Jan 2006")
+	v.StartTime = e.Started.In(loc).Format("15:04:05 MST")
 	v.TypeLabel = operationTypeLabel(e.Kind)
 	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
 	if e.Outcome == "transmitting" {
@@ -379,7 +388,7 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	}
 	if e.Kind == "music" || e.Kind == "speech" {
 		if e.Outcome == "transmitting" {
-			v.Duration = "In progress"
+			v.Duration = "—"
 		} else {
 			seconds := e.AudioBytes / 16000
 			v.Duration = fmt.Sprintf("%d:%02d", seconds/60, seconds%60)

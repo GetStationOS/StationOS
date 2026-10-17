@@ -39,6 +39,10 @@ function syncAssistant() {
  document.querySelectorAll('[data-assistant-badge]').forEach(badge => {if (badge.dataset.assistantBadge === status?.dataset.assistantConversation) badge.textContent=running ? 'Working…' : '';});
 }
 function initialise() {
+  document.querySelectorAll('.history-filter-options:not([data-responsive-ready])').forEach(details => {
+    details.dataset.responsiveReady = 'true';
+    if (window.matchMedia('(max-width:700px)').matches) details.open = false;
+  });
   syncAssistant();
   discoverFeatureModels();
   showEndpointModels();

@@ -412,3 +412,8 @@ card, with filters above it. Provide the matching range and total, first/previou
 page jump, 25/50/100 rows per page and export together. Preserve date/show/DJ/type/outcome
 filters and page size. Use a stable history anchor while browsing older pages so new
 broadcasts do not move records between pages. Applying filters resets the anchor.
+
+On phones, broadcast history reflows into stacked entries without horizontal scrolling.
+Use accessible type and outcome icons with an optional icon key. Keep optional filters
+collapsed initially, preserve active filters through pagination, and keep current and
+upcoming audio sections free of inherited section margins.

@@ -251,6 +251,9 @@ func TestHistoryNotificationsIgnoreProgressAndRespectFilters(t *testing.T) {
 	}
 	w = request(h, "GET", base+"/timeline"+query, nil, nil)
 	body = html.UnescapeString(w.Body.String())
+	if !strings.Contains(body, `role="img" aria-label="Music"`) || !strings.Contains(body, `role="img" aria-label="Completed"`) {
+		t.Fatal("history icons have no accessible labels", body)
+	}
 	if strings.Count(body, `<option value="name:Breakfast"`) != 1 || !strings.Contains(body, "Song one") || !strings.Contains(body, "Song two") || strings.Contains(body, "Evening song") {
 		t.Fatal("recurring show filter is not grouped", body)
 	}

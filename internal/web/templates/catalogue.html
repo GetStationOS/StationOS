@@ -1,6 +1,6 @@
 {{define "pagination"}}
 <div class="pagination-bar">
- {{if .ExportURL}}<a class="button secondary" href="{{.ExportURL}}" hx-boost="false">Export CSV</a>{{end}}
+ {{if .ExportURL}}<a class="button secondary history-export" href="{{.ExportURL}}" hx-boost="false" aria-label="Export history as CSV" title="Export history as CSV">{{template "ui-icon" "download"}}<span>Export CSV</span></a>{{end}}
   {{if .ActionURL}}<a class="button secondary add-tracks" href="{{.ActionURL}}">+ Add tracks</a>{{end}}
   <span class="page-range">{{.Start}}–{{.End}} of {{.Total}}</span>
   <nav class="pagination" aria-label="Pagination">

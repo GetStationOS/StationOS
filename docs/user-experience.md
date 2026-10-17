@@ -438,3 +438,13 @@ History updates use a 44px refresh icon at the left of the results toolbar. Keep
 muted and disabled until a meaningful update exists; enable and highlight it with
 an accessible announcement when one arrives. Refresh only the results card, retaining
 filters, navigation, URL and reading position; replace the polling baseline with it.
+
+Do not describe operational errors as Recorded. Observed history events use their
+actual producer status: pale red Error for playback/station failures, amber Warning
+for degraded operation, green Recovered for recovery, and neutral Station activity
+for routine events. Keep explicit labels and different icon shapes alongside colour.
+
+Use distinct outcome shapes: recovery arrow with tick for Recovered, circled X for
+Error, warning triangle for Warning, and plain tick for a completed transmission.
+A recovered event must never retain a warning icon, even if its stored severity
+reflects the original incident.

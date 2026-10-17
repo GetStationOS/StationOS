@@ -844,7 +844,7 @@ textarea{font-weight:400;line-height:1.5}
 .history-date,.history-time { display:block; }
 .history-time { color:var(--muted); }
 .history-table .history-outcome>.history-state { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; background:#edf1f4; color:var(--text); }
-.history-table .history-outcome>.history-state[data-state="completed"] { background:#e8f4ee; color:#24674a; }
+.history-table .history-outcome>.history-state[data-state="completed"],.history-table .history-outcome>.history-state[data-state="recovered"] { background:#e8f4ee; color:#24674a; }
 .history-table .history-outcome>.history-state[data-state="transmitting"] { background:var(--tint); color:var(--accent-dark); }
 .history-table .history-outcome>.history-state[data-state="failed"],.history-table .history-outcome>.history-state[data-state="interrupted"] { background:#fff0ee; color:#962e26; }
 .history-table .history-outcome>.history-state[data-state="unknown"] { background:#fff3dc; color:#855c17; }
@@ -946,3 +946,6 @@ textarea{font-weight:400;line-height:1.5}
 }
 
 @media(max-width:700px) { .results-toolbar>.results-size { display:none; } }
+
+.history-table .history-outcome>.history-state[data-state="error"] { background:#fff0ee; color:#962e26; }
+.history-table .history-outcome>.history-state[data-state="warning"] { background:#fff3dc; color:#855c17; }

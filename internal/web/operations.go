@@ -44,6 +44,7 @@ type operationalEvent struct {
 	operations.Event
 	StartLabel, EndLabel, Duration, TypeLabel, OutcomeLabel, Notes string
 	StartDate, StartTime, EndTime                                  string
+	OutcomeStyle, OutcomeIcon                                      string
 }
 type operationalIncident struct {
 	operations.Incident
@@ -374,7 +375,7 @@ func operationTypeLabel(kind string) string {
 	return label
 }
 func operationOutcomeLabel(outcome string) string {
-	label := map[string]string{"transmitting": "In progress", "completed": "Completed", "interrupted": "Interrupted", "failed": "Failed", "unknown": "Not confirmed", "observed": "Recorded"}[outcome]
+	label := map[string]string{"transmitting": "In progress", "completed": "Completed", "interrupted": "Interrupted", "failed": "Failed", "unknown": "Not confirmed", "observed": "Station activity"}[outcome]
 	if label == "" {
 		label = "Not recorded"
 	}
@@ -399,6 +400,17 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	}
 	v.TypeLabel = operationTypeLabel(e.Kind)
 	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
+	v.OutcomeStyle, v.OutcomeIcon = e.Outcome, e.Outcome
+	if e.Outcome == "observed" {
+		switch {
+		case e.Recover || e.Kind == "recovery":
+			v.OutcomeLabel, v.OutcomeStyle, v.OutcomeIcon = "Recovered", "recovered", "recovery"
+		case e.Kind == "failure" || e.Kind == "unavailable" || e.Severity == "critical" || e.Severity == "error":
+			v.OutcomeLabel, v.OutcomeStyle, v.OutcomeIcon = "Error", "error", "error"
+		case e.Kind == "ai" || e.Kind == "stall" || e.Kind == "listener" || e.Severity == "warning":
+			v.OutcomeLabel, v.OutcomeStyle, v.OutcomeIcon = "Warning", "warning", "warning"
+		}
+	}
 	if e.Outcome == "transmitting" {
 		v.EndLabel = "In progress"
 	} else if e.Ended.IsZero() {

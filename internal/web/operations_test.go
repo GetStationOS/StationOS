@@ -365,3 +365,22 @@ func TestProducerHistoryTimeRange(t *testing.T) {
 		})
 	}
 }
+
+func TestProducerObservedEventStatus(t *testing.T) {
+	for _, tc := range []struct {
+		kind, severity, label, style string
+		recover                      bool
+	}{
+		{"failure", "warning", "Error", "error", false},
+		{"unavailable", "critical", "Error", "error", false},
+		{"ai", "warning", "Warning", "warning", false},
+		{"stall", "warning", "Warning", "warning", false},
+		{"recovery", "warning", "Recovered", "recovered", true},
+		{"started", "", "Station activity", "observed", false},
+	} {
+		v := producerEvent(operations.Event{Kind: tc.kind, Outcome: "observed", Severity: tc.severity, Recover: tc.recover}, time.UTC)
+		if v.OutcomeLabel != tc.label || v.OutcomeStyle != tc.style || (tc.label == "Recovered" && v.OutcomeIcon != "recovery") || (tc.label == "Error" && v.OutcomeIcon != "error") || (tc.label == "Warning" && v.OutcomeIcon != "warning") {
+			t.Fatalf("%s: label %q style %q", tc.kind, v.OutcomeLabel, v.OutcomeStyle)
+		}
+	}
+}

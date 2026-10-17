@@ -85,7 +85,7 @@
     <td class="history-show" role="cell">{{if .Show}}<strong>{{.Show}}</strong>{{else}}<span class="hint">Not recorded</span>{{end}}{{if .DJ}}<span class="history-presenter">{{.DJ}}</span>{{end}}</td>
     <td class="history-playlist" role="cell">{{if .Playlist}}{{.Playlist}}{{else}}<span class="hint">Not recorded</span>{{end}}</td>
     <td class="history-duration" role="cell">{{.Duration}}</td>
-    <td class="history-outcome" role="cell"><span class="history-state" data-state="{{.Outcome}}" role="img" aria-label="{{.OutcomeLabel}}" title="{{.OutcomeLabel}}">{{template "ui-icon" .Outcome}}</span></td>
+    <td class="history-outcome" role="cell"><span class="history-state" data-state="{{.OutcomeStyle}}" role="img" aria-label="{{.OutcomeLabel}}" title="{{.OutcomeLabel}}">{{template "ui-icon" .OutcomeIcon}}</span></td>
   </tr>
   {{end}}
   </tbody>

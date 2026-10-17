@@ -1,9 +1,10 @@
 {{define "results-toolbar"}}
 <h2 class="visually-hidden" id="table-results-heading" tabindex="-1">Results · {{.Total}} total</h2>
 <div class="results-toolbar">
+  {{if .RefreshURL}}<button type="button" class="secondary history-refresh" data-operations-refresh disabled aria-label="History is up to date" title="History is up to date" hx-get="{{.RefreshURL}}" hx-target="#history-results" hx-swap="outerHTML show:none" hx-push-url="false" hx-disabled-elt="this">{{template "ui-icon" "refresh"}}</button>{{end}}
   <span class="results-count">{{if gt .Pages 1}}Showing {{.Start}}–{{.End}} of {{.Total}}{{else}}{{.Total}} result{{if ne .Total 1}}s{{end}}{{end}}</span>
   <nav class="results-size" aria-label="{{if .SizeLabel}}{{.SizeLabel}}{{else}}Tracks per page{{end}}"><span>Rows per page</span>{{range .Sizes}}{{if .Current}}<span class="current" aria-current="true">{{.Number}}</span>{{else}}<a href="{{.URL}}#table-results-heading" hx-swap="innerHTML show:none" data-results-navigation aria-label="Show {{.Number}} rows per page">{{.Number}}</a>{{end}}{{end}}</nav>
-  {{if .ExportURL}}<a class="button secondary results-action" href="{{.ExportURL}}" hx-boost="false">{{template "ui-icon" "download"}} Export CSV</a>{{end}}
+  {{if .ExportURL}}<a class="button secondary results-action" href="{{.ExportURL}}" hx-boost="false" aria-label="Export CSV" title="Export CSV">{{template "ui-icon" "download"}}<span>Export CSV</span></a>{{end}}
   {{if .ActionURL}}<a class="button secondary results-action" href="{{.ActionURL}}">+ Add tracks</a>{{end}}
 </div>
 {{end}}

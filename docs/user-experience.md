@@ -424,7 +424,7 @@ midnight and zone names across clock changes. Keep full timestamps in accessible
 tooltips and CSV. On tablets omit album, playlist, duration and end time from the table;
 on phones use compact entries showing start date/time, title, artist, show/presenter,
 outcome and useful failure explanations. Keep show context aligned with the title.
-Small screens keep the shared labelled page-size choices and simple Previous/Next navigation;
+Phones hide page-size choices and use simple Previous/Next navigation;
 the desktop view and CSV retain the full data.
 
 Avoid arrow disclosures for producer content. Show transmission spoken text in full,
@@ -433,3 +433,8 @@ history fields, with an accessible expanded state and visible fields without Jav
 
 History search places the clear-all action as an accessible X inside the right edge
 of its input, rather than a separate Clear text link.
+
+History updates use a 44px refresh icon at the left of the results toolbar. Keep it
+muted and disabled until a meaningful update exists; enable and highlight it with
+an accessible announcement when one arrives. Refresh only the results card, retaining
+filters, navigation, URL and reading position; replace the polling baseline with it.

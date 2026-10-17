@@ -24,7 +24,7 @@ type pageLink struct {
 	Current bool
 }
 type pagination struct {
-	ExportURL, SizeLabel                   string
+	RefreshURL, ExportURL, SizeLabel       string
 	Number, Pages, Size, Start, End, Total int
 	First, Previous, Next, Last            string
 	Links                                  []pageLink

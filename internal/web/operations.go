@@ -174,6 +174,7 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	v.Pagination = paging("/producer/stations/"+url.PathEscape(st.ID)+"/timeline", pageValues, history.Number, size, history.Total)
 	v.Pagination.SizeLabel = "Events per page"
+	v.Pagination.RefreshURL = v.RefreshURL
 	for _, e := range s.historyDisplayEvents(r, st.ID, events) {
 		v.Events = append(v.Events, producerEvent(e, loc))
 	}
@@ -255,6 +256,10 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	v.VersionURL = "/producer/stations/" + url.PathEscape(st.ID) + "/operations/version?" + q.Encode()
 
+	if v.Section == "timeline" && fragmentTarget(r, "history-results") {
+		s.renderHTML(w, http.StatusOK, "history-results", v)
+		return
+	}
 	s.renderPage(w, r, 200, "operations-page", v)
 }
 

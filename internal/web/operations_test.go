@@ -301,6 +301,11 @@ func TestHistoryCardPaginationPreservesFilters(t *testing.T) {
 	if w.Code != 200 || strings.Count(body, `class="pagination-bar"`) != 1 || !strings.Contains(body, `class="history-card"`) || !strings.Contains(body, "1–25 of 60") || !strings.Contains(body, `aria-label="Events per page"`) {
 		t.Fatal("missing history card/pager", w.Code, body)
 	}
+	partial := request(h, "GET", base+query, nil, map[string]string{"HX-Request": "true", "HX-Target": "history-results"})
+	fragment := partial.Body.String()
+	if partial.Code != 200 || !strings.Contains(fragment, `id="history-results"`) || !strings.Contains(fragment, `data-operations-refresh disabled`) || !strings.Contains(fragment, `data-operations-version=`) || strings.Contains(fragment, `class="operations-filters`) || strings.Contains(fragment, `<html`) {
+		t.Fatal("refresh must return only results and a fresh polling baseline", partial.Code, fragment)
+	}
 	match := regexp.MustCompile(`href="([^"]+)"[^>]*aria-label="Next page"`).FindStringSubmatch(body)
 	if len(match) != 2 {
 		t.Fatal("missing next page")

@@ -3,8 +3,10 @@ package web
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"stationos.local/stationos/internal/playlists"
@@ -97,15 +99,29 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (page-1)*size, size)
+			totalRows := 0
+			load := func(number int) error {
+				if v.PlaylistTab == "tracks" {
+					review, err := s.d.Playlists.Review(r.Context(), id, (number-1)*size, size)
+					v.PlaylistResult = review.Result
+					v.ExcludedTracks = review.Excluded
+					totalRows = review.Rows
+					return err
+				}
+				var err error
+				v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (number-1)*size, size)
+				totalRows = v.PlaylistResult.Total
+				return err
+			}
+			err = load(page)
 			if err != nil {
 				s.playlistError(w, err)
 				return
 			}
-			v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, v.PlaylistResult.Total)
+			v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, totalRows)
 			v.Pagination.ActionURL = "/producer/content?playlist=" + id
 			if page != v.Pagination.Number {
-				v.PlaylistResult, err = s.d.Playlists.Resolve(r.Context(), id, (v.Pagination.Number-1)*size, size)
+				err = load(v.Pagination.Number)
 				if err != nil {
 					s.playlistError(w, err)
 					return
@@ -113,9 +129,32 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			}
 			v.PlaylistDuration = duration(&v.PlaylistResult.Duration)
 			v.ReturnTo = r.URL.RequestURI()
+			if r.URL.Query().Get("notice") == "playlist-refreshed" {
+				tracks, tErr := strconv.Atoi(r.URL.Query().Get("new_tracks"))
+				albums, aErr := strconv.Atoi(r.URL.Query().Get("new_albums"))
+				if tErr == nil && aErr == nil && tracks >= 0 && tracks <= playlists.MaxItems && albums >= 0 && albums <= tracks {
+					if tracks == 0 {
+						v.PlaylistRefreshNotice = "Playlist is up to date. No new albums or tracks."
+					} else {
+						trackWord, albumWord := "tracks", "albums"
+						if tracks == 1 {
+							trackWord = "track"
+						}
+						if albums == 1 {
+							albumWord = "album"
+						}
+						v.PlaylistRefreshNotice = fmt.Sprintf("Playlist refreshed: %d new %s · %d new %s.", tracks, trackWord, albums, albumWord)
+					}
+				}
+				if r.URL.Query().Get("selections_saved") == "1" && v.PlaylistRefreshNotice != "" {
+					v.PlaylistRefreshNotice = "Selections saved. " + v.PlaylistRefreshNotice
+				}
+			}
 			if v.PlaylistTab == "tracks" {
 				for n, entry := range v.PlaylistResult.Entries {
-					v.Rows = append(v.Rows, track(entry.Item, v.Sources, (v.Pagination.Number-1)*size+n+1, entry.Available))
+					row := track(entry.Item, v.Sources, (v.Pagination.Number-1)*size+n+1, entry.Available)
+					row.Excluded = entry.Excluded
+					v.Rows = append(v.Rows, row)
 				}
 			}
 		}
@@ -290,11 +329,12 @@ func (s *Server) replaceRules(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Choose up to 100 genres and albums in total, then save again.", 400)
 		return
 	}
-	if err := s.playlistService().ReplaceRules(r.Context(), r.PathValue("id"), rules); err != nil {
+	report, err := s.playlistService().ReplaceRulesAndRefresh(r.Context(), r.PathValue("id"), rules)
+	if err != nil {
 		s.playlistError(w, err)
 		return
 	}
-	s.redirect(w, r, "/producer/playlists/"+r.PathValue("id")+"?notice=selections-saved")
+	s.redirect(w, r, playlistRefreshReturn("/producer/playlists/"+r.PathValue("id"), report, true))
 }
 
 func (s *Server) deletePlaylist(w http.ResponseWriter, r *http.Request) {
@@ -374,4 +414,35 @@ func (s *Server) defaultPlaylistResponse(w http.ResponseWriter, r *http.Request,
 		s.d.Broadcast.Changed()
 	}
 	s.renderHTML(w, http.StatusOK, "playlist-default", v)
+}
+
+func (s *Server) restoreItem(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.playlistService().Select(r.Context(), id, []string{r.PostForm.Get("item")}, true); err != nil {
+		s.playlistError(w, err)
+		return
+	}
+	s.redirect(w, r, withNotice(playlistReturn(r.PostForm.Get("return_to"), id), "track-restored"))
+}
+func (s *Server) refreshPlaylist(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	report, err := s.d.Playlists.Refresh(r.Context(), id)
+	if err != nil {
+		s.playlistError(w, err)
+		return
+	}
+	s.redirect(w, r, playlistRefreshReturn(playlistReturn(r.PostForm.Get("return_to"), id), report, false))
+}
+func playlistRefreshReturn(raw string, report playlists.RefreshResult, saved bool) string {
+	destination, _ := url.Parse(raw)
+	query := destination.Query()
+	query.Set("notice", "playlist-refreshed")
+	query.Set("new_tracks", strconv.Itoa(report.NewTracks))
+	query.Set("new_albums", strconv.Itoa(report.NewAlbums))
+	query.Del("selections_saved")
+	if saved {
+		query.Set("selections_saved", "1")
+	}
+	destination.RawQuery = query.Encode()
+	return destination.String()
 }

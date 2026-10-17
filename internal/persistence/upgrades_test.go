@@ -18,7 +18,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -232,6 +232,10 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 				resolved, err := (Playlists{DB: db}).Resolve(ctx, "playlist", 0, 25)
 				if err != nil || resolved.Total != 1 || resolved.Entries[0].Item.ID != a.ID {
 					t.Fatal(resolved, err)
+				}
+				report, err := (Playlists{DB: db}).Refresh(ctx, "playlist")
+				if err != nil || report.NewTracks != 0 || report.NewAlbums != 0 {
+					t.Fatal("existing playlist incorrectly reported as new", report, err)
 				}
 				var selections int
 				if err = db.QueryRow(`SELECT count(*) FROM playlist_selections WHERE playlist_id='playlist' AND included=1`).Scan(&selections); err != nil || selections != 1 {

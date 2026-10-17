@@ -75,6 +75,7 @@ func (r Rule) Validate() error {
 type Entry struct {
 	Item      content.AudioItem
 	Available bool
+	Excluded  bool
 }
 type Result struct {
 	Entries          []Entry
@@ -83,6 +84,13 @@ type Result struct {
 	Duration         time.Duration
 	UnknownDurations int
 }
+
+// ReviewResult includes saved exclusions for editing, never for playout.
+type ReviewResult struct {
+	Result
+	Rows, Excluded int
+}
+type RefreshResult struct{ NewTracks, NewAlbums int }
 
 // Availability counts eligibility without transferring recording metadata.
 type Availability struct{ Total, Unavailable int }
@@ -98,9 +106,12 @@ type Repository interface {
 	Rules(context.Context, string) ([]Rule, error)
 	AddRule(context.Context, string, Rule) error
 	ReplaceRules(context.Context, string, []Rule) error
+	ReplaceRulesAndRefresh(context.Context, string, []Rule) (RefreshResult, error)
 	RemoveRule(context.Context, string, string) error
 	SetIncluded(context.Context, string, []string, bool) error
 	Resolve(context.Context, string, int, int) (Result, error)
+	Review(context.Context, string, int, int) (ReviewResult, error)
+	Refresh(context.Context, string) (RefreshResult, error)
 }
 type StationLookup interface {
 	Get(context.Context, string) (station.Station, error)
@@ -173,18 +184,23 @@ func (s Service) Select(ctx context.Context, playlistID string, ids []string, in
 
 // ReplaceRules commits the complete checkbox selection as one operator action.
 func (s Service) ReplaceRules(ctx context.Context, playlistID string, rules []Rule) error {
+	_, err := s.ReplaceRulesAndRefresh(ctx, playlistID, rules)
+	return err
+}
+func (s Service) ReplaceRulesAndRefresh(ctx context.Context, playlistID string, rules []Rule) (RefreshResult, error) {
+	var report RefreshResult
 	if len(rules) > MaxRules {
-		return ErrInvalid
+		return report, ErrInvalid
 	}
 	for n := range rules {
 		if err := rules[n].Validate(); err != nil {
-			return err
+			return report, err
 		}
 		var err error
 		rules[n].ID, err = id()
 		if err != nil {
-			return err
+			return report, err
 		}
 	}
-	return s.Repo.ReplaceRules(ctx, playlistID, rules)
+	return s.Repo.ReplaceRulesAndRefresh(ctx, playlistID, rules)
 }

@@ -1029,3 +1029,9 @@ textarea{font-weight:400;line-height:1.5}
 @media (hover:hover) and (pointer:fine) {
  .station-tabs a:not([aria-current=page]):hover { color:var(--text); }
 }
+
+
+.playlist-refresh { margin:0; flex-shrink:0; }
+.playlist-refresh svg { width:18px; height:18px; }
+.playlist-track-excluded>td { background:#fff0ee; }
+.playlist-excluded-label { color:#962e26; font-weight:600; }

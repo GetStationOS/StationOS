@@ -103,13 +103,18 @@ func (r Playlists) AddRule(ctx context.Context, id string, rule playlists.Rule) 
 	if count > playlists.MaxRules {
 		return playlists.ErrInvalid
 	}
-	if _, err = resolvePlaylist(ctx, tx, id); err != nil {
+	if err = resetPlaylistBaseline(ctx, tx, id); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 func (r Playlists) RemoveRule(ctx context.Context, id, ruleID string) error {
-	res, err := r.DB.ExecContext(ctx, `DELETE FROM playlist_rules WHERE playlist_id=? AND id=?`, id, ruleID)
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `DELETE FROM playlist_rules WHERE playlist_id=? AND id=?`, id, ruleID)
 	if err != nil {
 		return err
 	}
@@ -120,7 +125,10 @@ func (r Playlists) RemoveRule(ctx context.Context, id, ruleID string) error {
 	if n != 1 {
 		return playlists.ErrNotFound
 	}
-	return nil
+	if err = resetPlaylistBaseline(ctx, tx, id); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 func requirePlaylist(ctx context.Context, tx *sql.Tx, id string) error {
 	var found string
@@ -142,7 +150,7 @@ func (r Playlists) SetIncluded(ctx context.Context, id string, ids []string, inc
 	for _, contentID := range ids {
 		var snapshot string
 		err = tx.QueryRowContext(ctx, `SELECT metadata FROM catalogue_items WHERE id=?`, contentID).Scan(&snapshot)
-		if errors.Is(err, sql.ErrNoRows) && !included {
+		if errors.Is(err, sql.ErrNoRows) {
 			err = tx.QueryRowContext(ctx, `SELECT snapshot FROM playlist_selections WHERE playlist_id=? AND content_id=?`, id, contentID).Scan(&snapshot)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
@@ -155,7 +163,7 @@ func (r Playlists) SetIncluded(ctx context.Context, id string, ids []string, inc
 			return err
 		}
 	}
-	if _, err = resolvePlaylist(ctx, tx, id); err != nil {
+	if err = resetPlaylistBaseline(ctx, tx, id); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -229,63 +237,69 @@ func (r Playlists) Resolve(ctx context.Context, id string, offset, limit int) (p
 
 // Rule replacement never changes manual inclusions or exclusions.
 func (r Playlists) ReplaceRules(ctx context.Context, id string, rules []playlists.Rule) error {
+	_, err := r.ReplaceRulesAndRefresh(ctx, id, rules)
+	return err
+}
+func (r Playlists) ReplaceRulesAndRefresh(ctx context.Context, id string, rules []playlists.Rule) (playlists.RefreshResult, error) {
+	var report playlists.RefreshResult
 	if len(rules) > playlists.MaxRules {
-		return playlists.ErrInvalid
+		return report, playlists.ErrInvalid
 	}
 	tx, err := r.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return report, err
 	}
 	defer tx.Rollback()
 	if err = requirePlaylist(ctx, tx, id); err != nil {
-		return err
+		return report, err
 	}
 	// Preserve previously chosen albums even when temporarily absent from the index.
 	existing := map[string]bool{}
 	rows, err := tx.QueryContext(ctx, `SELECT source_id,value FROM playlist_rules WHERE playlist_id=? AND kind='album'`, id)
 	if err != nil {
-		return err
+		return report, err
 	}
 	for rows.Next() {
 		var source, value string
 		if err = rows.Scan(&source, &value); err != nil {
 			rows.Close()
-			return err
+			return report, err
 		}
 		existing[source+"\x00"+value] = true
 	}
 	err = rows.Err()
 	rows.Close()
 	if err != nil {
-		return err
+		return report, err
 	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM playlist_rules WHERE playlist_id=?`, id); err != nil {
-		return err
+		return report, err
 	}
 	for _, rule := range rules {
 		if err = rule.Validate(); err != nil {
-			return err
+			return report, err
 		}
 		if rule.ID == "" {
-			return playlists.ErrInvalid
+			return report, playlists.ErrInvalid
 		}
 		if rule.Kind == "album" && !existing[rule.SourceID+"\x00"+rule.Value] {
 			var count int
 			if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM catalogue_items WHERE source_id=? AND album=?`, rule.SourceID, rule.Value).Scan(&count); err != nil {
-				return err
+				return report, err
 			}
 			if count == 0 {
-				return playlists.ErrUnavailable
+				return report, playlists.ErrUnavailable
 			}
 		}
 		if _, err = tx.ExecContext(ctx, `INSERT INTO playlist_rules(id,playlist_id,kind,value,source_id) VALUES(?,?,?,?,?) ON CONFLICT(playlist_id,kind,value,source_id) DO NOTHING`, rule.ID, id, rule.Kind, rule.Value, rule.SourceID); err != nil {
-			return err
+			return report, err
 		}
 	}
-	if _, err = resolvePlaylist(ctx, tx, id); err != nil {
-		return err
+	report, err = refreshPlaylistSnapshot(ctx, tx, id)
+	if err != nil {
+		return report, err
 	}
-	return tx.Commit()
+	return report, tx.Commit()
 }
 
 // Delete removes only the playlist and its cascading selections.

@@ -136,6 +136,7 @@ type trackRow struct {
 	Source, Duration, Formats string
 	Number                    int
 	Available                 bool
+	Excluded                  bool
 }
 
 func duration(value *time.Duration) string {
@@ -219,7 +220,7 @@ func (s *Server) baseView(r *http.Request) pageView {
 	v := pageView{Page: r.URL.Path, CSRF: s.csrf}
 	v.BroadcastEnabled = s.d.Broadcast != nil
 
-	v.Notice = map[string]string{"station-deleted": "Station deleted.", "playlist-deleted": "Playlist deleted.", "station-saved": "Station saved.", "playlist-saved": "Playlist saved.", "selections-saved": "Selections saved.", "tracks-added": "Tracks added to the playlist.", "track-removed": "Track excluded from this playlist.", "source-saved": "Source saved.", "imported": "Library refreshed."}[r.URL.Query().Get("notice")]
+	v.Notice = map[string]string{"station-deleted": "Station deleted.", "playlist-deleted": "Playlist deleted.", "station-saved": "Station saved.", "playlist-saved": "Playlist saved.", "selections-saved": "Selections saved.", "tracks-added": "Tracks added to the playlist.", "track-removed": "Track excluded from this playlist.", "track-restored": "Track re-included in this playlist.", "source-saved": "Source saved.", "imported": "Library refreshed."}[r.URL.Query().Get("notice")]
 	return v
 }
 

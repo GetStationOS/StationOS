@@ -96,6 +96,8 @@ type playlistPageView struct {
 	Playlist                                                   playlists.Playlist
 	PlaylistTab, PlaylistDuration, ReturnTo, BroadcastPlaylist string
 	PlaylistResult                                             playlists.Result
+	ExcludedTracks                                             int
+	PlaylistRefreshNotice                                      string
 	Sources                                                    []sources.Config
 	Genres                                                     []genreOption
 	Rows                                                       []trackRow

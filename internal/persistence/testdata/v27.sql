@@ -1,0 +1,4 @@
+CREATE TABLE ai_prompts (
+    id TEXT PRIMARY KEY,
+    body TEXT NOT NULL CHECK(length(CAST(body AS BLOB)) BETWEEN 1 AND 64000)
+);

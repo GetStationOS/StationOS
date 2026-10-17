@@ -634,3 +634,19 @@ page number and 25/50/100 page size. The anchor bounds the existing (started, se
 ordering so newer arrivals do not shift older pages; legacy before cursors remain valid.
 Out-of-range pages clamp to the last page. History version checks use the same paginated
 records and matching total. Exports clear pagination bounds and retain semantic filters.
+
+
+## Playlist refresh comparisons and exclusion review
+
+Migration 28 adds `playlist_refresh_items`, an operator comparison baseline without
+foreign keys to the disposable catalogue. Existing eligible members are backfilled.
+Refresh resolves the saved rule/manual union and compares IDs and source/album pairs
+inside one transaction, counts only new available eligible tracks, and replaces the
+baseline. Repeating refresh yields zero. Saving selections compares against the previous baseline and refreshes atomically; other membership edits reset the baseline;
+source import never invokes refresh. Dynamic rule eligibility is unchanged.
+
+`Playlists.Review` is an editing-only projection containing eligible entries plus saved
+exclusion snapshots, stably paginated together. Its eligible count/duration remain separate
+from row/exclusion counts. `Resolve`, `Availability` and broadcast pools retain their
+eligible-only contract. Re-including a saved unavailable exclusion is allowed while its
+availability stays false. Web writes retain authentication, CSRF and restricted return URLs.

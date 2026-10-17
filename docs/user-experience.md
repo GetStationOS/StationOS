@@ -8,6 +8,8 @@ Stations are the top-level domain. `/producer` is the station overview, with one
 
 Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. The shared API-key field in Assistant settings is write-only: leave blank to retain, enter a replacement or explicitly remove. DJ forms contain no credential fields. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
 
+Station tabs follow this order: Overview, Schedule, Audience, Timeline, Incidents, Mixer, Playlists, Settings. Keep daily production and monitoring ahead of occasional configuration.
+
 ## Status and information
 
 Show a small number of useful, current facts on station cards. Playlist counts are measured; listener counts come from active broadcast subscriptions, including the app player. Browser probe and playback requests from one app listening session count once. Tiny bare-stream media probes finish after initial audio instead of remaining as duplicate listeners; separate app players and external playback connections remain independent. Dormant stations have a measured zero. Never use zero to represent unknown, invent listener numbers, show a playlist's first track as now playing, or label a station on air without an active output.
@@ -500,3 +502,22 @@ Station navigation retains its horizontal scroll position when changing tabs on 
 screens. Keep the current tab visible on direct links, reload and history restoration,
 without moving the page to reveal it. Only the current tab uses the selected accent and
 underline; hover must not resemble a second selection or remain highlighted on touch.
+
+
+Playlist Refresh rechecks the saved genre/album selections against the imported
+catalogue; it never imports a source or reinterprets an Assistant brief. Report new
+eligible tracks and distinct source/album pairs since the last refresh or membership
+edit, including a clear zero-additions result. Overlaps count once and exclusions win.
+Existing dynamic rule matching remains automatic. A new playlist/selection change
+establishes its comparison baseline; upgrading establishes existing members without
+claiming them as new. Keep refresh manual; source import does not invoke it.
+
+Excluded tracks remain in the Tracks table with a pale red background, an explicit
+Excluded label and Re-include action. Keep their metadata/snapshot even if the source
+is unavailable. Exclusions do not contribute to eligible track counts, durations or
+playback; pagination includes them as editable rows. Restoring an unavailable saved
+track retains its honest Unavailable state until its source returns.
+
+Saving playlist genre/album selections also refreshes in the same transaction and
+reports new tracks/albums in its saved confirmation. Preserve manual inclusions and
+exclusions. A failed save or refresh must roll back both the selections and baseline.

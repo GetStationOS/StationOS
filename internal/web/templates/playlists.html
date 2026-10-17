@@ -190,7 +190,7 @@
   </form>
   <details class="selection-help">
     <summary>How selections work</summary>
-    <p>Selected genres and albums include new matching tracks automatically. Overlapping selections appear once. Exclude tracks from the Tracks tab; add them again to restore them.</p>
+    <p>Selected genres and albums include new matching tracks automatically. Overlapping selections appear once. Refresh checks saved selections against the imported catalogue and reports new matches since the last refresh or selection change. Excluded tracks stay visible on Tracks, where you can re-include them.</p>
   </details>
 </section>
 {{end}}
@@ -216,8 +216,9 @@
     </thead>
     <tbody>
       {{range .Rows}}
-      <tr>
+      <tr{{if .Excluded}} class="playlist-track-excluded"{{end}}>
         <td class="track-title">{{.Item.Title}}<span class="subline">{{.Item.Artist}}</span>
+          {{if .Excluded}}<span class="subline playlist-excluded-label">Excluded</span>{{end}}
           {{if not .Available}}<span class="unavailable">Unavailable</span>{{end}}</td>
         <td>{{.Item.Album}}<span class="subline">{{.Item.Genre}}</span>
         </td>
@@ -225,11 +226,11 @@
         <td>{{.Source}}</td>
         <td>
           <div class="row-actions">
-            <form method="post" action="/producer/playlists/{{$.Playlist.ID}}/remove">
+            <form method="post" action="/producer/playlists/{{$.Playlist.ID}}/{{if .Excluded}}restore{{else}}remove{{end}}" hx-disabled-elt="find button">
               <input type="hidden" name="csrf" value="{{$.CSRF}}">
               <input type="hidden" name="item" value="{{.Item.ID}}">
               <input type="hidden" name="return_to" value="{{$.ReturnTo}}">
-              <button class="secondary" aria-label="Exclude {{.Item.Title}} from playlist">Exclude</button>
+              {{if .Excluded}}<button class="secondary" aria-label="Re-include {{.Item.Title}} in playlist">Re-include</button>{{else}}<button class="secondary" aria-label="Exclude {{.Item.Title}} from playlist">Exclude</button>{{end}}
             </form>
           </div>
         </td>
@@ -262,10 +263,16 @@
 <div class="page-heading">
   <div class="title-line">
     <h1>{{.Title}}</h1>
-    {{if ne .PlaylistTab "delete"}}<span class="playlist-meta">{{.PlaylistResult.Total}} tracks · {{.PlaylistDuration}}{{if .PlaylistResult.UnknownDurations}} · {{.PlaylistResult.UnknownDurations}} durations unknown{{end}}</span>{{end}}
+    {{if ne .PlaylistTab "delete"}}<span class="playlist-meta">{{.PlaylistResult.Total}} tracks{{if .ExcludedTracks}} · {{.ExcludedTracks}} excluded{{end}} · {{.PlaylistDuration}}{{if .PlaylistResult.UnknownDurations}} · {{.PlaylistResult.UnknownDurations}} durations unknown{{end}}</span>{{end}}
   </div>
+  {{if ne .PlaylistTab "delete"}}
+  <form class="playlist-refresh" method="post" action="/producer/playlists/{{.Playlist.ID}}/refresh" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="return_to" value="{{.ReturnTo}}">
+    <button class="secondary" title="Recheck saved genre and album selections">{{template "ui-icon" "refresh"}} Refresh</button>
+  </form>{{end}}
 </div>
-
+{{if .PlaylistRefreshNotice}}<p class="notice success" role="status">{{.PlaylistRefreshNotice}}</p>{{end}}
 {{end}}
 
 {{define "playlist-details-page"}}

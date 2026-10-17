@@ -394,7 +394,8 @@ separate from the region's polling target, so clicks cannot nest a page inside a
 Timeline is a compact broadcast-history table: when, recording/activity, show, presenter,
 playlist, duration and outcome. Keep database IDs, source object paths, byte counters
 and routine selection diagnostics out of visible history and its producer CSV. Retain
-spoken text, credits and useful failure explanations. In-progress items say In progress,
+spoken text and useful failure explanations. Recording cells show title, performing
+artist and album; omit recording-credit disclosures. In-progress items say In progress,
 not Unknown or a periodically changing emitted-byte duration. Use names captured at
 transmission; label any current-name fallback on older records honestly. Group recurring
 show editions by their saved show name, with one filter including every weekday.

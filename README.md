@@ -303,7 +303,7 @@ size and include it in normal backups. Only one server should own a StationOS da
 
 
 Broadcast history uses a compact table of recording/activity, show, presenter, playlist,
-duration and outcome. Spoken text and recording credits can be expanded. Internal IDs,
+duration and outcome. DJ spoken text can be expanded; recording cells stay focused on title, artist and album. Internal IDs,
 byte counters and generic selection messages stay out of the producer view and CSV.
 New records capture the playlist name at transmission; older records may show a clearly
 labelled current name, or Not recorded if unavailable. Recurring editions of the same

@@ -42,7 +42,7 @@
     <td><time>{{.StartLabel}}</time></td>
     <td><span class="eyebrow">{{.TypeLabel}}</span><strong>{{if .Title}}{{.Title}}{{else}}{{.TypeLabel}}{{end}}</strong>
       {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint">{{.Album}}</span>{{end}}
-      {{if or .Composer .Speech}}<details><summary>{{if .Speech}}Spoken text{{else}}Recording credits{{end}}</summary>{{if .Composer}}<p>Composer: {{.Composer}}</p>{{end}}{{if .Speech}}<p>{{.Speech}}</p>{{end}}</details>{{end}}
+      {{if and (eq .Kind "speech") .Speech}}<details><summary>Spoken text</summary><p>{{.Speech}}</p></details>{{end}}
     </td>
     <td>{{if .Show}}<strong>{{.Show}}</strong>{{else}}<span class="hint">Not recorded</span>{{end}}{{if .DJ}}<span>{{.DJ}}</span>{{end}}</td>
     <td>{{if .Playlist}}{{.Playlist}}{{else}}<span class="hint">Not recorded</span>{{end}}</td>

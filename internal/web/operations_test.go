@@ -82,8 +82,11 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 		t.Fatal("missing actionable notice or safe navigation target", overview)
 	}
 	w := request(h, "GET", base+"/timeline?kind=music&from=2026-10-25&until=2026-10-25", nil, auth)
-	if !strings.Contains(html.UnescapeString(w.Body.String()), "GMT +00:00") || !strings.Contains(w.Body.String(), "Breakfast") || !strings.Contains(w.Body.String(), "Composer") {
+	if !strings.Contains(html.UnescapeString(w.Body.String()), "GMT +00:00") || !strings.Contains(w.Body.String(), "Breakfast") {
 		t.Fatal("time or snapshot missing", w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), "Recording credits") || strings.Contains(w.Body.String(), "Composer:") {
+		t.Fatal("recording cell contains nonessential credits", w.Body.String())
 	}
 	headers := map[string]string{"Authorization": auth["Authorization"], "HX-Request": "true"}
 	w = request(h, "GET", base+"/timeline", nil, headers)

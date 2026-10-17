@@ -48,7 +48,8 @@ type operationalEvent struct {
 }
 type operationalIncident struct {
 	operations.Incident
-	FirstLabel, LatestLabel, RecoveredLabel string
+	FirstLabel, LatestLabel, RecoveredLabel         string
+	LatestDate, LatestTime, StatusLabel, Icon, Tone string
 }
 type operationChoice struct{ ID, Name string }
 type operationsView struct {
@@ -176,6 +177,8 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	v.Pagination = paging("/producer/stations/"+url.PathEscape(st.ID)+"/timeline", pageValues, history.Number, size, history.Total)
 	v.Pagination.SizeLabel = "Events per page"
 	v.Pagination.RefreshURL = v.RefreshURL
+	v.Pagination.RefreshTarget = "#history-results"
+	v.Pagination.RefreshLabel = "Broadcast history"
 	for _, e := range s.historyDisplayEvents(r, st.ID, events) {
 		v.Events = append(v.Events, producerEvent(e, loc))
 	}
@@ -193,7 +196,14 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, i := range incidents {
-		v.Incidents = append(v.Incidents, operationalIncident{i, operationalTime(i.First, loc), operationalTime(i.Latest, loc), operationalTime(i.Recovered, loc)})
+		row := operationalIncident{Incident: i, FirstLabel: operationalTime(i.First, loc), LatestLabel: operationalTime(i.Latest, loc), RecoveredLabel: operationalTime(i.Recovered, loc), LatestDate: i.Latest.In(loc).Format("02 Jan 2006"), LatestTime: i.Latest.In(loc).Format("15:04:05"), StatusLabel: "Active", Icon: "warning", Tone: "warning"}
+		if i.Severity == "critical" || i.Severity == "error" {
+			row.Icon, row.Tone = "error", "error"
+		}
+		if !i.Recovered.IsZero() {
+			row.StatusLabel, row.Icon, row.Tone = "Recovered", "recovery", "recovered"
+		}
+		v.Incidents = append(v.Incidents, row)
 	}
 	shows, djs := map[string]bool{}, map[string]string{}
 	for _, e := range events {
@@ -252,11 +262,20 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	if v.Section == "incidents" {
 		q.Set("section", "incidents")
 		v.Version = incidentFingerprint(incidents)
+		v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, len(v.Incidents))
+		v.Pagination.SizeLabel = "Incidents per page"
+		v.Pagination.RefreshURL, v.Pagination.RefreshTarget, v.Pagination.RefreshLabel = v.RefreshURL, "#incident-results", "Incidents"
+		start := (v.Pagination.Number - 1) * size
+		v.Incidents = v.Incidents[start:min(start+size, len(v.Incidents))]
 	} else {
 		v.Version = historyPageFingerprint(history)
 	}
 	v.VersionURL = "/producer/stations/" + url.PathEscape(st.ID) + "/operations/version?" + q.Encode()
 
+	if v.Section == "incidents" && fragmentTarget(r, "incident-results") {
+		s.renderHTML(w, http.StatusOK, "incident-results", v)
+		return
+	}
 	if v.Section == "timeline" && fragmentTarget(r, "history-results") {
 		s.renderHTML(w, http.StatusOK, "history-results", v)
 		return
@@ -489,4 +508,14 @@ func (s *Server) exportOperations(w http.ResponseWriter, r *http.Request, f oper
 	if err != nil || writer.Error() != nil {
 		s.d.Logger.Error("Transmission export interrupted")
 	}
+}
+
+func (s *Server) incidentIndicator(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.d.Stations.Get(r.Context(), id); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	s.renderHTML(w, http.StatusOK, "incident-menu-icon", s.operationalSummary(r, id).Active)
 }

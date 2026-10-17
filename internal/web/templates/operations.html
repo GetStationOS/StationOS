@@ -9,14 +9,8 @@
 
 {{define "operations-page"}}
 {{template "page-heading" .Title}}
-{{template "operational-summary" .Summary}}
-<p class="hint">Times: {{.Station.Timezone}}. History records server transmission, not confirmed listener playback.</p>
-{{if ne .Section "timeline"}}
-<div data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
-  <p class="notice" data-operations-notice hidden role="status"><a href="{{.RefreshURL}}">{{if eq .Section "timeline"}}Broadcast history updated{{else}}Incidents updated{{end}} · refresh this view</a></p>
-  <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}">Refresh to reconnect</a>.</p>
-</div>
-{{end}}
+{{if ne .Section "incidents"}}{{template "operational-summary" .Summary}}{{end}}
+<p class="hint">Times: {{.Station.Timezone}}.{{if eq .Section "timeline"}} History records server transmission, not confirmed listener playback.{{end}}</p>
 {{if eq .Section "timeline"}}
 <form method="get" action="/producer/stations/{{.Station.ID}}/timeline" class="operations-filters history-filters">
   <div class="history-search">
@@ -45,21 +39,14 @@
 </form>
 {{template "history-results" .}}
 {{else if eq .Section "incidents"}}
-<p>Acknowledgement records that a producer has seen an incident. Recovery is recorded separately when measured. Showing the latest 100 incidents.</p>
-{{range .Incidents}}
-<article class="operation-event" id="incident-{{.ID}}">
-  <header><span class="status">{{.Severity}} · {{if .Recovered.IsZero}}Active{{else}}Recovered{{end}}</span><span>{{.Count}} occurrence{{if ne .Count 1}}s{{end}}</span></header>
-  <h2>{{.Message}}</h2><p>{{.Effect}}</p><p>{{.Action}}</p>
-  <p class="hint">First: {{.FirstLabel}} · Latest: {{.LatestLabel}}{{if not .Recovered.IsZero}} · Recovered: {{.RecoveredLabel}}{{end}}</p>
-  <a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">Related event</a>
-  {{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="secondary">Acknowledge</button></form>{{else}}<span class="hint">Acknowledged</span>{{end}}
-</article>
-{{else}}<section class="empty-state"><h2>No incidents recorded</h2><p>Production failures and recoveries will appear here.</p></section>{{end}}
+<p class="hint">Acknowledgement means a producer has seen the incident; it does not mark it recovered. Latest 100 incidents.</p>
+{{template "incident-results" .}}
+
 {{end}}
 {{end}}
 
 {{define "history-results"}}
-<section class="history-card" id="history-results" aria-label="Broadcast history results" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
+<section class="history-card" data-operations-label="Broadcast history" id="history-results" aria-label="Broadcast history results" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
 <p class="visually-hidden" role="status" data-operations-announcement></p>
 <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#history-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
 {{template "results-toolbar" .Pagination}}
@@ -92,6 +79,27 @@
 </table>
 </div>
 {{else}}<section class="empty-state"><h2>No matching broadcasts</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
+{{template "pagination" .Pagination}}
+</section>
+{{end}}
+
+{{define "incident-results"}}
+<section class="history-card" id="incident-results" aria-label="Incident results" data-operations-label="Incidents" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
+<p class="visually-hidden" role="status" data-operations-announcement></p>
+<p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#incident-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
+{{template "results-toolbar" .Pagination}}
+{{if .Incidents}}
+<div class="incident-table-scroll">
+<table class="incident-table" role="table" aria-label="Incidents">
+<thead role="rowgroup"><tr role="row"><th scope="col">Latest occurrence</th><th scope="col">Incident</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead>
+<tbody role="rowgroup">{{range .Incidents}}
+<tr id="incident-{{.ID}}" role="row">
+<td class="incident-time" role="cell"><time title="{{.LatestLabel}}" datetime="{{.Latest.Format "2006-01-02T15:04:05Z07:00"}}">{{.LatestDate}}<span>{{.LatestTime}}</span></time><span class="hint" title="First occurred {{.FirstLabel}}">{{.Count}} occurrence{{if ne .Count 1}}s{{end}}</span></td>
+<td class="incident-description" role="cell"><strong>{{.Message}}</strong>{{if .Effect}}<p>{{.Effect}}</p>{{end}}{{if .Action}}<p class="incident-guidance">{{.Action}}</p>{{end}}<a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a></td>
+<td class="incident-state" role="cell"><span class="incident-status" data-state="{{.Tone}}" title="{{if .Recovered.IsZero}}{{.Severity}}{{else}}Recovered {{.RecoveredLabel}}{{end}}">{{template "ui-icon" .Icon}}{{.StatusLabel}}</span>{{if .Recovered.IsZero}}<span class="hint">{{.Severity}}</span>{{end}}</td>
+<td class="incident-review" role="cell">{{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="secondary">Acknowledge</button></form>{{else}}<span class="incident-reviewed">{{template "ui-icon" "completed"}} Acknowledged</span>{{end}}</td>
+</tr>{{end}}</tbody></table></div>
+{{else}}<div class="empty-state"><h2>No incidents recorded</h2><p>Production failures and recoveries will appear here.</p></div>{{end}}
 {{template "pagination" .Pagination}}
 </section>
 {{end}}

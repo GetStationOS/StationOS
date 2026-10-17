@@ -116,7 +116,7 @@ document.body.addEventListener('htmx:afterSwap', event => {
     document.querySelector('#confirm-dialog [data-close-dialog]')?.focus();
     return;
   }
-  if (target.id === 'history-results') document.querySelector('#history-results #table-results-heading')?.focus({preventScroll:true});
+  if ((target.id === 'history-results' || target.id === 'incident-results')) document.querySelector('#table-results-heading')?.focus({preventScroll:true});
   if (target.id === 'main') document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
   initialise();
   if (target.id === 'main') {
@@ -846,11 +846,12 @@ document.body.addEventListener('htmx:timeout', event => {
       if (refresh) {
         refresh.disabled = !updated;
         refresh.classList.toggle('has-updates', updated);
-        const label = updated ? 'Updates available. Refresh broadcast history' : 'History is up to date';
+        const name = region.dataset.operationsLabel || 'Broadcast history';
+        const label = updated ? name + ' updates available. Refresh results' : name + ' up to date';
         refresh.setAttribute('aria-label', label);
         refresh.title = label;
         const announcement = region.querySelector('[data-operations-announcement]');
-        const message = updated ? 'Broadcast history updates available' : '';
+        const message = updated ? name + ' updates available' : '';
         if (announcement.textContent !== message) announcement.textContent = message;
       } else region.querySelector('[data-operations-notice]').hidden = !updated;
     } catch (_) {

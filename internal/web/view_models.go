@@ -18,6 +18,7 @@ import (
 // pageView contains only the stable shell and station navigation context.
 // Feature models embed it; they do not carry fields from unrelated screens.
 type pageView struct {
+	ActiveIncidents                               int
 	Page, Title, CSRF, Notice, Section, StationID string
 	PlaylistID, AssistantSection                  string
 	Station                                       station.Station

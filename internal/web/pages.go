@@ -24,14 +24,14 @@ type pageLink struct {
 	Current bool
 }
 type pagination struct {
-	RefreshURL, ExportURL, SizeLabel       string
-	Number, Pages, Size, Start, End, Total int
-	First, Previous, Next, Last            string
-	Links                                  []pageLink
-	Sizes                                  []pageLink
-	Fields                                 []field
-	Path                                   string
-	ActionURL                              string
+	RefreshTarget, RefreshLabel, RefreshURL, ExportURL, SizeLabel string
+	Number, Pages, Size, Start, End, Total                        int
+	First, Previous, Next, Last                                   string
+	Links                                                         []pageLink
+	Sizes                                                         []pageLink
+	Fields                                                        []field
+	Path                                                          string
+	ActionURL                                                     string
 }
 
 func pageRequest(values url.Values) (int, int, error) {

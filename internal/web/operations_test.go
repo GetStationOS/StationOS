@@ -53,7 +53,7 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 	}
 	base := "/producer/stations/" + st.ID
 	auth := map[string]string{"Authorization": "Basic YWRtaW46c2VjcmV0"}
-	for _, suffix := range []string{"/timeline", "/incidents", "/upcoming", "/history.csv", "/operations/version"} {
+	for _, suffix := range []string{"/timeline", "/incidents", "/upcoming", "/history.csv", "/operations/version", "/operations/indicator"} {
 		w := request(h, "GET", base+suffix, nil, nil)
 		if w.Code != 401 {
 			t.Fatalf("unprotected %s: %d", suffix, w.Code)
@@ -108,6 +108,13 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 		t.Fatalf("CSRF not required: %d", w.Code)
 	}
 	w = request(h, "GET", base+"/incidents", nil, auth)
+	if !strings.Contains(w.Body.String(), `class="incident-table"`) || !strings.Contains(w.Body.String(), `class="incident-menu-indicator"`) || !strings.Contains(w.Body.String(), `aria-label="1 active incident"`) {
+		t.Fatal("missing incident table or menu indicator", w.Body.String())
+	}
+	partial := request(h, "GET", base+"/incidents", nil, map[string]string{"Authorization": auth["Authorization"], "HX-Request": "true", "HX-Target": "incident-results"})
+	if partial.Code != 200 || !strings.Contains(partial.Body.String(), `id="incident-results"`) || strings.Contains(partial.Body.String(), `aria-label="Station navigation"`) {
+		t.Fatal("incident refresh replaced workspace", partial.Code, partial.Body.String())
+	}
 	token := regexp.MustCompile(`name="csrf" value="([a-f0-9]+)"`).FindStringSubmatch(w.Body.String())[1]
 	w = request(h, "POST", base+"/incidents/failure/acknowledge", url.Values{"csrf": {token}}, auth)
 	if w.Code != 303 {
@@ -116,6 +123,18 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 	incidents, _ := store.Incidents(ctx, st.ID, true)
 	if len(incidents) != 1 || incidents[0].Acknowledged.IsZero() {
 		t.Fatal("ack incorrectly resolved incident")
+	}
+	indicator := request(h, "GET", base+"/operations/indicator", nil, auth)
+	if !strings.Contains(indicator.Body.String(), "1 active incident") {
+		t.Fatal("acknowledgement hid unresolved incident")
+	}
+	e.ID, e.Kind, e.Recover = "speech-recovered", "recovery", true
+	if err = store.Save(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	indicator = request(h, "GET", base+"/operations/indicator", nil, auth)
+	if strings.TrimSpace(indicator.Body.String()) != "" {
+		t.Fatal("recovered incident still flagged", indicator.Body.String())
 	}
 	w = request(h, "GET", base+"/timeline?from=bad", nil, auth)
 	if w.Code != http.StatusBadRequest {

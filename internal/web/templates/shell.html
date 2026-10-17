@@ -86,7 +86,7 @@
   <a href="/producer/playlists?station={{.Station.ID}}" {{if eq .Section "playlists"}}aria-current="page"{{end}}>Playlists</a>
   <a href="/producer/stations/{{.Station.ID}}/schedule" {{if eq .Section "schedule"}}aria-current="page"{{end}}>Schedule</a>
   <a href="/producer/stations/{{.Station.ID}}/timeline" {{if eq .Section "timeline"}}aria-current="page"{{end}}>Timeline</a>
-  <a href="/producer/stations/{{.Station.ID}}/incidents" {{if eq .Section "incidents"}}aria-current="page"{{end}}>Incidents</a>
+  <a href="/producer/stations/{{.Station.ID}}/incidents" {{if eq .Section "incidents"}}aria-current="page"{{end}}>Incidents<span class="incident-menu-indicator" hx-get="/producer/stations/{{.Station.ID}}/operations/indicator" hx-trigger="every 10s" hx-target="this" hx-swap="innerHTML" hx-push-url="false">{{template "incident-menu-icon" .ActiveIncidents}}</span></a>
   <a href="/producer/stations/{{.Station.ID}}/audience" {{if eq .Section "audience"}}aria-current="page"{{end}}>Audience</a>
   <a href="/producer/stations/{{.Station.ID}}/mixer" {{if eq .Section "mixer"}}aria-current="page"{{end}}>Mixer</a>
   <a href="/producer/stations/{{.Station.ID}}/settings" {{if eq .Section "settings"}}aria-current="page"{{end}}>Settings</a>
@@ -100,3 +100,5 @@
   </div>
 </div>
 {{end}}
+
+{{define "incident-menu-icon"}}{{if gt . 0}}<span role="img" aria-label="{{.}} active incident{{if ne . 1}}s{{end}}" title="{{.}} active incident{{if ne . 1}}s{{end}}">{{template "ui-icon" "warning"}}</span>{{end}}{{end}}

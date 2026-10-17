@@ -448,3 +448,10 @@ Use distinct outcome shapes: recovery arrow with tick for Recovered, circled X f
 Error, warning triangle for Warning, and plain tick for a completed transmission.
 A recovered event must never retain a warning icon, even if its stored severity
 reflects the original incident.
+
+Incidents use one results card and the shared toolbar/pagination, with latest occurrence,
+problem/effect/action, active or recovered status, and producer acknowledgement in a table.
+Stack rows on phones; keep explanations visible without disclosures. Acknowledgement
+records review and never implies recovery. Show a small labelled warning icon beside the
+Incidents tab only while active incidents exist, including acknowledged but unresolved
+ones. Poll the indicator independently so navigation does not replace the workspace.

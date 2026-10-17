@@ -18,6 +18,7 @@
 {{else if eq . "listener"}}<path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="12" width="4" height="8" rx="2"/><rect x="17" y="12" width="4" height="8" rx="2"/>
 {{else if or (eq . "failure") (eq . "unavailable")}}<path d="m12 3 10 18H2Z M12 9v5M12 17h.01"/>
 {{else if eq . "intervention"}}<path d="M4 7h16M4 17h16M8 4v6M16 14v6"/>
+{{else if eq . "review"}}<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
 {{else if eq . "filter"}}<path d="M3 4h18l-7 8v7l-4 2v-9Z"/>
 {{else if eq . "refresh"}}<path d="M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.8-1L20 9M4 15l2.1 3A7 7 0 0 0 17.9 17"/>
 {{else if eq . "download"}}<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>

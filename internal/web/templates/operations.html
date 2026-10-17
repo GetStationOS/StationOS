@@ -10,7 +10,7 @@
 {{define "operations-page"}}
 {{template "page-heading" .Title}}
 {{if ne .Section "incidents"}}{{template "operational-summary" .Summary}}{{end}}
-<p class="hint">Times: {{.Station.Timezone}}.{{if eq .Section "timeline"}} History records server transmission, not confirmed listener playback.{{end}}</p>
+<p class="hint">Times: {{.Station.Timezone}}.{{if eq .Section "timeline"}} History records server transmission, not confirmed listener playback.{{else}} Latest 100 incidents.{{end}}</p>
 {{if eq .Section "timeline"}}
 <form method="get" action="/producer/stations/{{.Station.ID}}/timeline" class="operations-filters history-filters">
   <div class="history-search">
@@ -39,7 +39,11 @@
 </form>
 {{template "history-results" .}}
 {{else if eq .Section "incidents"}}
-<p class="hint">Acknowledgement means a producer has seen the incident; it does not mark it recovered. Latest 100 incidents.</p>
+<nav class="incident-filters" aria-label="Incident review filter">
+<a href="{{.IncidentActiveURL}}" {{if not .IncidentReview}}aria-current="page"{{end}}>Active</a>
+<a href="{{.IncidentNeedsReviewURL}}" {{if eq .IncidentReview "needed"}}aria-current="page"{{end}}>Needs review</a>
+<a href="{{.IncidentAllURL}}" {{if eq .IncidentReview "all"}}aria-current="page"{{end}}>All incidents</a>
+</nav>
 {{template "incident-results" .}}
 
 {{end}}
@@ -91,15 +95,18 @@
 {{if .Incidents}}
 <div class="incident-table-scroll">
 <table class="incident-table" role="table" aria-label="Incidents">
-<thead role="rowgroup"><tr role="row"><th scope="col">Latest occurrence</th><th scope="col">Incident</th><th scope="col">Status</th><th scope="col">Review</th></tr></thead>
+<thead role="rowgroup"><tr role="row"><th scope="col">Latest occurrence</th><th scope="col">Incident</th><th scope="col">Status</th></tr></thead>
 <tbody role="rowgroup">{{range .Incidents}}
 <tr id="incident-{{.ID}}" role="row">
-<td class="incident-time" role="cell"><time title="{{.LatestLabel}}" datetime="{{.Latest.Format "2006-01-02T15:04:05Z07:00"}}">{{.LatestDate}}<span>{{.LatestTime}}</span></time><span class="hint" title="First occurred {{.FirstLabel}}">{{.Count}} occurrence{{if ne .Count 1}}s{{end}}</span></td>
-<td class="incident-description" role="cell"><strong>{{.Message}}</strong>{{if .Effect}}<p>{{.Effect}}</p>{{end}}{{if .Action}}<p class="incident-guidance">{{.Action}}</p>{{end}}<a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a></td>
-<td class="incident-state" role="cell"><span class="incident-status" data-state="{{.Tone}}" title="{{if .Recovered.IsZero}}{{.Severity}}{{else}}Recovered {{.RecoveredLabel}}{{end}}">{{template "ui-icon" .Icon}}{{.StatusLabel}}</span>{{if .Recovered.IsZero}}<span class="hint">{{.Severity}}</span>{{end}}</td>
-<td class="incident-review" role="cell">{{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><button class="secondary">Acknowledge</button></form>{{else}}<span class="incident-reviewed">{{template "ui-icon" "completed"}} Acknowledged</span>{{end}}</td>
+<td class="incident-time" role="cell"><time title="{{.LatestLabel}}" datetime="{{.Latest.Format "2006-01-02T15:04:05Z07:00"}}">{{.LatestDate}}<span>{{.LatestTime}}</span></time>{{if gt .Count 1}}<span class="incident-occurrences" title="First occurred {{.FirstLabel}}">{{.Count}} occurrences</span>{{end}}</td>
+<td class="incident-description" role="cell"><strong>{{.Message}}</strong>{{if .ShowEffect}}<p>{{.Effect}}</p>{{end}}{{if and .Recovered.IsZero .Action}}<p class="incident-guidance">{{.Action}}</p>{{end}}
+<div class="incident-footer"><a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a><div class="incident-actions">{{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return_to" value="{{$.RefreshURL}}"><button class="secondary incident-review-button" aria-label="Mark incident as reviewed: {{.Message}}" title="Mark as reviewed">{{template "ui-icon" "review"}}</button></form>{{else}}<span class="incident-reviewed" title="Reviewed">{{template "ui-icon" "review"}}<span>Reviewed</span></span>{{end}}
+
+</div></div></td>
+<td class="incident-state" role="cell"><span class="incident-status" role="img" aria-label="{{.StatusLabel}}{{if .Recovered.IsZero}}: {{.Severity}}{{end}}" data-state="{{.Tone}}" title="{{if .Recovered.IsZero}}{{.Severity}}{{else}}Recovered {{.RecoveredLabel}}{{end}}">{{template "ui-icon" .Icon}}{{.StatusLabel}}</span></td>
+
 </tr>{{end}}</tbody></table></div>
-{{else}}<div class="empty-state"><h2>No incidents recorded</h2><p>Production failures and recoveries will appear here.</p></div>{{end}}
+{{else}}<div class="empty-state"><h2>{{if eq .IncidentReview "needed"}}No incidents need review{{else if not .IncidentReview}}No active incidents{{else}}No incidents recorded{{end}}</h2><p>{{if eq .IncidentReview "needed"}}All incidents in this history have been reviewed.{{else if not .IncidentReview}}Recovered incidents remain in All incidents.{{else}}Production failures and recoveries will appear here.{{end}}</p></div>{{end}}
 {{template "pagination" .Pagination}}
 </section>
 {{end}}

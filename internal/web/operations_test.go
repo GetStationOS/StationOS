@@ -403,3 +403,102 @@ func TestProducerObservedEventStatus(t *testing.T) {
 		}
 	}
 }
+
+func TestIncidentTablePagination(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	stations := persistence.Stations{DB: db}
+	st, err := (station.Service{Repo: stations}).Save(ctx, station.Station{Name: "Incidents", Timezone: "UTC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := persistence.Operations{DB: db}
+	for n := 0; n < 32; n++ {
+		err = store.Save(ctx, operations.Event{ID: fmt.Sprintf("incident-page-%02d", n), StationID: st.ID, Kind: "failure", Outcome: "observed", IncidentCode: fmt.Sprintf("source-%02d", n), Started: time.Date(2026, 10, 17, 12, n, 0, 0, time.UTC), Severity: "warning", Reason: fmt.Sprintf("Source unavailable %02d", n)})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	h, err := New(Dependencies{Stations: stations, Operations: store, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		query, summary string
+		rows           int
+	}{{"", "Showing 1–25 of 32", 25}, {"?page=2", "Showing 26–32 of 32", 7}} {
+		w := request(h, "GET", "/producer/stations/"+st.ID+"/incidents"+tc.query, nil, nil)
+		body := html.UnescapeString(w.Body.String())
+		if w.Code != 200 || !strings.Contains(body, tc.summary) || strings.Count(body, `<tr id="incident-`) != tc.rows || strings.Count(body, `class="pagination-bar"`) != 1 || !strings.Contains(body, `title="Mark as reviewed"`) {
+			t.Fatalf("incident pagination: %d %s", w.Code, body)
+		}
+	}
+}
+
+func TestIncidentViewsAndReviewPreserveHistory(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	stations := persistence.Stations{DB: db}
+	st, err := (station.Service{Repo: stations}).Save(ctx, station.Station{Name: "Review", Timezone: "UTC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := persistence.Operations{DB: db}
+	for _, id := range []string{"active", "old"} {
+		if err = store.Save(ctx, operations.Event{ID: id, StationID: st.ID, Kind: "failure", Outcome: "observed", Started: time.Now(), IncidentCode: id, Severity: "critical", Reason: id + " source unavailable"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err = store.Save(ctx, operations.Event{ID: "recovered", StationID: st.ID, Kind: "recovery", Outcome: "observed", Started: time.Now(), IncidentCode: "old", Recover: true}); err != nil {
+		t.Fatal(err)
+	}
+	h, err := New(Dependencies{Stations: stations, Operations: store, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "/producer/stations/" + st.ID + "/incidents"
+	w := request(h, "GET", base, nil, nil)
+	body := w.Body.String()
+	if !strings.Contains(body, "active source unavailable") || strings.Contains(body, "old source unavailable") || strings.Contains(body, "/delete") {
+		t.Fatal("default must show only active incidents", body)
+	}
+	token := regexp.MustCompile(`name="csrf" value="([a-f0-9]+)"`).FindStringSubmatch(body)[1]
+	w = request(h, "POST", base+"/active/acknowledge", url.Values{"csrf": {token}, "return_to": {base + "?review=needed&per_page=50"}}, nil)
+	if w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "review=needed") {
+		t.Fatal("lost review filter", w.Code, w.Header())
+	}
+	for _, tc := range []struct {
+		query       string
+		active, old bool
+	}{{"", true, false}, {"?review=needed", false, true}, {"?review=all", true, true}} {
+		w = request(h, "GET", base+tc.query, nil, nil)
+		body = w.Body.String()
+		if w.Code != 200 || strings.Contains(body, "active source unavailable") != tc.active || strings.Contains(body, "old source unavailable") != tc.old {
+			t.Fatalf("wrong incidents for %s: %d %s", tc.query, w.Code, body)
+		}
+	}
+	indicator := request(h, "GET", "/producer/stations/"+st.ID+"/operations/indicator", nil, nil)
+	if !strings.Contains(indicator.Body.String(), "1 active incident") {
+		t.Fatal("review hid active incident")
+	}
+	rows, err := store.Incidents(ctx, st.ID, false)
+	if err != nil || len(rows) != 2 {
+		t.Fatal("incident history changed", rows, err)
+	}
+	history, err := store.Events(ctx, operations.Filter{StationID: st.ID})
+	if err != nil || len(history) != 3 {
+		t.Fatal("transmission history changed", history, err)
+	}
+	w = request(h, "GET", base+"?review=invalid", nil, nil)
+	if w.Code != 400 {
+		t.Fatal("invalid review filter accepted")
+	}
+}

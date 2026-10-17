@@ -455,3 +455,19 @@ Stack rows on phones; keep explanations visible without disclosures. Acknowledge
 records review and never implies recovery. Show a small labelled warning icon beside the
 Incidents tab only while active incidents exist, including acknowledged but unresolved
 ones. Poll the indicator independently so navigation does not replace the workspace.
+
+Use a 44px eye icon button labelled Mark as reviewed for incident
+acknowledgement; show Reviewed afterwards. This never removes or resolves an incident.
+
+Incidents default to Active (unresolved problems, including reviewed ones). Needs review
+shows unreviewed incidents whether active or recovered; All incidents retains recovered
+history. Review and recovery are independent. Preserve the current filter and page
+when marking reviewed. Do not offer deletion in the normal producer workflow.
+
+Incident severity is conveyed by its status icon and colour, with an accessible label
+and tooltip. Do not repeat warning/critical as a separate text line below the badge.
+
+Keep incident rows compact: latest time/status above the problem, with transmission
+link and review action sharing a footer. Use an eye for review and eye + Reviewed
+for the completed review state. Show occurrence counts only above one, omit repeated
+effect wording, and show repair guidance only for active incidents.

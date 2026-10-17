@@ -50,12 +50,14 @@ type operationalIncident struct {
 	operations.Incident
 	FirstLabel, LatestLabel, RecoveredLabel         string
 	LatestDate, LatestTime, StatusLabel, Icon, Tone string
+	ShowEffect                                      bool
 }
 type operationChoice struct{ ID, Name string }
 type operationsView struct {
-	Pagination             pagination
-	FilterCount            int
-	ShowChoices, DJChoices []operationChoice
+	Pagination                                                                pagination
+	IncidentReview, IncidentActiveURL, IncidentAllURL, IncidentNeedsReviewURL string
+	FilterCount                                                               int
+	ShowChoices, DJChoices                                                    []operationChoice
 	pageView
 	Broadcast                                       broadcast.State
 	Summary                                         operationSummary
@@ -195,8 +197,25 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	if v.Section == "incidents" {
+		v.IncidentReview = r.URL.Query().Get("review")
+		if v.IncidentReview != "" && v.IncidentReview != "needed" && v.IncidentReview != "all" {
+			http.Error(w, "Invalid review filter", 400)
+			return
+		}
+		incidents = reviewIncidents(incidents, v.IncidentReview)
+		choices := r.URL.Query()
+		choices.Del("page")
+		choices.Del("review")
+		v.IncidentActiveURL = r.URL.Path + "?" + choices.Encode()
+		choices.Set("review", "all")
+		v.IncidentAllURL = r.URL.Path + "?" + choices.Encode()
+		choices.Set("review", "needed")
+		v.IncidentNeedsReviewURL = r.URL.Path + "?" + choices.Encode()
+	}
 	for _, i := range incidents {
 		row := operationalIncident{Incident: i, FirstLabel: operationalTime(i.First, loc), LatestLabel: operationalTime(i.Latest, loc), RecoveredLabel: operationalTime(i.Recovered, loc), LatestDate: i.Latest.In(loc).Format("02 Jan 2006"), LatestTime: i.Latest.In(loc).Format("15:04:05"), StatusLabel: "Active", Icon: "warning", Tone: "warning"}
+		row.ShowEffect = i.Effect != "" && !strings.Contains(strings.ToLower(i.Message), strings.ToLower(strings.TrimSpace(i.Effect)))
 		if i.Severity == "critical" || i.Severity == "error" {
 			row.Icon, row.Tone = "error", "error"
 		}
@@ -326,7 +345,12 @@ func (s *Server) operationsVersion(w http.ResponseWriter, r *http.Request) {
 			s.fail(w, err)
 			return
 		}
-		version = incidentFingerprint(incidents)
+		review := r.URL.Query().Get("review")
+		if review != "" && review != "needed" && review != "all" {
+			http.Error(w, "Invalid review filter", 400)
+			return
+		}
+		version = incidentFingerprint(reviewIncidents(incidents, review))
 	} else {
 		loc, err := time.LoadLocation(st.Timezone)
 		if err != nil {
@@ -467,7 +491,7 @@ func (s *Server) acknowledgeIncident(w http.ResponseWriter, r *http.Request) {
 	if s.d.Broadcast != nil {
 		s.d.Broadcast.Changed()
 	}
-	s.redirect(w, r, "/producer/stations/"+url.PathEscape(id)+"/incidents")
+	s.redirect(w, r, incidentReturnURL(r, id))
 }
 
 // Prefix cells which spreadsheet software could interpret as formulas.
@@ -518,4 +542,42 @@ func (s *Server) incidentIndicator(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	s.renderHTML(w, http.StatusOK, "incident-menu-icon", s.operationalSummary(r, id).Active)
+}
+
+func reviewIncidents(rows []operations.Incident, review string) []operations.Incident {
+	if review == "all" {
+		return rows
+	}
+	var filtered []operations.Incident
+	for _, row := range rows {
+		if (review == "needed" && row.Acknowledged.IsZero()) || (review == "" && row.Recovered.IsZero()) {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func incidentReturnURL(r *http.Request, station string) string {
+	base := "/producer/stations/" + url.PathEscape(station) + "/incidents"
+	candidate, err := url.Parse(r.FormValue("return_to"))
+	if err != nil || candidate.IsAbs() || candidate.Host != "" || candidate.Path != base {
+		return base
+	}
+	values := candidate.Query()
+	if _, _, err := pageRequest(values); err != nil {
+		return base
+	}
+	if review := values.Get("review"); review != "" && review != "needed" && review != "all" {
+		return base
+	}
+	clean := url.Values{}
+	for _, key := range []string{"page", "per_page", "review"} {
+		if value := values.Get(key); value != "" {
+			clean.Set(key, value)
+		}
+	}
+	if len(clean) == 0 {
+		return base
+	}
+	return base + "?" + clean.Encode()
 }

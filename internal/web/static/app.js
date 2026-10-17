@@ -53,7 +53,7 @@ function initialise() {
       button.querySelector('[data-filter-sign]').textContent = expanded ? '−' : '+';
       fields.hidden = !expanded;
     };
-    setExpanded(!window.matchMedia('(max-width:1100px)').matches);
+    setExpanded(false);
     button.addEventListener('click', () => setExpanded(button.getAttribute('aria-expanded') !== 'true'));
   });
   syncAssistant();

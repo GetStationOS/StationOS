@@ -415,7 +415,7 @@ Applying filters resets the anchor.
 
 On phones, broadcast history reflows into stacked entries without horizontal scrolling.
 Use accessible type and outcome icons without a separate key. Keep optional filters
-collapsed initially, preserve active filters through pagination, and keep current and
+collapsed initially at every screen size, preserve active filters through pagination, and keep current and
 upcoming audio sections free of inherited section margins.
 
 History answers what aired, when, under which programme and whether it needs attention.

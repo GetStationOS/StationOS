@@ -37,7 +37,7 @@
 
 </form>
 <section class="history-card" aria-label="Broadcast history results">
-{{template "pagination" .Pagination}}
+{{template "results-toolbar" .Pagination}}
 {{if .Events}}
 <div class="table-scroll history-table-scroll" tabindex="0" aria-label="Broadcast history">
 <table class="history-table" role="table" aria-label="Broadcast history">
@@ -67,6 +67,7 @@
 </table>
 </div>
 {{else}}<section class="empty-state"><h2>No matching broadcasts</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
+{{template "pagination" .Pagination}}
 </section>
 {{else if eq .Section "incidents"}}
 <p>Acknowledgement records that a producer has seen an incident. Recovery is recorded separately when measured. Showing the latest 100 incidents.</p>

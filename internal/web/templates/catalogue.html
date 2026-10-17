@@ -1,33 +1,25 @@
-{{define "pagination"}}
-<div class="pagination-bar">
- {{if .ExportURL}}<a class="button secondary history-export" href="{{.ExportURL}}" hx-boost="false" aria-label="Export history as CSV" title="Export history as CSV">{{template "ui-icon" "download"}}<span>Export CSV</span></a>{{end}}
-  {{if .ActionURL}}<a class="button secondary add-tracks" href="{{.ActionURL}}">+ Add tracks</a>{{end}}
-  <span class="page-range">{{.Start}}–{{.End}} of {{.Total}}</span>
-  <nav class="pagination" aria-label="Pagination">
-    {{if .Previous}}<a href="{{.First}}" aria-label="First page">«</a>
-    <a href="{{.Previous}}" aria-label="Previous page">‹</a>
-    {{else}}<span class="disabled" aria-label="First page">«</span>
-    <span class="disabled" aria-label="Previous page">‹</span>{{end}}
-    {{if .Next}}<a href="{{.Next}}" aria-label="Next page">›</a>
-    <a href="{{.Last}}" aria-label="Last page">»</a>
-    {{else}}<span class="disabled" aria-label="Next page">›</span>
-    <span class="disabled" aria-label="Last page">»</span>{{end}}
-  </nav>
-  <form class="page-jump" action="{{.Path}}" method="get" hx-get="{{.Path}}" hx-target="#main" hx-push-url="true">
-    {{range .Fields}}{{if ne .Key "per_page"}}
-    <input type="hidden" name="{{.Key}}" value="{{.Value}}">{{end}}{{end}}
-    <label>Page <input type="number" name="page" min="1" max="{{.Pages}}" value="{{.Number}}" required> / {{.Pages}}</label>
-    <label>
-      <span class="visually-hidden">{{if .SizeLabel}}{{.SizeLabel}}{{else}}Tracks per page{{end}}</span>
-      <select name="per_page" aria-label="{{if .SizeLabel}}{{.SizeLabel}}{{else}}Tracks per page{{end}}">
-        <option value="25" {{if eq .Size 25}}selected{{end}}>25 / page</option>
-        <option value="50" {{if eq .Size 50}}selected{{end}}>50 / page</option>
-        <option value="100" {{if eq .Size 100}}selected{{end}}>100 / page</option>
-      </select>
-    </label>
-    <button class="secondary">Go</button>
-  </form>
+{{define "results-toolbar"}}
+<h2 class="visually-hidden" id="table-results-heading" tabindex="-1">Results · {{.Total}} total</h2>
+<div class="results-toolbar">
+  <span class="results-count">{{if gt .Pages 1}}Showing {{.Start}}–{{.End}} of {{.Total}}{{else}}{{.Total}} result{{if ne .Total 1}}s{{end}}{{end}}</span>
+  <nav class="results-size" aria-label="{{if .SizeLabel}}{{.SizeLabel}}{{else}}Tracks per page{{end}}"><span>Rows per page</span>{{range .Sizes}}{{if .Current}}<span class="current" aria-current="true">{{.Number}}</span>{{else}}<a href="{{.URL}}#table-results-heading" hx-swap="innerHTML show:none" data-results-navigation aria-label="Show {{.Number}} rows per page">{{.Number}}</a>{{end}}{{end}}</nav>
+  {{if .ExportURL}}<a class="button secondary results-action" href="{{.ExportURL}}" hx-boost="false">{{template "ui-icon" "download"}} Export CSV</a>{{end}}
+  {{if .ActionURL}}<a class="button secondary results-action" href="{{.ActionURL}}">+ Add tracks</a>{{end}}
 </div>
+{{end}}
+
+{{define "pagination"}}
+{{if gt .Pages 1}}
+<div class="pagination-bar">
+  <span class="page-range">Showing {{.Start}}–{{.End}} of {{.Total}}</span>
+  <nav class="pagination" aria-label="Pagination">
+    {{if .Previous}}<a href="{{.Previous}}#table-results-heading" hx-swap="innerHTML show:none" aria-label="Previous page" data-results-navigation>Previous</a>{{else}}<span class="disabled" aria-disabled="true">Previous</span>{{end}}
+    <span class="pagination-numbers">{{range .Links}}{{if eq .Number 0}}<span class="pagination-gap">…</span>{{else if .Current}}<span class="current" aria-current="page">{{.Number}}</span>{{else}}<a href="{{.URL}}#table-results-heading" hx-swap="innerHTML show:none" aria-label="Page {{.Number}}" data-results-navigation>{{.Number}}</a>{{end}}{{end}}</span>
+    <span class="pagination-position">Page {{.Number}} of {{.Pages}}</span>
+    {{if .Next}}<a href="{{.Next}}#table-results-heading" hx-swap="innerHTML show:none" aria-label="Next page" data-results-navigation>Next</a>{{else}}<span class="disabled" aria-disabled="true">Next</span>{{end}}
+  </nav>
+</div>
+{{end}}
 {{end}}
 
 {{define "catalogue"}}
@@ -70,7 +62,8 @@
   </div>
 </form>
 
-{{template "pagination" .Pagination}}
+<div class="table-results">
+{{template "results-toolbar" .Pagination}}
 {{if .Rows}}
 <form method="post" action="/producer/playlists/select" data-track-form hx-disabled-elt="find button">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -133,6 +126,8 @@
   <p>Import a configured source, or change your filters.</p>
   <a href="/producer/sources">Manage sources</a>
 </section>{{end}}
+{{template "pagination" .Pagination}}
+</div>
 {{end}}
 
 {{define "catalogue-page"}}

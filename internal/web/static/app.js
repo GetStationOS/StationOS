@@ -38,6 +38,10 @@ function syncAssistant() {
  form.querySelector('button').disabled=form.dataset.assistantEnabled !== 'true' || running;
  document.querySelectorAll('[data-assistant-badge]').forEach(badge => {if (badge.dataset.assistantBadge === status?.dataset.assistantConversation) badge.textContent=running ? 'Working…' : '';});
 }
+let resultsNavigation = false;
+document.addEventListener('click', event => {
+  if (event.target.closest('[data-results-navigation]')) resultsNavigation = true;
+});
 function initialise() {
   document.querySelectorAll('[data-history-filter-toggle]:not([data-ready])').forEach(button => {
     button.dataset.ready = 'true';
@@ -115,7 +119,10 @@ document.body.addEventListener('htmx:afterSwap', event => {
   if (target.id === 'main') document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
   initialise();
   if (target.id === 'main') {
-    document.getElementById('main').focus({preventScroll:true});
+    const heading = resultsNavigation && document.getElementById('table-results-heading');
+    resultsNavigation = false;
+    if (heading) { heading.focus({preventScroll:true}); heading.scrollIntoView({block:'start'}); }
+    else document.getElementById('main').focus({preventScroll:true});
   }
   if (target.id === 'contribution-panel' || target.id.startsWith('contribution-')) target.focus({preventScroll:true});
 });

@@ -26,7 +26,7 @@ For multiple choices, use labelled checkbox lists with search and selected count
 
 Save related selections together, atomically. Genre/album rules combine as a union and automatically pick up new matching tracks; explicit track exclusions win. Show unsaved state and prevent accidental departure. Never prompt about unsaved changes during the successful save's own navigation. Keep manual selections and exclusions separate from rule edits. Playlists are unordered pools available to the station curator. Do not show sequence numbers or move controls; alphabetical display is for browsing and carries no playback priority.
 
-Catalogue selection applies to the visible page; label its count accordingly. Enable Add selected tracks only when tracks and a target playlist are chosen. Use an indeterminate page checkbox when some rows are selected. Preserve filters, page size and target playlist across page changes and saves. Use one task per tab: playlist Selections, Tracks and Details. Creation uses an Add button and a dedicated form with Cancel, never a card disclosure. Station context supplies the owner automatically. Keep playlist count and duration alongside the title. Put Add tracks in the table toolbar alongside pagination, with no separate summary/action rows between the tabs and table. Show pagination once above the table, with range, previous/next, page jump and page size on one horizontal row. Keep that row scrollable on narrow screens.
+Catalogue selection applies to the visible page; label its count accordingly. Enable Add selected tracks only when tracks and a target playlist are chosen. Use an indeterminate page checkbox when some rows are selected. Preserve filters, page size and target playlist across page changes and saves. Use one task per tab: playlist Selections, Tracks and Details. Creation uses an Add button and a dedicated form with Cancel, never a card disclosure. Station context supplies the owner automatically. Keep playlist count and duration alongside the title. Put Add tracks and Export in the table toolbar, separate from navigation. Above the table show the result count and labelled 25 / 50 / 100 rows-per-page links, applying immediately and resetting to page one. Use one footer below the data inside its card. Desktop shows labelled Previous/Next and a short numbered-page window including first/last pages and ellipses; phones show Previous, Page X of Y and Next. Highlight the current page, use 44px touch targets, and omit navigation for a single page. Keep filters, sorting and browser history; focus the updated results heading after paging. Do not use page-jump inputs, Go buttons or symbol-only navigation.
 
 Sources follow the same workspace pattern: a concise source list, dedicated Add source page, Overview with measured track/album counts and a refresh action, and Settings for connection fields. Saving or refreshing returns to that source. Add source searches automatically for nearby UPnP music servers without blocking the editable form. Show verified names and server addresses, Use server to fill the name/address, and Already added for existing sources. Selection never saves or imports; the standard Add source footer commits the choice. Keep a manual address field, quiet search feedback, Search again, useful empty/error states, retained input on validation failure and ordinary form fallbacks. Discovery results must not change the URL or replace the form.
 
@@ -407,11 +407,11 @@ claiming every update is a new event. Timeline history survives log rotation; lo
 fault diagnosis belongs in the server logs.
 
 
-Keep broadcast history results and their single shared pagination toolbar inside one
-card, with filters in their own compact card above it. Provide the matching range and total, first/previous/next/last,
-page jump, 25/50/100 rows per page and export together. Preserve date/show/DJ/type/outcome
-filters and page size. Use a stable history anchor while browsing older pages so new
-broadcasts do not move records between pages. Applying filters resets the anchor.
+Keep broadcast history results and their pagination footer inside one card, with filters
+in their own compact card above it. Reuse the shared results toolbar and footer.
+Preserve date/show/DJ/type/outcome filters and page size. Use a stable history anchor
+while browsing older pages so new broadcasts do not move records between pages.
+Applying filters resets the anchor.
 
 On phones, broadcast history reflows into stacked entries without horizontal scrolling.
 Use accessible type and outcome icons without a separate key. Keep optional filters
@@ -424,7 +424,7 @@ midnight and zone names across clock changes. Keep full timestamps in accessible
 tooltips and CSV. On tablets omit album, playlist, duration and end time from the table;
 on phones use compact entries showing start date/time, title, artist, show/presenter,
 outcome and useful failure explanations. Keep show context aligned with the title.
-Small screens use range and page navigation without page-jump and page-size controls;
+Small screens keep the shared labelled page-size choices and simple Previous/Next navigation;
 the desktop view and CSV retain the full data.
 
 Avoid arrow disclosures for producer content. Show transmission spoken text in full,

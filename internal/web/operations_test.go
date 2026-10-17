@@ -301,7 +301,7 @@ func TestHistoryCardPaginationPreservesFilters(t *testing.T) {
 	if w.Code != 200 || strings.Count(body, `class="pagination-bar"`) != 1 || !strings.Contains(body, `class="history-card"`) || !strings.Contains(body, "1–25 of 60") || !strings.Contains(body, `aria-label="Events per page"`) {
 		t.Fatal("missing history card/pager", w.Code, body)
 	}
-	match := regexp.MustCompile(`href="([^"]+)" aria-label="Next page"`).FindStringSubmatch(body)
+	match := regexp.MustCompile(`href="([^"]+)"[^>]*aria-label="Next page"`).FindStringSubmatch(body)
 	if len(match) != 2 {
 		t.Fatal("missing next page")
 	}
@@ -314,7 +314,8 @@ func TestHistoryCardPaginationPreservesFilters(t *testing.T) {
 			t.Fatalf("lost %s: %s", key, next)
 		}
 	}
-	w = request(h, "GET", match[1], nil, nil)
+	next.Fragment = "" // Browsers do not send URL fragments to the server.
+	w = request(h, "GET", next.String(), nil, nil)
 	body = html.UnescapeString(w.Body.String())
 	if w.Code != 200 || !strings.Contains(body, "26–50 of 60") || !strings.Contains(body, "Song 34") || strings.Contains(body, "Song 59") || !strings.Contains(body, `aria-label="Previous page"`) {
 		t.Fatal("incorrect second page", w.Code, body)

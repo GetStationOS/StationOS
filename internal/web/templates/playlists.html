@@ -200,7 +200,8 @@
 {{if .PlaylistResult.Unavailable}}
 <p class="notice">{{.PlaylistResult.Unavailable}} saved tracks unavailable. Refresh their source to restore them.</p>{{end}}
 
-{{template "pagination" .Pagination}}
+<div class="table-results">
+{{template "results-toolbar" .Pagination}}
 {{if .Rows}}
 <div class="table">
   <table>
@@ -241,6 +242,8 @@
   <p>No tracks yet. <a href="/producer/playlists/{{.Playlist.ID}}">Choose genres or albums</a>, or add tracks.</p>
 </section>{{end}}
 
+{{template "pagination" .Pagination}}
+</div>
 {{end}}
 
 {{define "playlists-page"}}

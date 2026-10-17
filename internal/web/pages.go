@@ -28,6 +28,7 @@ type pagination struct {
 	Number, Pages, Size, Start, End, Total int
 	First, Previous, Next, Last            string
 	Links                                  []pageLink
+	Sizes                                  []pageLink
 	Fields                                 []field
 	Path                                   string
 	ActionURL                              string
@@ -82,8 +83,21 @@ func paging(path string, values url.Values, page, size, total int) pagination {
 	if out.Number < out.Pages {
 		out.Next = link(out.Number + 1)
 	}
-	for n := max(1, out.Number-2); n <= min(out.Pages, out.Number+2); n++ {
+	last := 0
+	for n := 1; n <= out.Pages; n++ {
+		if n != 1 && n != out.Pages && (n < out.Number-1 || n > out.Number+1) {
+			continue
+		}
+		if last > 0 && n-last > 1 {
+			out.Links = append(out.Links, pageLink{})
+		}
 		out.Links = append(out.Links, pageLink{Number: n, URL: link(n), Current: n == out.Number})
+		last = n
+	}
+	for _, count := range []int{25, 50, 100} {
+		params.Set("page", "1")
+		params.Set("per_page", strconv.Itoa(count))
+		out.Sizes = append(out.Sizes, pageLink{Number: count, URL: path + "?" + params.Encode(), Current: count == size})
 	}
 	if total > 0 {
 		out.Start = (out.Number-1)*size + 1

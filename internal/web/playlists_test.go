@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -49,7 +50,7 @@ func TestPlaylistWebJourney(t *testing.T) {
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "1 tracks") || !strings.Contains(w.Body.String(), "Jazz &amp; &lt;title&gt;") {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	if strings.Count(w.Body.String(), `class="pagination-bar"`) != 1 || strings.Contains(w.Body.String(), `data-selection-form`) || strings.Contains(w.Body.String(), `/move`) || strings.Contains(w.Body.String(), `<th>#</th>`) {
+	if strings.Count(w.Body.String(), `class="pagination-bar"`) != 0 || strings.Contains(w.Body.String(), `data-selection-form`) || strings.Contains(w.Body.String(), `/move`) || strings.Contains(w.Body.String(), `<th>#</th>`) {
 		t.Fatal("tracks tab mixes editing tasks or repeats pagination")
 	}
 	w = request(h, "GET", path, nil, nil)
@@ -130,5 +131,24 @@ func TestPaginationKeepsFiltersAndClampsPages(t *testing.T) {
 	}
 	if playlistReturn("//evil.example/path", "one") != "/producer/playlists/one" {
 		t.Fatal("open redirect")
+	}
+}
+
+func TestPaginationWindowAndSizeChoices(t *testing.T) {
+	p := paging("/producer/content", url.Values{"q": {"Jazz"}, "sort": {"artist"}, "per_page": {"25"}}, 10, 25, 1000)
+	want := []int{1, 0, 9, 10, 11, 0, 40}
+	if len(p.Links) != len(want) {
+		t.Fatalf("links: %+v", p.Links)
+	}
+	for i, n := range want {
+		if p.Links[i].Number != n || p.Links[i].Current != (n == 10) {
+			t.Fatalf("link %d: %+v", i, p.Links[i])
+		}
+	}
+	for _, choice := range p.Sizes {
+		u, err := url.Parse(choice.URL)
+		if err != nil || u.Query().Get("q") != "Jazz" || u.Query().Get("sort") != "artist" || u.Query().Get("page") != "1" || u.Query().Get("per_page") != fmt.Sprint(choice.Number) {
+			t.Fatalf("size choice: %+v, %v", choice, err)
+		}
 	}
 }

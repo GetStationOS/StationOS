@@ -17,7 +17,7 @@
 
 {{define "playlists"}}
 {{if not .Stations}}
-<section class="empty-state">
+<section class="panel empty-state">
   <h2>Create a station first</h2>
   <a class="button" href="/producer/stations/new">Create station</a>
 </section>{{end}}
@@ -25,7 +25,7 @@
 {{end}}
 
 {{define "new-playlist"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <form method="post" action="/producer/playlists" hx-disabled-elt="find button">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     {{if .Station.ID}}
@@ -41,16 +41,15 @@
       <textarea name="description" maxlength="4000">
       </textarea>
     </label>
-    <div class="form-actions">
-      <a class="button secondary" href="/producer/playlists{{if .Station.ID}}?station={{.Station.ID}}{{end}}">Cancel</a>
-      <button>Create playlist</button>
-    </div>
+    {{ $cancel := "/producer/playlists" }}
+    {{if .Station.ID}}{{$cancel = printf "/producer/playlists?station=%s" .Station.ID}}{{end}}
+    {{template "form-actions" (formActions $cancel "Create playlist")}}
   </form>
 </section>
 {{end}}
 
 {{define "delete-playlist"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <h2 id="dialog-heading">Delete {{.Playlist.Name}}?</h2>
   <p id="dialog-description">This permanently deletes this playlist and its selections. Music stays in the shared library.</p>
   <form method="post" action="/producer/playlists/{{.Playlist.ID}}/delete" hx-disabled-elt="find button">
@@ -64,7 +63,7 @@
 </section>{{end}}
 
 {{define "playlist-default"}}
-<section class="form-panel" id="playlist-default-{{.Playlist.ID}}">
+<section class="panel form-panel" id="playlist-default-{{.Playlist.ID}}">
   <form method="post" action="/producer/playlists/{{.Playlist.ID}}/default" hx-post="/producer/playlists/{{.Playlist.ID}}/default" hx-target="closest section" hx-swap="outerHTML" hx-push-url="false" hx-disabled-elt="find button">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="playlist-card-heading">
@@ -98,7 +97,7 @@
 {{end}}
 
 {{define "playlist-details"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <form method="post" action="/producer/playlists">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <input type="hidden" name="id" value="{{.Playlist.ID}}">
@@ -108,12 +107,7 @@
     </label>
     <label>Description<textarea name="description" maxlength="4000">{{.Playlist.Description}}</textarea>
     </label>
-    <div class="form-footer">
-      <div class="form-actions">
-        <a class="button secondary" href="/producer/playlists/{{.Playlist.ID}}/tracks">Cancel</a>
-        <button>Save changes</button>
-      </div>
-    </div>
+    {{template "form-actions" (formActions (printf "/producer/playlists/%s/tracks" .Playlist.ID) "Save changes")}}
   </form>
 </section>
 {{if .BroadcastEnabled}}{{template "playlist-default" .}}{{end}}
@@ -123,7 +117,7 @@
 {{end}}
 
 {{define "playlist-selections"}}
-<section class="selection-panel">
+<section class="panel selection-panel">
   <form method="post" action="/producer/playlists/{{.Playlist.ID}}/selections" data-selection-form hx-disabled-elt="find button[type=submit]">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <div class="choice-grid">
@@ -179,7 +173,7 @@
         <p class="choice-empty" hidden>No albums match your search.</p>
       </fieldset>
     </div>
-    <div class="selection-save">
+    <div class="selection-save form-footer">
       <span data-unsaved class="hint" role="status">
       </span>
       <div class="form-actions">
@@ -200,7 +194,7 @@
 {{if .PlaylistResult.Unavailable}}
 <p class="notice">{{.PlaylistResult.Unavailable}} saved tracks unavailable. Refresh their source to restore them.</p>{{end}}
 
-<div class="table-results">
+<div class="results-panel table-results">
 {{template "results-toolbar" .Pagination}}
 {{if .Rows}}
 <div class="table table-outline">
@@ -239,7 +233,7 @@
   </table>
 </div>
 {{else}}
-<section class="empty-state table-outline">
+<section class="panel empty-state table-outline">
   <p>No tracks yet. <a href="/producer/playlists/{{.Playlist.ID}}">Choose genres or albums</a>, or add tracks.</p>
 </section>{{end}}
 

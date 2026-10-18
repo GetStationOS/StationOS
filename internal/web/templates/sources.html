@@ -16,7 +16,7 @@
 </div>
 <p class="hint">Shared by all stations.</p>
 {{else}}
-<section class="empty-state">
+<section class="panel empty-state">
   <h2>No sources yet</h2>
   <p>Add your music server to make its library available to your stations.</p>
   <a class="button" href="/producer/sources/new">Add source</a>
@@ -51,7 +51,7 @@
     <strong class="source-host">{{.SourceHost}}</strong>
   </div>
 </div>
-<section class="form-panel">
+<section class="panel form-panel">
   <div class="section-heading">
     <h2>Music library</h2>
     <span class="badge">UPnP</span>
@@ -67,7 +67,7 @@
   <p class="hint">No music imported yet.</p>{{end}}
 </section>{{end}}
 {{if eq .SourceTab "settings"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <form method="post" action="/producer/sources" hx-disabled-elt="find button">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <input type="hidden" name="id" value="{{.Source.ID}}">
@@ -75,16 +75,13 @@
     </label>
     <label>Device-description URL<input type="url" name="endpoint" value="{{.Source.Endpoint}}" required maxlength="4096">
     </label>
-    <div class="form-actions">
-      <a class="button secondary" href="/producer/sources/{{.Source.ID}}">Cancel</a>
-      <button>Save changes</button>
-    </div>
+    {{template "form-actions" (formActions (printf "/producer/sources/%s" .Source.ID) "Save changes")}}
   </form>
 </section>{{end}}
 {{end}}
 
 {{define "new-source"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <h2>Find your music server</h2>
   <p class="hint">Choose a server on your network, or enter its details below.</p>
   <div id="source-discovery-results" {{if not .SourceDiscoveryAttempted}}hx-get="/producer/sources/discover" hx-trigger="load" hx-target="this" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="this"{{end}}>
@@ -107,10 +104,7 @@
     <p class="hint" data-source-selected role="status">
     </p>
     <p class="hint">Audio stays on your server. StationOS imports the library details.</p>
-    <div class="form-actions">
-      <a class="button secondary" href="/producer/sources">Cancel</a>
-      <button>Add source</button>
-    </div>
+    {{template "form-actions" (formActions "/producer/sources" "Add source")}}
   </form>
 </section>{{end}}
 

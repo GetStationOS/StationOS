@@ -1,8 +1,8 @@
 {{define "new-station"}}
 
-<section class="form-panel dj-settings">
+<section class="panel form-panel dj-settings">
   {{if .StationError}}
-  <p class="notice" role="alert">{{.StationError}}</p>{{end}}
+  <p class="notice error" role="alert">{{.StationError}}</p>{{end}}
   <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     {{template "station-logo-field" .}}
@@ -19,20 +19,17 @@
       </label>
     </div>
     {{template "station-publication-field" .}}{{template "station-repeat-field" .}}
-    <div class="form-actions">
-      <a class="button secondary" href="/producer">Cancel</a>
-      <button>Create station</button>
-    </div>
+    {{template "form-actions" (formActions "/producer" "Create station")}}
   </form>
 </section>{{end}}
 
 {{define "station-overview"}}
-<section class="station-overview-panel">
+<section class="panel station-overview-panel">
   <div id="station-live" data-live-url="/producer/stations/{{.Station.ID}}/live" hx-indicator="this" hx-target="this" hx-swap="innerHTML">
     {{template "station-live" .}}
   </div>
   {{if .BroadcastEnabled}}
-  <section class="stream-access">
+  <section class="panel stream-access">
     <label>Stream URL<input readonly value="{{.StreamURL}}" aria-label="Station stream URL">
     </label>
     <div class="stream-actions">
@@ -90,10 +87,10 @@
   </div>{{end}}
 </div>
 <div class="overview-playout">
-  <section class="overview-audio now-playing" aria-label="Current audio">
+  <section class="panel overview-audio now-playing" aria-label="Current audio">
     {{template "overview-track" (currentBroadcastTrack .Station.ID .Broadcast)}}
   </section>
-  <section id="upcoming" class="overview-audio overview-upcoming" aria-label="Upcoming tracks">
+  <section id="upcoming" class="panel overview-audio overview-upcoming" aria-label="Upcoming tracks">
     {{template "overview-track" (stationTrack .Station.ID "UP NEXT" "No track selected yet" .Broadcast.Next)}}
     <p class="overview-queue-note">{{if .Broadcast.Next.ID}}Selected · checked again before playback{{else if .Broadcast.Current.ID}}Selecting the next track…{{else}}Tracks are selected when listeners connect.{{end}}</p>
   </section>
@@ -106,9 +103,9 @@
 {{end}}
 
 {{define "station-settings"}}
-<section class="form-panel dj-settings">
+<section class="panel form-panel dj-settings">
   {{if .StationError}}
-  <p class="notice" role="alert">{{.StationError}}</p>{{end}}
+  <p class="notice error" role="alert">{{.StationError}}</p>{{end}}
   <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <input type="hidden" name="id" value="{{.Station.ID}}">
@@ -127,12 +124,7 @@
       </label>
     </div>
     {{template "station-publication-field" .}}{{template "station-repeat-field" .}}
-    <div class="form-footer">
-      <div class="form-actions">
-        <a class="button secondary" href="/producer/stations/{{.Station.ID}}">Cancel</a>
-        <button>Save</button>
-      </div>
-    </div>
+    {{template "form-actions" (formActions (printf "/producer/stations/%s" .Station.ID) "Save")}}
   </form>
 </section>
 <div class="entity-delete-action">
@@ -141,7 +133,7 @@
 {{end}}
 
 {{define "delete-station"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <h2 id="dialog-heading">Delete {{.Station.Name}}?</h2>
   <p id="dialog-description">This permanently deletes the station and its {{.StationPlaylistCount}} {{if eq .StationPlaylistCount 1}}playlist{{else}}playlists{{end}}. Shared sources and music remain available.</p>
   <form method="post" action="/producer/stations/{{.Station.ID}}/delete" hx-disabled-elt="find button">

@@ -2,8 +2,8 @@
 <form class="mixer-form" method="post" action="/producer/stations/{{.Station.ID}}/mixer" hx-boost="false" data-mixer-form>
   <input type="hidden" name="csrf" value="{{.CSRF}}">
   {{if .MixerError}}
-  <p class="notice" role="alert">{{.MixerError}}</p>{{end}}
-  <section class="mixer-console" aria-label="Broadcast mixing console">
+  <p class="notice error" role="alert">{{.MixerError}}</p>{{end}}
+  <section class="panel mixer-console" aria-label="Broadcast mixing console">
     <div class="mixer-console-heading">
       <div>
         <span class="mixer-kicker">STATION OUTPUT</span>

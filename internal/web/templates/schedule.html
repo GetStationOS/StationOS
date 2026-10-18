@@ -42,7 +42,7 @@
   </div>
 </details>
 {{else}}
-<section class="empty-state">
+<section class="panel empty-state">
   <h2>Your week, your presenters</h2>
   <p>Add a show with a DJ and playlist. Between shows, the station plays its default playlist.</p>
   <a class="button" href="/producer/stations/{{.Station.ID}}/schedule/new">Add first show</a>
@@ -50,7 +50,7 @@
 {{end}}
 
 {{define "schedule-form"}}
-<section class="form-panel">
+<section class="panel form-panel">
   {{if .ShowError}}
   <p class="notice error" role="alert">{{.ShowError}}</p>{{end}}
   <form method="post" action="/producer/stations/{{.Station.ID}}/schedule" hx-disabled-elt="find button">
@@ -111,13 +111,9 @@
         <input type="checkbox" name="accept_shoutouts" value="yes" {{if .Show.AcceptShoutouts}}checked{{end}}>Accept shout-outs</label>
       <p class="hint">The AI reviews submissions during this show. Requests must fit its playlist and timing; airtime is not guaranteed.</p>
     </fieldset>
-    <div class="form-footer">
-      <div class="form-actions">
-        <a class="button secondary" href="/producer/stations/{{.Station.ID}}/schedule">Cancel</a>
-        <button>
-          {{if .Show.ID}}Save changes{{else}}Add show{{end}}</button>
-      </div>
-    </div>
+    {{ $action := "Add show" }}
+    {{if .Show.ID}}{{$action = "Save"}}{{end}}
+    {{template "form-actions" (formActions (printf "/producer/stations/%s/schedule" .Station.ID) $action)}}
   </form>
 </section>
 {{if .Show.ID}}
@@ -126,7 +122,7 @@
 </div>{{end}}
 {{end}}
 {{define "delete-show"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <h2 id="dialog-heading">Delete {{.Show.Name}}?</h2>
   <p id="dialog-description">This removes the weekly show. Its DJ and playlist are kept.</p>
   <form method="post" action="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-disabled-elt="find button">

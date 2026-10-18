@@ -70,7 +70,7 @@
   {{if .PublicShow.Name}}{{template "public-show-information" .}}{{end}}
   {{template "public-live" .}}
   {{if not .PublicShow.Name}}
-  <section id="public-schedule" class="public-schedule">
+  <section id="public-schedule" class="panel public-schedule">
     <h2>Programme</h2>
     <nav class="public-day-tabs" aria-label="Programme day">
       {{range .PublicDayLinks}}<a href="{{.URL}}" hx-target="#public-day-programme" hx-select="#public-day-programme" hx-swap="outerHTML show:none" hx-push-url="true" {{if .Current}}aria-current="date"{{end}}>{{.Name}}</a>{{end}}
@@ -79,12 +79,12 @@
     {{template "public-programme-day" .}}
   </section>{{end}}
   {{if or .PublicShow.ContributionURL .AudienceMode}}
-  <section id="{{.AudiencePanel}}" class="public-participation" tabindex="-1" aria-label="Contribute to a show" hx-boost="true" hx-target="this" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#busy-{{.AudiencePanel}}">
+  <section id="{{.AudiencePanel}}" class="panel public-participation" tabindex="-1" aria-label="Contribute to a show" hx-boost="true" hx-target="this" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#busy-{{.AudiencePanel}}">
     {{template "audience-form" .}}
   </section>{{end}}
   {{if .PublicShow.Name}}<a href="/radio/{{.Station.StreamSlug}}?day={{.AudienceDay}}">Back to station schedule</a>
   {{else}}{{if not .PublicShow.Name}}
-  <section class="stream-access public-stream">
+  <section class="panel stream-access public-stream">
     <h2>Listen on your internet radio</h2>
     <p>Add this MP3 stream address to your radio or favourite music player.</p>
     <div class="stream-url-field">
@@ -159,14 +159,14 @@
       </div>
     </article>
     {{else}}
-    <section class="empty-state">
+    <section class="panel empty-state">
       <h2>Stations are coming soon</h2>
       <p>Check back for music, presenters and new discoveries.</p>
     </section>{{end}}
   </div>
 </div>{{end}}
 {{define "public-live"}}
-<section id="public-live" class="public-now" {{if .BroadcastEnabled}}data-public-events="/radio/{{.Station.StreamSlug}}/live"{{end}} aria-label="Live programme">
+<section id="public-live" class="panel public-now" {{if .BroadcastEnabled}}data-public-events="/radio/{{.Station.StreamSlug}}/live"{{end}} aria-label="Live programme">
   <div class="public-programme">
     {{if .Broadcast.Current.ID}}<span class="eyebrow">ON AIR</span>
     <strong>
@@ -198,7 +198,7 @@
 
 {{define "public-show-expanded"}}
 {{template "public-show-information" .}}{{if .PublicShow.ContributionURL}}
-<section id="{{.AudiencePanel}}" class="show-contribution" tabindex="-1" aria-label="Contribute to {{.PublicShow.Name}}" hx-boost="true" hx-target="this" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#busy-{{.AudiencePanel}}">
+<section id="{{.AudiencePanel}}" class="panel show-contribution" tabindex="-1" aria-label="Contribute to {{.PublicShow.Name}}" hx-boost="true" hx-target="this" hx-swap="innerHTML show:none" hx-push-url="false" hx-indicator="#busy-{{.AudiencePanel}}">
   {{template "audience-form" .}}
 </section>{{end}}{{end}}
 

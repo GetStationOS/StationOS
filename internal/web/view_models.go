@@ -147,11 +147,12 @@ type assistantPageView struct {
 }
 type audienceQueueView struct {
 	pageView
-	Broadcast                                                          broadcast.State
-	AudienceMessages                                                   []audience.Message
-	AudienceTotal                                                      int
-	AudienceStatuses                                                   []audienceStatusChoice
-	AudienceFilter, AudiencePrevious, AudienceNext, AudienceRefreshURL string
+	Broadcast                          broadcast.State
+	AudienceMessages                   []audience.Message
+	AudienceTotal                      int
+	AudienceStatuses                   []audienceStatusChoice
+	AudienceFilter, AudienceRefreshURL string
+	Pagination                         pagination
 }
 
 func (v audienceQueueView) player() playerView {
@@ -185,4 +186,14 @@ type audienceFormData struct {
 
 func (v publicPageView) Player() playerView {
 	return playerView{Station: v.Station, Broadcast: v.Broadcast, Public: true, PublicCurrent: v.PublicCurrent, PublicNext: v.PublicNext}
+}
+
+// formActionsView is the shared routine editing footer, independent of feature data.
+type formActionsView struct {
+	CancelURL string
+	Label     string
+}
+
+func formActions(cancelURL, label string) formActionsView {
+	return formActionsView{CancelURL: cancelURL, Label: label}
 }

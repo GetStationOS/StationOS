@@ -42,8 +42,8 @@ function syncAssistant() {
  document.querySelectorAll('[data-assistant-badge]').forEach(badge => {if (badge.dataset.assistantBadge === status?.dataset.assistantConversation) badge.textContent=running ? 'Working…' : '';});
 }
 let resultsNavigation = false;
-document.addEventListener('click', event => {
-  if (event.target.closest('[data-results-navigation]')) resultsNavigation = true;
+document.body.addEventListener('htmx:beforeRequest', event => {
+  if (event.detail.elt?.closest('[data-results-navigation]')) resultsNavigation = true;
 });
 // Station tabs are replaced with the page; retain their horizontal viewport.
 // Reveal the active tab on direct loads/history without scrolling the whole page.
@@ -139,7 +139,14 @@ window.addEventListener('beforeunload', event => { if (unsavedSelections()) { ev
 document.body.addEventListener('htmx:afterSwap', event => {
   const target = event.detail.target || event.detail.elt || event.target;
   if (target.id === 'assistant-messages') { syncAssistant(); return; }
-  if (target.id === 'audience-queue-results' || target.id === 'source-discovery-results') return;
+  if (target.id === 'audience-queue-results') {
+    if (resultsNavigation) {
+      resultsNavigation = false;
+      document.querySelector('#audience-queue-results #table-results-heading')?.focus({preventScroll:true});
+    }
+    return;
+  }
+  if (target.id === 'source-discovery-results') return;
   const feedback = document.getElementById('feedback'); feedback.hidden = true;
   if (target.id === 'dialog-body') {
     document.querySelector('#confirm-dialog [data-modal-error]').hidden = true;

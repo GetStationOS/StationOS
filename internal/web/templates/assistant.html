@@ -2,7 +2,7 @@
 {{if .AssistantError}}
 <p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
 {{if .AIConnectionMode}}
-<section class="form-panel">
+<section class="panel form-panel">
   {{template "ai-connection" .}}
 </section>
 {{if and .AIConnectionSaved (ne .AIConnection.ID "openai")}}
@@ -17,16 +17,13 @@
 
 {{define "assistant-settings"}}
 <p class="hint">Choose a provider and model for each feature. Manage server addresses and credentials in <a href="/producer/assistant/endpoints">Manage endpoints</a>.</p>
-<section class="form-panel">
+<section class="panel form-panel">
   {{if .AssistantError}}
   <p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
   <form method="post" action="/producer/assistant/settings" hx-disabled-elt="find button">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     {{template "ai-routes" .}}
-    <div class="form-actions">
-      <a class="button secondary" href="/producer/assistant">Cancel</a>
-      <button>Save models</button>
-    </div>
+    {{template "form-actions" (formActions "/producer/assistant" "Save models")}}
   </form>
 </section>
 {{end}}
@@ -41,7 +38,7 @@
         {{if eq .Status "running"}}Working…{{end}}</span>
     </a>{{end}}
 </nav>{{end}}
-  <section class="assistant-chat" aria-label="Producer conversation">
+  <section class="panel assistant-chat" aria-label="Producer conversation">
     {{template "assistant-messages" .}}
     {{if .AssistantError}}
     <p class="notice error" role="alert">{{.AssistantError}}</p>{{end}}
@@ -72,7 +69,7 @@
       <p>{{.Text}}</p>
       {{else}}
       {{if .Latest}}{{with $}}{{if .AssistantState}}
-      <section class="notice assistant-status" data-state="{{.AssistantState}}" role="status" aria-label="Assistant status">
+      <section class="panel notice assistant-status" data-state="{{.AssistantState}}" role="status" aria-label="Assistant status">
         <strong>{{.AssistantState}}</strong>
         <p>{{.AssistantActivity}}</p>
         {{if .AssistantTiming}}
@@ -80,7 +77,7 @@
         <p class="hint assistant-live-error" role="alert" hidden>Live updates have disconnected. Reload this page to check the assistant’s current state.</p>
       </section>{{end}}
       {{if .Conversation.Task.Brief}}
-      <section class="assistant-task" aria-label="Saved task progress">
+      <section class="panel assistant-task" aria-label="Saved task progress">
         <h2>Task progress</h2>
         <p>{{.Conversation.Task.Brief}}</p>
         {{if .Conversation.Task.Completed}}
@@ -149,7 +146,7 @@
   </article>{{end}}
 </div>
 {{else}}
-<section class="empty-state">
+<section class="panel empty-state">
   <h2>No AI endpoints yet</h2>
   <p>Add an AI service to get started.</p>
 </section>{{end}}
@@ -213,12 +210,7 @@
     <label>Maximum output tokens<input name="output_tokens" type="number" min="256" max="8192" required value="{{.AIConnection.OutputTokens}}">
     </label>
   </details>
-  <div class="form-footer">
-    <div class="form-actions">
-      <a class="button secondary" href="/producer/assistant/endpoints">Cancel</a>
-      <button>Save endpoint</button>
-    </div>
-  </div>
+  {{template "form-actions" (formActions "/producer/assistant/endpoints" "Save endpoint")}}
 </form>
 {{else}}
 <p class="hint">Manage the shared credential for this OpenAI endpoint. Server address: {{.AIConnection.Address}}.</p>
@@ -233,7 +225,7 @@
 {{end}}
 
 {{define "delete-ai"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <h2 id="dialog-heading">Delete {{.AIConnection.Name}}?</h2>
   <p id="dialog-description">This removes the provider connection and its encrypted credential. Choose another connection for any roles using it first.</p>
   <form method="post" action="/producer/assistant/endpoints">
@@ -267,10 +259,7 @@
   {{if .AssistantSettings.HasKey}}
   <label class="choice">
     <input type="checkbox" name="clear_key" value="yes">Remove saved key</label>{{end}}
-  <div class="form-actions">
-    <a class="button secondary" href="/producer/assistant/endpoints">Cancel</a>
-    <button>Save key</button>
-  </div>
+  {{template "form-actions" (formActions "/producer/assistant/endpoints" "Save key")}}
 </form>{{end}}
 
 {{define "assistant-chat-page"}}

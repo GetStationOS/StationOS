@@ -521,3 +521,12 @@ track retains its honest Unavailable state until its source returns.
 Saving playlist genre/album selections also refreshes in the same transaction and
 reports new tracks/albums in its saved confirmation. Preserve manual inclusions and
 exclusions. A failed save or refresh must roll back both the selections and baseline.
+
+### Shared HTML/CSS component ownership
+
+See [ui-components.md](ui-components.md) for canonical component markup and
+responsive contracts. Semantic sections are visually neutral; use explicit panels
+for distinct tasks. Routine creation and editing forms share the same footer.
+Audience, track and history results share toolbar/pagination components; rows-per-page
+choices remain available on narrow screens. Reuse semantic feedback tokens and
+shared badge/action anatomy before introducing feature-specific rules.

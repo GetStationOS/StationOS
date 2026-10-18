@@ -320,14 +320,36 @@ func (s *Server) audiencePage(w http.ResponseWriter, r *http.Request) {
 	choices, status, filters := audienceFilters(r.URL.Query())
 	v.AudienceStatuses = choices
 	v.AudienceFilter = status
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	offset = max(0, offset)
+	values := r.URL.Query()
+	// Retain the existing 50-row default and legacy offset links.
+	if values.Get("per_page") == "" {
+		values.Set("per_page", "50")
+	}
+	page, size, err := pageRequest(values)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	offset := (page - 1) * size
 
 	snapshotTime := time.Now()
-	v.AudienceMessages, v.AudienceTotal, err = s.d.Audience.List(r.Context(), v.Station.ID, status, offset, 50, snapshotTime)
+	v.AudienceMessages, v.AudienceTotal, err = s.d.Audience.List(r.Context(), v.Station.ID, status, offset, size, snapshotTime)
 	if err != nil {
 		s.fail(w, err)
 		return
+	}
+	filters.Set("per_page", strconv.Itoa(size))
+	v.Pagination = paging(r.URL.Path, filters, page, size, v.AudienceTotal)
+	v.Pagination.Target = "#audience-queue-results"
+	v.Pagination.SizeLabel = "Contributions per page"
+	v.Pagination.CountLabel = "submission"
+	if page != v.Pagination.Number {
+		offset = (v.Pagination.Number - 1) * size
+		v.AudienceMessages, _, err = s.d.Audience.List(r.Context(), v.Station.ID, status, offset, size, snapshotTime)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
 	}
 	base := r.URL.Path + "?" + filters.Encode() + "&offset="
 	v.AudienceRefreshURL = base + strconv.Itoa(offset)
@@ -343,12 +365,7 @@ func (s *Server) audiencePage(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("X-Live-Deadline", at.Format(time.RFC3339Nano))
 		}
 	}
-	if offset > 0 {
-		v.AudiencePrevious = base + strconv.Itoa(max(0, offset-50))
-	}
-	if offset+50 < v.AudienceTotal {
-		v.AudienceNext = base + strconv.Itoa(offset+50)
-	}
+
 	if fragmentTarget(r, "audience-queue-results") {
 		s.renderHTML(w, http.StatusOK, "audience-queue-results", v)
 		return
@@ -377,6 +394,10 @@ func (s *Server) decideAudience(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _, filters := audienceFilters(r.PostForm)
+	if page, size, err := pageRequest(r.PostForm); err == nil {
+		filters.Set("page", strconv.Itoa(page))
+		filters.Set("per_page", strconv.Itoa(size))
+	}
 	destination := "/producer/stations/" + url.PathEscape(r.PathValue("id")) + "/audience?" + filters.Encode()
 	if r.Header.Get("HX-Request") == "true" && r.Header.Get("HX-Target") == "audience-queue-results" {
 		location, _ := json.Marshal(map[string]any{"path": destination, "target": "#audience-queue-results", "swap": "outerHTML show:none", "push": false})

@@ -46,7 +46,7 @@
 {{end}}
 
 {{define "history-results"}}
-<section class="history-card" data-operations-label="Broadcast history" id="history-results" aria-label="Broadcast history results" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
+<section class="panel results-panel history-card" data-operations-label="Broadcast history" id="history-results" aria-label="Broadcast history results" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
 <p class="visually-hidden" role="status" data-operations-announcement></p>
 <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#history-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
 {{template "results-toolbar" .Pagination}}
@@ -78,15 +78,15 @@
   </tbody>
 </table>
 </div>
-{{else}}<section class="empty-state table-outline"><h2>No matching broadcasts</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
+{{else}}<section class="panel empty-state table-outline"><h2>No matching broadcasts</h2><p>History begins with broadcasts after this version was installed. Opening this page does not start broadcasting.</p></section>{{end}}
 {{template "pagination" .Pagination}}
 </section>
 {{end}}
 
 {{define "incident-results"}}
-<section class="history-card" id="incident-results" aria-label="Incident results" data-operations-label="Incidents" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
+<section class="panel results-panel history-card" id="incident-results" aria-label="Incident results" data-operations-label="Incidents" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
 <nav class="incident-filters" aria-label="Incident review filter">
-<button type="button" class="secondary history-refresh" data-operations-refresh disabled aria-label="Incidents up to date" title="Incidents up to date" hx-get="{{.RefreshURL}}" hx-target="#incident-results" hx-swap="outerHTML show:none" hx-push-url="false" hx-disabled-elt="this">{{template "ui-icon" "refresh"}}</button>
+<button type="button" class="secondary icon-button history-refresh" data-operations-refresh disabled aria-label="Incidents up to date" title="Incidents up to date" hx-get="{{.RefreshURL}}" hx-target="#incident-results" hx-swap="outerHTML show:none" hx-push-url="false" hx-disabled-elt="this">{{template "ui-icon" "refresh"}}</button>
 <a href="{{.IncidentActiveURL}}" {{if not .IncidentReview}}aria-current="page"{{end}}>Active</a>
 <a href="{{.IncidentNeedsReviewURL}}" {{if eq .IncidentReview "needed"}}aria-current="page"{{end}}>Needs review</a>
 <a href="{{.IncidentAllURL}}" {{if eq .IncidentReview "all"}}aria-current="page"{{end}}>All incidents</a>
@@ -102,7 +102,7 @@
 <tr id="incident-{{.ID}}" role="row">
 <td class="incident-time" role="cell"><time title="{{.LatestLabel}}" datetime="{{.Latest.Format "2006-01-02T15:04:05Z07:00"}}">{{.LatestDate}}<span>{{.LatestTime}}</span></time>{{if gt .Count 1}}<span class="incident-occurrences" title="First occurred {{.FirstLabel}}">{{.Count}} occurrences</span>{{end}}</td>
 <td class="incident-description" role="cell"><strong>{{.Message}}</strong>{{if .ShowEffect}}<p>{{.Effect}}</p>{{end}}{{if and .Recovered.IsZero .Action}}<p class="incident-guidance">{{.Action}}</p>{{end}}
-<div class="incident-footer"><a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a><div class="incident-actions">{{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return_to" value="{{$.RefreshURL}}"><button class="secondary incident-review-button" aria-label="Mark incident as reviewed: {{.Message}}" title="Mark as reviewed">{{template "ui-icon" "review"}}</button></form>{{else}}<span class="incident-reviewed" title="Reviewed">{{template "ui-icon" "review"}}<span>Reviewed</span></span>{{end}}
+<div class="incident-footer"><a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a><div class="incident-actions">{{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return_to" value="{{$.RefreshURL}}"><button class="secondary icon-button incident-review-button" aria-label="Mark incident as reviewed: {{.Message}}" title="Mark as reviewed">{{template "ui-icon" "review"}}</button></form>{{else}}<span class="incident-reviewed" title="Reviewed">{{template "ui-icon" "review"}}<span>Reviewed</span></span>{{end}}
 
 </div></div></td>
 <td class="incident-state" role="cell"><span class="incident-status" role="img" aria-label="{{.StatusLabel}}{{if .Recovered.IsZero}}: {{.Severity}}{{end}}" data-state="{{.Tone}}" title="{{if .Recovered.IsZero}}{{.Severity}}{{else}}Recovered {{.RecoveredLabel}}{{end}}">{{template "ui-icon" .Icon}}{{.StatusLabel}}</span></td>

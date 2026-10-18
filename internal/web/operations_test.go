@@ -320,7 +320,7 @@ func TestHistoryCardPaginationPreservesFilters(t *testing.T) {
 	query := "?q=Song&kind=music&outcome=completed&show=name%3ABreakfast&dj=dj&from=2026-10-16&until=2026-10-16&per_page=25"
 	w := request(h, "GET", base+query, nil, nil)
 	body := html.UnescapeString(w.Body.String())
-	if w.Code != 200 || strings.Count(body, `class="pagination-bar"`) != 1 || !strings.Contains(body, `class="history-card"`) || !strings.Contains(body, "1–25 of 60") || !strings.Contains(body, `aria-label="Events per page"`) {
+	if w.Code != 200 || strings.Count(body, `class="pagination-bar"`) != 1 || !strings.Contains(body, `class="panel results-panel history-card"`) || !strings.Contains(body, "1–25 of 60") || !strings.Contains(body, `aria-label="Events per page"`) {
 		t.Fatal("missing history card/pager", w.Code, body)
 	}
 	partial := request(h, "GET", base+query, nil, map[string]string{"HX-Request": "true", "HX-Target": "history-results"})

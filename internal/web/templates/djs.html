@@ -17,7 +17,7 @@
       </header>
       {{if .SetupNote}}
       <p class="dj-card-setup">{{.SetupNote}}</p>{{end}}
-      <section class="dj-card-shows" aria-label="Shows and stations">
+      <section class="panel dj-card-shows" aria-label="Shows and stations">
         <span class="eyebrow" id="dj-shows-{{.Profile.ID}}">SHOWS &amp; STATIONS</span>
         <div class="dj-card-shows-scroll" role="region" aria-labelledby="dj-name-{{.Profile.ID}} dj-shows-{{.Profile.ID}}" tabindex="0">
           {{if .LiveStation}}
@@ -42,7 +42,7 @@
   </article>{{end}}
 </div>
 {{else}}
-<section class="empty-state">
+<section class="panel empty-state">
   <h2>No DJs yet</h2>
   <p>Create a fictional presenter with their own prompt and voice direction.</p>
   <a class="button" href="/producer/djs/new">Create DJ</a>
@@ -50,7 +50,7 @@
 {{end}}
 
 {{define "dj-form"}}
-<section class="dj-settings">
+<section class="panel dj-settings">
   {{if .DJError}}
   <p class="notice error" role="alert">{{.DJError}}</p>{{end}}
   <form method="post" action="/producer/djs" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
@@ -88,13 +88,9 @@
         <span class="hint">Voice direction, phrasing and tone.</span>
       </label>
     </fieldset>
-    <div class="form-footer">
-      <div class="form-actions">
-        <a class="button secondary" href="/producer/djs">Cancel</a>
-        <button>
-          {{if .DJ.ID}}Save{{else}}Create DJ{{end}}</button>
-      </div>
-    </div>
+    {{ $action := "Create DJ" }}
+    {{if .DJ.ID}}{{$action = "Save"}}{{end}}
+    {{template "form-actions" (formActions "/producer/djs" $action)}}
   </form>
 </section>
 {{if .DJ.ID}}
@@ -104,7 +100,7 @@
 {{end}}
 
 {{define "delete-dj"}}
-<section class="form-panel">
+<section class="panel form-panel">
   <h2 id="dialog-heading">Delete {{.DJ.Name}}?</h2>
   <p id="dialog-description">This permanently deletes this DJ’s profile.</p>
   <form method="post" action="/producer/djs/{{.DJ.ID}}/delete" hx-disabled-elt="find button">

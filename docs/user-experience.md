@@ -553,4 +553,4 @@ Previously saved advanced restrictions appear only where they exist, with edit a
 remove actions. They further restrict the selected categories; any one saved advanced
 restriction must match. Ordinary checkbox saves preserve them. Keep the existing
 form validation and ordinary-form fallback for editing these saved restrictions.
-Source dates may describe reissues; missing dates do not match date selections.
+Year and decade selections prefer the source’s original release date and fall back to its album release date, which may describe a reissue; missing dates do not match date selections.

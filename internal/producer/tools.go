@@ -334,12 +334,13 @@ func (r rule) domain() playlists.Rule {
 // Music results deliberately omit playable URLs and return known credits/duration only.
 type recording struct {
 	ID, SourceID, Title, Performers, Composer, AlbumArtist, Conductor, Creator, Album, Genre string
-	Year                                                                                     int // Source date, not necessarily original release.
+	ReleaseDate, OriginalDate                                                                string
+	Year                                                                                     int // Original date year when available, otherwise release date year.
 	Seconds                                                                                  *float64
 }
 
 func music(a content.AudioItem) recording {
-	v := recording{ID: a.ID, SourceID: a.SourceID, Title: a.Title, Performers: a.Artist, Composer: a.Composer, AlbumArtist: a.AlbumArtist, Conductor: a.Conductor, Creator: a.Creator, Album: a.Album, Genre: a.Genre, Year: a.Year}
+	v := recording{ID: a.ID, SourceID: a.SourceID, Title: a.Title, Performers: a.Artist, Composer: a.Composer, AlbumArtist: a.AlbumArtist, Conductor: a.Conductor, Creator: a.Creator, Album: a.Album, Genre: a.Genre, Year: a.Year, ReleaseDate: a.ReleaseDate, OriginalDate: a.OriginalDate}
 	if a.Duration != nil {
 		n := a.Duration.Seconds()
 		v.Seconds = &n
@@ -453,7 +454,7 @@ func NewRegistry(d Dependencies) *Registry {
 		summary, err := (catalogue.SummaryService{Repo: repo}).Summarize(ctx, q)
 		return read(summary, err)
 	})
-	register(r, "search_music", "Search music by text, exact genre, album, performing artist, composer, source or inclusive year_from/year_to. Source-reported years may be reissue dates; unknown dates do not match. Results include IDs, credits, year and known durations. Start with summarize_music. Paginated, limit 1–20 (default 5).", false, func(ctx context.Context, a struct {
+	register(r, "search_music", "Search music by text, exact genre, album, performing artist, composer, source or inclusive year_from/year_to. Years prefer original dates, falling back to release dates that may describe reissues; unknown dates do not match. Results include IDs, credits, year and known durations. Start with summarize_music. Paginated, limit 1–20 (default 5).", false, func(ctx context.Context, a struct {
 		Artist   string `json:"artist"`
 		Composer string `json:"composer"`
 		YearFrom int    `json:"year_from"`
@@ -485,7 +486,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(map[string]any{"catalogue_page": true, "query": a, "items": out, "total": v.Total, "offset": o, "limit": l}, nil)
 	})
-	register(r, "explore_music", "Explore dynamic rule values. kind: genres, albums, artists, composers, years or decades. Decades use their first year. Dates are source-reported and may describe reissues; absence is unknown. Filter by text; paginate with offset and limit.", false, func(ctx context.Context, a struct {
+	register(r, "explore_music", "Explore dynamic rule values. kind: genres, albums, artists, composers, years or decades. Decades use their first year. Dates prefer source original dates, falling back to release dates; absence is unknown. Filter by text; paginate with offset and limit.", false, func(ctx context.Context, a struct {
 		Kind   string `json:"kind"`
 		Text   string `json:"text"`
 		Offset int    `json:"offset"`
@@ -620,7 +621,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(nil, "Deleted playlist: "+v.Name, "/producer/playlists?station="+v.StationID)
 	})
-	register(r, "add_playlist_rule", "Add ONE dynamic rule to an existing playlist. Kinds: genre, album, artist, composer, year, decade. Use exact explore_music values. Album requires source_id; others omit it. Values within a category are OR; selected categories combine with AND. Years and decades share the date category. Use ordinary rules; separate combined rules are unnecessary. Dates are source-reported, not necessarily original release. New matching imports join automatically.", true, func(ctx context.Context, a playlistRuleArgs) (Result, error) {
+	register(r, "add_playlist_rule", "Add ONE dynamic rule to an existing playlist. Kinds: genre, album, artist, composer, year, decade. Use exact explore_music values. Album requires source_id; others omit it. Values within a category are OR; selected categories combine with AND. Years and decades share the date category. Use ordinary rules; separate combined rules are unnecessary. Years prefer source original dates, falling back to release dates. New matching imports join automatically.", true, func(ctx context.Context, a playlistRuleArgs) (Result, error) {
 		if a.Rule.Kind == "filter" {
 			return Result{}, errors.New("Use genre, album, artist, composer, year or decade selections; categories combine automatically")
 		}

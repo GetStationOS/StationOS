@@ -17,6 +17,7 @@ import (
 
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/persistence"
+	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
 )
@@ -60,6 +61,9 @@ func TestUPnPContractAndCatalogueImport(t *testing.T) {
 			t.Errorf("bad SOAP request %s %s", r.Method, r.URL.Path)
 		}
 		b, _ := io.ReadAll(r.Body)
+		if !strings.Contains(string(b), "<Filter>*</Filter>") {
+			t.Error("generic UPnP filter changed")
+		}
 		if strings.Contains(string(b), "BrowseMetadata") && !strings.Contains(string(b), "track&amp;1") {
 			t.Errorf("object ID not XML escaped: %s", b)
 		}
@@ -274,6 +278,7 @@ func TestMinimServerImportUsesFlatItemsView(t *testing.T) {
 			Body struct {
 				Browse struct {
 					Object string `xml:"ObjectID"`
+					Filter string `xml:"Filter"`
 					Offset int    `xml:"StartingIndex"`
 				} `xml:"Browse"`
 			} `xml:"Body"`
@@ -282,6 +287,9 @@ func TestMinimServerImportUsesFlatItemsView(t *testing.T) {
 			t.Error(err)
 			http.Error(w, "bad XML", 400)
 			return
+		}
+		if request.Body.Browse.Filter != "*,upnp:userAnnotation[tag.OriginalDate]" {
+			t.Errorf("missing extended metadata filter: %q", request.Body.Browse.Filter)
 		}
 		switch request.Body.Browse.Object {
 		case "0":
@@ -293,7 +301,7 @@ func TestMinimServerImportUsesFlatItemsView(t *testing.T) {
 			offset := request.Body.Browse.Offset
 			count := min(100, 101-offset)
 			for n := offset; n < offset+count; n++ {
-				fmt.Fprintf(&didl, `<item id="track%d"><title>Track %d</title><class>object.item.audioItem.musicTrack</class><res protocolInfo="http-get:*:audio/mpeg:*">/track%d.mp3</res></item>`, n, n, n)
+				fmt.Fprintf(&didl, `<item id="track%d"><title>Track %d</title><class>object.item.audioItem.musicTrack</class><date>2008-10-06</date><userAnnotation>tag.OriginalDate=1987</userAnnotation><genre>Pop</genre><res protocolInfo="http-get:*:audio/mpeg:*">/track%d.mp3</res></item>`, n, n, n)
 			}
 			didl.WriteString(`</DIDL-Lite>`)
 			io.WriteString(w, soap(didl.String(), count, 101))
@@ -324,9 +332,26 @@ func TestMinimServerImportUsesFlatItemsView(t *testing.T) {
 			t.Fatal(count, err)
 		}
 	}
-	result, err := cat.Search(ctx, catalogue.Query{Limit: 100})
+	result, err := cat.Search(ctx, catalogue.Query{Limit: 100, YearFrom: 1980, YearTo: 1989, Genre: "Pop"})
 	if err != nil || result.Total != 101 || itemPages.Load() != 4 {
 		t.Fatal(result.Total, itemPages.Load(), err)
+	}
+	repo := persistence.Playlists{DB: db}
+	if err := repo.Save(ctx, playlists.Playlist{ID: "eighties", StationID: "station", Name: "1980s Pop"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.ReplaceRules(ctx, "eighties", []playlists.Rule{{ID: "pop", Kind: "genre", Value: "Pop"}, {ID: "decade", Kind: "decade", Value: "1980"}}); err != nil {
+		t.Fatal(err)
+	}
+	eligible, err := repo.Resolve(ctx, "eighties", 0, 100)
+	if err != nil || eligible.Total != 101 {
+		t.Fatalf("original-date playlist: total=%d err=%v", eligible.Total, err)
+	}
+
+	for _, item := range result.Items {
+		if item.Year != 1987 || item.OriginalDate != "1987" || item.ReleaseDate != "2008-10-06" {
+			t.Fatalf("lost date provenance: %+v", item)
+		}
 	}
 }
 

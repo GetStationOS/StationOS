@@ -674,9 +674,11 @@ A rebuildable indexed catalogue_credits table splits the existing semicolon-deli
 performer/composer credits, preserves commas in names and is backfilled during
 migration. Insert/update triggers replace membership; deletion cascades remove it.
 Exact matching never substitutes album artist, conductor or ambiguous creator.
-The UPnP adapter imports valid year/ISO-date dc:date values as optional AudioItem.Year
-(zero means unknown). These are source dates, not independently verified original
-release dates. Missing/invalid dates never match bounded year filters. Existing
+The UPnP adapter preserves dc:date as AudioItem.ReleaseDate and explicitly requests
+MinimServer OriginalDate annotations, retained as AudioItem.OriginalDate. AudioItem.Year
+prefers a valid original date year, falling back to dc:date (zero means unknown).
+Generic UPnP servers retain the standard wildcard filter. These remain source-provided
+dates, not independently verified release dates. Missing/invalid dates never match bounded year filters. Existing
 catalogues need a source refresh to acquire dates; no migration invents them.
 
 Selections retains atomic checkbox saves across all kinds and preserves unavailable

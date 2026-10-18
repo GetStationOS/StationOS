@@ -228,7 +228,11 @@ func (p *Provider) browse(ctx context.Context, object, flag string, offset, coun
 	if err := xml.EscapeText(&escaped, []byte(object)); err != nil {
 		return sources.Page{}, err
 	}
-	body := `<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:Browse xmlns:u="` + p.service + `"><ObjectID>` + escaped.String() + `</ObjectID><BrowseFlag>` + flag + `</BrowseFlag><Filter>*</Filter><StartingIndex>` + strconv.Itoa(offset) + `</StartingIndex><RequestedCount>` + strconv.Itoa(count) + `</RequestedCount><SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>`
+	filter := "*"
+	if p.minimServer {
+		filter += ",upnp:userAnnotation[tag.OriginalDate]"
+	}
+	body := `<?xml version="1.0"?><s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><u:Browse xmlns:u="` + p.service + `"><ObjectID>` + escaped.String() + `</ObjectID><BrowseFlag>` + flag + `</BrowseFlag><Filter>` + filter + `</Filter><StartingIndex>` + strconv.Itoa(offset) + `</StartingIndex><RequestedCount>` + strconv.Itoa(count) + `</RequestedCount><SortCriteria></SortCriteria></u:Browse></s:Body></s:Envelope>`
 	req, err := http.NewRequestWithContext(ctx, "POST", p.control, strings.NewReader(body))
 	if err != nil {
 		return sources.Page{}, err
@@ -292,18 +296,19 @@ func (p *Provider) Resolve(ctx context.Context, id string) ([]content.Resource, 
 }
 
 type didlEntry struct {
-	ID        string       `xml:"id,attr"`
-	Title     string       `xml:"title"`
-	Class     string       `xml:"class"`
-	Artists   []didlCredit `xml:"artist"`
-	Authors   []didlCredit `xml:"author"`
-	Creators  []string     `xml:"creator"`
-	Composers []string     `xml:"composer"`
-	Album     string       `xml:"album"`
-	Date      string       `xml:"date"`
-	Genres    []string     `xml:"genre"`
-	Art       string       `xml:"albumArtURI"`
-	Resources []struct {
+	ID          string       `xml:"id,attr"`
+	Title       string       `xml:"title"`
+	Class       string       `xml:"class"`
+	Artists     []didlCredit `xml:"artist"`
+	Authors     []didlCredit `xml:"author"`
+	Creators    []string     `xml:"creator"`
+	Composers   []string     `xml:"composer"`
+	Album       string       `xml:"album"`
+	Date        string       `xml:"date"`
+	Annotations []string     `xml:"userAnnotation"`
+	Genres      []string     `xml:"genre"`
+	Art         string       `xml:"albumArtURI"`
+	Resources   []struct {
 		URL      string `xml:",chardata"`
 		Protocol string `xml:"protocolInfo,attr"`
 		Duration string `xml:"duration,attr"`
@@ -397,7 +402,8 @@ func (p *Provider) parseDIDL(raw string) ([]sources.Entry, error) {
 			if strings.HasPrefix(v.Class, "object.item.audioItem.musicTrack") {
 				kind = content.Track
 			}
-			a := content.AudioItem{ID: content.ID(p.sourceID, v.ID), SourceID: p.sourceID, SourceItemID: v.ID, Kind: kind, Title: v.Title, Album: v.Album, Year: sourceYear(v.Date), Genre: strings.Join(v.Genres, ", "), Origin: content.Original, Resources: []content.Resource{}}
+			a := content.AudioItem{ID: content.ID(p.sourceID, v.ID), SourceID: p.sourceID, SourceItemID: v.ID, Kind: kind, Title: v.Title, Album: v.Album, Genre: strings.Join(v.Genres, ", "), Origin: content.Original, Resources: []content.Resource{}}
+			v.applyDates(&a)
 			v.applyCredits(&a)
 			if v.Art != "" {
 				a.Artwork, err = p.resourceURL(v.Art)

@@ -50,7 +50,9 @@ type AudioItem struct {
 	Conductor    string         `json:"conductor,omitempty"`
 	Creator      string         `json:"creator,omitempty"`
 	Album        string         `json:"album,omitempty"`
-	Year         int            `json:"year,omitempty"` // Source-reported date year; not necessarily original release.
+	Year         int            `json:"year,omitempty"` // Original date year when available, otherwise release date year.
+	ReleaseDate  string         `json:"release_date,omitempty"`
+	OriginalDate string         `json:"original_date,omitempty"`
 	Genre        string         `json:"genre,omitempty"`
 	Duration     *time.Duration `json:"duration_ns,omitempty"`
 	Artwork      string         `json:"artwork,omitempty"`
@@ -67,7 +69,7 @@ func (a AudioItem) Validate() error {
 	if a.Year < 0 || a.Year > 9999 {
 		return errors.New("invalid content year")
 	}
-	if a.SourceID == "" || len(a.SourceID) > 128 || len(a.ID) > 128 || a.SourceItemID == "" || strings.ContainsRune(a.SourceID, 0) || strings.ContainsRune(a.SourceItemID, 0) || len(a.SourceItemID) > 2048 || strings.TrimSpace(a.Title) == "" || len(a.Title) > 4096 || len(a.Artist) > 4096 || len(a.Composer) > 4096 || len(a.AlbumArtist) > 4096 || len(a.Conductor) > 4096 || len(a.Creator) > 4096 || len(a.Album) > 4096 || len(a.Genre) > 4096 || len(a.Artwork) > 4096 {
+	if a.SourceID == "" || len(a.SourceID) > 128 || len(a.ID) > 128 || a.SourceItemID == "" || strings.ContainsRune(a.SourceID, 0) || strings.ContainsRune(a.SourceItemID, 0) || len(a.SourceItemID) > 2048 || strings.TrimSpace(a.Title) == "" || len(a.Title) > 4096 || len(a.Artist) > 4096 || len(a.Composer) > 4096 || len(a.AlbumArtist) > 4096 || len(a.Conductor) > 4096 || len(a.Creator) > 4096 || len(a.Album) > 4096 || len(a.ReleaseDate) > 4096 || len(a.OriginalDate) > 4096 || len(a.Genre) > 4096 || len(a.Artwork) > 4096 {
 		return errors.New("invalid content metadata")
 	}
 	switch a.Kind {

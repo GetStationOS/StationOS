@@ -4,6 +4,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"stationos.local/stationos/internal/content"
 )
 
 // Accept a year or ISO date/time. Invalid and absent dates stay unknown.
@@ -22,4 +24,23 @@ func sourceYear(raw string) int {
 		}
 	}
 	return 0
+}
+
+// Keep both source dates so the effective year retains its provenance.
+// Invalid originals must not hide a usable album release date.
+func (v didlEntry) applyDates(a *content.AudioItem) {
+	a.ReleaseDate = strings.TrimSpace(v.Date)
+	a.Year = sourceYear(a.ReleaseDate)
+	for _, annotation := range v.Annotations {
+		tag, value, ok := strings.Cut(annotation, "=")
+		if !ok || !strings.EqualFold(strings.TrimSpace(tag), "tag.OriginalDate") {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if year := sourceYear(value); year != 0 {
+			a.OriginalDate = value
+			a.Year = year
+			break
+		}
+	}
 }

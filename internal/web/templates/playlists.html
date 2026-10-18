@@ -220,7 +220,7 @@
   {{end}}
   <details class="selection-help">
     <summary>How selections work</summary>
-    <p>Tracks must match every selected category: for example, Pop and 1980s includes only 1980s pop. Multiple choices within a category are alternatives, so Pop and Rock includes either genre. Years and decades share one date category. An empty category adds no restriction; no selections gives no automatic tracks. Individually added tracks remain additions, and exclusions take precedence. Years use the source-reported date, which may be a reissue date. Tracks without a date do not match year conditions. Refresh the source to import dates for existing tracks. Overlapping selections appear once. Refresh checks saved selections against the imported catalogue and reports new matches since the last refresh or selection change. Excluded tracks stay visible on Tracks, where you can re-include them.</p>
+    <p>Tracks must match every selected category: for example, Pop and 1980s includes only 1980s pop. Multiple choices within a category are alternatives, so Pop and Rock includes either genre. Years and decades share one date category. An empty category adds no restriction; no selections gives no automatic tracks. Individually added tracks remain additions, and exclusions take precedence. Years prefer the original release date when provided; otherwise they use the album release date, which may describe a reissue. Tracks without a date do not match year conditions. Refresh the source to import dates for existing tracks. Overlapping selections appear once. Refresh checks saved selections against the imported catalogue and reports new matches since the last refresh or selection change. Excluded tracks stay visible on Tracks, where you can re-include them.</p>
   </details>
 </section>
 {{end}}
@@ -250,7 +250,7 @@
         <td class="track-title">{{.Item.Title}}<span class="subline">{{.Item.Artist}}</span>
           {{if .Excluded}}<span class="subline playlist-excluded-label">Excluded</span>{{end}}
           {{if not .Available}}<span class="unavailable">Unavailable</span>{{end}}</td>
-        <td>{{.Item.Album}}<span class="subline">{{.Item.Genre}}{{if .Item.Year}} · <span title="Source-reported date year">{{.Item.Year}}</span>{{end}}</span>
+        <td>{{.Item.Album}}<span class="subline">{{.Item.Genre}}{{if .Item.Year}} · <span title="Original release year when available; otherwise album release year">{{.Item.Year}}</span>{{end}}</span>
         </td>
         <td class="nowrap">{{.Duration}}</td>
         <td>{{.Source}}</td>
@@ -336,7 +336,7 @@
       <label>From year<input name="year_from" type="number" min="1" max="9999" value="{{.YearFromInput}}" placeholder="Any year"></label>
       <label>To year<input name="year_to" type="number" min="1" max="9999" value="{{.YearToInput}}" placeholder="Any year"></label>
     </div>
-    <p class="hint">Names match exact catalogue credits. Dates come from source metadata and may describe a reissue; missing dates never match a year range. Both end years are included.</p>
+    <p class="hint">Names match exact catalogue credits. Dates prefer the source’s original release date, falling back to its album release date; missing dates never match a year range. Both end years are included.</p>
     {{template "form-actions" (formActions (printf "/producer/playlists/%s" .Playlist.ID) "Save rule")}}
   </form>
 </section>

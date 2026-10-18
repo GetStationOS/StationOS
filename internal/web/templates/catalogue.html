@@ -83,7 +83,7 @@
           <td class="track-title">{{.Item.Title}}</td>
           <td>
             {{if .Item.Artist}}{{.Item.Artist}}{{else}}—{{end}}<span class="subline">
-              {{if .Item.Album}}{{.Item.Album}}{{else}}No album{{end}}{{if .Item.Year}} · <span title="Source-reported date year">{{.Item.Year}}</span>{{end}}</span>
+              {{if .Item.Album}}{{.Item.Album}}{{else}}No album{{end}}{{if .Item.Year}} · <span title="Original release year when available; otherwise album release year">{{.Item.Year}}</span>{{end}}</span>
           </td>
           <td>
             {{if .Item.Genre}}{{.Item.Genre}}{{else}}—{{end}}</td>

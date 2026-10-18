@@ -67,3 +67,9 @@
   {{end}}
 </nav>
 {{end}}
+
+{{define "state-icon"}}
+<button type="button" class="state-icon" data-tone="{{.Tone}}" data-state-detail="{{.Detail}}" aria-label="{{.Label}}"{{if .Description}} aria-description="{{.Description}}"{{end}} title="{{.Detail}}">
+  <span class="state-icon-mark" aria-hidden="true">{{template "ui-icon" .Icon}}</span>
+</button>
+{{end}}

@@ -114,7 +114,7 @@
   <div class="results-panel audience-table-panel">
     <input type="hidden" form="audience-filters" name="per_page" value="{{.Pagination.Size}}">
     {{template "results-toolbar" .Pagination}}
-    <div class="table-scroll" tabindex="0" role="region" aria-label="Listener contributions">
+    <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Listener contributions">
       <table class="audience-queue-table">
         <caption class="visually-hidden">Listener contributions and their review status</caption>
         <thead>
@@ -122,7 +122,7 @@
             <th scope="col">Show</th>
             <th scope="col">Submission</th>
             <th scope="col">Selected recording</th>
-            <th scope="col">Status</th>
+            <th class="table-state-heading" scope="col">Status</th>
             <th scope="col">Actions</th>
           </tr>
         </thead>
@@ -145,11 +145,9 @@
               <span class="hint">Playing now</span>
               {{else if eq .TrackID $.Broadcast.Next.ID}}<br>
               <span class="hint">Up next</span>{{end}}{{else}}<span class="hint">—</span>{{end}}</td>
-            <td>
-              <span class="audience-status-badge audience-status-{{.Status}}">
-                {{if eq .Status "pending"}}Awaiting AI review{{else if eq .Status "review"}}Needs producer review{{else if eq .Status "approved"}}Approved{{else if eq .Status "rejected"}}Dismissed{{else if eq .Status "used"}}Broadcast{{else}}Expired{{end}}</span>
-              {{if .Reason}}<br>
-              <span class="hint">{{.Reason}}</span>{{end}}</td>
+            <td class="table-state-cell">
+              {{template "state-icon" (audienceStateIcon .)}}
+            </td>
             <td>
               {{if or (eq .Status "pending") (eq .Status "review") (eq .Status "approved")}}
               <form class="audience-queue-actions" method="post" action="/producer/stations/{{$.Station.ID}}/audience/{{.ID}}" hx-disabled-elt="find button" hx-sync="closest section:replace" hx-target="#audience-queue-results" hx-swap="outerHTML show:none" hx-push-url="false" hx-indicator="this">

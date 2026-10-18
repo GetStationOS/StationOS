@@ -268,7 +268,7 @@ func TestPublicAudienceConsentCSRFPolicyAndQueue(t *testing.T) {
 	if polled.Code != 200 || strings.Contains(polled.Body.String(), "<title>") || strings.Contains(polled.Body.String(), `<select name="status"`) || !strings.Contains(polled.Body.String(), "audience-queue-table") {
 		t.Fatal("queue polling replaced the filter or page", polled.Code, polled.Body.String())
 	}
-	for _, fragment := range []string{`type="checkbox" name="status"`, `hx-trigger="change, submit"`, `hx-swap="outerHTML show:none"`, `audience-status-badge`} {
+	for _, fragment := range []string{`type="checkbox" name="status"`, `hx-trigger="change, submit"`, `hx-swap="outerHTML show:none"`, `data-state-detail=`} {
 		if !strings.Contains(queue.Body.String(), fragment) {
 			t.Fatal("missing automatic table filter or styling", fragment)
 		}

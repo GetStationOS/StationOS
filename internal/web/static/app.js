@@ -957,3 +957,47 @@ document.body.addEventListener('htmx:afterRequest',event=>{
   else subscription.pending=pending;
  }
 });
+
+// State details live outside scroll frames, so rounded tables cannot clip them.
+(() => {
+ let trigger=null, tooltip=null, pinned=false, hideTimer=null;
+ function hide() {
+  clearTimeout(hideTimer);
+  if(trigger){trigger.removeAttribute('aria-describedby');trigger.title=trigger.dataset.stateDetail;}
+  if(tooltip)tooltip.hidden=true;
+  trigger=null;pinned=false;
+ }
+ function show(button) {
+  clearTimeout(hideTimer);
+  if(trigger!==button){hide();trigger=button;}
+  if(!tooltip){
+   tooltip=document.createElement('div');tooltip.id='state-tooltip';tooltip.className='state-tooltip';tooltip.setAttribute('role','tooltip');tooltip.hidden=true;document.body.append(tooltip);
+   tooltip.addEventListener('pointerenter',()=>clearTimeout(hideTimer));
+   tooltip.addEventListener('pointerleave',deferHide);
+  }
+  trigger.removeAttribute('title');trigger.setAttribute('aria-describedby',tooltip.id);
+  tooltip.textContent=button.dataset.stateDetail;tooltip.hidden=false;
+  const rect=button.getBoundingClientRect();
+  const left=Math.max(12,Math.min(rect.left+rect.width/2-tooltip.offsetWidth/2,window.innerWidth-tooltip.offsetWidth-12));
+  const below=rect.bottom+8;
+  tooltip.style.left=left+'px';
+  tooltip.style.top=Math.max(12,below+tooltip.offsetHeight<=window.innerHeight-12?below:rect.top-tooltip.offsetHeight-8)+'px';
+ }
+ function deferHide(){
+  clearTimeout(hideTimer);
+  hideTimer=setTimeout(()=>{if(!pinned&&!trigger?.matches(':hover,:focus')&&!tooltip?.matches(':hover'))hide();},150);
+ }
+ document.addEventListener('pointerover',event=>{const button=event.target.closest?.('[data-state-detail]');if(button)show(button);});
+ document.addEventListener('pointerout',event=>{if(event.target.closest?.('[data-state-detail]'))deferHide();});
+ document.addEventListener('focusin',event=>{const button=event.target.closest?.('[data-state-detail]');if(button)show(button);});
+ document.addEventListener('focusout',event=>{if(event.target.closest?.('[data-state-detail]'))deferHide();});
+ document.addEventListener('click',event=>{
+  const button=event.target.closest?.('[data-state-detail]');
+  if(button){if(trigger===button&&pinned)hide();else{show(button);pinned=true;}}
+  else if(!tooltip?.contains(event.target))hide();
+ });
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&trigger){event.preventDefault();hide();}});
+ document.addEventListener('scroll',hide,{capture:true,passive:true});
+ window.addEventListener('resize',hide);
+ document.addEventListener('htmx:beforeSwap',hide);
+})();

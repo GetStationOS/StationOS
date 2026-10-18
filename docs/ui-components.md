@@ -56,6 +56,25 @@ scroll inside their labelled region; history/incident mobile records keep their
 specialist presentation. Paging moves focus to the results heading; quiet live
 updates preserve focus and scroll.
 
+### Table frame
+
+Every data table uses this shared HTML/CSS scaffold, including Audience,
+Catalogue, playlist tracks, schedule agenda, Timeline, Incidents and Prompts:
+
+```html
+<div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Descriptive table name">
+  <table>…</table>
+</div>
+```
+
+`.table-outline` owns the curved border, surface and clipping. `.table-scroll`
+owns keyboard focus and local scrolling. Feature classes may set columns or a
+compact mobile record layout; they must not remove the frame's border or radius.
+The results toolbar and pagination sit outside this frame, inside `.results-panel`
+when the screen needs them. Empty results reuse `.table-outline`. Assistant-rendered
+Markdown tables also use this frame within the conversation; model-supplied raw
+HTML remains disabled.
+
 ## Status, feedback and controls
 
 `.status`, `.badge`, `.dj-card-status`, `.audience-status-badge` and
@@ -141,3 +160,9 @@ revealed active items on narrow direct loads. Live app checks covered station,
 source, playlist and Assistant navigation, heading metadata/POST fields, main
 focus after HTMX navigation and browser back. Regression tests cover full-page,
 fragment and history restoration, escaped labels and the live Incidents target.
+
+### State icons
+
+Use the `state-icon` template for Audience review states, Timeline outcomes and incident status. The shared button has a 44px target and a 30px coloured icon mark. Hover, keyboard focus or tap shows a short state label, such as “Awaiting AI review” or “Expired”. Escape dismisses the tooltip. Additional review reasons remain available as accessible descriptions. Tooltips render outside scrolling table frames so they are not clipped.
+
+Table frames own scrolling and header backgrounds; keep the inner table in its normal table layout. A panel’s first section heading has no extra top margin.

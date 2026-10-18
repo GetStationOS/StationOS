@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"html"
 	"html/template"
+	"strings"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -45,5 +46,11 @@ func assistantMarkdown(value string) template.HTML {
 	if err := md.Renderer().Render(&out, source, document); err != nil {
 		return template.HTML("<p>" + html.EscapeString(value) + "</p>")
 	}
-	return template.HTML(out.String())
+	// Only renderer-generated table tags are wrapped; model-supplied HTML remains
+	// omitted by Goldmark. Use the same frame as the application's data tables.
+	rendered := strings.NewReplacer(
+		"<table>", `<div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Assistant response table"><table>`,
+		"</table>", "</table></div>",
+	).Replace(out.String())
+	return template.HTML(rendered)
 }

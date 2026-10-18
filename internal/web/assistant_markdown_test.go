@@ -72,3 +72,13 @@ func TestAssistantMarkdownFullPageAndPollingPreservePlainUserMessages(t *testing
 		}
 	}
 }
+
+func TestAssistantTablesUseSharedFrameWithoutAllowingRawHTML(t *testing.T) {
+	body := string(assistantMarkdown("| Title | Artist |\n| --- | --- |\n| Song | Performer |\n\n<script>alert(1)</script>"))
+	if !strings.Contains(body, `<div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Assistant response table"><table>`) || !strings.Contains(body, "</table></div>") {
+		t.Fatal("assistant table missing shared accessible frame", body)
+	}
+	if strings.Contains(body, "<script>") {
+		t.Fatal("raw HTML must remain omitted", body)
+	}
+}

@@ -51,7 +51,7 @@
 <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#history-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
 {{template "results-toolbar" .Pagination}}
 {{if .Events}}
-<div class="table-scroll history-table-scroll table-outline" tabindex="0" aria-label="Broadcast history">
+<div class="table-scroll table-outline history-table-scroll" tabindex="0" role="region" aria-label="Broadcast history">
 <table class="history-table" role="table" aria-label="Broadcast history">
   <thead role="rowgroup"><tr role="row"><th scope="col" role="columnheader">Aired</th><th scope="col" role="columnheader">Recording / activity</th><th scope="col" role="columnheader">Show / presenter</th><th scope="col" role="columnheader">Playlist</th><th scope="col" role="columnheader">Duration</th><th class="history-outcome-heading" scope="col" role="columnheader">Outcome</th></tr></thead>
   <tbody role="rowgroup">
@@ -72,7 +72,7 @@
     <td class="history-show" role="cell">{{if .Show}}<strong>{{.Show}}</strong>{{else}}<span class="hint">Not recorded</span>{{end}}{{if .DJ}}<span class="history-presenter">{{.DJ}}</span>{{end}}</td>
     <td class="history-playlist" role="cell">{{if .Playlist}}{{.Playlist}}{{else}}<span class="hint">Not recorded</span>{{end}}</td>
     <td class="history-duration" role="cell">{{.Duration}}</td>
-    <td class="history-outcome" role="cell"><span class="history-state" data-state="{{.OutcomeStyle}}" role="img" aria-label="{{.OutcomeLabel}}" title="{{.OutcomeLabel}}">{{template "ui-icon" .OutcomeIcon}}</span></td>
+    <td class="history-outcome table-state-cell" role="cell">{{template "state-icon" (historyStateIcon .)}}</td>
   </tr>
   {{end}}
   </tbody>
@@ -95,9 +95,9 @@
 <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#incident-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
 {{template "results-toolbar" .Pagination}}
 {{if .Incidents}}
-<div class="incident-table-scroll table-outline">
+<div class="table-scroll table-outline incident-table-scroll" tabindex="0" role="region" aria-label="Incidents">
 <table class="incident-table" role="table" aria-label="Incidents">
-<thead role="rowgroup"><tr role="row"><th scope="col">Latest occurrence</th><th scope="col">Incident</th><th scope="col">Status</th></tr></thead>
+<thead role="rowgroup"><tr role="row"><th scope="col">Latest occurrence</th><th scope="col">Incident</th><th class="table-state-heading" scope="col">Status</th></tr></thead>
 <tbody role="rowgroup">{{range .Incidents}}
 <tr id="incident-{{.ID}}" role="row">
 <td class="incident-time" role="cell"><time title="{{.LatestLabel}}" datetime="{{.Latest.Format "2006-01-02T15:04:05Z07:00"}}">{{.LatestDate}}<span>{{.LatestTime}}</span></time>{{if gt .Count 1}}<span class="incident-occurrences" title="First occurred {{.FirstLabel}}">{{.Count}} occurrences</span>{{end}}</td>
@@ -105,7 +105,7 @@
 <div class="incident-footer"><a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a><div class="incident-actions">{{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return_to" value="{{$.RefreshURL}}"><button class="secondary icon-button incident-review-button" aria-label="Mark incident as reviewed: {{.Message}}" title="Mark as reviewed">{{template "ui-icon" "review"}}</button></form>{{else}}<span class="incident-reviewed" title="Reviewed">{{template "ui-icon" "review"}}<span>Reviewed</span></span>{{end}}
 
 </div></div></td>
-<td class="incident-state" role="cell"><span class="incident-status" role="img" aria-label="{{.StatusLabel}}{{if .Recovered.IsZero}}: {{.Severity}}{{end}}" data-state="{{.Tone}}" title="{{if .Recovered.IsZero}}{{.Severity}}{{else}}Recovered {{.RecoveredLabel}}{{end}}">{{template "ui-icon" .Icon}}{{.StatusLabel}}</span></td>
+<td class="incident-state table-state-cell" role="cell">{{template "state-icon" (incidentStateIcon .)}}</td>
 
 </tr>{{end}}</tbody></table></div>
 {{else}}<div class="empty-state table-outline"><h2>{{if eq .IncidentReview "needed"}}No incidents need review{{else if not .IncidentReview}}No active incidents{{else}}No incidents recorded{{end}}</h2><p>{{if eq .IncidentReview "needed"}}All incidents in this history have been reviewed.{{else if not .IncidentReview}}Recovered incidents remain in All incidents.{{else}}Production failures and recoveries will appear here.{{end}}</p></div>{{end}}

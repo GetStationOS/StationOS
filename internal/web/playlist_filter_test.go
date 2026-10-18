@@ -35,30 +35,34 @@ func TestCombinedRuleJourneyPreservesSelectionsAndValidation(t *testing.T) {
 	}
 	path := "/producer/playlists/" + pool.ID
 	token := csrf(t, h)
-	for _, route := range []string{path, path + "/rules/new"} {
+	for _, route := range []string{path} {
 		w := request(h, "GET", route, nil, nil)
 		if w.Code != 200 {
 			t.Fatal(w.Code, w.Body.String())
 		}
 	}
 	values := url.Values{"csrf": {token}, "genre": {"Jazz"}, "artist": {"Miles Davis"}, "year_from": {"1950"}, "year_to": {"1969"}}
-	w := request(h, "POST", path+"/rules/new", values, nil)
-	if w.Code != 303 {
-		t.Fatal(w.Code, w.Body.String())
+	rawFilter, _ := json.Marshal(playlists.Filter{Genre: "Jazz", Artist: "Miles Davis", YearFrom: 1950, YearTo: 1969})
+	if err := svc.AddRule(ctx, pool.ID, playlists.Rule{Kind: "filter", Value: string(rawFilter)}); err != nil {
+		t.Fatal(err)
 	}
+	w := request(h, "GET", path, nil, nil)
 	rules, _ := repo.Rules(ctx, pool.ID)
 	if len(rules) != 1 || rules[0].Kind != "filter" {
 		t.Fatal(rules)
 	}
 	filterRule := rules[0]
 	w = request(h, "GET", path, nil, nil)
-	for _, want := range []string{`name="artist"`, `name="composer"`, `name="year"`, `name="decade"`, `name="filter"`, `Genre: Jazz`, "/edit"} {
+	for _, want := range []string{`name="artist"`, `name="composer"`, `name="year"`, `name="decade"`, `Saved advanced restrictions`, `Genre: Jazz`, "/edit"} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatal(want, w.Body.String())
 		}
 	}
-	// Saving independent choices preserves selected combined rules.
-	w = request(h, "POST", path+"/selections", url.Values{"csrf": {token}, "artist": {"Miles Davis"}, "filter": {filterRule.Value}}, nil)
+	if strings.Contains(w.Body.String(), `name="filter"`) || strings.Contains(w.Body.String(), ">Combined rules<") || strings.Contains(w.Body.String(), "Add combined rule") {
+		t.Fatal("redundant selector remains", w.Body.String())
+	}
+	// Category saves preserve prior advanced restrictions without a selector.
+	w = request(h, "POST", path+"/selections", url.Values{"csrf": {token}, "artist": {"Miles Davis"}}, nil)
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
@@ -169,7 +173,70 @@ func TestCombinedRuleJourneyPreservesSelectionsAndValidation(t *testing.T) {
 	if w = request(h, "POST", path+"/rules/new", url.Values{"artist": {"X"}}, nil); w.Code != 403 {
 		t.Fatal("CSRF not enforced", w.Code)
 	}
-	if w = request(h, "GET", path+"/rules/missing/edit", nil, nil); w.Code != 404 {
+	if w = request(h, "GET", path+"/rules/new", nil, nil); w.Code != 404 {
 		t.Fatal(w.Code)
+	}
+}
+
+func TestPopAndDecadeSelectionJourneyHasNoCombinedSelector(t *testing.T) {
+	h, stations, sourceRepo, cat := setupWeb(t, "")
+	ctx := context.Background()
+	if err := stations.Save(ctx, station.Station{ID: "s", Name: "Radio", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
+	source, err := (sources.Service{Repo: sourceRepo}).Save(ctx, sources.Config{Name: "Library", Kind: "upnp", Endpoint: "http://server/desc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []content.AudioItem
+	for _, v := range []struct {
+		id, genre string
+		year      int
+	}{{"Eighties Pop", "Pop", 1984}, {"Nineties Pop", "Pop", 1994}, {"Eighties Rock", "Rock", 1987}, {"Undated Pop", "Pop", 0}} {
+		items = append(items, content.AudioItem{ID: content.ID(source.ID, v.id), SourceID: source.ID, SourceItemID: v.id, Title: v.id, Genre: v.genre, Year: v.year, Kind: content.Track, Origin: content.Original})
+	}
+	if err = cat.Replace(ctx, source, items); err != nil {
+		t.Fatal(err)
+	}
+	repo := persistence.Playlists{DB: stations.DB}
+	svc := playlists.Service{Repo: repo, Stations: stations}
+	pool, err := svc.Save(ctx, playlists.Playlist{StationID: "s", Name: "Music"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "/producer/playlists/" + pool.ID
+	token := csrf(t, h)
+	w := request(h, "GET", path, nil, nil)
+	for _, absent := range []string{"Combined rules", "Add combined rule", "Saved advanced restrictions", `name="filter"`} {
+		if strings.Contains(w.Body.String(), absent) {
+			t.Fatal("unexpected selector", absent)
+		}
+	}
+	w = request(h, "POST", path+"/selections", url.Values{"csrf": {token}, "genre": {"Pop"}, "decade": {"1980"}}, nil)
+	if w.Code != 303 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	result, err := repo.Resolve(ctx, pool.ID, 0, 100)
+	if err != nil || result.Total != 1 || result.Entries[0].Item.Title != "Eighties Pop" {
+		t.Fatal(result, err)
+	}
+	w = request(h, "GET", path, nil, nil)
+	for _, want := range []string{`name="genre" value="Pop" checked`, `name="decade" value="1980" checked`, "1 tracks", "Categories combine"} {
+		if !strings.Contains(w.Body.String(), want) {
+			t.Fatal(want, w.Body.String())
+		}
+	}
+	w = request(h, "GET", path+"/tracks", nil, nil)
+	if !strings.Contains(w.Body.String(), "Eighties Pop") || strings.Contains(w.Body.String(), "Nineties Pop") || strings.Contains(w.Body.String(), "Eighties Rock") {
+		t.Fatal(w.Body.String())
+	}
+	// HTMX uses the same save contract; adding Rock broadens only the genre category.
+	w = request(h, "POST", path+"/selections", url.Values{"csrf": {token}, "genre": {"Pop", "Rock"}, "decade": {"1980"}}, map[string]string{"HX-Request": "true"})
+	if w.Code != 204 || w.Header().Get("HX-Location") == "" {
+		t.Fatal(w.Code, w.Header())
+	}
+	counts, err := repo.Availability(ctx, pool.ID)
+	if err != nil || counts.Total != 2 {
+		t.Fatal(counts, err)
 	}
 }

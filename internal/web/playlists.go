@@ -291,11 +291,21 @@ func withNotice(destination, message string) string {
 	return u.String()
 }
 func (v *playlistPageView) prepareSelections(rules []playlists.Rule) {
+	for _, rule := range rules {
+		if rule.Kind == "filter" {
+			label := rule.Label()
+			for _, source := range v.Sources {
+				label = strings.ReplaceAll(label, "Source: "+source.ID, "Source: "+source.Name)
+			}
+			v.SavedRestrictions = append(v.SavedRestrictions, ruleRow{Rule: rule, Source: label})
+		}
+	}
+
 	for _, spec := range []struct {
 		kind, name string
 		values     []string
 	}{
-		{"artist", "Artists", v.Facets.Artists}, {"composer", "Composers", v.Facets.Composers}, {"year", "Years", v.Facets.Years}, {"decade", "Decades", v.Facets.Decades}, {"filter", "Combined rules", nil},
+		{"artist", "Artists", v.Facets.Artists}, {"composer", "Composers", v.Facets.Composers}, {"year", "Years", v.Facets.Years}, {"decade", "Decades", v.Facets.Decades},
 	} {
 		group := ruleChoiceGroup{Kind: spec.kind, Name: spec.name}
 		chosen := map[string]playlists.Rule{}
@@ -324,10 +334,7 @@ func (v *playlistPageView) prepareSelections(rules []playlists.Rule) {
 			for _, source := range v.Sources {
 				label = strings.ReplaceAll(label, "Source: "+source.ID, "Source: "+source.Name)
 			}
-			option := ruleChoice{Name: label, Value: value, Selected: true, Missing: spec.kind != "filter"}
-			if spec.kind == "filter" {
-				option.EditURL = "/producer/playlists/" + v.Playlist.ID + "/rules/" + rule.ID + "/edit"
-			}
+			option := ruleChoice{Name: label, Value: value, Selected: true, Missing: true}
 			group.Options = append(group.Options, option)
 		}
 		v.RuleGroups = append(v.RuleGroups, group)
@@ -360,8 +367,23 @@ func (v *playlistPageView) prepareSelections(rules []playlists.Rule) {
 	}
 }
 func (s *Server) replaceRules(w http.ResponseWriter, r *http.Request) {
+	if len(r.PostForm["filter"]) > 0 {
+		http.Error(w, "Edit or remove saved advanced restrictions separately.", 400)
+		return
+	}
+	// Legacy restrictions are never silently erased by the simpler selections form.
+	saved, err := s.d.Playlists.Rules(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.playlistError(w, err)
+		return
+	}
 	rules := []playlists.Rule{}
-	for _, kind := range []string{"artist", "composer", "year", "decade", "filter"} {
+	for _, rule := range saved {
+		if rule.Kind == "filter" {
+			rules = append(rules, rule)
+		}
+	}
+	for _, kind := range []string{"artist", "composer", "year", "decade"} {
 		for _, value := range r.PostForm[kind] {
 			rules = append(rules, playlists.Rule{Kind: kind, Value: value})
 		}

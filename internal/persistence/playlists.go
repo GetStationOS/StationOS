@@ -169,7 +169,8 @@ func (r Playlists) SetIncluded(ctx context.Context, id string, ids []string, inc
 	return tx.Commit()
 }
 
-// Rules are a union, explicit exclusions win, and manual choices remain visible
+// Selected categories intersect; values within each category are alternatives.
+// Explicit exclusions win, and manual choices remain visible
 // when the rebuildable index loses an item. Title/ID sorting is for stable browsing only.
 func resolvePlaylist(ctx context.Context, tx *sql.Tx, id string) (playlists.Result, error) {
 	out := playlists.Result{Entries: []playlists.Entry{}}
@@ -179,7 +180,7 @@ func resolvePlaylist(ctx context.Context, tx *sql.Tx, id string) (playlists.Resu
 	rows, err := tx.QueryContext(ctx, `WITH candidates AS (
  SELECT i.id,i.metadata,1 AS available FROM catalogue_items i
  WHERE (EXISTS(SELECT 1 FROM playlist_selections p WHERE p.playlist_id=? AND p.content_id=i.id AND p.included=1)
- OR EXISTS(SELECT 1 FROM playlist_rules r WHERE r.playlist_id=? AND `+playlistRuleMatch+`))
+ OR EXISTS(`+playlistRulesMatch+`))
  AND NOT EXISTS(SELECT 1 FROM playlist_selections x WHERE x.playlist_id=? AND x.content_id=i.id AND x.included=0)
  UNION ALL SELECT p.content_id,p.snapshot,0 FROM playlist_selections p LEFT JOIN catalogue_items i ON i.id=p.content_id WHERE p.playlist_id=? AND p.included=1 AND i.id IS NULL
  ) SELECT c.metadata,c.available FROM candidates c
@@ -336,7 +337,7 @@ func (r Playlists) Availability(ctx context.Context, id string) (playlists.Avail
 	err = tx.QueryRowContext(ctx, `WITH candidates AS (
  SELECT 1 AS available FROM catalogue_items i
  WHERE (EXISTS(SELECT 1 FROM playlist_selections p WHERE p.playlist_id=? AND p.content_id=i.id AND p.included=1)
- OR EXISTS(SELECT 1 FROM playlist_rules r WHERE r.playlist_id=? AND `+playlistRuleMatch+`))
+ OR EXISTS(`+playlistRulesMatch+`))
  AND NOT EXISTS(SELECT 1 FROM playlist_selections x WHERE x.playlist_id=? AND x.content_id=i.id AND x.included=0)
  UNION ALL SELECT 0 FROM playlist_selections p LEFT JOIN catalogue_items i ON i.id=p.content_id WHERE p.playlist_id=? AND p.included=1 AND i.id IS NULL
  ) SELECT count(*),coalesce(sum(1-available),0) FROM candidates`, id, id, id, id).Scan(&counts.Total, &counts.Unavailable)

@@ -26,7 +26,7 @@ New-screen navigation starts at the top. In-place saves and row actions preserve
 
 For multiple choices, use labelled checkbox lists with search and selected counts. Select/Clear visible affects only the current filtered choices. Searching must never erase checked values. Preserve existing choices that are temporarily absent from the catalogue, label them clearly, and allow them to be unchecked.
 
-Save related selections together, atomically. Genre/album rules combine as a union and automatically pick up new matching tracks; explicit track exclusions win. Show unsaved state and prevent accidental departure. Never prompt about unsaved changes during the successful save's own navigation. Keep manual selections and exclusions separate from rule edits. Playlists are unordered pools available to the station curator. Do not show sequence numbers or move controls; alphabetical display is for browsing and carries no playback priority.
+Save related selections together, atomically. Selections match any chosen value within each category and must match every selected category and automatically pick up new matching tracks; explicit track exclusions win. Show unsaved state and prevent accidental departure. Never prompt about unsaved changes during the successful save's own navigation. Keep manual selections and exclusions separate from rule edits. Playlists are unordered pools available to the station curator. Do not show sequence numbers or move controls; alphabetical display is for browsing and carries no playback priority.
 
 Catalogue selection applies to the visible page; label its count accordingly. Enable Add selected tracks only when tracks and a target playlist are chosen. Use an indeterminate page checkbox when some rows are selected. Preserve filters, page size and target playlist across page changes and saves. Use one task per tab: playlist Selections, Tracks and Details. Creation uses an Add button and a dedicated form with Cancel, never a card disclosure. Station context supplies the owner automatically. Keep playlist count and duration alongside the title. Put Add tracks and Export in the table toolbar, separate from navigation. Above the table show the result count and labelled 25 / 50 / 100 rows-per-page links, applying immediately and resetting to page one. Use one footer below the data inside its card. Desktop shows labelled Previous/Next and a short numbered-page window including first/last pages and ellipses; phones show Previous, Page X of Y and Next. Highlight the current page, use 44px touch targets, and omit navigation for a single page. Keep filters, sorting and browser history; focus the updated results heading after paging. Do not use page-jump inputs, Go buttons or symbol-only navigation.
 
@@ -541,13 +541,16 @@ use labelled ordered navigation and retain links to parent workspaces.
 ## Rich playlist selections
 
 Selections provides searchable checkbox groups for Genres, Albums, Artists,
-Composers, Years, Decades and saved Combined rules, with the shared visible-select,
-clear, unsaved-state and atomic-save behaviour. Missing saved choices remain checked
-and explicitly labelled. Add combined rule opens a dedicated page; Edit reopens a
-saved filter. Each supplied condition must match; separate rules add tracks to the
-pool. Show this distinction in the form and selection help. Use searchable catalogue
-suggestions for exact artist/composer/genre names, source-labelled albums and inclusive
-optional year bounds. Retain input on validation errors and preserve unrelated rules.
-Explain that dates are source-reported, may describe reissues, and require source
-refresh after upgrade. Missing dates never match year restrictions. Exclusions retain
-their existing review/re-include journey.
+Composers, Years and Decades, with visible-select, clear, unsaved-state and atomic
+save behaviour. Values within a category are alternatives; selected categories
+combine automatically. Pop + 1980s means 1980s pop. Years and decades share one
+date category. Empty categories impose no restriction; no rules means no automatic
+tracks. Manual additions stay separate and exclusions win. Explain this above the
+choices rather than offering a separate Combined rules selector or creation link.
+Missing saved values remain checked and explicitly labelled.
+
+Previously saved advanced restrictions appear only where they exist, with edit and
+remove actions. They further restrict the selected categories; any one saved advanced
+restriction must match. Ordinary checkbox saves preserve them. Keep the existing
+form validation and ordinary-form fallback for editing these saved restrictions.
+Source dates may describe reissues; missing dates do not match date selections.

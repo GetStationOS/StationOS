@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Filter requires every supplied condition. Separate rules remain a union.
+// Filter requires every supplied condition. Saved filters are alternatives within an additional restriction category.
 // Years describe source-reported dates, never an inferred original release.
 type Filter struct {
 	Genre    string `json:"genre,omitempty"`

@@ -201,8 +201,6 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /producer/playlists", s.savePlaylist)
 	mux.HandleFunc("POST /producer/playlists/{id}/default", s.defaultPlaylist)
 	mux.HandleFunc("POST /producer/playlists/select", s.selectItems)
-	mux.HandleFunc("GET /producer/playlists/{id}/rules/new", s.playlistFilter)
-	mux.HandleFunc("POST /producer/playlists/{id}/rules/new", s.playlistFilter)
 	mux.HandleFunc("GET /producer/playlists/{id}/rules/{rule}/edit", s.playlistFilter)
 	mux.HandleFunc("POST /producer/playlists/{id}/rules/{rule}/edit", s.playlistFilter)
 	mux.HandleFunc("POST /producer/playlists/{id}/rules", s.addRule)

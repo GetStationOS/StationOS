@@ -24,7 +24,7 @@ func TestRefreshCountsOnlyNewEligibleTracksAndAlbums(t *testing.T) {
 	if err = svc.AddRule(ctx, pool.ID, playlists.Rule{Kind: "genre", Value: "Jazz"}); err != nil {
 		t.Fatal(err)
 	}
-	if err = svc.AddRule(ctx, pool.ID, playlists.Rule{Kind: "album", Value: "Original album", SourceID: source.ID}); err != nil {
+	if err = svc.AddRule(ctx, pool.ID, playlists.Rule{Kind: "genre", Value: "Blues"}); err != nil {
 		t.Fatal(err)
 	}
 	if err = svc.Select(ctx, pool.ID, []string{x.ID}, false); err != nil {

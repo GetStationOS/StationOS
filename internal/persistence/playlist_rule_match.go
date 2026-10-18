@@ -15,3 +15,11 @@ const playlistRuleMatch = `( (r.kind='genre' AND EXISTS(SELECT 1 FROM catalogue_
  AND (coalesce(json_extract(r.value,'$.year_from'),0)=0 OR coalesce(json_extract(i.metadata,'$.year'),0)>=json_extract(r.value,'$.year_from'))
  AND (coalesce(json_extract(r.value,'$.year_to'),0)=0 OR (coalesce(json_extract(i.metadata,'$.year'),0)>0 AND json_extract(i.metadata,'$.year')<=json_extract(r.value,'$.year_to')))
  ELSE 0 END))`
+
+// Values within a category are alternatives. Every selected category must match.
+// Years and decades share one date category. No rules means no automatic tracks.
+const playlistRuleCategory = `CASE WHEN r.kind IN ('year','decade') THEN 'date' ELSE r.kind END`
+const playlistRulesMatch = `SELECT 1 FROM playlist_rules r WHERE r.playlist_id=?
+ GROUP BY r.playlist_id
+ HAVING count(DISTINCT ` + playlistRuleCategory + `) =
+ count(DISTINCT CASE WHEN ` + playlistRuleMatch + ` THEN ` + playlistRuleCategory + ` END)`

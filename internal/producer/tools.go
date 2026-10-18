@@ -165,20 +165,10 @@ func schema(t reflect.Type) any {
 		}
 		definition := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
 		if t == reflect.TypeOf(rule{}) {
-			props["kind"] = map[string]any{"type": "string", "enum": []string{"genre", "album", "artist", "composer", "year", "decade", "filter"}}
-			props["value"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Exact catalogue genre, album, artist or composer; year as digits; decade as its first year (1980). Omit for kind=filter."}
-			props["source_id"] = map[string]any{"type": "string", "maxLength": 128, "description": "Omit except for album rules, which require the album source_id. Combined filters keep source_id inside filter."}
-			definition["required"] = []string{"kind"}
-			definition["oneOf"] = []any{
-				map[string]any{"properties": map[string]any{"kind": map[string]any{"const": "filter"}}, "required": []string{"filter"}},
-				map[string]any{"properties": map[string]any{"kind": map[string]any{"enum": []string{"genre", "album", "artist", "composer", "year", "decade"}}}, "required": []string{"value"}},
-			}
-		}
-		if t == reflect.TypeOf(playlists.Filter{}) {
-			for _, field := range []string{"year_from", "year_to"} {
-				props[field] = map[string]any{"type": "integer", "minimum": 0, "maximum": 9999, "description": "Inclusive source-reported date year; omit or use 0 for no bound. Unknown dates do not match. This may be a reissue date."}
-			}
-			definition["minProperties"] = 1
+			props["kind"] = map[string]any{"type": "string", "enum": []string{"genre", "album", "artist", "composer", "year", "decade"}}
+			props["value"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Exact catalogue genre, album, artist or composer; year as digits; decade as its first year (1980)."}
+			props["source_id"] = map[string]any{"type": "string", "maxLength": 128, "description": "Omit except for album rules, which require the album source_id."}
+			definition["required"] = []string{"kind", "value"}
 		}
 		if t == reflect.TypeOf(playlistRuleArgs{}) {
 			props["playlist_id"] = map[string]any{"type": "string", "minLength": 1, "description": "Existing playlist ID returned by list_playlists or save_playlist."}
@@ -331,17 +321,13 @@ type playlistRuleArgs struct {
 }
 
 type rule struct {
-	Filter   *playlists.Filter `json:"filter,omitempty"`
-	Kind     string            `json:"kind"`
-	Value    string            `json:"value"`
-	SourceID string            `json:"source_id"`
+	Kind     string `json:"kind"`
+	Value    string `json:"value"`
+	SourceID string `json:"source_id"`
 }
 
 func (r rule) domain() playlists.Rule {
-	if r.Kind == "filter" && r.Filter != nil {
-		raw, _ := json.Marshal(r.Filter)
-		r.Value = string(raw)
-	}
+
 	return playlists.Rule{Kind: r.Kind, Value: r.Value, SourceID: r.SourceID}
 }
 
@@ -634,13 +620,16 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(nil, "Deleted playlist: "+v.Name, "/producer/playlists?station="+v.StationID)
 	})
-	register(r, "add_playlist_rule", "Add ONE dynamic rule to an existing playlist. Kinds: genre, album, artist, composer, year, decade, filter. Use exact explore_music values. Album requires source_id; others omit it. For filter supply a filter object whose conditions must ALL match (genre, artist, composer, album with source_id, year_from/year_to). Separate rules add ANY matching tracks. Dates are source-reported, not necessarily original release. New matching imports join automatically.", true, func(ctx context.Context, a playlistRuleArgs) (Result, error) {
+	register(r, "add_playlist_rule", "Add ONE dynamic rule to an existing playlist. Kinds: genre, album, artist, composer, year, decade. Use exact explore_music values. Album requires source_id; others omit it. Values within a category are OR; selected categories combine with AND. Years and decades share the date category. Use ordinary rules; separate combined rules are unnecessary. Dates are source-reported, not necessarily original release. New matching imports join automatically.", true, func(ctx context.Context, a playlistRuleArgs) (Result, error) {
+		if a.Rule.Kind == "filter" {
+			return Result{}, errors.New("Use genre, album, artist, composer, year or decade selections; categories combine automatically")
+		}
 		if e := ps.AddRule(ctx, a.PlaylistID, a.Rule.domain()); e != nil {
 			return Result{}, e
 		}
 		return saved(nil, "Added playlist rule: "+a.Rule.Value, "/producer/playlists/"+a.PlaylistID)
 	})
-	register(r, "replace_playlist_rules", "Atomically replace ALL dynamic rules in a playlist, up to 100. Manual inclusions/exclusions remain. An empty rules array clears rules.", true, func(ctx context.Context, a struct {
+	register(r, "replace_playlist_rules", "Atomically replace ALL dynamic rules in a playlist, up to 100. Values within each category are alternatives; every selected category must match. Years and decades share a date category. Manual inclusions/exclusions remain. An empty rules array clears rules.", true, func(ctx context.Context, a struct {
 		PlaylistID string `json:"playlist_id"`
 		Rules      []rule `json:"rules"`
 	}) (Result, error) {

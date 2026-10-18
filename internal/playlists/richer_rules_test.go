@@ -83,7 +83,7 @@ func TestRichRulesResolveCreditsDatesAndIntersections(t *testing.T) {
 			}
 		})
 	}
-	// Rule unions, manual inclusions and overriding exclusions remain consistent.
+	// Categories intersect; manual inclusions and overriding exclusions remain consistent.
 	if err := svc.ReplaceRules(ctx, pool.ID, []playlists.Rule{{Kind: "filter", Value: string(combined)}, {Kind: "year", Value: "1959"}}); err != nil {
 		t.Fatal(err)
 	}
@@ -94,11 +94,11 @@ func TestRichRulesResolveCreditsDatesAndIntersections(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := repo.Resolve(ctx, pool.ID, 0, 100)
-	if err != nil || result.Total != 3 {
+	if err != nil || result.Total != 1 {
 		t.Fatal(result, err)
 	}
 	review, err := repo.Review(ctx, pool.ID, 0, 100)
-	if err != nil || review.Excluded != 1 || review.Rows != 4 {
+	if err != nil || review.Excluded != 1 || review.Rows != 2 {
 		t.Fatal(review, err)
 	}
 	facets, err := cat.Facets(ctx)

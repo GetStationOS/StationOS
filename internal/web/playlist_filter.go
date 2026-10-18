@@ -48,7 +48,7 @@ func (s *Server) playlistFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	v.RuleID = r.PathValue("rule")
-	found := v.RuleID == ""
+	found := false
 	for _, rule := range rules {
 		if rule.ID == v.RuleID && rule.Kind == "filter" {
 			v.Filter, err = playlists.ParseFilter(rule.Value)
@@ -101,16 +101,12 @@ func (s *Server) playlistFilter(w http.ResponseWriter, r *http.Request) {
 		if v.RuleError == "" {
 			raw, _ := json.Marshal(v.Filter)
 			rule := playlists.Rule{Kind: "filter", Value: string(raw)}
-			if v.RuleID == "" {
-				err = s.playlistService().AddRule(r.Context(), p.ID, rule)
-			} else {
-				for n := range rules {
-					if rules[n].ID == v.RuleID {
-						rules[n] = rule
-					}
+			for n := range rules {
+				if rules[n].ID == v.RuleID {
+					rules[n] = rule
 				}
-				err = s.playlistService().ReplaceRules(r.Context(), p.ID, rules)
 			}
+			err = s.playlistService().ReplaceRules(r.Context(), p.ID, rules)
 			if err == nil {
 				s.redirect(w, r, withNotice("/producer/playlists/"+p.ID, "selections-saved"))
 				return

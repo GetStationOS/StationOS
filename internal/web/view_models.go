@@ -99,6 +99,7 @@ type playlistPageView struct {
 	ExcludedTracks                                             int
 	PlaylistRefreshNotice                                      string
 	Sources                                                    []sources.Config
+	SavedRestrictions                                          []ruleRow
 	RuleGroups                                                 []ruleChoiceGroup
 	Filter                                                     playlists.Filter
 	RuleID, RuleError, YearFromInput, YearToInput              string
@@ -208,5 +209,4 @@ type ruleChoiceGroup struct {
 type ruleChoice struct {
 	Name, Value       string
 	Selected, Missing bool
-	EditURL           string
 }

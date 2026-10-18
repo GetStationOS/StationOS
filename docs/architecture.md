@@ -25,7 +25,7 @@ The core packages do not import HTTP handlers, SQLite, UPnP XML types or each ot
 
 **Catalogue** is a shared local derived index separate from sources and accessible to every station. Sync asks adapters for a complete catalogue enumeration root when available. MinimServer uses its verified unfiltered `0$items` view rather than recursively expanding virtual facet menus; generic UPnP sources retain bounded root/container traversal. Sync traverses the chosen root/container pages, handles cycles/repeated objects, deduplicates identities, bounds time/pages/containers/items and total metadata bytes (64 MiB per import by default) and verifies per-container UpdateID/count consistency. It normalises identity and validates content before writing. A complete snapshot is atomically replaced only if the source revision is still current. A failed fetch or database transaction preserves old items. Successful replacement removes source orphans. Station/source records are never part of clear/rebuild operations. Snapshot stability across different containers and incremental change tracking remain future work.
 
-**Playlists** owns station-specific identity, description, dynamic genre/album rules, individual inclusions/exclusions. Rules resolve as a union against the shared catalogue; exclusions win and overlaps are deduplicated. Album identity is currently source plus exact album title, so same-title editions in a source are grouped. Genre identity is one exact trimmed comma-separated component of the imported values. New rule matches join automatically on the next catalogue import. Manual selections save content snapshots without foreign keys to disposable catalogue rows, so missing items remain visibly unavailable. A playlist is an unordered eligibility pool for human/AI curation. Sorting by title/ID supplies stable browsing pages and implies no broadcast priority. Resolution and mutations are transactional and bounded (100 rules, 10,000 entries). Playlist definition is separate from a future timed programme log or playback engine.
+**Playlists** owns station-specific identity, description, dynamic genre/album rules, individual inclusions/exclusions. Rules match alternatives within a category and intersect selected categories against the shared catalogue; exclusions win and overlaps are deduplicated. Album identity is currently source plus exact album title, so same-title editions in a source are grouped. Genre identity is one exact trimmed comma-separated component of the imported values. New rule matches join automatically on the next catalogue import. Manual selections save content snapshots without foreign keys to disposable catalogue rows, so missing items remain visibly unavailable. A playlist is an unordered eligibility pool for human/AI curation. Sorting by title/ID supplies stable browsing pages and implies no broadcast priority. Resolution and mutations are transactional and bounded (100 rules, 10,000 entries). Playlist definition is separate from a future timed programme log or playback engine.
 
 **DJs** owns reusable fictional presenter profiles (name, selected voice, editorial prompt and voice-direction vibe) independently of stations. Credential management belongs to shared AI settings in the producer domain. Profile metadata reads derive only a shared-key-present flag; DJ saves cannot set or clear credentials. The encrypted shared key uses AES-256-GCM with independent associated data and the database's existing 0600 `.secrets-key` sidecar. Back up the database and sidecar together. Missing sidecars with encrypted credentials fail startup.
 
@@ -662,8 +662,11 @@ Migration 29 backfills indexed `catalogue_genres` membership from existing raw c
 Migration 30 preserves legacy rule IDs/values and expands rule kinds to artist,
 composer, year, decade and filter. A filter is a bounded, validated JSON object
 of optional genre, artist, composer, album/source and inclusive year bounds. All
-conditions in one filter must match; separate rules and manual inclusions form a
-union, with explicit exclusions taking precedence. Playlist resolution and
+conditions in one legacy filter must match. Values within each selected category
+are alternatives, and every selected category must match. Years and decades share
+a date category. Legacy filters form one additional category. Manual inclusions add
+tracks independently; explicit exclusions take precedence. No rules selects no
+automatic tracks. Playlist resolution and
 Availability share one SQL predicate. Broadcast pools, refresh baselines and the
 editing projection reuse resolution, preserving their existing contracts and bounds.
 
@@ -677,8 +680,9 @@ release dates. Missing/invalid dates never match bounded year filters. Existing
 catalogues need a source refresh to acquire dates; no migration invents them.
 
 Selections retains atomic checkbox saves across all kinds and preserves unavailable
-saved choices. Combined filters use dedicated create/edit pages with ordinary-form
-fallback and retained validation values. Assistant tools expose measured facet values,
-credit/year searches and structured combined filters. They keep source-date and
+saved choices. There is no Combined rules selector or creation link. Previously saved filters
+remain visible only when present, with edit/remove actions and retained validation
+values. Ordinary selection saves preserve these restrictions. Assistant tools expose measured facet values,
+credit/year searches and ordinary category selections. They keep source-date and
 original-release evidence distinct. No new background subscriptions or audio work are
 introduced by rule editing.

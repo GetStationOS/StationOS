@@ -37,9 +37,11 @@ func TestAssistantRichRulesAndMeasuredExploration(t *testing.T) {
 	if !strings.Contains(string(raw), `"Year":1959`) || !strings.Contains(string(raw), `"total":1`) {
 		t.Fatal(string(raw))
 	}
-	call(t, r, "add_playlist_rule", map[string]any{"playlist_id": pool.ID, "rule": map[string]any{"kind": "filter", "filter": map[string]any{"artist": "Miles Davis", "genre": "Jazz", "year_from": 1950, "year_to": 1959}}})
+	call(t, r, "replace_playlist_rules", map[string]any{"playlist_id": pool.ID, "rules": []any{
+		map[string]string{"kind": "artist", "value": "Miles Davis"}, map[string]string{"kind": "genre", "value": "Jazz"}, map[string]string{"kind": "decade", "value": "1950"},
+	}})
 	rules, err := pools.Rules(ctx, pool.ID)
-	if err != nil || len(rules) != 1 || rules[0].Kind != "filter" {
+	if err != nil || len(rules) != 3 {
 		t.Fatal(rules, err)
 	}
 	found, err := pools.Resolve(ctx, pool.ID, 0, 100)
@@ -51,10 +53,14 @@ func TestAssistantRichRulesAndMeasuredExploration(t *testing.T) {
 		t.Fatal("missing tool")
 	}
 	raw, _ = json.Marshal(def)
-	for _, want := range []string{"composer", "decade", "filter", "year_from", "oneOf"} {
+	for _, want := range []string{"composer", "decade", "AND"} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatal(want, string(raw))
 		}
+	}
+	props := def.Parameters.(map[string]any)["properties"].(map[string]any)["rule"].(map[string]any)["properties"].(map[string]any)
+	if _, ok := props["filter"]; ok {
+		t.Fatal("redundant filter schema advertised")
 	}
 	call(t, r, "replace_playlist_rules", map[string]any{"playlist_id": pool.ID, "rules": []any{map[string]string{"kind": "composer", "value": "Writer"}, map[string]string{"kind": "decade", "value": "1950"}}})
 	rules, err = pools.Rules(ctx, pool.ID)

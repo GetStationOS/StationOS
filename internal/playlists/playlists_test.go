@@ -43,7 +43,7 @@ func audio(c sources.Config, id, title, genre, album string) content.AudioItem {
 	d := 3 * time.Minute
 	return content.AudioItem{ID: content.ID(c.ID, id), SourceID: c.ID, SourceItemID: id, Title: title, Artist: "Artist", Album: album, Genre: genre, Duration: &d, Kind: content.Track, Origin: content.Original}
 }
-func TestStationPlaylistsShareCatalogueAndResolveUnion(t *testing.T) {
+func TestStationPlaylistsShareCatalogueAndResolveCategories(t *testing.T) {
 	svc, repo, cat, c, stations := setup(t)
 	ctx := context.Background()
 	jazz := audio(c, "j", "Blue", "Jazz", "Blue album")
@@ -63,7 +63,7 @@ func TestStationPlaylistsShareCatalogueAndResolveUnion(t *testing.T) {
 	if err = svc.AddRule(ctx, jp.ID, playlists.Rule{Kind: "genre", Value: "Jazz"}); err != nil {
 		t.Fatal(err)
 	}
-	if err = svc.AddRule(ctx, jp.ID, playlists.Rule{Kind: "album", Value: "Pop album", SourceID: c.ID}); err != nil {
+	if err = svc.AddRule(ctx, jp.ID, playlists.Rule{Kind: "album", Value: "Blue album", SourceID: c.ID}); err != nil {
 		t.Fatal(err)
 	}
 	// A manual selection overlapping a rule must not duplicate the track.
@@ -74,7 +74,7 @@ func TestStationPlaylistsShareCatalogueAndResolveUnion(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, err := repo.Resolve(ctx, jp.ID, 0, 100)
-	if err != nil || got.Total != 2 || got.Duration != 6*time.Minute {
+	if err != nil || got.Total != 1 || got.Duration != 3*time.Minute {
 		t.Fatal(got, err)
 	}
 	other, err := repo.Resolve(ctx, pp.ID, 0, 100)
@@ -82,12 +82,12 @@ func TestStationPlaylistsShareCatalogueAndResolveUnion(t *testing.T) {
 		t.Fatal(other, err)
 	}
 	// Newly imported matches are automatically included in only the matching stations.
-	newJazz := audio(c, "new", "New jazz", "Jazz", "New album")
+	newJazz := audio(c, "new", "New jazz", "Jazz", "Blue album")
 	if err = cat.Replace(ctx, c, []content.AudioItem{jazz, pop, classic, newJazz}); err != nil {
 		t.Fatal(err)
 	}
 	got, err = repo.Resolve(ctx, jp.ID, 0, 100)
-	if err != nil || got.Total != 3 {
+	if err != nil || got.Total != 2 {
 		t.Fatal(got, err)
 	}
 	other, _ = repo.Resolve(ctx, pp.ID, 0, 100)
@@ -292,7 +292,7 @@ func TestBatchSelectionsAtomicAndPreserveManualChoices(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, _ := repo.Resolve(ctx, p.ID, 0, 100)
-	if result.Total != 2 {
+	if result.Total != 1 {
 		t.Fatal(result)
 	}
 	if err = svc.ReplaceRules(ctx, p.ID, []playlists.Rule{{Kind: "album", Value: "Missing", SourceID: c.ID}}); !errors.Is(err, playlists.ErrUnavailable) {

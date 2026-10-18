@@ -33,7 +33,7 @@ func resetPlaylistBaseline(ctx context.Context, tx *sql.Tx, id string) error {
 	return writePlaylistBaseline(ctx, tx, id, result)
 }
 
-// Refresh re-evaluates the saved rule union against one catalogue snapshot.
+// Refresh re-evaluates the saved category selections against one catalogue snapshot.
 // Existing rule matching stays live; the baseline counts only newly found members.
 func (r Playlists) Refresh(ctx context.Context, id string) (playlists.RefreshResult, error) {
 	var report playlists.RefreshResult

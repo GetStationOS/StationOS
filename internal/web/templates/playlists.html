@@ -114,6 +114,7 @@
 <section class="panel selection-panel">
   <form method="post" action="/producer/playlists/{{.Playlist.ID}}/selections" data-selection-form hx-disabled-elt="find button[type=submit]">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <p class="hint">Choices within a category match any selected value. Categories combine: Pop + 1980s gives 1980s pop. Empty categories add no restriction.</p>
     <div class="choice-grid">
       <fieldset data-choice-group>
         <legend>Genres</legend>
@@ -185,12 +186,10 @@
             <label class="rule-choice-label"><input type="checkbox" name="{{$kind}}" value="{{.Value}}" {{if .Selected}}checked{{end}}>
               <span><strong>{{.Name}}</strong>{{if .Missing}}<small>Not in the current catalogue · selection kept</small>{{end}}</span>
             </label>
-            {{if .EditURL}}<a href="{{.EditURL}}">Edit</a>{{end}}
           </div>
-          {{else}}<p class="hint">{{if eq .Kind "filter"}}No combined rules yet.{{else}}No values in the current catalogue.{{end}}</p>{{end}}
+          {{else}}<p class="hint">No values in the current catalogue.</p>{{end}}
         </div>
         <p class="choice-empty" hidden>No matching choices.</p>
-        {{if eq .Kind "filter"}}<a class="button secondary" href="/producer/playlists/{{$.Playlist.ID}}/rules/new">Add combined rule</a>{{end}}
       </fieldset>
       {{end}}
     </div>
@@ -203,9 +202,25 @@
       </div>
     </div>
   </form>
+  {{if .SavedRestrictions}}
+  <section aria-label="Saved advanced restrictions">
+    <h2>Saved advanced restrictions</h2>
+    <p class="hint">These previously saved restrictions also apply. Any one must match alongside your selected categories.</p>
+    {{range .SavedRestrictions}}
+    <div class="row-actions">
+      <span>{{.Source}}</span>
+      <a href="/producer/playlists/{{$.Playlist.ID}}/rules/{{.Rule.ID}}/edit">Edit saved restriction</a>
+      <form method="post" action="/producer/playlists/{{$.Playlist.ID}}/rules/{{.Rule.ID}}/remove">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <button type="submit" class="secondary">Remove restriction</button>
+      </form>
+    </div>
+    {{end}}
+  </section>
+  {{end}}
   <details class="selection-help">
     <summary>How selections work</summary>
-    <p>Each selected genre, album, artist, composer, year or decade adds matching tracks automatically. Combined rules require all their conditions; separate rules add to the pool. Years use the source-reported date, which may be a reissue date. Tracks without a date do not match year conditions. Refresh the source to import dates for existing tracks. Overlapping selections appear once. Refresh checks saved selections against the imported catalogue and reports new matches since the last refresh or selection change. Excluded tracks stay visible on Tracks, where you can re-include them.</p>
+    <p>Tracks must match every selected category: for example, Pop and 1980s includes only 1980s pop. Multiple choices within a category are alternatives, so Pop and Rock includes either genre. Years and decades share one date category. An empty category adds no restriction; no selections gives no automatic tracks. Individually added tracks remain additions, and exclusions take precedence. Years use the source-reported date, which may be a reissue date. Tracks without a date do not match year conditions. Refresh the source to import dates for existing tracks. Overlapping selections appear once. Refresh checks saved selections against the imported catalogue and reports new matches since the last refresh or selection change. Excluded tracks stay visible on Tracks, where you can re-include them.</p>
   </details>
 </section>
 {{end}}
@@ -304,10 +319,10 @@
 {{template "playlist-heading" .}}
 {{template "playlist-navigation" .}}
 <section class="panel form-panel">
-  <h2>{{if .RuleID}}Edit{{else}}Add{{end}} combined rule</h2>
-  <p>Include tracks matching every condition below. This rule adds to your other selections.</p>
+  <h2>Edit saved restriction</h2>
+  <p>Include tracks matching every condition below. This saved restriction also applies alongside your selected categories.</p>
   {{if .RuleError}}<p class="error" role="alert">{{.RuleError}}</p>{{end}}
-  <form data-playlist-filter method="post" action="/producer/playlists/{{.Playlist.ID}}/rules/{{if .RuleID}}{{.RuleID}}/edit{{else}}new{{end}}">
+  <form data-playlist-filter method="post" action="/producer/playlists/{{.Playlist.ID}}/rules/{{.RuleID}}/edit">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label>Genre<input name="genre" list="rule-genres" value="{{.Filter.Genre}}" maxlength="4096" placeholder="Any genre"></label>
     <datalist id="rule-genres">{{range .Facets.Genres}}<option value="{{.}}">{{end}}</datalist>

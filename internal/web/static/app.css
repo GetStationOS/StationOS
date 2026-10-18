@@ -1086,3 +1086,8 @@ textarea{font-weight:400;line-height:1.5}
 .state-icon[data-tone="accent"] .state-icon-mark { background:var(--tint); color:var(--accent-dark); }
 .state-icon[data-tone="info"] .state-icon-mark { background:var(--tone-info-bg); color:var(--tone-info-text); }
 .state-tooltip { position:fixed; z-index:100; max-width:min(300px,calc(100vw - 24px)); padding:10px 12px; background:var(--text); color:var(--surface); border-radius:8px; box-shadow:0 4px 16px #10243a30; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+
+/* Rich playlist choices retain the same checkbox alignment as genre/album rows. */
+.rule-choice-label { display:flex; align-items:center; gap:12px; margin:0; flex:1; min-width:0; cursor:pointer; }
+.rule-choice-label span { min-width:0; }
+.choice > a { flex-shrink:0; font-size:12px; }

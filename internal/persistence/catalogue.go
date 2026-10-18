@@ -105,9 +105,13 @@ func (r Catalogue) Clear(ctx context.Context, id string) error {
 func catalogueFilter(q catalogue.Query) (string, []any) {
 	return ` FROM catalogue_items i JOIN sources s ON s.id=i.source_id WHERE
  (?='' OR i.source_id=?) AND (?='' OR EXISTS(SELECT 1 FROM catalogue_genres g WHERE g.content_id=i.id AND g.genre=?))
- AND (?='' OR i.album=?) AND
+ AND (?='' OR i.album=?)
+ AND (?='' OR EXISTS(SELECT 1 FROM catalogue_credits c WHERE c.content_id=i.id AND c.role='artist' AND c.name=?))
+ AND (?='' OR EXISTS(SELECT 1 FROM catalogue_credits c WHERE c.content_id=i.id AND c.role='composer' AND c.name=?))
+ AND (?=0 OR coalesce(json_extract(i.metadata,'$.year'),0)>=?)
+ AND (?=0 OR (coalesce(json_extract(i.metadata,'$.year'),0)>0 AND json_extract(i.metadata,'$.year')<=?)) AND
  (instr(lower(i.title),lower(?))>0 OR instr(lower(i.artist),lower(?))>0 OR instr(lower(i.album),lower(?))>0 OR instr(lower(COALESCE(json_extract(i.metadata,'$.genre'),'')),lower(?))>0)`,
-		[]any{q.SourceID, q.SourceID, q.Genre, q.Genre, q.Album, q.Album, q.Text, q.Text, q.Text, q.Text}
+		[]any{q.SourceID, q.SourceID, q.Genre, q.Genre, q.Album, q.Album, q.Artist, q.Artist, q.Composer, q.Composer, q.YearFrom, q.YearFrom, q.YearTo, q.YearTo, q.Text, q.Text, q.Text, q.Text}
 }
 func catalogueOrder(q catalogue.Query) string {
 	column := "lower(i.title)"
@@ -156,5 +160,37 @@ func (r Catalogue) Facets(ctx context.Context) (catalogue.Facets, error) {
 		}
 		out.Albums = append(out.Albums, album)
 	}
-	return out, rows.Err()
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return out, err
+	}
+	for _, facet := range []struct {
+		query string
+		dest  *[]string
+	}{
+		{`SELECT DISTINCT name FROM catalogue_credits WHERE role='artist' ORDER BY lower(name),name`, &out.Artists},
+		{`SELECT DISTINCT name FROM catalogue_credits WHERE role='composer' ORDER BY lower(name),name`, &out.Composers},
+		{`SELECT DISTINCT CAST(json_extract(metadata,'$.year') AS TEXT) FROM catalogue_items WHERE json_extract(metadata,'$.year') BETWEEN 1 AND 9999 ORDER BY CAST(json_extract(metadata,'$.year') AS INTEGER)`, &out.Years},
+		{`SELECT DISTINCT CAST(CAST(json_extract(metadata,'$.year') AS INTEGER)/10*10 AS TEXT) FROM catalogue_items WHERE json_extract(metadata,'$.year') BETWEEN 10 AND 9999 ORDER BY CAST(json_extract(metadata,'$.year') AS INTEGER)/10`, &out.Decades},
+	} {
+		rs, e := r.DB.QueryContext(ctx, facet.query)
+		if e != nil {
+			return out, e
+		}
+		for rs.Next() {
+			var value string
+			if e = rs.Scan(&value); e != nil {
+				rs.Close()
+				return out, e
+			}
+			*facet.dest = append(*facet.dest, value)
+		}
+		e = rs.Err()
+		rs.Close()
+		if e != nil {
+			return out, e
+		}
+	}
+	return out, nil
 }

@@ -14,17 +14,22 @@ import (
 )
 
 type Query struct {
-	Genre      string
-	Album      string
-	SourceID   string
-	Sort       string
-	Descending bool
-	Text       string
-	Offset     int
-	Limit      int
+	Artist, Composer string
+	YearFrom, YearTo int
+	Genre            string
+	Album            string
+	SourceID         string
+	Sort             string
+	Descending       bool
+	Text             string
+	Offset           int
+	Limit            int
 }
 
 func (q Query) Validate() error {
+	if len(q.Artist) > 4096 || len(q.Composer) > 4096 || q.YearFrom < 0 || q.YearFrom > 9999 || q.YearTo < 0 || q.YearTo > 9999 || (q.YearFrom > 0 && q.YearTo > 0 && q.YearFrom > q.YearTo) {
+		return errors.New("invalid catalogue credit or year filter")
+	}
 	if q.Offset < 0 || q.Offset > 1000000 || q.Limit < 1 || q.Limit > 100 || len(q.Text) > 200 || len(q.Genre) > 4096 || len(q.Album) > 4096 || len(q.SourceID) > 128 {
 		return errors.New("invalid catalogue query")
 	}
@@ -47,8 +52,10 @@ type Album struct {
 	Tracks     int
 }
 type Facets struct {
-	Genres []string
-	Albums []Album
+	Genres             []string
+	Artists, Composers []string
+	Years, Decades     []string
+	Albums             []Album
 }
 
 type Repository interface {

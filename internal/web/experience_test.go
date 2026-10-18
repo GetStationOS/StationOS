@@ -87,7 +87,7 @@ func TestBatchPlaylistCheckboxJourney(t *testing.T) {
 	for n := 0; n < 101; n++ {
 		tooMany.Add("genre", "Jazz")
 	}
-	if limit := request(h, "POST", path+"/selections", tooMany, nil); limit.Code != 400 || !strings.Contains(limit.Body.String(), "100 genres") {
+	if limit := request(h, "POST", path+"/selections", tooMany, nil); limit.Code != 400 || !strings.Contains(limit.Body.String(), "100 rules") {
 		t.Fatal(limit.Code, limit.Body.String())
 	}
 	w = request(h, "POST", path+"/selections", url.Values{"csrf": {token}}, nil)

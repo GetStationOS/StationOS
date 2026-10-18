@@ -43,7 +43,7 @@ func playlistHeading(v playlistPageView) headingView {
 	if v.PlaylistResult.UnknownDurations > 0 {
 		out.Metadata += fmt.Sprintf(" · %d durations unknown", v.PlaylistResult.UnknownDurations)
 	}
-	out.Actions = []headingAction{{Label: "Refresh", URL: "/producer/playlists/" + v.Playlist.ID + "/refresh", Method: "post", CSRF: v.CSRF, Secondary: true, Icon: "refresh", Hint: "Recheck saved genre and album selections", Fields: []field{{"return_to", v.ReturnTo}}}}
+	out.Actions = []headingAction{{Label: "Refresh", URL: "/producer/playlists/" + v.Playlist.ID + "/refresh", Method: "post", CSRF: v.CSRF, Secondary: true, Icon: "refresh", Hint: "Recheck saved playlist rules", Fields: []field{{"return_to", v.ReturnTo}}}}
 	return out
 }
 func assistantHeading(v assistantPageView) headingView {

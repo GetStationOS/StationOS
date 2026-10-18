@@ -62,7 +62,7 @@ func TestSharedNavigationEscapesContentAndRetainsLinkSemantics(t *testing.T) {
 func TestSharedHeadingPreservesProtectedActionsAndMetadata(t *testing.T) {
 	view := playlistPageView{pageView: pageView{Title: "<Music>", CSRF: "token"}, Playlist: playlists.Playlist{ID: "pool"}, PlaylistTab: "tracks", PlaylistResult: playlists.Result{Total: 12, UnknownDurations: 2}, ExcludedTracks: 3, PlaylistDuration: "48:00", ReturnTo: "/producer/playlists/pool/tracks?page=2"}
 	body := navigationHTML(t, "page-heading", playlistHeading(view))
-	for _, want := range []string{`<h1>&lt;Music&gt;</h1>`, `12 tracks · 3 excluded · 48:00 · 2 durations unknown`, `method="post" action="/producer/playlists/pool/refresh"`, `name="csrf" value="token"`, `name="return_to" value="/producer/playlists/pool/tracks?page=2"`, `Recheck saved genre and album selections`} {
+	for _, want := range []string{`<h1>&lt;Music&gt;</h1>`, `12 tracks · 3 excluded · 48:00 · 2 durations unknown`, `method="post" action="/producer/playlists/pool/refresh"`, `name="csrf" value="token"`, `name="return_to" value="/producer/playlists/pool/tracks?page=2"`, `Recheck saved playlist rules`} {
 		if !strings.Contains(body, want) {
 			t.Fatal(want, body)
 		}

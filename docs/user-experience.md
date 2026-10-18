@@ -536,3 +536,18 @@ Headings, breadcrumbs and linked workspace tabs use the shared templates in
 screens. Workspace tabs keep their own horizontal scroll position and reveal the
 active link across station, source, playlist and Assistant navigation. Breadcrumbs
 use labelled ordered navigation and retain links to parent workspaces.
+
+
+## Rich playlist selections
+
+Selections provides searchable checkbox groups for Genres, Albums, Artists,
+Composers, Years, Decades and saved Combined rules, with the shared visible-select,
+clear, unsaved-state and atomic-save behaviour. Missing saved choices remain checked
+and explicitly labelled. Add combined rule opens a dedicated page; Edit reopens a
+saved filter. Each supplied condition must match; separate rules add tracks to the
+pool. Show this distinction in the form and selection help. Use searchable catalogue
+suggestions for exact artist/composer/genre names, source-labelled albums and inclusive
+optional year bounds. Retain input on validation errors and preserve unrelated rules.
+Explain that dates are source-reported, may describe reissues, and require source
+refresh after upgrade. Missing dates never match year restrictions. Exclusions retain
+their existing review/re-include journey.

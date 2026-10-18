@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,26 +49,35 @@ type Rule struct {
 
 func (r Rule) Validate() error {
 	invalid := func(reason string) error { return fmt.Errorf("%w: %s", ErrInvalid, reason) }
-	if strings.TrimSpace(r.Value) == "" {
-		return invalid("rule.value must contain one exact catalogue genre or album name")
-	}
-	if len(r.Value) > 4096 {
-		return invalid("rule.value must be at most 4096 bytes")
-	}
-	if len(r.SourceID) > 128 {
-		return invalid("rule.source_id must be an existing source ID, at most 128 bytes")
+	if strings.TrimSpace(r.Value) == "" || len(r.Value) > 4096 || len(r.SourceID) > 128 {
+		return invalid("supply rule.value up to 4096 bytes and source_id up to 128 bytes")
 	}
 	switch r.Kind {
-	case "genre":
+	case "genre", "artist", "composer":
 		if r.SourceID != "" {
-			return invalid("genre rules must omit source_id; use kind=genre and one exact genre value returned by explore_music")
+			return invalid(r.Kind + " rules must omit source_id; only album rules accept it")
 		}
 	case "album":
 		if r.SourceID == "" {
-			return invalid("album rules require source_id returned with that album by explore_music")
+			return invalid("album rules require source_id")
+		}
+	case "year", "decade":
+		n, err := strconv.Atoi(r.Value)
+		if err != nil || n < 1 || n > 9999 || strconv.Itoa(n) != r.Value || (r.Kind == "decade" && (n%10 != 0 || n > 9990)) {
+			return invalid("year must be 1–9999; decade must be its first year, such as 1980")
+		}
+		if r.SourceID != "" {
+			return invalid("year and decade rules must omit source_id")
+		}
+	case "filter":
+		if r.SourceID != "" {
+			return invalid("combined filters keep source_id inside the filter")
+		}
+		if _, err := ParseFilter(r.Value); err != nil {
+			return err
 		}
 	default:
-		return invalid("rule.kind must be exactly genre or album, in lowercase; use separate rules for multiple genres or albums")
+		return invalid("rule.kind must be genre, album, artist, composer, year, decade or filter")
 	}
 	return nil
 }

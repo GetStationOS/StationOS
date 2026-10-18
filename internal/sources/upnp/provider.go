@@ -300,6 +300,7 @@ type didlEntry struct {
 	Creators  []string     `xml:"creator"`
 	Composers []string     `xml:"composer"`
 	Album     string       `xml:"album"`
+	Date      string       `xml:"date"`
 	Genres    []string     `xml:"genre"`
 	Art       string       `xml:"albumArtURI"`
 	Resources []struct {
@@ -396,7 +397,7 @@ func (p *Provider) parseDIDL(raw string) ([]sources.Entry, error) {
 			if strings.HasPrefix(v.Class, "object.item.audioItem.musicTrack") {
 				kind = content.Track
 			}
-			a := content.AudioItem{ID: content.ID(p.sourceID, v.ID), SourceID: p.sourceID, SourceItemID: v.ID, Kind: kind, Title: v.Title, Album: v.Album, Genre: strings.Join(v.Genres, ", "), Origin: content.Original, Resources: []content.Resource{}}
+			a := content.AudioItem{ID: content.ID(p.sourceID, v.ID), SourceID: p.sourceID, SourceItemID: v.ID, Kind: kind, Title: v.Title, Album: v.Album, Year: sourceYear(v.Date), Genre: strings.Join(v.Genres, ", "), Origin: content.Original, Resources: []content.Resource{}}
 			v.applyCredits(&a)
 			if v.Art != "" {
 				a.Artwork, err = p.resourceURL(v.Art)

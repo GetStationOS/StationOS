@@ -655,3 +655,30 @@ availability stays false. Web writes retain authentication, CSRF and restricted 
 ## Source genre membership
 
 Migration 29 backfills indexed `catalogue_genres` membership from existing raw catalogue metadata. Commas split genre values; surrounding whitespace and empty parts are removed and duplicate values count once per track. Repeated UPnP genre tags are retained in the source metadata. Catalogue insert/update triggers rebuild membership, and deletion cascades remove it, so successful source refreshes replace genres rather than accumulating local edits. Search filters, playlist eligibility, facets and summary coverage use the same membership. Track counts and duration are never multiplied by genre membership; genre coverage can overlap. Saved playlist rules remain operator choices and are not rewritten.
+
+
+## Rich dynamic playlist rules
+
+Migration 30 preserves legacy rule IDs/values and expands rule kinds to artist,
+composer, year, decade and filter. A filter is a bounded, validated JSON object
+of optional genre, artist, composer, album/source and inclusive year bounds. All
+conditions in one filter must match; separate rules and manual inclusions form a
+union, with explicit exclusions taking precedence. Playlist resolution and
+Availability share one SQL predicate. Broadcast pools, refresh baselines and the
+editing projection reuse resolution, preserving their existing contracts and bounds.
+
+A rebuildable indexed catalogue_credits table splits the existing semicolon-delimited
+performer/composer credits, preserves commas in names and is backfilled during
+migration. Insert/update triggers replace membership; deletion cascades remove it.
+Exact matching never substitutes album artist, conductor or ambiguous creator.
+The UPnP adapter imports valid year/ISO-date dc:date values as optional AudioItem.Year
+(zero means unknown). These are source dates, not independently verified original
+release dates. Missing/invalid dates never match bounded year filters. Existing
+catalogues need a source refresh to acquire dates; no migration invents them.
+
+Selections retains atomic checkbox saves across all kinds and preserves unavailable
+saved choices. Combined filters use dedicated create/edit pages with ordinary-form
+fallback and retained validation values. Assistant tools expose measured facet values,
+credit/year searches and structured combined filters. They keep source-date and
+original-release evidence distinct. No new background subscriptions or audio work are
+introduced by rule editing.

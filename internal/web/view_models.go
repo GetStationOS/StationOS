@@ -99,6 +99,9 @@ type playlistPageView struct {
 	ExcludedTracks                                             int
 	PlaylistRefreshNotice                                      string
 	Sources                                                    []sources.Config
+	RuleGroups                                                 []ruleChoiceGroup
+	Filter                                                     playlists.Filter
+	RuleID, RuleError, YearFromInput, YearToInput              string
 	Genres                                                     []genreOption
 	Rows                                                       []trackRow
 	Pagination                                                 pagination
@@ -196,4 +199,14 @@ type formActionsView struct {
 
 func formActions(cancelURL, label string) formActionsView {
 	return formActionsView{CancelURL: cancelURL, Label: label}
+}
+
+type ruleChoiceGroup struct {
+	Name, Kind string
+	Options    []ruleChoice
+}
+type ruleChoice struct {
+	Name, Value       string
+	Selected, Missing bool
+	EditURL           string
 }

@@ -634,7 +634,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 					if result.Error == "" {
 						selectedWritePending = step.Area != "review"
 						selectedArea = step.Area
-						result.Data = map[string]any{"area": step.Area, "station_id": owner.ID, "station_name": owner.Name, "catalogue_release_year_available": false}
+						result.Data = map[string]any{"area": step.Area, "station_id": owner.ID, "station_name": owner.Name, "catalogue_release_year_available": false, "catalogue_source_date_rules_available": true}
 						if selectedWritePending && task.Brief == "" {
 							brief := c.Title
 							for _, request := range c.Requests {
@@ -644,7 +644,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 							}
 							task = Task{Brief: brief, Remaining: []string{"Complete the saved human request and verify the resulting configuration"}}
 						}
-						afterCalls = append(afterCalls, mustJSON(map[string]any{"role": "developer", "content": "Selected StationOS work step: " + step.Area + ". Use the station ID returned by this tool. Honour only the original authorised request. Use musical knowledge of album/track releases together with exact artist, album and track matches in the catalogue for era requests. A missing year filter alone is not a blocker: use suitable album rules or individual tracks, inspect editions and avoid unverified compilation/reissue extras. Never invent availability or claim unverified dates. Record blockers only when matching music or sufficient evidence is genuinely unavailable. Complete requested configuration, then verify before updating task progress."}))
+						afterCalls = append(afterCalls, mustJSON(map[string]any{"role": "developer", "content": "Selected StationOS work step: " + step.Area + ". Use the station ID returned by this tool. Honour only the original authorised request. Use musical knowledge of album/track releases together with exact artist, album and track matches in the catalogue for era requests. Source-date year/decade rules and combined filters are available; source dates may describe reissues, not original release. A missing year field alone is not a blocker: use suitable album rules or individual tracks, inspect editions and avoid unverified compilation/reissue extras. Never invent availability or claim unverified dates. Record blockers only when matching music or sufficient evidence is genuinely unavailable. Complete requested configuration, then verify before updating task progress."}))
 					}
 				}
 				input = append(input, toolOutput(call.ID, result))

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -75,6 +76,11 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		v.StationID = v.Station.ID
 		v.PlaylistID = v.Playlist.ID
 		if v.PlaylistTab == "selections" {
+			v.Sources, err = s.d.Sources.List(r.Context())
+			if err != nil {
+				s.fail(w, err)
+				return
+			}
 			if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices); err != nil {
 				s.fail(w, err)
 				return
@@ -285,12 +291,53 @@ func withNotice(destination, message string) string {
 	return u.String()
 }
 func (v *playlistPageView) prepareSelections(rules []playlists.Rule) {
+	for _, spec := range []struct {
+		kind, name string
+		values     []string
+	}{
+		{"artist", "Artists", v.Facets.Artists}, {"composer", "Composers", v.Facets.Composers}, {"year", "Years", v.Facets.Years}, {"decade", "Decades", v.Facets.Decades}, {"filter", "Combined rules", nil},
+	} {
+		group := ruleChoiceGroup{Kind: spec.kind, Name: spec.name}
+		chosen := map[string]playlists.Rule{}
+		for _, rule := range rules {
+			if rule.Kind == spec.kind {
+				chosen[rule.Value] = rule
+			}
+		}
+		for _, value := range spec.values {
+			_, ok := chosen[value]
+			label := value
+			if spec.kind == "decade" {
+				label += "s"
+			}
+			group.Options = append(group.Options, ruleChoice{Name: label, Value: value, Selected: ok})
+			delete(chosen, value)
+		}
+		keys := []string{}
+		for value := range chosen {
+			keys = append(keys, value)
+		}
+		sort.Strings(keys)
+		for _, value := range keys {
+			rule := chosen[value]
+			label := rule.Label()
+			for _, source := range v.Sources {
+				label = strings.ReplaceAll(label, "Source: "+source.ID, "Source: "+source.Name)
+			}
+			option := ruleChoice{Name: label, Value: value, Selected: true, Missing: spec.kind != "filter"}
+			if spec.kind == "filter" {
+				option.EditURL = "/producer/playlists/" + v.Playlist.ID + "/rules/" + rule.ID + "/edit"
+			}
+			group.Options = append(group.Options, option)
+		}
+		v.RuleGroups = append(v.RuleGroups, group)
+	}
 	genres := map[string]bool{}
 	albums := map[string]bool{}
 	for _, rule := range rules {
 		if rule.Kind == "genre" {
 			genres[rule.Value] = true
-		} else {
+		} else if rule.Kind == "album" {
 			token, _ := json.Marshal(albumChoice{SourceID: rule.SourceID, Name: rule.Value})
 			albums[string(token)] = true
 		}
@@ -314,6 +361,11 @@ func (v *playlistPageView) prepareSelections(rules []playlists.Rule) {
 }
 func (s *Server) replaceRules(w http.ResponseWriter, r *http.Request) {
 	rules := []playlists.Rule{}
+	for _, kind := range []string{"artist", "composer", "year", "decade", "filter"} {
+		for _, value := range r.PostForm[kind] {
+			rules = append(rules, playlists.Rule{Kind: kind, Value: value})
+		}
+	}
 	for _, genre := range r.PostForm["genre"] {
 		rules = append(rules, playlists.Rule{Kind: "genre", Value: genre})
 	}
@@ -326,7 +378,7 @@ func (s *Server) replaceRules(w http.ResponseWriter, r *http.Request) {
 		rules = append(rules, playlists.Rule{Kind: "album", Value: choice.Name, SourceID: choice.SourceID})
 	}
 	if len(rules) > playlists.MaxRules {
-		http.Error(w, "Choose up to 100 genres and albums in total, then save again.", 400)
+		http.Error(w, "Choose up to 100 rules in total, then save again.", 400)
 		return
 	}
 	report, err := s.playlistService().ReplaceRulesAndRefresh(r.Context(), r.PathValue("id"), rules)

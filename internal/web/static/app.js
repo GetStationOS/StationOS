@@ -1001,3 +1001,10 @@ document.body.addEventListener('htmx:afterRequest',event=>{
  window.addEventListener('resize',hide);
  document.addEventListener('htmx:beforeSwap',hide);
 })();
+
+// Keep combined rule validation local to its form, including native-form fallback.
+document.body.addEventListener('htmx:beforeSwap', event => {
+ if (event.detail.requestConfig?.elt?.closest('[data-playlist-filter]') && event.detail.xhr.status === 422 && event.detail.xhr.responseText.includes('data-playlist-filter')) {
+  event.detail.shouldSwap = true; event.detail.isError = false;
+ }
+});

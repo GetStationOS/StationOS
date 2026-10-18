@@ -31,3 +31,39 @@
   </div>
 </div>
 {{end}}
+
+{{define "page-heading"}}
+<header class="page-heading">
+  <div class="heading-copy">
+    <h1>{{.Title}}</h1>
+    {{if .Metadata}}<p class="heading-meta">{{.Metadata}}</p>{{end}}
+  </div>
+  {{if .Actions}}<div class="heading-actions">
+    {{range .Actions}}
+    {{if eq .Method "post"}}
+    <form method="post" action="{{.URL}}" hx-disabled-elt="find button">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      {{range .Fields}}<input type="hidden" name="{{.Key}}" value="{{.Value}}">{{end}}
+      <button{{if .Secondary}} class="secondary"{{end}}{{if .Hint}} title="{{.Hint}}"{{end}}>{{if .Icon}}{{template "ui-icon" .Icon}}{{end}}{{.Label}}</button>
+    </form>
+    {{else}}<a class="button{{if .Secondary}} secondary{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}
+    {{end}}
+  </div>{{end}}
+</header>
+{{end}}
+
+{{define "breadcrumbs"}}
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+  <ol>{{range .}}
+    <li>{{if .URL}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a>{{else}}<span{{if .Current}} aria-current="page"{{end}}>{{.Label}}</span>{{end}}</li>
+  {{end}}</ol>
+</nav>
+{{end}}
+
+{{define "workspace-tabs"}}
+<nav class="workspace-tabs" aria-label="{{.Label}}" data-tab-scroll-key="{{.ScrollKey}}">
+  {{range .Items}}
+  <a href="{{.URL}}"{{if .Key}} data-assistant-nav="{{.Key}}"{{end}}{{if .Current}} aria-current="page"{{end}}>{{.Label}}{{if .IndicatorURL}}<span id="incident-menu-indicator" class="incident-menu-indicator" hx-indicator="this" data-live-url="{{.IndicatorURL}}" hx-target="this" hx-swap="innerHTML" hx-push-url="false">{{template "incident-menu-icon" .Incidents}}</span>{{end}}</a>
+  {{end}}
+</nav>
+{{end}}

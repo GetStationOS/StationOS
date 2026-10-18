@@ -241,12 +241,7 @@
 </section>{{end}}
 
 {{define "assistant-navigation"}}
-<nav class="station-tabs assistant-tabs" aria-label="Assistant navigation">
-  <a href="/producer/assistant" data-assistant-nav="chats" {{if eq .AssistantMode "chat"}}aria-current="page"{{end}}>Chats</a>
-  <a href="/producer/assistant/prompts" data-assistant-nav="prompts" {{if eq .AssistantMode "prompts"}}aria-current="page"{{end}}>Prompts</a>
-  <a href="/producer/assistant/settings" data-assistant-nav="models" {{if eq .AssistantMode "settings"}}aria-current="page"{{end}}>Models</a>
-  <a href="/producer/assistant/endpoints" data-assistant-nav="endpoints" {{if or (eq .AssistantMode "endpoints") (eq .AssistantMode "delete-connection")}}aria-current="page"{{end}}>Endpoints</a>
-</nav>{{end}}
+{{template "workspace-tabs" (assistantTabs .AssistantMode)}}{{end}}
 
 {{define "openai-key"}}
 <form method="post" action="/producer/assistant/endpoints?connection=openai" hx-disabled-elt="find button">
@@ -264,30 +259,20 @@
 
 {{define "assistant-chat-page"}}
 {{template "assistant-navigation" .}}
-<div class="page-heading">
-  <h1>{{.Title}}</h1>
-  <form method="post" action="/producer/assistant/conversations" hx-disabled-elt="find button">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input type="hidden" name="station" value="{{.StationID}}">
-    <button class="button">+ New conversation</button>
-  </form>
-</div>
+{{template "page-heading" (assistantHeading .)}}
 {{template "assistant-chat" .}}
 {{end}}
 
 {{define "assistant-settings-page"}}
-{{template "assistant-navigation" .}}{{template "page-heading" .Title}}{{template "assistant-settings" .}}
+{{template "assistant-navigation" .}}{{template "page-heading" (heading .Title)}}{{template "assistant-settings" .}}
 {{end}}
 
 {{define "assistant-endpoints-page"}}
 {{template "assistant-navigation" .}}
-<div class="page-heading">
-  <h1>{{.Title}}</h1>
-  {{if not .AIConnectionMode}}<a class="button" href="/producer/assistant/endpoints?connection=new">+ Add endpoint</a>{{end}}
-</div>
+{{template "page-heading" (assistantHeading .)}}
 {{template "assistant-endpoints" .}}
 {{end}}
 
 {{define "assistant-delete-page"}}
-{{template "assistant-navigation" .}}{{template "page-heading" .Title}}{{template "delete-ai" .}}
+{{template "assistant-navigation" .}}{{template "page-heading" (heading .Title)}}{{template "delete-ai" .}}
 {{end}}

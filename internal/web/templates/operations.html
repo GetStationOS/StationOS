@@ -8,7 +8,7 @@
 {{end}}
 
 {{define "operations-page"}}
-{{template "page-heading" .Title}}
+{{template "page-heading" (heading .Title)}}
 {{if and (eq .Section "timeline") .Summary.Available (not .Summary.Healthy)}}<p class="notice" role="alert">Transmission history is incomplete or unavailable. Audio can continue; check server logs and database health.</p>{{end}}
 <p class="hint">Times: {{.Station.Timezone}}.{{if eq .Section "timeline"}} History records server transmission, not confirmed listener playback.{{else}} Latest 100 incidents.{{end}}</p>
 {{if eq .Section "timeline"}}

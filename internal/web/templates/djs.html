@@ -114,27 +114,20 @@
 </section>{{end}}
 
 {{define "dj-list-page"}}
-<div class="page-heading">
-  <h1>{{.Title}}</h1>
-  <a class="button" href="/producer/djs/new">+ Create DJ</a>
-</div>
+{{template "page-heading" (headingLink .Title "" "+ Create DJ" "/producer/djs/new")}}
 {{template "dj-list" .}}
 {{end}}
 
 {{define "dj-form-page"}}
-{{template "dj-breadcrumbs" .}}{{template "page-heading" .Title}}{{template "dj-form" .}}
+{{template "dj-breadcrumbs" .}}{{template "page-heading" (heading .Title)}}{{template "dj-form" .}}
 {{end}}
 
 {{define "dj-delete-page"}}
-{{template "dj-breadcrumbs" .}}{{template "page-heading" .Title}}{{template "delete-dj" .}}
+{{template "dj-breadcrumbs" .}}{{template "page-heading" (heading .Title)}}{{template "delete-dj" .}}
 {{end}}
 
 {{define "dj-breadcrumbs"}}
-<div class="breadcrumbs">
-  <a href="/producer/djs">DJs</a>
-  <span aria-hidden="true">/</span>
-  <span>{{.Title}}</span>
-</div>
+{{template "breadcrumbs" (breadcrumbs (crumb "DJs" "/producer/djs") (crumb .Title ""))}}
 {{end}}
 
 {{define "dj-photo-field"}}

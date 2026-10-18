@@ -1,6 +1,6 @@
 {{define "prompts-page"}}
 {{template "assistant-navigation" .}}
-{{template "page-heading" .Title}}
+{{template "page-heading" (heading .Title)}}
 <p class="hint">Shared instructions for AI features. Each prompt starts with the StationOS default. DJ personality and voice direction remain on the DJ profile.</p>
 <div class="table"><table>
   <thead><tr><th>Prompt</th><th>Used for</th></tr></thead>
@@ -9,8 +9,8 @@
 {{end}}
 {{define "prompt-page"}}
 {{template "assistant-navigation" .}}
-<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/producer/assistant/prompts">Prompts</a> / {{.Prompt.Name}}</nav>
-{{template "page-heading" .Title}}
+{{template "breadcrumbs" (breadcrumbs (crumb "Prompts" "/producer/assistant/prompts") (crumb .Prompt.Name ""))}}
+{{template "page-heading" (heading .Title)}}
 <p class="hint">{{.Prompt.Description}} Changes apply to new AI requests. Existing audio and running assistant requests finish with their current instructions.</p>
 <section class="panel form-panel">
  {{if .Problem}}<p class="notice error" role="alert">{{.Problem}}</p>{{end}}

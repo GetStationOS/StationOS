@@ -169,25 +169,22 @@
 </p>{{end}}{{end}}
 
 {{define "stations-page"}}
-<div class="page-heading">
-  <h1>{{.Title}}</h1>
-  <a class="button" href="/producer/stations/new">+ Create station</a>
-</div>
+{{template "page-heading" (headingLink .Title "" "+ Create station" "/producer/stations/new")}}
 {{template "station-cards" .}}
 {{end}}
 
 {{define "new-station-page"}}
-{{template "page-heading" .Title}}{{template "new-station" .}}
+{{template "page-heading" (heading .Title)}}{{template "new-station" .}}
 {{end}}
 
 {{define "station-overview-page"}}
-{{template "page-heading" .Title}}{{template "station-overview" .}}
+{{template "page-heading" (heading .Title)}}{{template "station-overview" .}}
 {{end}}
 
 {{define "station-settings-page"}}
-{{template "page-heading" .Title}}{{template "station-settings" .}}
+{{template "page-heading" (heading .Title)}}{{template "station-settings" .}}
 {{end}}
 
 {{define "delete-station-page"}}
-{{template "page-heading" .Title}}{{template "delete-station" .}}
+{{template "page-heading" (heading .Title)}}{{template "delete-station" .}}
 {{end}}

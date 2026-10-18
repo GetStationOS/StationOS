@@ -24,18 +24,9 @@
 {{end}}
 
 {{define "source"}}
-<div class="breadcrumbs">
-  <a href="/producer/sources">Sources</a>
-  <span aria-hidden="true">/</span>
-  <span>{{.Source.Name}}</span>
-</div>
-<div class="page-heading">
-  <h1>{{.Title}}</h1>
-</div>
-<nav class="station-tabs" aria-label="Source navigation">
-  <a href="/producer/sources/{{.Source.ID}}" {{if eq .SourceTab "overview"}}aria-current="page"{{end}}>Overview</a>
-  <a href="/producer/sources/{{.Source.ID}}/settings" {{if eq .SourceTab "settings"}}aria-current="page"{{end}}>Settings</a>
-</nav>
+{{template "breadcrumbs" (sourceBreadcrumbs .)}}
+{{template "page-heading" (heading .Title)}}
+{{template "workspace-tabs" (sourceTabs .)}}
 {{if eq .SourceTab "overview"}}
 <div class="source-summary">
   <div>
@@ -139,10 +130,7 @@
 {{end}}
 
 {{define "sources-page"}}
-<div class="page-heading">
-  <h1>{{.Title}}</h1>
-  <a class="button" href="/producer/sources/new">+ Add source</a>
-</div>
+{{template "page-heading" (headingLink .Title "" "+ Add source" "/producer/sources/new")}}
 {{template "sources" .}}
 {{end}}
 
@@ -151,5 +139,5 @@
 {{end}}
 
 {{define "new-source-page"}}
-{{template "page-heading" .Title}}{{template "new-source" .}}
+{{template "page-heading" (heading .Title)}}{{template "new-source" .}}
 {{end}}

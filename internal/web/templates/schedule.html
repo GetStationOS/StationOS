@@ -136,20 +136,14 @@
 </section>{{end}}
 
 {{define "schedule-list-page"}}
-<div class="page-heading">
-  <div class="title-line">
-    <h1>{{.Title}}</h1>
-    <span class="playlist-meta">Repeats weekly · {{.Station.Timezone}}</span>
-  </div>
-  <a class="button" href="/producer/stations/{{.Station.ID}}/schedule/new">+ Add show</a>
-</div>
+{{template "page-heading" (scheduleHeading .)}}
 {{template "schedule-list" .}}
 {{end}}
 
 {{define "schedule-form-page"}}
-{{template "page-heading" .Title}}{{template "schedule-form" .}}
+{{template "page-heading" (heading .Title)}}{{template "schedule-form" .}}
 {{end}}
 
 {{define "schedule-delete-page"}}
-{{template "page-heading" .Title}}{{template "delete-show" .}}
+{{template "page-heading" (heading .Title)}}{{template "delete-show" .}}
 {{end}}

@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="{{assetURL "app.css"}}">
     <script src="{{assetURL "htmx.min.js"}}" defer>
     </script>
+    <script src="{{assetURL "navigation.js"}}" defer></script>
     <script src="{{assetURL "app.js"}}" defer>
     </script>
   </head>
@@ -41,14 +42,7 @@
 {{define "public-content"}}
 <div class="screen" data-page="{{.Page}}">
   {{if .Station.ID}}
-  <div class="breadcrumbs">
-    <a href="/">Radio stations</a>
-    <span aria-hidden="true">/</span>
-    {{if .PublicShow.Name}}<a href="/radio/{{.Station.StreamSlug}}">{{.Station.Name}}</a>
-    <span aria-hidden="true">/</span>
-    <span>{{.PublicShow.Name}}</span>
-    {{else}}<span>{{.Station.Name}}</span>{{end}}
-  </div>
+  {{template "breadcrumbs" (publicBreadcrumbs .)}}
   <div class="public-station-heading">
     <img class="station-logo" src="{{.Station.LogoURL}}" alt="" width="96" height="96">
     <div>

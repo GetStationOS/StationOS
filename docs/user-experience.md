@@ -530,3 +530,9 @@ for distinct tasks. Routine creation and editing forms share the same footer.
 Audience, track and history results share toolbar/pagination components; rows-per-page
 choices remain available on narrow screens. Reuse semantic feedback tokens and
 shared badge/action anatomy before introducing feature-specific rules.
+
+Headings, breadcrumbs and linked workspace tabs use the shared templates in
+`components.html`. Apply the same title/metadata/action layout across producer
+screens. Workspace tabs keep their own horizontal scroll position and reveal the
+active link across station, source, playlist and Assistant navigation. Breadcrumbs
+use labelled ordered navigation and retain links to parent workspaces.

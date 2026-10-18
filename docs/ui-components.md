@@ -81,8 +81,8 @@ available content width. Verify local overflow, keyboard/focus order, ordinary
 links/forms, HTMX navigation/back and quiet SSE updates. Do not introduce polling.
 
 This foundation pass preserves specialist card, mixer, calendar, player and public
-show interactions. Further consolidation of headings, tabs, choice groups and
-specialist compositions should follow the same ownership rules.
+show interactions. Further consolidation of fields, choice groups and specialist compositions
+should follow the same ownership rules.
 
 ### Foundation verification, 18 October 2026
 
@@ -99,3 +99,45 @@ verified enhanced paging, result-heading focus, filtered page-size retention,
 review actions preserving page/statuses, and browser back navigation. Existing
 subscription regression checks cover live-update behaviour; this pass did not
 exercise active audio or every populated specialist screen in the browser.
+
+## Headings and navigation
+
+`templates/components.html` owns `page-heading`, `breadcrumbs` and
+`workspace-tabs`. Typed builders in `navigation.go` supply escaped presentation
+values; feature templates compose these components rather than reproducing markup.
+
+Use `heading(title)` for a plain heading or
+`headingLink(title, metadata, label, destination)` for a heading with a link action.
+Playlist refresh and Assistant conversation builders supply ordinary protected POST
+forms, including CSRF and return/station fields. A heading has one h1, optional
+wrapping metadata and a separate actions cluster. Below 700px the title occupies
+its own row. Actions retain 44px targets and allow long labels to wrap.
+
+Breadcrumbs use a labelled `nav` with an ordered list. Each item keeps its separator
+with its text, long names wrap, and only the current page has `aria-current=page`.
+Parent workspaces remain links, including a source's Overview from its Settings.
+Public station/show breadcrumbs use this same structure; their branded heading
+remains an intentional public-page composition.
+
+Station, source, playlist and Assistant navigation all use `.workspace-tabs`.
+These are ordinary links with `aria-current=page`, not ARIA tab widgets. They scroll
+horizontally within their own region at every size and use 44px targets. Give each
+workspace a stable `data-tab-scroll-key`; `static/navigation.js` retains its scroll
+position across HTMX navigation/history and reveals the active link without
+scrolling the page. Both shells load this versioned script. The station Incidents
+item retains its existing stable indicator ID and subscription target.
+
+Verify changes on the actual app pages at phone, tablet and desktop sizes,
+including long names, headings with/without actions, direct loads, back/forward,
+keyboard focus and protected form fallbacks.
+
+### Navigation verification, 18 October 2026
+
+Rendered station Settings, source Settings, playlist Tracks/Details, Assistant
+endpoints and public station pages at 320, 390, 700, 768, 1024 and 1440px with long
+names. All 36 checks retained the viewport width without page overflow; actions
+wrapped onto a separate row on narrow screens. The shared navigation script
+revealed active items on narrow direct loads. Live app checks covered station,
+source, playlist and Assistant navigation, heading metadata/POST fields, main
+focus after HTMX navigation and browser back. Regression tests cover full-page,
+fragment and history restoration, escaped labels and the live Incidents target.

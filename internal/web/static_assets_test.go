@@ -15,7 +15,7 @@ func TestShellAssetsAreVersionedByTheirEmbeddedContent(t *testing.T) {
 			t.Fatal(response.Code, response.Body.String())
 		}
 		body := response.Body.String()
-		for _, name := range []string{"app.css", "app.js", "htmx.min.js"} {
+		for _, name := range []string{"app.css", "navigation.js", "app.js", "htmx.min.js"} {
 			data, err := assets.ReadFile("static/" + name)
 			if err != nil {
 				t.Fatal(err)

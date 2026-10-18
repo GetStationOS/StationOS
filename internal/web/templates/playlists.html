@@ -87,13 +87,7 @@
 </section>{{end}}
 
 {{define "playlist-navigation"}}
-
-<nav class="station-tabs" aria-label="Playlist navigation">
-  <a href="/producer/playlists/{{.Playlist.ID}}" {{if eq .PlaylistTab "selections"}}aria-current="page"{{end}}>Selections</a>
-  <a href="/producer/playlists/{{.Playlist.ID}}/tracks" {{if eq .PlaylistTab "tracks"}}aria-current="page"{{end}}>Tracks</a>
-  <a href="/producer/playlists/{{.Playlist.ID}}/settings" {{if eq .PlaylistTab "details"}}aria-current="page"{{end}}>Details</a>
-</nav>
-
+{{template "workspace-tabs" (playlistTabs .)}}
 {{end}}
 
 {{define "playlist-details"}}
@@ -242,30 +236,16 @@
 {{end}}
 
 {{define "playlists-page"}}
-<div class="page-heading">
-  <h1>{{.Title}}</h1>
-  {{if .Stations}}<a class="button" href="/producer/playlists/new{{if .Station.ID}}?station={{.Station.ID}}{{end}}">+ Add playlist</a>{{end}}
-</div>
+{{template "page-heading" (playlistsHeading .)}}
 {{template "playlists" .}}
 {{end}}
 
 {{define "new-playlist-page"}}
-{{template "page-heading" .Title}}{{template "new-playlist" .}}
+{{template "page-heading" (heading .Title)}}{{template "new-playlist" .}}
 {{end}}
 
 {{define "playlist-heading"}}
-<div class="page-heading">
-  <div class="title-line">
-    <h1>{{.Title}}</h1>
-    {{if ne .PlaylistTab "delete"}}<span class="playlist-meta">{{.PlaylistResult.Total}} tracks{{if .ExcludedTracks}} · {{.ExcludedTracks}} excluded{{end}} · {{.PlaylistDuration}}{{if .PlaylistResult.UnknownDurations}} · {{.PlaylistResult.UnknownDurations}} durations unknown{{end}}</span>{{end}}
-  </div>
-  {{if ne .PlaylistTab "delete"}}
-  <form class="playlist-refresh" method="post" action="/producer/playlists/{{.Playlist.ID}}/refresh" hx-disabled-elt="find button">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <input type="hidden" name="return_to" value="{{.ReturnTo}}">
-    <button class="secondary" title="Recheck saved genre and album selections">{{template "ui-icon" "refresh"}} Refresh</button>
-  </form>{{end}}
-</div>
+{{template "page-heading" (playlistHeading .)}}
 {{if .PlaylistRefreshNotice}}<p class="notice success" role="status">{{.PlaylistRefreshNotice}}</p>{{end}}
 {{end}}
 

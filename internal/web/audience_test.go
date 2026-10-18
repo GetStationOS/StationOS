@@ -53,7 +53,7 @@ func TestPublicAudienceConsentCSRFPolicyAndQueue(t *testing.T) {
 	key := occurrences[0].Key
 	path := "/radio/radio/shoutouts?show=" + url.QueryEscape(key)
 	w := request(h, "GET", path, nil, nil)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "Your shout-out") || strings.Contains(w.Body.String(), "station-tabs") {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Your shout-out") || strings.Contains(w.Body.String(), "workspace-tabs") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	cookies := w.Result().Cookies()

@@ -104,7 +104,7 @@ func (r Catalogue) Clear(ctx context.Context, id string) error {
 
 func catalogueFilter(q catalogue.Query) (string, []any) {
 	return ` FROM catalogue_items i JOIN sources s ON s.id=i.source_id WHERE
- (?='' OR i.source_id=?) AND (?='' OR json_extract(i.metadata,'$.genre')=?)
+ (?='' OR i.source_id=?) AND (?='' OR EXISTS(SELECT 1 FROM catalogue_genres g WHERE g.content_id=i.id AND g.genre=?))
  AND (?='' OR i.album=?) AND
  (instr(lower(i.title),lower(?))>0 OR instr(lower(i.artist),lower(?))>0 OR instr(lower(i.album),lower(?))>0 OR instr(lower(COALESCE(json_extract(i.metadata,'$.genre'),'')),lower(?))>0)`,
 		[]any{q.SourceID, q.SourceID, q.Genre, q.Genre, q.Album, q.Album, q.Text, q.Text, q.Text, q.Text}
@@ -127,7 +127,7 @@ func catalogueOrder(q catalogue.Query) string {
 }
 func (r Catalogue) Facets(ctx context.Context) (catalogue.Facets, error) {
 	out := catalogue.Facets{Genres: []string{}, Albums: []catalogue.Album{}}
-	rows, err := r.DB.QueryContext(ctx, `SELECT DISTINCT json_extract(metadata,'$.genre') FROM catalogue_items WHERE COALESCE(json_extract(metadata,'$.genre'),'')<>'' ORDER BY lower(json_extract(metadata,'$.genre'))`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT DISTINCT genre FROM catalogue_genres ORDER BY lower(genre),genre`)
 	if err != nil {
 		return out, err
 	}

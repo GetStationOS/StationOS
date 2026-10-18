@@ -12,7 +12,7 @@ import (
 func TestRefreshCountsOnlyNewEligibleTracksAndAlbums(t *testing.T) {
 	svc, repo, cat, source, stations := setup(t)
 	ctx := context.Background()
-	a := audio(source, "a", "Alpha", "Jazz", "Original album")
+	a := audio(source, "a", "Alpha", "Blues, Jazz, Jazz", "Original album")
 	x := audio(source, "x", "Excluded", "Jazz", "Excluded album")
 	if err := cat.Replace(ctx, source, []content.AudioItem{a, x}); err != nil {
 		t.Fatal(err)
@@ -34,8 +34,8 @@ func TestRefreshCountsOnlyNewEligibleTracksAndAlbums(t *testing.T) {
 	if err != nil || report.NewTracks != 0 || report.NewAlbums != 0 {
 		t.Fatal(report, err)
 	}
-	b := audio(source, "b", "Beta", "Jazz", a.Album)
-	c := audio(source, "c", "Gamma", "Jazz", "New album")
+	b := audio(source, "b", "Beta", "Jazz, Blues", a.Album)
+	c := audio(source, "c", "Gamma", "Blues, Jazz", "New album")
 	d := audio(source, "d", "Delta", "Pop", "Unrelated album")
 	if err = cat.Replace(ctx, source, []content.AudioItem{a, b, c, d, x}); err != nil {
 		t.Fatal(err)

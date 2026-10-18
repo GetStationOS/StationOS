@@ -47,7 +47,7 @@ func testProvider(t *testing.T, h http.Handler) (*Provider, *httptest.Server) {
 }
 func TestUPnPContractAndCatalogueImport(t *testing.T) {
 	desc := fixture(t, "description.xml")
-	music := fixture(t, "music.xml")
+	music := strings.Replace(fixture(t, "music.xml"), "<upnp:genre>Jazz</upnp:genre>", "<upnp:genre>Jazz, Blues</upnp:genre><upnp:genre>Disco</upnp:genre>", 1)
 	var requests atomic.Int32
 	p, srv := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -75,7 +75,7 @@ func TestUPnPContractAndCatalogueImport(t *testing.T) {
 		t.Fatal(page, err)
 	}
 	a := page.Entries[0].Item
-	if a.Title != "Track & One" || a.Artist != "Artist" || a.Composer != "Composer" || a.Genre != "Jazz" || a.Duration == nil || *a.Duration != 221250*time.Millisecond || a.Artwork != srv.URL+"/art.jpg" || len(a.Resources) != 2 {
+	if a.Title != "Track & One" || a.Artist != "Artist" || a.Composer != "Composer" || a.Genre != "Jazz, Blues, Disco" || a.Duration == nil || *a.Duration != 221250*time.Millisecond || a.Artwork != srv.URL+"/art.jpg" || len(a.Resources) != 2 {
 		t.Fatal(a)
 	}
 	got, err := contract.Get(ctx, "track&1")

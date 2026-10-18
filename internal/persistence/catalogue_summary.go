@@ -2,6 +2,8 @@ package persistence
 
 import (
 	"context"
+	"strings"
+
 	"stationos.local/stationos/internal/catalogue"
 )
 
@@ -17,18 +19,26 @@ func (r Catalogue) Summary(ctx context.Context, q catalogue.SummaryQuery) (catal
 	}
 	defer tx.Rollback()
 	filter, args := catalogueFilter(catalogue.Query{SourceID: q.SourceID, Genre: q.Genre, Text: q.Text})
-	genre := "COALESCE(json_extract(i.metadata,'$.genre'),'')"
+	genre := "g.genre"
 	duration := "json_extract(i.metadata,'$.duration_ns')"
-	err = tx.QueryRowContext(ctx, `SELECT count(*),count(DISTINCT CASE WHEN i.album<>'' THEN i.source_id||char(31)||i.album END),count(DISTINCT NULLIF(i.artist,'')),count(DISTINCT NULLIF(`+genre+`,'')),count(DISTINCT i.source_id),COALESCE(sum(CASE WHEN i.artist='' THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN `+genre+`='' THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN `+duration+` IS NULL THEN 1 ELSE 0 END),0),CAST(COALESCE(sum(`+duration+`),0)/1000000000 AS INTEGER)`+filter, args...).Scan(&out.Tracks, &out.Albums, &out.Artists, &out.Genres, &out.Sources, &out.UnknownArtists, &out.UnknownGenres, &out.UnknownDurations, &out.KnownSeconds)
+	err = tx.QueryRowContext(ctx, `SELECT count(*),count(DISTINCT CASE WHEN i.album<>'' THEN i.source_id||char(31)||i.album END),count(DISTINCT NULLIF(i.artist,'')),count(DISTINCT i.source_id),COALESCE(sum(CASE WHEN i.artist='' THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN NOT EXISTS(SELECT 1 FROM catalogue_genres g WHERE g.content_id=i.id) THEN 1 ELSE 0 END),0),COALESCE(sum(CASE WHEN `+duration+` IS NULL THEN 1 ELSE 0 END),0),CAST(COALESCE(sum(`+duration+`),0)/1000000000 AS INTEGER)`+filter, args...).Scan(&out.Tracks, &out.Albums, &out.Artists, &out.Sources, &out.UnknownArtists, &out.UnknownGenres, &out.UnknownDurations, &out.KnownSeconds)
 	if err != nil {
+		return out, err
+	}
+	genreFilter := strings.Replace(filter, " WHERE", " JOIN catalogue_genres g ON g.content_id=i.id WHERE", 1)
+	if err = tx.QueryRowContext(ctx, `SELECT count(DISTINCT g.genre)`+genreFilter, args...).Scan(&out.Genres); err != nil {
 		return out, err
 	}
 	for _, group := range []struct {
 		expression  string
 		destination *[]catalogue.Coverage
 	}{{genre, &out.TopGenres}, {"i.artist", &out.TopArtists}} {
+		groupFilter := filter
+		if group.expression == genre {
+			groupFilter = genreFilter
+		}
 		bounded := append(append([]any{}, args...), q.Limit)
-		rows, e := tx.QueryContext(ctx, `SELECT `+group.expression+`,count(*)`+filter+` AND `+group.expression+`<>'' GROUP BY `+group.expression+` ORDER BY count(*) DESC,lower(`+group.expression+`),`+group.expression+` LIMIT ?`, bounded...)
+		rows, e := tx.QueryContext(ctx, `SELECT `+group.expression+`,count(*)`+groupFilter+` AND `+group.expression+`<>'' GROUP BY `+group.expression+` ORDER BY count(*) DESC,lower(`+group.expression+`),`+group.expression+` LIMIT ?`, bounded...)
 		if e != nil {
 			return out, e
 		}

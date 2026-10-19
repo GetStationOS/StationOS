@@ -1,10 +1,12 @@
 package episodes
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -244,5 +246,135 @@ func TestMusicPromptCanDeliberatelyRepeatPerformerAndAlbum(t *testing.T) {
 	}
 	if !service.RepetitionAllowed(ctx, o) {
 		t.Fatal("prompt-driven special blocked by runtime variety rules")
+	}
+}
+
+func TestPendingSelectionPreservesPlanAndRetryVersions(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	service := &Service{Store: store}
+	if _, err := service.SelectTrack(ctx, production.SelectionRequest{Show: o}); !errors.Is(err, production.ErrPlanPending) {
+		t.Fatal(err)
+	}
+	for _, status := range []string{"planning", "unplanned", "attention"} {
+		retry := time.Now().Add(5 * time.Minute)
+		store.Update(ctx, o, func(e *Episode) error { e.Status = status; e.RetryAt = retry; return nil })
+		before, _ := store.Get(ctx, o.Key)
+		for i := 0; i < 5; i++ {
+			if _, err := service.SelectTrack(ctx, production.SelectionRequest{Show: o}); !errors.Is(err, production.ErrPlanPending) {
+				t.Fatal(status, err)
+			}
+		}
+		after, _ := store.Get(ctx, o.Key)
+		if after.Version != before.Version || !after.RetryAt.Equal(retry) {
+			t.Fatal("pending selection invalidated planning or defeated retry backoff", before, after)
+		}
+	}
+}
+func TestPlanningSurvivesNormalPlaybackAndSpeechContextUpdates(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	store.Update(ctx, o, func(e *Episode) error { e.Status = "planning"; return nil })
+	service := &Service{Store: store, Pool: poolStub{recording("a", 165), recording("b", 165)}}
+	service.Text = &textStub{generate: func(_ ai.TextRequest, n int) (string, error) {
+		if err := service.Remember(ctx, o, "prepared speech (not yet aired)", "A normal presenter link"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := service.SelectTrack(ctx, production.SelectionRequest{Show: o}); !errors.Is(err, production.ErrPlanPending) {
+			t.Fatal(err)
+		}
+		if n == 1 {
+			if err := service.Aired(ctx, o, recording("current", 30), ""); err != nil {
+				t.Fatal(err)
+			}
+			return `{"Action":"search"}`, nil
+		}
+		return `{"Action":"plan","Tracks":["a","b"],"Theme":"A varied hour"}`, nil
+	}}
+	if err := service.Plan(ctx, o); err != nil {
+		t.Fatal("ordinary context updates repeatedly cancelled planning", err)
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if e.Status != "ready" || len(e.Aired) != 1 || e.AiredRevision != 1 {
+		t.Fatal(e)
+	}
+}
+func TestPlanningStillRejectsConcurrentProducerEdits(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	store.Update(ctx, o, func(*Episode) error { return nil })
+	service := &Service{Store: store, Pool: poolStub{recording("a", 165)}}
+	service.Text = &textStub{generate: func(_ ai.TextRequest, _ int) (string, error) {
+		e, _ := store.Get(ctx, o.Key)
+		if err := service.Edit(ctx, o, e.Version, "New producer direction", nil, nil); err != nil {
+			t.Fatal(err)
+		}
+		return `{"Action":"search"}`, nil
+	}}
+	if err := service.Plan(ctx, o); !errors.Is(err, ErrStale) {
+		t.Fatal("old plan overwrote new direction", err)
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if e.Notes != "New producer direction" || e.Status == "ready" {
+		t.Fatal(e)
+	}
+}
+func TestGenuinePlanningFailureIsReportedOnceAndRetryBackoffSurvivesPlayback(t *testing.T) {
+	ctx := context.Background()
+	day := time.Now().UTC().AddDate(0, 0, 1)
+	weekday := (int(day.Weekday()) + 6) % 7
+	shows := scheduleStub{values: []schedule.Show{{ID: "show", StationID: "station", Name: "Automatic", Day: weekday, Start: 540, End: 555, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}}}
+	stations := stationStub{values: []station.Station{{ID: "station", Timezone: "UTC"}}}
+	store := &memoryStore{}
+	var logs bytes.Buffer
+	reported, recovered := 0, 0
+	text := &textStub{generate: func(_ ai.TextRequest, _ int) (string, error) { return "", errors.New("provider test failure") }}
+	service := &Service{Store: store, Pool: poolStub{recording("one", 885)}, Text: text, Logger: slog.New(slog.NewTextHandler(&logs, nil)), ReportPlanning: func(_ schedule.Occurrence, err error) {
+		if err == nil {
+			recovered++
+		} else {
+			reported++
+		}
+	}}
+	if err := service.sweep(ctx, stations, shows); err != nil {
+		t.Fatal(err)
+	}
+	var o schedule.Occurrence
+	for _, candidate := range schedule.Occurrences(shows.values, day, time.UTC) {
+		if candidate.Start.YearDay() == day.YearDay() && candidate.Start.Year() == day.Year() {
+			o = candidate
+		}
+	}
+	before, _ := store.Get(ctx, o.Key)
+	if !before.PlanningFailed || reported != 1 || !strings.Contains(logs.String(), "provider test failure") {
+		t.Fatal("real failure was hidden", before, reported, logs.String())
+	}
+	for i := 0; i < 3; i++ {
+		service.SelectTrack(ctx, production.SelectionRequest{Show: o})
+	}
+	if err := service.sweep(ctx, stations, shows); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := store.Get(ctx, o.Key)
+	if text.calls != 1 || reported != 1 || !after.RetryAt.Equal(before.RetryAt) {
+		t.Fatal("playback caused an error retry storm", text.calls, reported, after)
+	}
+	store.Update(ctx, o, func(e *Episode) error { e.RetryAt = time.Time{}; return nil })
+	text.calls = 0
+	text.generate = func(_ ai.TextRequest, n int) (string, error) {
+		if n == 1 {
+			return `{"Action":"search"}`, nil
+		}
+		return `{"Action":"plan","Tracks":["one"],"Theme":"Recovered"}`, nil
+	}
+	if err := service.sweep(ctx, stations, shows); err != nil {
+		t.Fatal(err)
+	}
+	after, _ = store.Get(ctx, o.Key)
+	if after.Status != "ready" || after.PlanningFailed || recovered != 1 {
+		t.Fatal("real recovery missing", after, recovered)
 	}
 }

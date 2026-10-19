@@ -2,6 +2,10 @@ package broadcast
 
 import (
 	"context"
+	"io"
+	"log/slog"
+	"stationos.local/stationos/internal/operations"
+	"strings"
 	"testing"
 	"time"
 
@@ -200,5 +204,55 @@ func TestChosenTrackMatchesSpeechAndIsRevalidated(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+type pendingEpisodeSelection struct{ called chan struct{} }
+
+func (p pendingEpisodeSelection) SelectTrack(context.Context, production.SelectionRequest) (string, error) {
+	select {
+	case p.called <- struct{}{}:
+	default:
+	}
+	return "", production.ErrPlanPending
+}
+func TestPendingEpisodePlanKeepsMusicWithoutFalseCurationFailures(t *testing.T) {
+	store := &recordingStore{events: map[string]operations.Event{}}
+	rec, err := operations.New(context.Background(), store, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Close()
+	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+	source := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}}}
+	selector := pendingEpisodeSelection{called: make(chan struct{}, 1)}
+	manager, encoder, _ := fixture(t, Options{Schedule: source, Selector: selector, Operations: rec, Now: func() time.Time { return now }})
+	sub, err := manager.Subscribe(context.Background(), "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	first := opened(t, encoder)
+	select {
+	case <-selector.called:
+	case <-time.After(time.Second):
+		t.Fatal("episode selection not attempted")
+	}
+	for i := 0; i < 4; i++ {
+		first.write.Write([]byte("MUSIC"))
+		receive(t, sub)
+	}
+	if state := manager.State("radio"); state.CurationStatus != "Preparing" || state.Current.ID == "" {
+		t.Fatal("pending plan stopped music or became unavailable", state)
+	}
+	sub.Close()
+	manager.Close()
+	rec.Close()
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for _, event := range store.events {
+		if strings.Contains(event.Reason, "DJ curation failed") {
+			t.Fatal("normal pending plan created curation failure", event)
+		}
 	}
 }

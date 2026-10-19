@@ -13,6 +13,9 @@ import (
 	"time"
 )
 
+// ErrPlanPending is an expected local-music fallback, not an inference failure.
+var ErrPlanPending = errors.New("episode running order is pending; local music continues")
+
 var ErrUnavailable = errors.New("DJ preparation unavailable; continuing with music")
 
 type Plan struct {

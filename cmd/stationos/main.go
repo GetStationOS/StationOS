@@ -30,6 +30,7 @@ import (
 	producerAI "stationos.local/stationos/internal/producer/openai"
 	"stationos.local/stationos/internal/production"
 	ai "stationos.local/stationos/internal/production/openai"
+	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources/upnp"
 	"stationos.local/stationos/internal/web"
 )
@@ -145,6 +146,15 @@ func run(args []string, logger *slog.Logger) error {
 	presenter.Text = textProviders
 	episodeStore := persistence.Episodes{DB: db, Changes: changes}
 	episodeService := &episodes.Service{Store: episodeStore, Pool: config, Text: textProviders, Fallback: presenter}
+	episodeService.ReportPlanning = func(o schedule.Occurrence, planningErr error) {
+		at := time.Now()
+		kind, reason := "ai", "Episode planning failed; automatic retry scheduled. Check the curation connection and server logs."
+		if planningErr == nil {
+			kind = "recovery"
+			reason = "Episode planning recovered; a validated running order is ready."
+		}
+		recorder.Record(operations.Event{ID: operations.ID(), StationID: o.StationID, ShowID: o.ShowID, Show: o.Title, DJID: o.DJ.ID, DJ: o.DJ.Name, PlaylistID: o.PlaylistID, Playlist: o.PlaylistName, Started: at, Ended: at, Kind: kind, Outcome: "observed", Phase: "curation", Reason: reason, IncidentCode: "episode-plan:" + o.ShowID + ":" + o.Start.UTC().Format(time.RFC3339), Recover: planningErr == nil, Severity: "warning", Effect: "Local music continues", Action: "Review curation connection settings, episode details and server logs."})
+	}
 	presenter.Session = episodeService
 	stopEpisodes := episodeService.Start(ctx, stations, shows, changes, logger)
 	defer stopEpisodes()
@@ -153,7 +163,7 @@ func run(args []string, logger *slog.Logger) error {
 	playlistsRepo := persistence.Playlists{DB: db}
 	images := producerAI.NewImages(sharedAI)
 	images.Prompts = promptStore
-	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Images: images, Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), textProviders)
+	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Episodes: episodeService, Images: images, Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), textProviders)
 	if err != nil {
 		return err
 	}

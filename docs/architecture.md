@@ -755,3 +755,36 @@ repetition in its episode plan only when requested by show/DJ/producer prompts;
 playback honours that editorial decision. Ordinary plans retain variety checks.
 The producer form labels musical direction as “DJ music prompt” with explicit
 agent-instruction help, rather than presenting a second music-format control.
+
+
+### Producer assistant editorial and episode tools
+
+The show schema describes `music_direction` as the optional DJ music prompt,
+separately from public description and shared DJ personality. `get_show` returns
+its full value without the DJ profile; `list_shows` and mandatory grouped schedule
+readbacks include a bounded prompt preview and explicit truncation flag. Programme
+grouping distinguishes different prompt previews. Partial show updates preserve
+omitted prompts, public descriptions and audience settings. The assistant's shipped
+instructions call for distinct, catalogue-grounded programme concepts, energy arcs,
+discoveries, spacing and deliberate specialist direction, and verify saved prompts
+alongside presenter, timing and playlist choices. User-customised shared prompts
+remain untouched; capability schemas still document these fields.
+
+When the episode service is available, `list_episodes` reads a bounded page of one
+station-local dated week, `get_episode` returns a paginated proposed running order
+and recent actual-air receipts, and `save_episode` uses the same optimistic producer
+edit service as the UI. Recurring direction uses `save_show`; episode notes, keeps
+and exclusions affect only that occurrence. Reads create neither episodes nor AI
+work or listeners. Private session transcripts, transport URLs and credentials are
+not returned. Mutations report pending automatic replanning, never approval or a
+claim of readiness. Episode links target the dedicated HTMX main-content page.
+
+Episode planning in progress is a normal playback state: local music selection
+continues without recording a curation failure or resetting planning retry times.
+Planning checkpoints tolerate routine speech/history updates, while producer edits
+and newly aired music remain protected against stale plan commits. Failed planning
+attempts log their underlying cause and report an operational incident, with a
+five-minute retry delay and a recovery event after a successful retry. OpenAI
+response-body failures identify the endpoint and elapsed time without including
+provider payloads, addresses or credentials; timeouts retain their cancellation
+cause and follow the existing bounded transport retry policy.

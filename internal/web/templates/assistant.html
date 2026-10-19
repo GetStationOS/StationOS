@@ -163,7 +163,7 @@
     </select>
   </label>
   <label data-model-manual="{{.Name}}">Model ID<input name="{{.ModelField}}" data-feature-model="{{.Name}}" list="models-{{.Name}}" value="{{.Model}}" required maxlength="128">
-    <span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} Applies to every DJ.{{else if or (eq .Name "speech") (eq .Name "image")}} Requires an OpenAI endpoint.{{end}}</span>
+    <span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} This provider and model plan episodes, select tracks and write DJ links for all shows and DJs. Speech uses the separate setting below.{{else if or (eq .Name "speech") (eq .Name "image")}} Requires an OpenAI endpoint.{{end}}</span>
   </label>
   <datalist id="models-{{.Name}}">
   </datalist>

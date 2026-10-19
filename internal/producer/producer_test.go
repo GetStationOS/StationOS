@@ -13,6 +13,7 @@ import (
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/sources"
@@ -33,7 +34,7 @@ func fixture(t *testing.T) (producer.Store, *producer.Registry, persistence.Stat
 	st := persistence.Stations{DB: db}
 	pl := persistence.Playlists{DB: db}
 	sh := persistence.Schedule{DB: db}
-	r := producer.NewRegistry(producer.Dependencies{Stations: st, Sources: persistence.Sources{DB: db}, Catalogue: persistence.Catalogue{DB: db}, Playlists: pl, DJs: dj, Schedule: sh, Broadcast: persistence.Broadcast{DB: db}, Mixer: persistence.Mixer{DB: db}, Audience: persistence.Audience{DB: db}})
+	r := producer.NewRegistry(producer.Dependencies{Episodes: &episodes.Service{Store: persistence.Episodes{DB: db}, Pool: persistence.Broadcast{DB: db}}, Stations: st, Sources: persistence.Sources{DB: db}, Catalogue: persistence.Catalogue{DB: db}, Playlists: pl, DJs: dj, Schedule: sh, Broadcast: persistence.Broadcast{DB: db}, Mixer: persistence.Mixer{DB: db}, Audience: persistence.Audience{DB: db}})
 	return persistence.NewProducer(dj), r, st, pl, sh, dj
 }
 func call(t *testing.T, r *producer.Registry, name string, args any) producer.Result {

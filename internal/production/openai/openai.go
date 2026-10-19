@@ -98,7 +98,19 @@ func (p Producer) callOnce(ctx context.Context, path, key string, body any, limi
 		}
 		return nil, err
 	}
-	return production.ReadBounded(response.Body, limit)
+	data, err := production.ReadBounded(response.Body, limit)
+	if err == nil {
+		return data, nil
+	}
+	elapsed := time.Since(started).Round(time.Millisecond)
+	if errors.Is(ctx.Err(), context.Canceled) || errors.Is(err, context.Canceled) {
+		return nil, fmt.Errorf("OpenAI %s response cancelled after %s: %w", path, elapsed, context.Canceled)
+	}
+	var networkError net.Error
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &networkError) && networkError.Timeout()) {
+		return nil, &temporaryFailure{fmt.Errorf("OpenAI %s response timed out after %s: %w", path, elapsed, context.DeadlineExceeded)}
+	}
+	return nil, fmt.Errorf("OpenAI %s response incomplete or exceeds limits", path)
 }
 func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence) (production.Prepared, error) {
 	if show.DJ.ID == "" || (!show.DJ.HasKey && p.Text == nil) {

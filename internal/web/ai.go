@@ -21,7 +21,7 @@ type aiRoleView struct {
 
 func roleViews(s producer.Settings) []aiRoleView {
 	out := []aiRoleView{}
-	for _, r := range []struct{ Name, Label string }{{"assistant", "Producer assistant"}, {"curation", "DJ curation and writing (all DJs)"}, {"audience", "Audience review"}, {"speech", "Speech"}, {"image", "Artwork"}} {
+	for _, r := range []struct{ Name, Label string }{{"assistant", "Producer assistant"}, {"curation", "Show planning and DJ writing"}, {"audience", "Audience review"}, {"speech", "Speech"}, {"image", "Artwork"}} {
 		v := s.Routes.For(r.Name)
 		model, field := s.Model, "model"
 		switch r.Name {

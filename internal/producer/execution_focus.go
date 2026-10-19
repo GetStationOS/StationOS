@@ -19,7 +19,7 @@ func focusedTools(tools []Tool, focus string, reads map[string]int) []Tool {
 			allowed[name] = true
 		}
 	case "schedule":
-		for _, name := range []string{"list_djs", "get_dj", "save_dj", "get_playlist", "save_show", "create_shows", "delete_show", "assign_default_playlist"} {
+		for _, name := range []string{"list_djs", "get_dj", "save_dj", "get_playlist", "list_shows", "get_show", "list_episodes", "get_episode", "save_episode", "save_show", "create_shows", "delete_show", "assign_default_playlist"} {
 			allowed[name] = true
 		}
 	case "station":

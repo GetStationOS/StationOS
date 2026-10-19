@@ -18,6 +18,7 @@ import (
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/mixer"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/schedule"
@@ -179,8 +180,18 @@ func schema(t reflect.Type) any {
 			props["start"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 1439, "multipleOf": 15, "description": "Station-local minutes after midnight; 08:00 is 480 and 20:00 is 1200. Never use HHMM values such as 2000."}
 			props["end"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 1440, "multipleOf": 15, "description": "Station-local minutes after midnight. Midnight may be 0 or 1440 (24:00), never 2400. End at or before start crosses midnight."}
 			props["name"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 200}
-			props["description"] = map[string]any{"type": "string", "maxLength": 2000}
+			props["description"] = map[string]any{"type": "string", "maxLength": 2000, "description": "Public programme description for listeners; not DJ agent instructions."}
+			props["music_direction"] = map[string]any{"type": "string", "maxLength": 4000, "description": "Optional DJ music prompt for this recurring show: themes, track selection, energy arc, performer/album spacing and deliberate specialist focus. Sent to each dated episode agent. Omit to preserve; empty string clears to a varied mix. No rotation_format field exists."}
 			definition["required"] = []string{"station_id"}
+		}
+		if t == reflect.TypeOf(episodeRead{}) || t == reflect.TypeOf(episodeID{}) || t == reflect.TypeOf(episodePatch{}) {
+			definition["required"] = []string{"station_id", "show_id", "start"}
+			props["start"] = map[string]any{"type": "string", "maxLength": 64, "description": "Exact RFC3339 occurrence start from list_episodes, including timezone offset."}
+			if t == reflect.TypeOf(episodePatch{}) {
+				definition["required"] = []string{"station_id", "show_id", "start", "version"}
+				props["version"] = map[string]any{"type": "integer", "minimum": 0, "description": "Latest optimistic version returned by get_episode. Re-read after a stale-version error."}
+				props["notes"] = map[string]any{"type": "string", "maxLength": 4000, "description": "Optional episode-only DJ music prompt. Omit preserves existing notes; empty string clears."}
+			}
 		}
 		if t == reflect.TypeOf(createShowsArgs{}) {
 			props["days"] = map[string]any{"type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": map[string]any{"type": "integer", "minimum": 0, "maximum": 6}, "description": "Selected weekdays, Monday=0 through Sunday=6, each appearing once."}
@@ -202,6 +213,7 @@ func schema(t reflect.Type) any {
 }
 
 type Dependencies struct {
+	Episodes  *episodes.Service
 	Images    ImageGenerator
 	Stations  station.Repository
 	Sources   sources.Repository
@@ -743,14 +755,14 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(nil, "Deleted DJ: "+v.Name, "/producer/djs")
 	})
-	register(r, "list_shows", "Read the saved weekly shows to verify actual configuration. Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6. Results include day_name and local start_time/end_time. Compare every requested day and broadcast window with the original brief. End<=start means next day.", false, func(ctx context.Context, a stationID) (Result, error) {
+	register(r, "list_shows", "Read the saved weekly shows to verify actual configuration. Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6. Results include day_name, local start_time/end_time and a bounded music_direction preview; use get_show for the complete DJ music prompt. Compare every requested day and broadcast window with the original brief. End<=start means next day.", false, func(ctx context.Context, a stationID) (Result, error) {
 		v, e := d.Schedule.List(ctx, a.StationID)
 		for i := range v {
 			v[i].DJ = djs.Profile{}
 		}
 		return read(namedSchedule(v), e)
 	})
-	register(r, "save_show", "Create or update supplied show fields. Provide station_id; days Monday=0..Sunday=6; start/end are minutes after midnight, multiples of 15. Midnight ends may be 0 or 1440 (24:00), never 2400. Use existing DJ and station-owned playlist IDs. Overlaps are rejected.", true, func(ctx context.Context, a showPatch) (Result, error) {
+	register(r, "save_show", "Create or update supplied show fields. Provide station_id; days Monday=0..Sunday=6; start/end are minutes after midnight, multiples of 15. Midnight ends may be 0 or 1440 (24:00), never 2400. Use existing DJ and station-owned playlist IDs. music_direction is the DJ agent prompt for this programme, distinct from its public description and the shared DJ personality prompt. Overlaps are rejected.", true, func(ctx context.Context, a showPatch) (Result, error) {
 		v, e := a.merge(ctx, d)
 		if e != nil {
 			return Result{}, e
@@ -761,7 +773,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(v, "Saved show: "+v.Name, "/producer/stations/"+v.StationID+"/schedule/"+v.ID)
 	})
-	register(r, "create_shows", "Create one programme on selected weekdays atomically. Supply ONE show object and days, never an array in show. Call separately for distinct programmes. Monday=0 through Sunday=6. Start/end use quarter-hour minutes after midnight; midnight end is 0 or 1440, never 2400. Use existing presenter and station-owned playlist IDs; omit show.id. Conflicts reject every selected day.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
+	register(r, "create_shows", "Create one programme on selected weekdays atomically. Supply ONE show object and days, never an array in show. Call separately for distinct programmes. Monday=0 through Sunday=6. Start/end use quarter-hour minutes after midnight; midnight end is 0 or 1440, never 2400. Use existing presenter and station-owned playlist IDs; omit show.id. Set show.music_direction to the programme-specific DJ music prompt, shared across its recurring days. Conflicts reject every selected day.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
 		if a.Show.ID != "" {
 			return Result{}, schedule.Invalid("omit show.id in create_shows; use save_show to edit an existing show")
 		}
@@ -879,6 +891,7 @@ func NewRegistry(d Dependencies) *Registry {
 			return saved(nil, "Updated audience submission", "/producer/stations/"+a.StationID+"/audience")
 		})
 	}
+	registerEpisodeTools(r, d)
 	return r
 }
 

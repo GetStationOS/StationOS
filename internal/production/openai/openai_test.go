@@ -245,3 +245,25 @@ func TestSpeechUsesRoleModelAndProfileUsesItsOwnModel(t *testing.T) {
 		t.Fatal("speech model change reuses cached audio")
 	}
 }
+
+type failedResponseReader struct{ err error }
+
+func (r failedResponseReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestResponseBodyFailureIdentifiesStageWithoutPrivateDetails(t *testing.T) {
+	for _, stage := range []string{"responses", "audio/speech"} {
+		for _, cause := range []error{context.DeadlineExceeded, context.Canceled, errors.New("private-host test-secret")} {
+			p := New(testKeys{}, nil, testAudio{})
+			p.Client.Transport = transport(func(*http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: 200, Body: io.NopCloser(failedResponseReader{fmt.Errorf("test-secret: %w", cause)})}, nil
+			})
+			_, err := p.callOnce(context.Background(), stage, "test-secret", nil, 100)
+			if err == nil || !strings.Contains(err.Error(), stage) || strings.Contains(err.Error(), "test-secret") || strings.Contains(err.Error(), "private-host") {
+				t.Fatal(err)
+			}
+			if (cause == context.DeadlineExceeded || cause == context.Canceled) && !errors.Is(err, cause) {
+				t.Fatal("lost timeout/cancellation cause", err)
+			}
+		}
+	}
+}

@@ -15,6 +15,10 @@ import (
 // Start prepares the coming seven days on a single bounded worker. A persisted
 // retry deadline doubles as a crash-recoverable lease. No audio work is started.
 func (s *Service) Start(parent context.Context, stations station.Repository, shows schedule.Repository, bus *changefeed.Bus, logger *slog.Logger) func() {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	s.Logger = logger
 	ctx, cancel := context.WithCancel(parent)
 	done := make(chan struct{})
 	go func() {
@@ -101,8 +105,13 @@ func (s *Service) sweep(ctx context.Context, stations station.Repository, shows 
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
+		previous, readErr := s.Store.Get(ctx, o.Key)
+		if readErr != nil {
+			return readErr
+		}
 		err = s.Store.Update(ctx, o, func(e *Episode) error {
 			e.Status = "planning"
+			e.Note("planning attempt", "Preparing this episode running order.")
 			e.Problem = ""
 			e.RetryAt = time.Now().Add(6 * time.Minute)
 			return nil
@@ -114,6 +123,9 @@ func (s *Service) sweep(ctx context.Context, stations station.Repository, shows 
 		err = s.Plan(task, o)
 		cancel()
 		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			// A producer edit or actual play invalidates the generation snapshot; never
 			// overwrite newer choices, and let the next sweep adapt the same session.
 			if errors.Is(err, ErrStale) {
@@ -126,15 +138,42 @@ func (s *Service) sweep(ctx context.Context, stations station.Repository, shows 
 				})
 				continue
 			}
-			_ = s.Store.Update(ctx, o, func(e *Episode) error {
+			logger := s.Logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.Warn("Episode planning failed", "station_id", o.StationID, "show_id", o.ShowID, "episode_start", o.Start, "error", err)
+			failure := err
+			saveErr := s.Store.Update(ctx, o, func(e *Episode) error {
+				e.PlanningFailed = true
 				e.Status = "attention"
 				if len(e.Plan) == 0 {
 					e.Status = "unplanned"
 				}
-				e.Problem = "Planning could not complete. Music continues automatically; preparation will retry."
+				e.Problem = "Episode planning failed. Music continues automatically; preparation will retry. Check the curation connection and server logs."
+				if errors.Is(failure, context.DeadlineExceeded) {
+					e.Problem = "Episode planning timed out. Music continues automatically; preparation will retry."
+				}
+				for i := len(e.Turns) - 1; i >= 0; i-- {
+					if e.Turns[i].Kind == "planning attempt" {
+						break
+					}
+					if e.Turns[i].Kind == "plan validation" {
+						e.Problem = "The running order needs revision: " + e.Turns[i].Text + " Automatic preparation will retry."
+						break
+					}
+				}
 				e.RetryAt = time.Now().Add(5 * time.Minute)
 				return nil
 			})
+			if saveErr != nil {
+				return saveErr
+			}
+			if s.ReportPlanning != nil {
+				s.ReportPlanning(o, failure)
+			}
+		} else if previous.PlanningFailed && s.ReportPlanning != nil {
+			s.ReportPlanning(o, nil)
 		}
 	}
 	return nil

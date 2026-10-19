@@ -498,7 +498,9 @@ func (m *Manager) playProgramme(id string, r *run) {
 				if result.show == queuedShow && result.current == queuedAfter {
 					clear(selectionStates)
 					selectionStates[result.show] = "Ready"
-					if result.err != nil {
+					if errors.Is(result.err, production.ErrPlanPending) {
+						selectionStates[result.show] = "Preparing"
+					} else if result.err != nil {
 						selectionStates[result.show] = "Unavailable"
 					} else {
 						queued = result.item
@@ -1035,7 +1037,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 						chosen := req.Next
 						var selectionErr error
 						chosen, selectionErr = m.selectNextTrack(linkCtx, selection, chosen, requestedTrack)
-						if selectionErr != nil && !errors.Is(selectionErr, context.Canceled) {
+						if selectionErr != nil && !errors.Is(selectionErr, context.Canceled) && !errors.Is(selectionErr, production.ErrPlanPending) {
 							m.logger.Warn("DJ music selection unavailable", "station_id", id, "error", selectionErr)
 							m.observe(id, "ai", "DJ curation failed; local music selection continues", State{Programme: req.Show}, "curation", false)
 						}

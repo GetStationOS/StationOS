@@ -145,3 +145,40 @@ func (s *Server) newSourcePage(w http.ResponseWriter, r *http.Request) {
 	}
 	s.renderPage(w, r, http.StatusOK, "new-source-page", v)
 }
+
+func (s *Server) deleteSourcePage(w http.ResponseWriter, r *http.Request) {
+	v := sourcePageView{pageView: s.baseView(r)}
+	var err error
+	v.Source, err = s.d.Sources.Get(r.Context(), r.PathValue("id"))
+	if errors.Is(err, sources.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	v.Title = "Remove source"
+	if fragmentTarget(r, "dialog-body") {
+		s.renderHTML(w, http.StatusOK, "delete-source", v)
+		return
+	}
+	s.renderPage(w, r, http.StatusOK, "delete-source-page", v)
+}
+
+func (s *Server) deleteSource(w http.ResponseWriter, r *http.Request) {
+	if r.PostForm.Get("confirm") != "yes" {
+		http.Error(w, "confirm source removal", http.StatusBadRequest)
+		return
+	}
+	err := s.d.Sources.Delete(r.Context(), r.PathValue("id"))
+	if errors.Is(err, sources.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	s.redirect(w, r, "/producer/sources?notice=source-deleted")
+}

@@ -368,3 +368,82 @@ func TestMinimServerMissingItemsViewFails(t *testing.T) {
 		t.Fatal("missing complete view accepted")
 	}
 }
+
+// Gerbera's SDK closes SOAP connections without a Connection: close response
+// header. A subsequent POST must never race that close on a pooled connection.
+func TestBrowseUsesFreshConnectionsForClosingUPnPServers(t *testing.T) {
+	desc := fixture(t, "description.xml")
+	music := fixture(t, "music.xml")
+	connections := map[string]bool{}
+	var mu sync.Mutex
+	p, _ := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/desc" {
+			io.WriteString(w, desc)
+			return
+		}
+		if !r.Close {
+			t.Error("SOAP request permits reuse of a closing connection")
+		}
+		mu.Lock()
+		if connections[r.RemoteAddr] {
+			t.Error("SOAP requests reused a connection")
+		}
+		connections[r.RemoteAddr] = true
+		mu.Unlock()
+		io.Copy(io.Discard, r.Body)
+		response := soap(music, 1, 1)
+		conn, buf, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer conn.Close()
+		fmt.Fprintf(buf, "HTTP/1.1 200 OK\r\nContent-Type: text/xml\r\nContent-Length: %d\r\n\r\n%s", len(response), response)
+		if err := buf.Flush(); err != nil {
+			t.Error(err)
+		}
+	}))
+	for i := 0; i < 5; i++ {
+		page, err := p.Browse(context.Background(), "0", 0, 100)
+		if err != nil || len(page.Entries) != 1 {
+			t.Fatalf("browse %d: page=%+v err=%v", i, page, err)
+		}
+	}
+}
+
+func TestGerberaCatalogueUsesDiscoveredAllAudioView(t *testing.T) {
+	for _, missing := range []bool{false, true} {
+		t.Run(fmt.Sprint(missing), func(t *testing.T) {
+			p, _ := testProvider(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/desc" {
+					io.WriteString(w, `<root><device><manufacturer>Gerbera Contributors</manufacturer><modelName>Gerbera</modelName><serviceList><service><serviceType>urn:schemas-upnp-org:service:ContentDirectory:1</serviceType><controlURL>/control</controlURL></service></serviceList></device></root>`)
+					return
+				}
+				body, _ := io.ReadAll(r.Body)
+				didl := `<DIDL-Lite xmlns:dc="http://purl.org/dc/elements/1.1/">`
+				if strings.Contains(string(body), "<ObjectID>0</ObjectID>") {
+					didl += `<container id="custom-audio"><dc:title>Audio</dc:title></container>`
+				} else if strings.Contains(string(body), "<ObjectID>custom-audio</ObjectID>") {
+					title := "All Audio"
+					if missing {
+						title = "Albums"
+					}
+					didl += `<container id="custom-all"><dc:title>` + title + `</dc:title></container>`
+				} else {
+					t.Errorf("unexpected browse: %s", body)
+				}
+				io.WriteString(w, soap(didl+`</DIDL-Lite>`, 1, 1))
+			}))
+			root, err := p.CatalogueRoot(context.Background())
+			if missing {
+				if err == nil {
+					t.Fatal("missing complete view silently fell back to virtual graph", root)
+				}
+				return
+			}
+			if err != nil || root != "custom-all" {
+				t.Fatal(root, err)
+			}
+		})
+	}
+}

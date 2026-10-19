@@ -69,8 +69,9 @@ func (c Config) Validate() error {
 }
 
 type Entry struct {
-	ContainerID string
-	Item        *content.AudioItem
+	ContainerID    string
+	ContainerTitle string
+	Item           *content.AudioItem
 }
 type Page struct {
 	Entries  []Entry
@@ -104,6 +105,7 @@ type Repository interface {
 	Save(context.Context, Config) error
 	Get(context.Context, string) (Config, error)
 	List(context.Context) ([]Config, error)
+	Delete(context.Context, string) error
 }
 type Service struct{ Repo Repository }
 

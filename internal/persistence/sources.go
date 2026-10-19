@@ -12,6 +12,23 @@ type Sources struct{ DB *sql.DB }
 
 var _ sources.Repository = Sources{}
 
+// Delete also removes this source's derived catalogue through the existing
+// foreign-key cascade. Playlist choices and external music files are retained.
+func (r Sources) Delete(ctx context.Context, id string) error {
+	res, err := r.DB.ExecContext(ctx, `DELETE FROM sources WHERE id=?`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return sources.ErrNotFound
+	}
+	return nil
+}
+
 func (r Sources) Save(ctx context.Context, c sources.Config) error {
 	if err := c.Validate(); err != nil {
 		return err

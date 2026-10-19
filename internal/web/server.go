@@ -189,6 +189,8 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/sources/discover", s.discoverSources)
 	mux.HandleFunc("GET /producer/sources/{id}", s.sourcePage)
 	mux.HandleFunc("GET /producer/sources/{id}/settings", s.sourcePage)
+	mux.HandleFunc("GET /producer/sources/{id}/delete", s.deleteSourcePage)
+	mux.HandleFunc("POST /producer/sources/{id}/delete", s.deleteSource)
 	mux.HandleFunc("GET /producer/content", s.page)
 	mux.HandleFunc("GET /producer/api/v1/status", s.status)
 	mux.HandleFunc("GET /producer/playlists", s.playlistPage)

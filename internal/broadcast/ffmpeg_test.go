@@ -15,6 +15,8 @@ import (
 
 type sourceRepo struct{}
 
+func (sourceRepo) Delete(context.Context, string) error { return nil }
+
 func (sourceRepo) Get(context.Context, string) (sources.Config, error) {
 	return sources.Config{ID: "music"}, nil
 }

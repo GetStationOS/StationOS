@@ -60,6 +60,7 @@ type Provider struct {
 	service       string
 	allowLoopback bool
 	minimServer   bool
+	gerbera       bool
 }
 
 var _ sources.AudioSource = (*Provider)(nil)
@@ -175,6 +176,7 @@ func (p *Provider) ensure(ctx context.Context) error {
 	p.control = control
 	p.service = svc.Type
 	p.minimServer = isMinimServer(desc.Device)
+	p.gerbera = isGerbera(desc.Device)
 	return nil
 }
 func isMinimServer(d device) bool {
@@ -183,6 +185,18 @@ func isMinimServer(d device) bool {
 	}
 	for _, child := range d.Devices {
 		if isMinimServer(child) {
+			return true
+		}
+	}
+	return false
+}
+
+func isGerbera(d device) bool {
+	if strings.EqualFold(strings.TrimSpace(d.Manufacturer), "Gerbera Contributors") && strings.EqualFold(strings.TrimSpace(d.Model), "Gerbera") {
+		return true
+	}
+	for _, child := range d.Devices {
+		if isGerbera(child) {
 			return true
 		}
 	}
@@ -198,6 +212,29 @@ func (p *Provider) CatalogueRoot(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if !p.minimServer {
+		if p.gerbera {
+			// Gerbera's built-in All Audio view enumerates original recordings
+			// without walking virtual copies in every album/artist/genre view.
+			root, err := p.Browse(ctx, "0", 0, 100)
+			if err != nil {
+				return "", err
+			}
+			for _, entry := range root.Entries {
+				if entry.ContainerID == "" || entry.ContainerTitle != "Audio" {
+					continue
+				}
+				audio, err := p.Browse(ctx, entry.ContainerID, 0, 100)
+				if err != nil {
+					return "", err
+				}
+				for _, view := range audio.Entries {
+					if view.ContainerID != "" && view.ContainerTitle == "All Audio" {
+						return view.ContainerID, nil
+					}
+				}
+			}
+			return "", errors.New("Gerbera does not expose its built-in Audio / All Audio view")
+		}
 		return "0", nil
 	}
 	page, err := p.Browse(ctx, "0", 0, 100)
@@ -239,6 +276,9 @@ func (p *Provider) browse(ctx context.Context, object, flag string, offset, coun
 	}
 	req.Header.Set("Content-Type", "text/xml; charset=utf-8")
 	req.Header.Set("SOAPAction", `"`+p.service+`#Browse"`)
+	// Some UPnP servers close SOAP connections without advertising it. Do not
+	// reuse a connection that may be closing for the next non-replayable POST.
+	req.Close = true
 	res, err := p.client.Do(req)
 	if err != nil {
 		return sources.Page{}, err
@@ -397,6 +437,7 @@ func (p *Provider) parseDIDL(raw string) ([]sources.Entry, error) {
 		entry := sources.Entry{}
 		if start.Name.Local == "container" {
 			entry.ContainerID = v.ID
+			entry.ContainerTitle = v.Title
 		} else if strings.HasPrefix(v.Class, "object.item.audioItem") {
 			kind := content.RecordedProgramme
 			if strings.HasPrefix(v.Class, "object.item.audioItem.musicTrack") {

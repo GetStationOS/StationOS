@@ -407,6 +407,8 @@ type preparedResult struct {
 type linkStatus struct{ show, status string }
 
 type selectionResult struct {
+	programme     schedule.Occurrence
+	requested     bool
 	show, current string
 	item          content.AudioItem
 	err           error
@@ -506,6 +508,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 					} else {
 						queued = result.item
 					}
+					m.recordSelection(id, result.programme, queued, result.requested, result.err)
 				}
 			case update := <-linkUpdates:
 				// Keep state bounded and ignore older shows when updating playout.
@@ -1047,7 +1050,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 							m.observe(id, "ai", "DJ curation failed; local music selection continues", State{Programme: req.Show}, "curation", false)
 						}
 						select {
-						case selectionResults <- selectionResult{selection.Show.Key, selection.Current.ID, chosen, selectionErr}:
+						case selectionResults <- selectionResult{programme: selection.Show, requested: requestedTrack, show: selection.Show.Key, current: selection.Current.ID, item: chosen, err: selectionErr}:
 						case <-linkCtx.Done():
 							return
 						}

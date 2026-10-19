@@ -417,7 +417,7 @@ func (s *Server) historyDisplayEvents(r *http.Request, stationID string, events 
 	return display
 }
 func operationTypeLabel(kind string) string {
-	label := map[string]string{"music": "Music", "speech": "DJ speech", "started": "Station started", "stopped": "Station stopped", "handover": "Show handover", "ai": "DJ preparation", "failure": "Playback problem", "recovery": "Recovered", "stall": "Audio delayed", "listener": "Listener disconnected", "intervention": "Producer action", "unavailable": "Station unavailable"}[kind]
+	label := map[string]string{"selection": "Track selection", "music": "Music", "speech": "DJ speech", "started": "Station started", "stopped": "Station stopped", "handover": "Show handover", "ai": "DJ preparation", "failure": "Playback problem", "recovery": "Recovered", "stall": "Audio delayed", "listener": "Listener disconnected", "intervention": "Producer action", "unavailable": "Station unavailable"}[kind]
 	if label == "" {
 		label = "Station activity"
 	}

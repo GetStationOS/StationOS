@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"stationos.local/stationos/internal/broadcast"
@@ -50,6 +51,10 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 			v.Episode.Status = "attention"
 			v.Episode.Problem = "Show settings changed; the DJ will update this episode automatically."
 		}
+		// Older saved failures use full-show planning terminology.
+		v.Episode.Problem = strings.ReplaceAll(v.Episode.Problem, "The DJ returned an invalid planning response. No new running order was saved. Automatic preparation will retry.", "The DJ returned an unreadable track choice. No new DJ selection was accepted.")
+		v.Episode.Problem = strings.ReplaceAll(v.Episode.Problem, "The running order needs revision:", "The DJ choice could not be used:")
+		v.Episode.Problem = strings.TrimSpace(strings.TrimSuffix(v.Episode.Problem, "Automatic preparation will retry."))
 		v.Episode.Start = v.Episode.Start.In(loc)
 		v.Episode.End = v.Episode.End.In(loc)
 		v.Episode.PlanStartsAt = v.Episode.PlanStartsAt.In(loc)

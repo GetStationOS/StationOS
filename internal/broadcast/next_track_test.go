@@ -253,9 +253,16 @@ func TestPendingEpisodePlanKeepsMusicWithoutFalseCurationFailures(t *testing.T) 
 	rec.Close()
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	selectionRecorded := false
 	for _, event := range store.events {
+		if event.Kind == "selection" && strings.Contains(event.Reason, "not ready") {
+			selectionRecorded = true
+		}
 		if strings.Contains(event.Reason, "DJ curation failed") {
 			t.Fatal("normal pending plan created curation failure", event)
 		}
+	}
+	if !selectionRecorded {
+		t.Fatal("applied fallback missing from timeline")
 	}
 }

@@ -3,9 +3,15 @@ package broadcast
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log/slog"
+	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/operations"
+	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/schedule"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -69,5 +75,36 @@ func TestTransmissionHistorySharedListenersAndInterruptedTrack(t *testing.T) {
 	}
 	if music != 1 || !started || !stopped {
 		t.Fatalf("shared transmission: music=%d started=%v stopped=%v", music, started, stopped)
+	}
+}
+
+func TestSelectionObservationsDescribeOutcomesWithoutIncidents(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		requested bool
+		err       error
+		want      string
+	}{
+		{"DJ", false, nil, "DJ selected"}, {"pending", false, production.ErrPlanPending, "not ready"}, {"failed", false, errors.New("private provider response"), "could not be used"}, {"request", true, nil, "Listener request queued"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &recordingStore{events: map[string]operations.Event{}}
+			recorder, err := operations.New(context.Background(), store, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			manager := New(nil, nil, nil, Options{Operations: recorder})
+			show := schedule.Occurrence{ShowID: "show", Title: "Jazz After Dark", PlaylistID: "pool", DJ: djs.Profile{ID: "dj", Name: "Miles"}}
+			manager.recordSelection("radio", show, content.AudioItem{ID: "track", Title: "Cheryl", Artist: "Charlie Parker"}, tc.requested, tc.err)
+			recorder.Close()
+			if len(store.events) != 1 {
+				t.Fatal(store.events)
+			}
+			for _, event := range store.events {
+				if event.Kind != "selection" || event.TrackID != "track" || event.ShowID != "show" || event.IncidentCode != "" || event.Severity != "" || event.Outcome != "observed" || !event.Ended.Equal(event.Started) || !strings.Contains(event.Title+event.Reason, tc.want) || strings.Contains(event.Reason, "private provider response") {
+					t.Fatal(event)
+				}
+			}
+		})
 	}
 }

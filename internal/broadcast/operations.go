@@ -1,8 +1,11 @@
 package broadcast
 
 import (
+	"errors"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/operations"
+	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/schedule"
 )
 
 func transmissionEvent(id string, s State) operations.Event {
@@ -54,4 +57,35 @@ func (m *Manager) observe(id, kind, message string, s State, code string, recove
 	e.Effect = effect
 	e.Action = action
 	m.record(e)
+}
+
+// Selection observations describe applied queue outcomes, never inferred intent or airtime.
+func (m *Manager) recordSelection(id string, show schedule.Occurrence, item content.AudioItem, requested bool, err error) {
+	if item.ID == "" {
+		return
+	}
+	event := transmissionEvent(id, State{Programme: show, Current: item})
+	event.Kind = "selection"
+	label := "DJ selected"
+	reason := "The DJ choice passed playlist and timing checks and was queued next."
+	switch {
+	case requested:
+		label = "Listener request queued"
+		reason = "An approved listener request took priority over DJ selection."
+	case show.DJ.ID == "":
+		label = "Automatic selection"
+		reason = "Queued from the eligible playlist; no DJ is assigned."
+	case errors.Is(err, production.ErrPlanPending):
+		label = "Automatic selection"
+		reason = "The DJ choice was not ready; automatic music selection was queued to keep the show playing."
+	case err != nil:
+		label = "Automatic selection"
+		reason = "The DJ choice was unavailable or could not be used; automatic music selection was queued."
+	}
+	event.Title = label + " · " + item.Title
+	event.Reason = reason
+	event.Started = m.now()
+	event.Ended = event.Started
+	event.Outcome = "observed"
+	m.record(event)
 }

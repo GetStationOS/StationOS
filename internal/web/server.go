@@ -80,7 +80,7 @@ type Server struct {
 
 func templateFunctions() template.FuncMap {
 	return template.FuncMap{"audienceStateIcon": audienceStateIcon, "historyStateIcon": historyStateIcon, "incidentStateIcon": incidentStateIcon, "heading": heading, "headingLink": headingLink, "scheduleHeading": scheduleHeading, "episodeHeading": episodeHeading, "playlistsHeading": playlistsHeading, "playlistHeading": playlistHeading, "assistantHeading": assistantHeading, "crumb": crumb, "breadcrumbs": breadcrumbs, "stationBreadcrumbs": stationBreadcrumbs, "sourceBreadcrumbs": sourceBreadcrumbs, "publicBreadcrumbs": publicBreadcrumbs, "stationTabs": stationTabs, "sourceTabs": sourceTabs, "playlistTabs": playlistTabs, "assistantTabs": assistantTabs, "formActions": formActions, "operationTypeLabel": operationTypeLabel, "operationOutcomeLabel": operationOutcomeLabel, "operationKinds": func() []string {
-		return []string{"music", "speech", "started", "stopped", "handover", "ai", "failure", "recovery", "stall", "listener", "intervention", "unavailable"}
+		return []string{"music", "speech", "selection", "started", "stopped", "handover", "ai", "failure", "recovery", "stall", "listener", "intervention", "unavailable"}
 	}, "operationOutcomes": func() []string {
 		return []string{"transmitting", "completed", "interrupted", "failed", "unknown", "observed"}
 	}, "assetURL": assetURL, "stationPhotoEditor": stationPhotoEditor, "djPhotoEditor": djPhotoEditor, "djIndicators": djIndicators, "presenterStatus": presenterStatus, "producerLogo": producerLogo, "stationTrack": stationTrack, "currentBroadcastTrack": currentBroadcastTrack, "timeLabel": schedule.TimeLabel, "indexDay": func(day int) string { return weekDays[day].Name }}

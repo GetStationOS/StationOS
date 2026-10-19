@@ -173,19 +173,19 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 				if len(e.Plan) == 0 {
 					e.Status = "unplanned"
 				}
-				e.Problem = "Episode planning failed. Music continues automatically; preparation will retry. Check the curation connection and server logs."
+				e.Problem = "The DJ could not choose the next track. Check the curation connection and server logs."
 				if errors.Is(failure, ai.ErrInvalidStructuredResponse) {
-					e.Problem = "The DJ returned an invalid planning response. No new running order was saved. Automatic preparation will retry."
+					e.Problem = "The DJ returned an unreadable track choice. No new DJ selection was accepted."
 				}
 				if errors.Is(failure, context.DeadlineExceeded) {
-					e.Problem = "Episode planning timed out. Music continues automatically; preparation will retry."
+					e.Problem = "The DJ took too long to choose the next track."
 				}
 				for i := len(e.Turns) - 1; i >= 0; i-- {
 					if e.Turns[i].Kind == "planning attempt" {
 						break
 					}
 					if e.Turns[i].Kind == "plan validation" {
-						e.Problem = "The running order needs revision: " + e.Turns[i].Text + " Automatic preparation will retry."
+						e.Problem = "The DJ choice could not be used: " + e.Turns[i].Text
 						break
 					}
 				}

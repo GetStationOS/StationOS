@@ -574,3 +574,10 @@ performers, albums and durations. Producer notes, Keep and Exclude controls belo
 to that dated episode, not playlist membership. Live readiness updates preserve
 calendar scroll/focus and never overwrite the producer form. Offer an explicit
 running-order refresh, protect unsaved changes and retain input on validation.
+
+Track-selection outcomes appear as plain inline Timeline entries, separate from
+aired music: DJ selected, automatic selection (including a choice not yet ready),
+or approved listener request. Record only results applied to the current queue,
+with recording, presenter and playlist context. Queue selection is not proof of
+airtime or an invented account of the agent's reasoning. Routine outcomes do not
+create incidents; stale preparation results are ignored.

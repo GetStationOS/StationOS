@@ -6,7 +6,7 @@
 {{else if eq . "started"}}<path d="m8 4 12 8-12 8Z"/>
 {{else if eq . "stopped"}}<rect x="5" y="5" width="14" height="14" rx="2"/>
 {{else if eq . "handover"}}<path d="M3 7h17l-4-4M21 17H4l4 4M20 7l-4 4M4 17l4-4"/>
-{{else if eq . "ai"}}<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>
+{{else if or (eq . "ai") (eq . "selection")}}<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>
 {{else if eq . "recovery"}}<path d="M4 10a8 8 0 1 1 1 8M4 4v6h6M9 14l3 3 5-6"/>
 {{else if eq . "error"}}<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>
 {{else if eq . "warning"}}<path d="m12 3 10 18H2Z M12 9v5M12 17h.01"/>

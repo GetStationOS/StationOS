@@ -165,19 +165,30 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 		store.Update(ctx, o, func(e *episodes.Episode) error {
 			e.Status = state
 			e.Problem = ""
+			e.PlanningFailed = state != "ready"
+			if state == "planning" {
+				e.Problem = "Earlier failure"
+				e.RetryAt = time.Now().Add(time.Minute)
+			}
 			if state == "failed" {
 				e.Status = "unplanned"
 				e.PlanningFailed = true
-				e.Problem = "The DJ returned an invalid planning response."
+				e.Problem = "The DJ returned an invalid planning response. No new running order was saved. Automatic preparation will retry."
 				e.RetryAt = time.Now().Add(5 * time.Minute)
 			}
 			return nil
 		})
 		beforeStatus, _ := store.Get(ctx, o.Key)
 		w = request(h, "GET", statusPath, nil, nil)
-		want := map[string]string{"planning": "Choosing next track", "failed": "invalid planning response", "ready": "Running order updated"}[state]
+		want := map[string]string{"planning": "Choosing next track", "failed": "unreadable track choice", "ready": "Running order updated"}[state]
 		if w.Code != 200 || !strings.Contains(w.Body.String(), want) || strings.Contains(w.Body.String(), "textarea") || strings.Contains(w.Body.String(), "checkbox") || strings.Contains(w.Body.String(), "<details") || strings.Contains(w.Body.String(), "<summary") {
 			t.Fatal("status replaced producer controls", w.Code, w.Body.String())
+		}
+		if state == "failed" && (!strings.Contains(w.Body.String(), `class="feedback feedback-warning"`) || !strings.Contains(w.Body.String(), "Automatic retry at") || strings.Contains(w.Body.String(), "No new running order")) {
+			t.Fatal("failure feedback is not separated or current", w.Body.String())
+		}
+		if state != "failed" && strings.Contains(w.Body.String(), `class="feedback feedback-warning"`) {
+			t.Fatal("stale warning shown during preparation or after success")
 		}
 		afterStatus, _ := store.Get(ctx, o.Key)
 		if beforeStatus.Version != afterStatus.Version {

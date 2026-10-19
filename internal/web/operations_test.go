@@ -505,3 +505,10 @@ func TestIncidentViewsAndReviewPreserveHistory(t *testing.T) {
 		t.Fatal("invalid review filter accepted")
 	}
 }
+
+func TestSelectionFeedbackIsVisibleRoutineActivity(t *testing.T) {
+	event := producerEvent(operations.Event{Kind: "selection", Outcome: "observed", Title: "DJ selected · Cheryl", Reason: "The DJ choice passed playlist and timing checks and was queued next.", Started: time.Now()}, time.UTC)
+	if event.TypeLabel != "Track selection" || event.Notes == "" || event.OutcomeStyle == "warning" || event.OutcomeStyle == "error" {
+		t.Fatal(event)
+	}
+}

@@ -60,7 +60,7 @@ func (p Producer) SelectTrack(parent context.Context, request production.Selecti
 			return "", err
 		}
 	}
-	input, _ := json.Marshal(map[string]any{"show": request.Show.Title, "dj": request.Show.DJ.Name, "fictional_background": request.Show.DJ.Background, "current": songDetails(request.Current), "remaining_seconds": request.RemainingSeconds, "tracks": candidates})
+	input, _ := json.Marshal(map[string]any{"episode_session": p.episodeContext(ctx, request.Show), "musical_direction": request.Show.MusicDirection, "show": request.Show.Title, "dj": request.Show.DJ.Name, "fictional_background": request.Show.DJ.Background, "current": songDetails(request.Current), "remaining_seconds": request.RemainingSeconds, "tracks": candidates})
 	basePrompt, err := prompts.Load(ctx, p.Prompts, "selection")
 	if err != nil {
 		return "", err

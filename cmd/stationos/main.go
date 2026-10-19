@@ -22,6 +22,7 @@ import (
 	_ "time/tzdata"
 
 	"stationos.local/stationos/internal/catalogue"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/persistence"
@@ -129,7 +130,7 @@ func run(args []string, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	shows := persistence.Schedule{DB: db}
+	shows := persistence.Schedule{DB: db, Changes: changes}
 	audienceRepo := persistence.Audience{DB: db, Changes: changes}
 	sharedAI := persistence.NewProducer(djsRepo)
 	sharedAI.Changes = changes
@@ -142,7 +143,12 @@ func run(args []string, logger *slog.Logger) error {
 	presenter.Prompts = promptStore
 	presenter.Models = sharedAI
 	presenter.Text = textProviders
-	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: presenter, Audience: audienceRepo})
+	episodeStore := persistence.Episodes{DB: db, Changes: changes}
+	episodeService := &episodes.Service{Store: episodeStore, Pool: config, Text: textProviders, Fallback: presenter}
+	presenter.Session = episodeService
+	stopEpisodes := episodeService.Start(ctx, stations, shows, changes, logger)
+	defer stopEpisodes()
+	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: episodeService, Session: episodeService, Audience: audienceRepo})
 	defer broadcasts.Close()
 	playlistsRepo := persistence.Playlists{DB: db}
 	images := producerAI.NewImages(sharedAI)
@@ -153,7 +159,7 @@ func run(args []string, logger *slog.Logger) error {
 	}
 	defer assistant.Close()
 	assistant.Prompts = promptStore
-	handler, err := web.New(web.Dependencies{Changes: changes, Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
+	handler, err := web.New(web.Dependencies{Episodes: episodeService, Changes: changes, Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
 	if err != nil {
 		return err
 	}

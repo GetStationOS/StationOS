@@ -26,6 +26,7 @@ type Show struct {
 	AcceptRequests, AcceptShoutouts       bool
 	ID, StationID, Name, DJID, PlaylistID string
 	Description                           string
+	MusicDirection, RotationFormat        string
 	Day, Start, End                       int // Monday=0; minutes after midnight. End <= Start means next day.
 	Revision                              int
 	DJName, PlaylistName                  string
@@ -48,6 +49,10 @@ func Invalid(reason string) error { return fmt.Errorf("%w: %s", ErrInvalid, reas
 func (s Show) Normalized() Show {
 	s.Name = strings.TrimSpace(s.Name)
 	s.Description = strings.TrimSpace(s.Description)
+	s.MusicDirection = strings.TrimSpace(s.MusicDirection)
+	if s.RotationFormat == "" {
+		s.RotationFormat = "varied"
+	}
 	if s.End == 1440 {
 		s.End = 0
 	}
@@ -64,6 +69,10 @@ func (s Show) Validate() error {
 		return Invalid("show name must be at most 200 characters")
 	case len(s.Description) > 2000:
 		return Invalid("show description must be at most 2000 characters")
+	case len(s.MusicDirection) > 4000:
+		return Invalid("musical direction must be at most 4000 characters")
+	case s.RotationFormat != "" && s.RotationFormat != "varied" && s.RotationFormat != "artist" && s.RotationFormat != "album":
+		return Invalid("choose a valid rotation format")
 	case s.DJID == "":
 		return Invalid("choose an existing presenter (dj_id)")
 	case s.PlaylistID == "":
@@ -172,6 +181,7 @@ type Occurrence struct {
 	AcceptRequests, AcceptShoutouts                 bool
 	Key, StationID, Title, PlaylistID, PlaylistName string
 	ShowID                                          string
+	MusicDirection, RotationFormat                  string
 	DJ                                              djs.Profile
 	Start, End                                      time.Time
 }
@@ -229,7 +239,7 @@ func Occurrences(shows []Show, now time.Time, loc *time.Location) []Occurrence {
 			if !end.After(start) {
 				continue
 			}
-			out = append(out, Occurrence{AcceptRequests: show.AcceptRequests, AcceptShoutouts: show.AcceptShoutouts, Key: show.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + strconv.Itoa(show.Revision), StationID: show.StationID, ShowID: show.ID, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, Start: start, End: end})
+			out = append(out, Occurrence{AcceptRequests: show.AcceptRequests, AcceptShoutouts: show.AcceptShoutouts, Key: show.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + strconv.Itoa(show.Revision), StationID: show.StationID, ShowID: show.ID, MusicDirection: show.MusicDirection, RotationFormat: show.RotationFormat, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, Start: start, End: end})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })

@@ -21,6 +21,7 @@ import (
 )
 
 type Producer struct {
+	Session production.EditorialSession
 	Prompts prompts.Store
 	Text    ai.Text
 	Keys    production.Credentials
@@ -140,7 +141,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 			return prepared, nil
 		}
 	}
-	input, _ := json.Marshal(map[string]any{"show": show.Title, "dj": show.DJ.Name, "fictional_background": show.DJ.Background, "next_show": next.Title, "next_dj": next.DJ.Name})
+	input, _ := json.Marshal(map[string]any{"episode_session": p.episodeContext(ctx, show), "musical_direction": show.MusicDirection, "show": show.Title, "dj": show.DJ.Name, "fictional_background": show.DJ.Background, "next_show": next.Title, "next_dj": next.DJ.Name})
 	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"intro", "outro"}, "properties": map[string]any{"intro": map[string]any{"type": "string"}, "outro": map[string]any{"type": "string"}}}
 
 	body := map[string]any{"model": show.DJ.Model, "instructions": instructions, "input": string(input), "max_output_tokens": 512, "store": false, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "radio_show", "strict": true, "schema": schema}}}
@@ -173,6 +174,10 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		if err = p.Store.Put(ctx, cacheKey, show.StationID, prepared); err != nil {
 			return production.Prepared{}, errors.New("DJ assets could not be saved")
 		}
+	}
+	if p.Session != nil {
+		raw, _ := json.Marshal(prepared.Plan)
+		_ = p.Session.Remember(ctx, show, "prepared presentation (not yet aired)", string(raw))
 	}
 	return prepared, nil
 }
@@ -212,7 +217,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
-	rawInput, _ := json.Marshal(map[string]any{"show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background, "following_show": link.Following.Title, "following_dj": link.Following.DJ.Name, "current": songDetails(link.Current), "next": songDetails(link.Next), "next_track_id": link.Next.ID, "handover": link.Handover, "remaining_seconds": link.RemainingSeconds, "audience": link.Audience})
+	rawInput, _ := json.Marshal(map[string]any{"episode_session": p.episodeContext(ctx, link.Show), "musical_direction": link.Show.MusicDirection, "show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background, "following_show": link.Following.Title, "following_dj": link.Following.DJ.Name, "current": songDetails(link.Current), "next": songDetails(link.Next), "next_track_id": link.Next.ID, "handover": link.Handover, "remaining_seconds": link.RemainingSeconds, "audience": link.Audience})
 	basePrompt, err := prompts.Load(ctx, p.Prompts, "link")
 	if err != nil {
 		return nil, nil, err
@@ -316,6 +321,9 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
+	if p.Session != nil {
+		_ = p.Session.Remember(ctx, link.Show, "prepared speech (not yet aired)", spoken)
+	}
 	production.ReportSpeechTranscript(parent, spoken)
 	return audio, used, nil
 }
@@ -418,4 +426,17 @@ func (p Producer) generatePlan(ctx context.Context, key string, body map[string]
 		return production.Plan{}, errors.New("invalid DJ plan")
 	}
 	return plan, nil
+}
+
+// Session state is explicit and provider-independent; cached preparation remains
+// distinguishable from actual airtime in the episode's aired history.
+func (p Producer) episodeContext(ctx context.Context, o schedule.Occurrence) string {
+	if p.Session == nil {
+		return ""
+	}
+	value, err := p.Session.Context(ctx, o)
+	if err != nil {
+		return "Episode context unavailable; do not claim earlier tracks aired."
+	}
+	return value
 }

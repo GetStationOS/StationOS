@@ -696,3 +696,53 @@ Migration 31 adds station_sources with cascading station/source foreign keys and
 Playlist resolution, availability, review and broadcast pools apply the owning station's source set before rule/manual eligibility. Saved selections remain unchanged: manually included tracks from unchecked sources are visible as unavailable, and become available again when reselected. Restoring a missing saved track is allowed only while its source remains selected. New individual/album additions reject unchecked sources. Station-scoped catalogue searches and facets constrain picker choices; global source/catalogue administration remains shared. Live broadcasts revalidate their pool at track boundaries, allowing the current track to finish.
 
 UPnP dates are parsed by namespace and meaning, independently of server identity. Prefer `dc:date` over a separate year-only `upnp:date`, retaining unqualified legacy dates and UPnP-only years as fallbacks. Valid `tag.OriginalDate` annotations retain precedence; otherwise accept `upnp:originalDate`. Invalid originals fall back to release dates, and missing dates remain unknown.
+
+
+## Dated episode planning and editorial sessions
+
+Migration 33 adds optional show musical direction, an explicit varied/artist/album
+rotation format, and station/show-owned durable episode JSON. Session identity is
+show ID plus UTC occurrence start, independent of schedule revision; stale workers
+cannot save after a revision, while producer notes, exclusions, kept recordings and
+aired history survive changes to the same dated occurrence. Next week's occurrence
+starts a separate session. The adapter checks show ownership and current occurrence
+identity in the same transaction as every write and publishes `episodes` only after
+commit. Show/station deletion cascades episode state; there is no catalogue FK.
+
+`internal/episodes` owns the provider-independent session, plan validation and a
+single cancellable preparation worker. It prepares occurrences within the next seven
+days without listeners or audio production, with a five-minute job budget, persisted
+retry/lease deadlines and at most four jobs per sweep. Failed jobs retry after five
+minutes; abandoned leases expire after six. Every planner response and search result
+is checkpointed. Context replays retained theme, producer constraints, running order,
+actual aired recordings and bounded recent exchanges; this is an application-owned
+agent session, not an OpenAI-only opaque conversation ID. The same checkpoint feeds
+presentation and spoken-link generation; prepared speech is explicitly distinct from
+aired speech. Only first emitted audio bytes create aired receipts.
+
+The planner explores the complete eligible playlist through a bounded JSON
+search/plan protocol on the existing curation text port: up to 24 steps, 30 metadata
+results per search and 128 planned recordings. Source transport and artwork never
+enter model context. Invalid choices, repeated IDs, unknown durations, removed
+recordings, lost producer keeps, avoidable performer/album clustering and unsuitable
+duration totals are rejected with feedback inside the same session. Plans reserve
+approximately 15 seconds per link; estimated timings are not a promise of airtime.
+Current track completion is allowed when replanning an active episode.
+
+Playback receives all currently eligible episode candidates instead of the legacy
+ten-item shortlist, follows the first unplayed valid planned recording, and rechecks
+eligibility at each boundary. Exact station repeat policy remains authoritative.
+Performer/album preferences examine the current recording and four recent recordings
+whose metadata is available in the active pool, relaxing oldest first for small pools.
+Artist specials allow repeated performers while spacing albums; album specials allow
+both. Shared semicolon-separated performers match ignoring case/whitespace; composers
+are not performers. Producer exclusions filter local fallback and listener requests as
+well as AI choices. Late/failed planning leaves local music selection running.
+
+The dated schedule shows pink Unplanned, amber Planning/For review and green
+Ready, with text as well as colour. Green requires no human approval. Show clicks
+expand a running-order section beneath the calendar, including estimated starts and
+optional episode direction, Keep and Exclude controls. Recurring settings remain a
+separate link. Calendar readiness uses SSE; updates preserve scroll, focus and the
+separate editing form. Refreshing the running order is explicit so unsaved edits are
+not replaced. Optimistic versions reject stale producer submissions.

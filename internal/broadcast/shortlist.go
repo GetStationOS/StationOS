@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"sort"
 	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/schedule"
 	"time"
 
 	"stationos.local/stationos/internal/content"
@@ -70,4 +71,20 @@ func (m *Manager) selectNextTrack(ctx context.Context, request production.Select
 		}
 	}
 	return fallback, errors.New("DJ selected an unoffered track")
+}
+
+func (m *Manager) selectionCandidates(pool []content.AudioItem, previous string, history Rotation, remaining time.Duration) []content.AudioItem {
+	if selector, ok := m.options.Selector.(interface{ FullPlaylist() bool }); ok && selector.FullPlaylist() {
+		return pool
+	}
+	return trackShortlist(pool, previous, history, remaining)
+}
+
+func (m *Manager) editorialPool(ctx context.Context, o schedule.Occurrence, pool []content.AudioItem) ([]content.AudioItem, error) {
+	if selector, ok := m.options.Selector.(interface {
+		FilterCandidates(context.Context, schedule.Occurrence, []content.AudioItem) ([]content.AudioItem, error)
+	}); ok {
+		return selector.FilterCandidates(ctx, o, pool)
+	}
+	return pool, nil
 }

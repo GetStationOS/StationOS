@@ -71,6 +71,7 @@ function initialise() {
     if (link.dataset.nav === active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
+  document.querySelectorAll('[data-episode-form]').forEach(form => { if (form.dataset.initial === undefined) form.dataset.initial = episodeFormState(form); refreshEpisodeForm(form); });
   document.querySelectorAll('[data-choice-form]').forEach(form => { if (form.dataset.initial === undefined) form.dataset.initial = selectionState(form); refreshChoices(form); });
   document.querySelectorAll('[data-selection-form]').forEach(form => { form.dataset.initial = selectionState(form); refreshChoices(form); });
   document.querySelectorAll('[data-track-form]').forEach(refreshTracks);
@@ -96,12 +97,12 @@ function refreshMixer(form) {
  });
 
 }
-function unsavedSelections() { return !!document.querySelector('[data-selection-form][data-dirty="true"], [data-choice-form][data-dirty="true"]'); }
+function unsavedSelections() { return !!document.querySelector('[data-selection-form][data-dirty="true"], [data-choice-form][data-dirty="true"], [data-episode-form][data-dirty="true"]'); }
 let pendingNavigation = null;
 document.body.addEventListener('htmx:confirm', event => {
   const trigger = event.detail.elt;
   const form = trigger.closest('form');
-  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form], [data-choice-form]'));
+  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form], [data-choice-form], [data-episode-form]'));
   if (navigation && unsavedSelections()) {
     event.preventDefault();
     pendingNavigation = () => event.detail.issueRequest(true);
@@ -860,7 +861,16 @@ function operationsVersion(region,raw){
 function applyLiveSnapshot(region,html){
  if(region.hasAttribute('data-operations-version')){operationsVersion(region,html);return;}
  const template=document.createElement('template');template.innerHTML=html;
- if(region.id==='assistant-messages'){
+ if(region.id==='schedule-episodes'){
+  const incoming=template.content.querySelector('#schedule-episodes');if(!incoming)return;
+  const calendar=region.querySelector('.calendar-scroll');
+  const top=calendar?.scrollTop||0,left=calendar?.scrollLeft||0;
+  const agenda=region.querySelector('.schedule-agenda');
+  if(agenda?.open)incoming.querySelector('.schedule-agenda').open=true;
+  patchStationNode(region,incoming,region.contains(document.activeElement)?document.activeElement:null);
+  const updated=region.querySelector('.calendar-scroll');if(updated){updated.scrollTop=top;updated.scrollLeft=left;updated.dataset.positioned='true';}
+  htmx.process(region);
+ }else if(region.id==='assistant-messages'){
   const incoming=template.content.querySelector('#assistant-messages');
   if(!incoming||incoming.dataset.assistantConversation!==region.dataset.assistantConversation)return;
   const follow=window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-140;
@@ -1009,4 +1019,24 @@ document.body.addEventListener('htmx:beforeSwap', event => {
  if (event.detail.requestConfig?.elt?.closest('[data-playlist-filter]') && event.detail.xhr.status === 422 && event.detail.xhr.responseText.includes('data-playlist-filter')) {
   event.detail.shouldSwap = true; event.detail.isError = false;
  }
+});
+
+function episodeFormState(form) { return JSON.stringify([form.querySelector('[name="notes"]').value, selectionState(form)]); }
+function refreshEpisodeForm(form) {
+ const dirty = form.dataset.initial !== episodeFormState(form);
+ form.dataset.dirty = String(dirty);
+ form.querySelector('[data-unsaved]').textContent = dirty ? 'Unsaved changes' : '';
+}
+document.body.addEventListener('input', event => { const form = event.target.closest('[data-episode-form]'); if (form) refreshEpisodeForm(form); });
+document.body.addEventListener('change', event => { const form = event.target.closest('[data-episode-form]'); if (form) refreshEpisodeForm(form); });
+document.body.addEventListener('htmx:beforeSwap', event => {
+ if (event.detail.requestConfig?.elt?.closest('[data-episode-form]') && event.detail.xhr.status === 422 && event.detail.xhr.responseText.includes('data-episode-form')) {
+  event.detail.shouldSwap = true; event.detail.isError = false;
+ }
+});
+
+document.body.addEventListener('htmx:afterSettle', event => {
+ if (event.detail.target?.id !== 'main' || location.hash !== '#episode-running-order') return;
+ const section = document.getElementById('episode-running-order');
+ if (section) { section.focus({preventScroll:true}); section.scrollIntoView({block:'start'}); }
 });

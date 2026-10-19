@@ -420,7 +420,7 @@ Use accessible type and outcome icons without a separate key. Keep optional filt
 collapsed initially at every screen size, preserve active filters through pagination, and keep current and
 upcoming audio sections free of inherited section margins.
 
-History answers what aired, when, under which programme and whether it needs attention.
+History answers what aired, when, under which programme and whether it for review.
 Show one date with a compact start/end time range; include the end date when it crosses
 midnight and zone names across clock changes. Keep full timestamps in accessible labels,
 tooltips and CSV. On tablets omit album, playlist, duration and end time from the table;
@@ -560,3 +560,17 @@ Source Settings offers Remove source below the form, using the shared confirmati
 ### Station music sources
 
 Create station and Station Settings include a Music sources checkbox list, selected count and Select all/Clear controls. Save commits source choices with the other station settings. Show unsaved source choices and use the shared discard dialog when leaving; successful Save must not ask to discard. Place Music sources in its own card using the shared panel style, with one concise instruction and no additional help disclosure. Multiple sources exposing the same music can include duplicate recordings; new sources require explicit selection, and no selected sources means no music. Existing stations retain access to all sources present at upgrade. Source changes apply to station playlist choices and future track selection; saved rules and manual selections remain, with unchecked-source tracks unavailable. Music files are untouched.
+
+
+## Episode readiness and running orders
+
+The schedule selects a dated week. Each occurrence has a text readiness label and
+pink (Unplanned), amber (Planning/For review) or green (Ready) background.
+Readiness is editorial preparation, independent of live broadcasting. Plans become
+ready automatically; producer review is optional. Clicking a show opens its running
+order in a section beneath the calendar; clicking the selected show closes it.
+Keep its show settings available as a separate link. Show estimated track starts,
+performers, albums and durations. Producer notes, Keep and Exclude controls belong
+to that dated episode, not playlist membership. Live readiness updates preserve
+calendar scroll/focus and never overwrite the producer form. Offer an explicit
+running-order refresh, protect unsaved changes and retain input on validation.

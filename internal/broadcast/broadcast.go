@@ -47,6 +47,7 @@ type State struct {
 	Error                  string
 }
 type Options struct {
+	Session                                 production.EditorialSession
 	Operations                              *operations.Recorder
 	Audience                                audience.Repository
 	History                                 History
@@ -727,6 +728,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 							m.logger.Warn("Audience broadcast receipt unavailable", "station_id", id, "error", err)
 						}
 					}
+					if m.options.Session != nil && state.Programme.ShowID != "" {
+						ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 2*time.Second)
+						err := m.options.Session.Aired(ctx, state.Programme, state.Current, state.SpeechText)
+						cancel()
+						if err != nil {
+							m.logger.Warn("Episode airtime context unavailable", "error", err)
+						}
+					}
 					if state.Phase == "music" && m.options.History != nil {
 						// Persist after the first delivered music bytes, even if the last
 						// listener disconnects immediately afterwards. Preparation is not a play.
@@ -750,6 +759,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		return started, r.ctx.Err()
 	}
 	var previous string
+	var previousMusic content.AudioItem
 	var playing schedule.Occurrence
 	var oldPrepared production.Prepared
 	var oldVoice preparedResult
@@ -848,7 +858,12 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if previous == "" {
 			previous = rotation.LastTrackID
 		}
+		pool, err = m.editorialPool(r.ctx, timeline.Current, pool)
+		if err != nil {
+			return
+		}
 		candidates, repeatRelaxed := rotationPool(pool, rotation, playoutNow(), previous)
+		candidates = varietyPoolFormat(candidates, pool, rotation, previous, previousMusic, timeline.Current.RotationFormat)
 		if len(candidates) == 0 {
 			return
 		}
@@ -878,7 +893,20 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if current.ID == "" {
 			// Audience requests enter the prepared next-track link. A cold start
 			// continues normal music until a request introduction is ready.
-			current = selectTrack(candidates, previous, remaining)
+			if selector, ok := m.options.Selector.(interface{ FullPlaylist() bool }); ok && selector.FullPlaylist() && playing.ShowID != "" {
+				id, err := m.options.Selector.SelectTrack(r.ctx, production.SelectionRequest{Show: playing, Current: previousMusic, Candidates: candidates, RemainingSeconds: int64(remaining.Seconds())})
+				if err == nil {
+					for _, a := range candidates {
+						if a.ID == id {
+							current = a
+							break
+						}
+					}
+				}
+			}
+			if current.ID == "" {
+				current = selectTrack(candidates, previous, remaining)
+			}
 		}
 		levels, levelErr := m.levels(r.ctx, id)
 		if levelErr != nil {
@@ -954,7 +982,13 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		rotation.LastPlayed[current.ID] = playoutNow()
 		rotation.LastTrackID = current.ID
+		nextPool, err = m.editorialPool(r.ctx, nextTimeline.Current, nextPool)
+		if err != nil {
+			return
+		}
+		nextCatalogue := nextPool
 		nextPool, _ = rotationPool(nextPool, rotation, predictedEnd, current.ID)
+		nextPool = varietyPoolFormat(nextPool, nextCatalogue, rotation, current.ID, current, nextTimeline.Current.RotationFormat)
 		queued = requestTrack(m.approvedAudience(r.ctx, nextTimeline.Current, playoutNow()), nextPool, nextRemaining)
 		requestedTrack := queued.ID != ""
 		if queued.ID == "" {
@@ -993,7 +1027,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				pendingLink = out
 				linkWorkers.Add(1)
 				req := production.LinkRequest{Show: playing, Following: nextTimeline.Current, Current: current, Next: queued, Handover: nextTimeline.Current.Key != playing.Key, RemainingSeconds: int64(remaining.Seconds())}
-				selection := production.SelectionRequest{Show: nextTimeline.Current, Current: current, Candidates: trackShortlist(nextPool, current.ID, rotation, nextRemaining), RemainingSeconds: int64(nextRemaining.Seconds())}
+				selection := production.SelectionRequest{Show: nextTimeline.Current, Current: current, Candidates: m.selectionCandidates(nextPool, current.ID, rotation, nextRemaining), RemainingSeconds: int64(nextRemaining.Seconds())}
 				go func() {
 					defer linkWorkers.Done()
 					defer func() { <-linkSlots }()
@@ -1082,6 +1116,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if started {
 			failures = 0
 			previous = current.ID
+			previousMusic = current
 		}
 		if err != nil || !started {
 			failures++

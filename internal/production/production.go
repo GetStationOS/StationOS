@@ -69,6 +69,13 @@ type SelectionRequest struct {
 	RemainingSeconds int64
 }
 
+// EditorialSession provides one durable context per dated episode.
+type EditorialSession interface {
+	Context(context.Context, schedule.Occurrence) (string, error)
+	Aired(context.Context, schedule.Occurrence, content.AudioItem, string) error
+	Remember(context.Context, schedule.Occurrence, string, string) error
+}
+
 type TrackSelector interface {
 	SelectTrack(context.Context, SelectionRequest) (string, error)
 }

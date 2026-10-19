@@ -7,6 +7,7 @@ import (
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/producer"
@@ -113,6 +114,11 @@ type playlistPageView struct {
 	Pagination                                                 pagination
 }
 type schedulePageView struct {
+	Episode                                               episodes.Episode
+	EpisodeStart, Week, WeekLabel, PreviousWeek, NextWeek string
+	EpisodeExclusions                                     map[string]bool
+	SelectedEpisodeID                                     string
+	EpisodeError                                          string
 	pageView
 	playlistChoices
 	DJs                                         []djs.Profile

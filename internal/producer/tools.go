@@ -277,6 +277,8 @@ type showPatch struct {
 	StationID       string  `json:"station_id"`
 	Name            *string `json:"name"`
 	Description     *string `json:"description"`
+	MusicDirection  *string `json:"music_direction"`
+	RotationFormat  *string `json:"rotation_format"`
 	DJID            *string `json:"dj_id"`
 	PlaylistID      *string `json:"playlist_id"`
 	Day             *int    `json:"day"`
@@ -305,6 +307,8 @@ func (a showPatch) merge(ctx context.Context, d Dependencies) (schedule.Show, er
 	}
 	set(&v.Name, a.Name)
 	set(&v.Description, a.Description)
+	set(&v.MusicDirection, a.MusicDirection)
+	set(&v.RotationFormat, a.RotationFormat)
 	set(&v.DJID, a.DJID)
 	set(&v.PlaylistID, a.PlaylistID)
 	set(&v.Day, a.Day)

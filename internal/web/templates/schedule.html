@@ -1,4 +1,7 @@
 {{define "schedule-list"}}
+<div id="schedule-episodes" data-live-url="/producer/stations/{{.Station.ID}}/schedule/live?week={{.Week}}{{if .SelectedEpisodeID}}&amp;episode={{.SelectedEpisodeID}}&amp;start={{.EpisodeStart}}{{end}}">
+<nav class="schedule-week-navigation" aria-label="Schedule week"><a href="?week={{.PreviousWeek}}" aria-label="Previous week"><span class="week-link-wide">Previous week</span><span class="week-link-short">Previous</span></a><strong>{{.WeekLabel}}</strong><a href="?week={{.NextWeek}}" aria-label="Next week"><span class="week-link-wide">Next week</span><span class="week-link-short">Next</span></a></nav>
+<p class="hint">{{.Station.Timezone}} · Pink: unplanned · Amber: planning or for review · Green: ready to run automatically</p>
 {{if .Shows}}
 <div class="calendar-scroll" tabindex="0" aria-label="Weekly schedule">
   <div class="weekly-calendar">
@@ -6,10 +9,10 @@
     </div>
     {{range .ScheduleHours}}<span class="calendar-time {{.Class}}">{{.Label}}</span>{{end}}{{range .ScheduleDays}}
     <div class="calendar-day day-{{.Index}}">{{.Name}}
-    </div>{{end}}{{range .ScheduleCards}}<a href="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}" class="calendar-show {{.Class}}" title="{{.Name}} · {{.Time}} · {{.DJ}} · {{.Playlist}}">
+    </div>{{end}}{{range .ScheduleCards}}<a href="/producer/stations/{{$.Station.ID}}/schedule?week={{$.Week}}{{if ne .ID $.SelectedEpisodeID}}&amp;episode={{.ID}}&amp;start={{.EpisodeStart}}#episode-running-order{{end}}" aria-expanded="{{if eq .ID $.SelectedEpisodeID}}true{{else}}false{{end}}" aria-controls="episode-running-order" class="calendar-show {{.Class}} {{if eq .ID $.SelectedEpisodeID}}selected{{end}}" title="{{.Name}} · {{.Time}} · {{.DJ}} · {{.Playlist}}">
       <strong>{{.Name}}</strong>
       <span>{{.Time}}</span>
-      <span>{{.DJ}}</span>
+      <span>{{.DJ}}</span><span>{{.Status}}</span>
     </a>{{end}}
   </div>
 </div>
@@ -47,6 +50,7 @@
   <p>Add a show with a DJ and playlist. Between shows, the station plays its default playlist.</p>
   <a class="button" href="/producer/stations/{{.Station.ID}}/schedule/new">Add first show</a>
 </section>{{end}}
+</div>
 {{end}}
 
 {{define "schedule-form"}}
@@ -85,6 +89,13 @@
       </label>
     </div>
     <p class="hint">{{.Station.Timezone}} · Earlier or equal end times finish the next day. The current track finishes before handover.</p>
+    <label>Musical direction (optional)<textarea name="music_direction" maxlength="4000" rows="4" placeholder="Describe the theme, energy and musical flow for each episode.">{{.Show.MusicDirection}}</textarea></label>
+    <label>Rotation format<select name="rotation_format">
+      <option value="varied" {{if or (eq .Show.RotationFormat "") (eq .Show.RotationFormat "varied")}}selected{{end}}>Varied mix</option>
+      <option value="artist" {{if eq .Show.RotationFormat "artist"}}selected{{end}}>Artist spotlight</option>
+      <option value="album" {{if eq .Show.RotationFormat "album"}}selected{{end}}>Album special</option>
+    </select></label>
+    <p class="hint">Each dated episode plans and runs automatically. Producer review is optional.</p>
     <label>DJ<select name="dj" required>
         <option value="">Choose a DJ</option>
         {{range .DJs}}
@@ -138,6 +149,7 @@
 {{define "schedule-list-page"}}
 {{template "page-heading" (scheduleHeading .)}}
 {{template "schedule-list" .}}
+{{if .SelectedEpisodeID}}{{template "episode-detail" .}}{{end}}
 {{end}}
 
 {{define "schedule-form-page"}}
@@ -146,4 +158,31 @@
 
 {{define "schedule-delete-page"}}
 {{template "page-heading" (heading .Title)}}{{template "delete-show" .}}
+{{end}}
+
+{{define "episode-page"}}
+{{template "page-heading" (heading .Title)}}
+<p><a href="/producer/stations/{{.Station.ID}}/schedule?week={{.Week}}">Schedule</a> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}">Show settings</a></p>
+{{template "episode-detail" .}}
+{{end}}
+{{define "episode-detail"}}
+<section class="panel" id="episode-running-order" tabindex="-1">
+<h2>{{.Show.Name}} · Running order</h2>
+<p><strong>{{.Episode.Label}}</strong> · <a href="/producer/stations/{{.Station.ID}}/schedule?week={{.Week}}&amp;episode={{.Show.ID}}&amp;start={{.EpisodeStart}}#episode-running-order">Refresh running order</a> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}">Show settings</a></p>
+<p>{{.Episode.Start.Format "Mon 2 Jan 15:04 MST"}}–{{.Episode.End.Format "15:04 MST"}} · {{.Show.DJName}} · {{.Show.PlaylistName}}</p>
+<p>{{.Episode.Theme}}</p>{{if .Episode.Plan}}<p>Estimated programme length: {{.Episode.Estimated}}</p>{{end}}
+{{if .Episode.Problem}}<p class="notice" role="status">{{.Episode.Problem}}</p>{{end}}
+<p class="hint">The show plans and runs automatically. Producer changes are optional. Timings allow approximately 15 seconds for each spoken link.</p>
+{{if .EpisodeError}}<p class="notice error" role="alert">{{.EpisodeError}}</p>{{end}}
+<form method="post" action="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode?start={{.EpisodeStart}}" hx-disabled-elt="find button" data-episode-form>
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}">
+<label>Episode musical direction (optional)<textarea name="notes" rows="4" maxlength="4000">{{.Episode.Notes}}</textarea></label>
+{{if .Episode.Plan}}<div class="table-scroll episode-order-scroll" tabindex="0" role="region" aria-label="Episode running order"><table class="episode-order-table"><thead><tr><th>Estimated start</th><th>Recording</th><th>Performer</th><th>Album</th><th>Duration</th><th>Producer choices</th></tr></thead><tbody>
+{{range .Episode.RunningOrder}}<tr><td data-label="Estimated start">{{.EstimatedStart.Format "15:04"}}</td><td data-label="Recording">{{.Title}}</td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Producer choices"><label class="choice"><input type="checkbox" name="locked" aria-label="Keep {{.Title}}" value="{{.ID}}" {{if .Locked}}checked{{end}}>Keep</label><label class="choice"><input type="checkbox" name="excluded" aria-label="Exclude {{.Title}}" value="{{.ID}}" {{if index $.EpisodeExclusions .ID}}checked{{end}}>Exclude</label></td></tr>{{end}}
+</tbody></table></div>{{else}}<p>No running order yet. Preparation happens automatically when a curation connection is available.</p>{{end}}
+<span data-unsaved class="hint" role="status"></span>
+{{template "form-actions" (formActions (printf "/producer/stations/%s/schedule" .Station.ID) "Save")}}
+</form>
+</section>
+{{if .Episode.Aired}}<section class="panel"><h2>Actually aired</h2><ol>{{range .Episode.Aired}}<li>{{.Title}} · {{.Artist}}</li>{{end}}</ol></section>{{end}}
 {{end}}

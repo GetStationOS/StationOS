@@ -21,7 +21,7 @@ func TestAudienceLifecycleIsolationLimitsAndScheduleRevision(t *testing.T) {
 	}
 	defer db.Close()
 	st := Stations{db}
-	shows := Schedule{db}
+	shows := Schedule{DB: db}
 	repo := Audience{DB: db}
 	if err = st.Save(ctx, station.Station{ID: "s", Name: "Radio", Timezone: "UTC", Visibility: station.Listed}); err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestAudienceReviewDoesNotOverrideProducerDecision(t *testing.T) {
 	}
 	defer db.Close()
 	st := Stations{db}
-	shows := Schedule{db}
+	shows := Schedule{DB: db}
 	repo := Audience{DB: db}
 	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
 	if err = st.Save(ctx, station.Station{ID: "s", Name: "Radio", Timezone: "UTC"}); err != nil {
@@ -165,7 +165,7 @@ func TestAudienceUncertainReviewLeavesAutomaticBatch(t *testing.T) {
 	}
 	defer db.Close()
 	st := Stations{db}
-	shows := Schedule{db}
+	shows := Schedule{DB: db}
 	repo := Audience{DB: db}
 	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
 	if err = st.Save(ctx, station.Station{ID: "s", Name: "Radio", Timezone: "UTC"}); err != nil {

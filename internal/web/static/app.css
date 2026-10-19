@@ -1096,3 +1096,43 @@ textarea{font-weight:400;line-height:1.5}
 
 /* Empty selection feedback should not reserve space in a saved form. */
 [data-source-unsaved]:empty{display:none}
+
+/* Dated episode readiness always has a text label as well as colour. */
+.calendar-show.episode-unplanned { background: #fce7f0; border-color: #e8a7c1; color: #10243a; }
+.calendar-show.episode-attention { background: #fff2cd; border-color: #d5af45; color: #10243a; }
+.calendar-show.episode-ready { background: #e0f3e6; border-color: #8bbf9b; color: #10243a; }
+
+.calendar-show.selected { outline: 3px solid #10243a; outline-offset: -3px; }
+
+.calendar-show.length-4 { padding: 2px 5px; font-size: .75rem; line-height: 1.15; }
+
+.schedule-week-navigation { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:20px; width:100%; margin:0 0 8px; }
+.schedule-week-navigation a:last-child { justify-self:end; }
+.schedule-week-navigation strong { text-align:center; }
+.schedule-week-navigation a { display:inline-flex; align-items:center; min-height:44px; font-size:.875rem; }
+.schedule-week-navigation strong { padding:0 8px; font-weight:600; }
+@media (max-width:600px) { .schedule-week-navigation { column-gap:12px; row-gap:0; } .schedule-week-navigation strong { padding:0 4px; font-size:.875rem; } }
+
+.week-link-short { display:none; }
+#episode-running-order { min-width:0; overflow-wrap:anywhere; }
+@media (max-width:600px) {
+ .schedule-week-navigation { grid-template-columns:56px minmax(0,1fr) 56px; gap:8px; }
+ .schedule-week-navigation strong { min-width:0; padding:0 4px; font-size:.8125rem; line-height:1.4; }
+ .schedule-week-navigation a { min-width:44px; font-size:.8125rem; }
+ .week-link-wide { display:none; }
+ .week-link-short { display:inline; }
+ .calendar-scroll { max-width:100%; max-height:55vh; }
+ .episode-order-scroll { max-width:100%; }
+ .episode-order-table, .episode-order-table tbody { display:block; width:100%; min-width:0; }
+ .episode-order-table thead { display:none; }
+ .episode-order-table tr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; padding:16px 0; border-bottom:1px solid var(--line); }
+ .episode-order-table td { display:block; min-width:0; padding:0; border:0; overflow-wrap:anywhere; }
+ .episode-order-table td::before { content:attr(data-label); display:block; font-size:.75rem; font-weight:400; color:var(--muted); }
+ .episode-order-table td:nth-child(2), .episode-order-table td:nth-child(3), .episode-order-table td:nth-child(4), .episode-order-table td:nth-child(6) { grid-column:1 / -1; }
+ .episode-order-table td:nth-child(2) { font-weight:600; }
+ .episode-order-table td:nth-child(5) { grid-column:2; grid-row:1; }
+ .episode-order-table td:nth-child(6) { display:flex; flex-wrap:wrap; gap:8px; }
+ .episode-order-table td:nth-child(6)::before { flex-basis:100%; }
+ .episode-order-table .choice { flex:1; min-height:44px; margin:0; }
+ #episode-running-order .form-actions > * { min-height:44px; }
+}

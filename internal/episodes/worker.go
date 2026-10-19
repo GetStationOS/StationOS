@@ -1,0 +1,141 @@
+package episodes
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"sort"
+	"time"
+
+	"stationos.local/stationos/internal/changefeed"
+	"stationos.local/stationos/internal/schedule"
+	"stationos.local/stationos/internal/station"
+)
+
+// Start prepares the coming seven days on a single bounded worker. A persisted
+// retry deadline doubles as a crash-recoverable lease. No audio work is started.
+func (s *Service) Start(parent context.Context, stations station.Repository, shows schedule.Repository, bus *changefeed.Bus, logger *slog.Logger) func() {
+	ctx, cancel := context.WithCancel(parent)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		changes, stop := bus.Watch("episodes")
+		defer stop()
+		timer := time.NewTicker(time.Minute)
+		defer timer.Stop()
+		for {
+			if err := s.sweep(ctx, stations, shows); err != nil && ctx.Err() == nil {
+				logger.Warn("Episode preparation deferred", "error", err)
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+			case <-changes:
+			}
+		}
+	}()
+	return func() { cancel(); <-done }
+}
+func (s *Service) sweep(ctx context.Context, stations station.Repository, shows schedule.Repository) error {
+	all, err := stations.List(ctx)
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	pending := []schedule.Occurrence{}
+	for _, st := range all {
+		loc, e := time.LoadLocation(st.Timezone)
+		if e != nil {
+			return e
+		}
+		ss, e := shows.List(ctx, st.ID)
+		if e != nil {
+			return e
+		}
+		for _, o := range schedule.Occurrences(ss, now, loc) {
+			if !o.End.After(now) || o.Start.After(now.AddDate(0, 0, 7)) {
+				continue
+			}
+			episode, e := s.Store.Get(ctx, o.Key)
+			if errors.Is(e, ErrNotFound) {
+				e = s.Store.Update(ctx, o, func(*Episode) error { return nil })
+				episode = New(o)
+			}
+			if e != nil {
+				return e
+			}
+			if episode.ShowKey != o.Key {
+				if e = s.Store.Update(ctx, o, func(*Episode) error { return nil }); e != nil {
+					return e
+				}
+				episode.Status = "attention"
+				episode.RetryAt = time.Time{}
+			}
+			if episode.Status == "ready" {
+				available, checkErr := s.Available(ctx, o, episode)
+				if checkErr != nil {
+					return checkErr
+				}
+				if available {
+					continue
+				}
+				if e = s.Store.Update(ctx, o, func(ep *Episode) error {
+					ep.Status = "attention"
+					ep.Problem = "Playlist availability changed; updating the running order."
+					ep.RetryAt = time.Time{}
+					return nil
+				}); e != nil {
+					return e
+				}
+			}
+			if now.Before(episode.RetryAt) || !o.DJ.TextReady {
+				continue
+			}
+			pending = append(pending, o)
+		}
+	}
+	sort.Slice(pending, func(i, j int) bool { return pending[i].Start.Before(pending[j].Start) })
+	// One batch yields to configuration changes and cancellation between jobs.
+	for _, o := range pending[:min(4, len(pending))] {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		err = s.Store.Update(ctx, o, func(e *Episode) error {
+			e.Status = "planning"
+			e.Problem = ""
+			e.RetryAt = time.Now().Add(6 * time.Minute)
+			return nil
+		})
+		if err != nil {
+			continue
+		}
+		task, cancel := context.WithTimeout(ctx, 5*time.Minute)
+		err = s.Plan(task, o)
+		cancel()
+		if err != nil {
+			// A producer edit or actual play invalidates the generation snapshot; never
+			// overwrite newer choices, and let the next sweep adapt the same session.
+			if errors.Is(err, ErrStale) {
+				_ = s.Store.Update(ctx, o, func(e *Episode) error {
+					if e.Status == "planning" {
+						e.Status = "attention"
+						e.RetryAt = time.Now().Add(time.Minute)
+					}
+					return nil
+				})
+				continue
+			}
+			_ = s.Store.Update(ctx, o, func(e *Episode) error {
+				e.Status = "attention"
+				if len(e.Plan) == 0 {
+					e.Status = "unplanned"
+				}
+				e.Problem = "Planning could not complete. Music continues automatically; preparation will retry."
+				e.RetryAt = time.Now().Add(5 * time.Minute)
+				return nil
+			})
+		}
+	}
+	return nil
+}

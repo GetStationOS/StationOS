@@ -24,6 +24,7 @@ import (
 	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/djs"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/mixer"
 	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/playlists"
@@ -51,6 +52,7 @@ type Dependencies struct {
 	Audience        audience.Repository
 	Mixer           mixer.Repository
 	ArtworkFactory  sources.Factory
+	Episodes        *episodes.Service
 	Schedule        schedule.Repository
 	DJs             djs.Repository
 	Broadcast       *broadcast.Manager
@@ -172,6 +174,9 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/stations/{id}/delete", s.stationPage)
 	mux.HandleFunc("POST /producer/stations/{id}/delete", s.deleteStation)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule", s.schedulePage)
+	mux.HandleFunc("GET /producer/stations/{id}/schedule/live", s.subscription("episodes", "schedule-episodes", s.scheduleLive))
+	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}/episode", s.episodePage)
+	mux.HandleFunc("POST /producer/stations/{id}/schedule/{show}/episode", s.saveEpisode)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/new", s.schedulePage)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}", s.schedulePage)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}/delete", s.schedulePage)

@@ -78,6 +78,13 @@ func (m *Manager) recordSelection(id string, show schedule.Occurrence, item cont
 	case errors.Is(err, production.ErrPlanPending):
 		label = "Automatic selection"
 		reason = "The DJ choice was not ready; automatic music selection was queued to keep the show playing."
+		var pending *production.PendingSelection
+		if errors.As(err, &pending) {
+			reason = pending.Reason + " Automatic music selection was queued."
+			if !pending.RetryAt.IsZero() {
+				reason += " Next DJ retry: " + pending.RetryAt.In(show.Start.Location()).Format("15:04 MST") + "."
+			}
+		}
 	case err != nil:
 		label = "Automatic selection"
 		reason = "The DJ choice was unavailable or could not be used; automatic music selection was queued."

@@ -1,8 +1,8 @@
 {{define "operational-summary"}}
-{{if and .Available (or (not .Healthy) (gt .Active 0))}}
+{{if and .Available (or (not .Healthy) (gt .NeedsReview 0))}}
 <div class="operational-summary">
   {{if not .Healthy}}<p class="notice" role="alert">Transmission history is incomplete or unavailable. Audio can continue; check server logs and database health.</p>{{end}}
-  {{if gt .Active 0}}<p class="notice" role="status">{{.Active}} active incident{{if ne .Active 1}}s{{end}}. Review the Incidents tab.</p>{{end}}
+  {{if gt .NeedsReview 0}}<p class="notice" role="status">{{.NeedsReview}} incident{{if ne .NeedsReview 1}}s{{end}} need{{if eq .NeedsReview 1}}s{{end}} review. Review the Incidents tab.</p>{{end}}
 </div>
 {{end}}
 {{end}}

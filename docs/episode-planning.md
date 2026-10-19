@@ -25,3 +25,9 @@ The episode page uses the broadcast runtime as the source of truth for Up next,
 matching the player. Saved choices are provisional DJ selections until queued.
 Runtime queue ownership identifies the dated episode across handovers; live
 updates follow broadcast events. Do not infer an exact start from a saved plan.
+
+Fallback observations retain the episode's safe failure category and retry time: API
+quota/spend, temporary rate limit, oversized token-rate request, response output limit,
+context limit, refused/invalid output, timeout, in-progress work or an unusable saved
+choice. An output limit is per response and is not evidence of exhausted credits.
+Unknown causes remain explicitly unknown. Do not include raw provider responses.

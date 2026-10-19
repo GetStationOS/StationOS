@@ -129,3 +129,47 @@ func PinnedRoutes(ctx context.Context) (Routes, bool) {
 	r, ok := ctx.Value(routesKey{}).(Routes)
 	return r, ok
 }
+
+// Provider categories are safe to persist; raw provider messages are not.
+var ErrQuota = errors.New("API quota or spending limit reached")
+var ErrRateLimit = errors.New("provider rate limit reached")
+var ErrOutputLimit = errors.New("response output token limit reached")
+var ErrContextLimit = errors.New("request context limit reached")
+var ErrTokenRateLimit = errors.New("request exceeds token rate limit")
+var ErrRefused = errors.New("provider declined the response")
+
+func FailureCode(err error) string {
+	for _, v := range []struct {
+		err  error
+		code string
+	}{{ErrQuota, "quota"}, {ErrTokenRateLimit, "token_rate"}, {ErrRateLimit, "rate_limit"}, {ErrOutputLimit, "output_limit"}, {ErrContextLimit, "context_limit"}, {ErrRefused, "refused"}, {ErrInvalidStructuredResponse, "invalid_response"}, {context.DeadlineExceeded, "timeout"}} {
+		if errors.Is(err, v.err) {
+			return v.code
+		}
+	}
+	return "unknown"
+}
+func FailureMessage(code string) string {
+	switch code {
+	case "quota":
+		return "The provider reported an API quota, credits or spending limit. Check API billing and usage limits."
+	case "token_rate":
+		return "The request exceeds the model's token rate allowance; waiting alone will not make it fit."
+	case "rate_limit":
+		return "The provider temporarily rate-limited the request."
+	case "output_limit":
+		return "The response reached its output token limit before completing the track choice. This is a per-response limit, not an account balance."
+	case "context_limit":
+		return "The request exceeded the model's context limit."
+	case "refused":
+		return "The provider declined to return a track choice."
+	case "invalid_response":
+		return "The DJ returned an unreadable track choice. No new DJ selection was accepted."
+	case "validation":
+		return "The DJ choice failed playlist or timing validation; a replacement is needed."
+	case "timeout":
+		return "The DJ request timed out before a usable track choice was ready."
+	default:
+		return "The DJ selection attempt failed; the provider did not supply a recognised cause. Check the curation connection and server logs."
+	}
+}

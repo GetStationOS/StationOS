@@ -58,6 +58,13 @@ func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, ins
 	// Only the service may retry an explicit temporary 429 rejection. Never retry ambiguous transport failures.
 	resp, e := m.Client.Do(req)
 	if e != nil {
+		if ctx.Err() != nil {
+			return producer.Response{}, ctx.Err()
+		}
+		var timeout interface{ Timeout() bool }
+		if errors.As(e, &timeout) && timeout.Timeout() {
+			return producer.Response{}, context.DeadlineExceeded
+		}
 		return producer.Response{}, errors.New("Assistant model request failed")
 	}
 	defer resp.Body.Close()
@@ -78,7 +85,10 @@ func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, ins
 		return producer.Response{}, errors.New("Assistant response exceeds the limit")
 	}
 	var v struct {
-		Status string            `json:"status"`
+		Status     string `json:"status"`
+		Incomplete struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Output []json.RawMessage `json:"output"`
 		Usage  producer.Usage    `json:"usage"`
 	}
@@ -86,6 +96,12 @@ func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, ins
 		return producer.Response{}, errors.New("Invalid assistant response")
 	}
 	if v.Status != "completed" {
+		if v.Status == "incomplete" && v.Incomplete.Reason == "max_output_tokens" {
+			return producer.Response{Usage: v.Usage}, ai.ErrOutputLimit
+		}
+		if v.Status == "incomplete" && v.Incomplete.Reason == "content_filter" {
+			return producer.Response{Usage: v.Usage}, ai.ErrRefused
+		}
 		return producer.Response{Usage: v.Usage}, errors.New("Assistant returned an incomplete response")
 	}
 	out := producer.Response{Items: v.Output, Usage: v.Usage}
@@ -118,7 +134,7 @@ func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, ins
 		if part.Type == "message" {
 			for _, c := range part.Content {
 				if c.Type == "refusal" {
-					return producer.Response{}, errors.New("OpenAI declined the requested DJ response")
+					return producer.Response{}, ai.ErrRefused
 				}
 				if c.Type == "output_text" {
 					text.WriteString(c.Text)

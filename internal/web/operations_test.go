@@ -78,7 +78,7 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 			t.Fatal("redundant overview shortcuts", overview)
 		}
 	}
-	if !strings.Contains(overview, "1 active incident. Review the Incidents tab.") || !strings.Contains(overview, `class="overview-live-content" hx-target="#main" hx-swap="innerHTML show:window:top"`) {
+	if !strings.Contains(overview, "1 incident needs review. Review the Incidents tab.") || !strings.Contains(overview, `class="overview-live-content" hx-target="#main" hx-swap="innerHTML show:window:top"`) {
 		t.Fatal("missing actionable notice or safe navigation target", overview)
 	}
 	w := request(h, "GET", base+"/timeline?kind=music&from=2026-10-25&until=2026-10-25", nil, auth)
@@ -130,6 +130,12 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 	indicator := request(h, "GET", base+"/operations/indicator", nil, auth)
 	if strings.TrimSpace(indicator.Body.String()) != "" {
 		t.Fatal("reviewed incident still flagged", indicator.Body.String())
+	}
+	for _, suffix := range []string{"", "/live"} {
+		reviewed := request(h, "GET", base+suffix, nil, auth)
+		if reviewed.Code != 200 || strings.Contains(reviewed.Body.String(), `class="operational-summary"`) {
+			t.Fatal("reviewed incident still warns on overview", suffix, reviewed.Code, reviewed.Body.String())
+		}
 	}
 	e.ID, e.Kind, e.Recover = "speech-recovered", "recovery", true
 	if err = store.Save(ctx, e); err != nil {

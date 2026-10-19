@@ -36,6 +36,7 @@ type Episode struct {
 	PlanStartsAt                     time.Time
 	Status, Theme, Notes, Problem    string
 	RepetitionReason                 string
+	FailureCode                      string
 	Plan                             []Track
 	Excluded                         []string
 	Aired                            []Track
@@ -221,7 +222,7 @@ func (s *Service) SelectTrack(ctx context.Context, q production.SelectionRequest
 	}
 	e, err := s.Store.Get(ctx, q.Show.Key)
 	if errors.Is(err, ErrNotFound) {
-		return "", production.ErrPlanPending
+		return "", &production.PendingSelection{Reason: "The episode has not started DJ track selection yet."}
 	}
 	if err != nil {
 		return "", err
@@ -248,15 +249,25 @@ func (s *Service) SelectTrack(ctx context.Context, q production.SelectionRequest
 	for _, a := range q.Candidates {
 		eligible[a.ID] = a
 	}
+	pendingReason := ""
 	for _, a := range e.Plan {
-		if played[a.ID] || excluded[a.ID] {
+		if excluded[a.ID] {
+			pendingReason = "The saved DJ choice was excluded; a replacement is needed."
+			continue
+		}
+		if played[a.ID] {
+			pendingReason = "The saved DJ choice is already playing or has played; a replacement is needed."
 			continue
 		}
 		if item, ok := eligible[a.ID]; ok {
 			if q.RemainingSeconds > 0 && q.RemainingSeconds <= 1200 && fitting && (item.Duration == nil || int64(item.Duration.Seconds()) > q.RemainingSeconds) {
+				pendingReason = "The saved DJ choice does not fit the remaining show time."
 				continue
 			}
 			return a.ID, nil
+		}
+		if pendingReason == "" {
+			pendingReason = "The saved DJ choice is no longer eligible or available in the playlist."
 		}
 	}
 	// Request replanning once, without changing a running job or resetting its
@@ -268,14 +279,33 @@ func (s *Service) SelectTrack(ctx context.Context, q production.SelectionRequest
 			}
 			current.Status = "attention"
 			current.RetryAt = time.Time{}
-			current.Problem = "Adapting the remaining running order."
+			current.Problem = "Choosing a replacement track."
 			return nil
 		})
 		if err != nil {
 			return "", err
 		}
 	}
-	return "", production.ErrPlanPending
+	if e.PlanningFailed && e.Status != "planning" && e.Status != "starting" {
+		pendingReason = ai.FailureMessage(e.FailureCode)
+	}
+	if pendingReason == "" {
+		switch {
+		case e.Status == "planning":
+			pendingReason = "The DJ is still choosing the next track."
+		case e.Status == "starting":
+			pendingReason = "The DJ is preparing the show introduction; track selection has not finished."
+		case e.PlanningFailed:
+			pendingReason = ai.FailureMessage(e.FailureCode)
+		default:
+			pendingReason = "The DJ has not completed a next-track choice yet."
+		}
+	}
+	retryAt := e.RetryAt
+	if e.Status == "planning" || e.Status == "starting" {
+		retryAt = time.Time{}
+	}
+	return "", &production.PendingSelection{Reason: pendingReason, RetryAt: retryAt}
 }
 
 func (s *Service) Edit(ctx context.Context, o schedule.Occurrence, version int, notes string, locked, excluded []string) error {
@@ -441,7 +471,7 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		}
 		var cmd command
 		if json.Unmarshal([]byte(answer), &cmd) != nil {
-			return errors.New("invalid episode planning response")
+			return ai.ErrInvalidStructuredResponse
 		}
 		if err := checkpoint("DJ planning", answer); err != nil {
 			return err
@@ -524,6 +554,7 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 			e.RepetitionReason = cmd.RepetitionReason
 			e.Status = "ready"
 			e.PlanningFailed = false
+			e.FailureCode = ""
 			e.Problem = ""
 			e.RetryAt = time.Time{}
 

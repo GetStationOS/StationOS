@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"stationos.local/stationos/internal/ai"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +29,7 @@ func TestQuotaFailuresAreSpecificAndNeverRetryable(t *testing.T) {
 				error
 				RetryAfter() time.Duration
 			}
-			if err == nil || !strings.Contains(err.Error(), tc.want) || errors.As(err, &temporary) || strings.Contains(err.Error(), "secret-key") {
+			if !errors.Is(err, ai.ErrQuota) || !strings.Contains(err.Error(), tc.want) || errors.As(err, &temporary) || strings.Contains(err.Error(), "secret-key") {
 				t.Fatal(err)
 			}
 		})
@@ -82,5 +83,15 @@ func TestProviderReportsMeasuredTokenUsage(t *testing.T) {
 	response, err := m.Respond(context.Background(), "model", "key", "", nil, nil)
 	if err != nil || response.Usage.Input != 1200 || response.Usage.Output != 37 {
 		t.Fatal(response, err)
+	}
+}
+
+func TestIncompleteOutputPreservesTokenLimitCause(t *testing.T) {
+	m := Model{Client: &http.Client{Transport: transport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":123,"output_tokens":512},"output":[]}`))}, nil
+	})}}
+	out, err := m.Respond(context.Background(), "model", "key", "", nil, nil)
+	if !errors.Is(err, ai.ErrOutputLimit) || out.Usage.Output != 512 {
+		t.Fatal(out, err)
 	}
 }

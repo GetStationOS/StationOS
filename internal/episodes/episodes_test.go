@@ -342,7 +342,9 @@ func TestGenuinePlanningFailureIsReportedOnceAndRetryBackoffSurvivesPlayback(t *
 	store := &memoryStore{}
 	var logs bytes.Buffer
 	reported, recovered := 0, 0
-	text := &textStub{generate: func(_ ai.TextRequest, _ int) (string, error) { return "", errors.New("provider test failure") }}
+	text := &textStub{generate: func(_ ai.TextRequest, _ int) (string, error) {
+		return "", fmt.Errorf("%w: provider test failure", ai.ErrOutputLimit)
+	}}
 	service := &Service{Store: store, Pool: poolStub{recording("one", 885)}, Text: text, Logger: slog.New(slog.NewTextHandler(&logs, nil)), ReportPlanning: func(_ schedule.Occurrence, err error) {
 		if err == nil {
 			recovered++
@@ -363,7 +365,7 @@ func TestGenuinePlanningFailureIsReportedOnceAndRetryBackoffSurvivesPlayback(t *
 		}
 	}
 	before, _ := store.Get(ctx, o.Key)
-	if !before.PlanningFailed || reported != 1 || !strings.Contains(logs.String(), "provider test failure") {
+	if !before.PlanningFailed || before.FailureCode != "output_limit" || reported != 1 || !strings.Contains(logs.String(), "provider test failure") {
 		t.Fatal("real failure was hidden", before, reported, logs.String())
 	}
 	for i := 0; i < 3; i++ {
@@ -535,5 +537,40 @@ func TestCancellationProtectsAiredHistoryAndRejectsInFlightPlanning(t *testing.T
 	after, _ := store.Get(ctx, o.Key)
 	if len(after.Aired) != 1 || after.Cancelled {
 		t.Fatal("history changed", after)
+	}
+}
+
+func TestPendingSelectionPreservesSpecificFailureAndLiveProgress(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	service := &Service{Store: store}
+	for _, code := range []string{"quota", "rate_limit", "output_limit", "context_limit", "invalid_response", "timeout", "unknown"} {
+		retry := time.Now().Add(time.Minute)
+		store.Update(ctx, o, func(e *Episode) error {
+			e.Status = "unplanned"
+			e.PlanningFailed = true
+			e.FailureCode = code
+			e.RetryAt = retry
+			e.Plan = []Track{{ID: "aired"}}
+			e.Aired = []Track{{ID: "aired"}}
+			return nil
+		})
+		before, _ := store.Get(ctx, o.Key)
+		_, err := service.SelectTrack(ctx, production.SelectionRequest{Show: o})
+		var pending *production.PendingSelection
+		if !errors.Is(err, production.ErrPlanPending) || !errors.As(err, &pending) || pending.Reason != ai.FailureMessage(code) || !pending.RetryAt.Equal(retry) {
+			t.Fatal(code, err)
+		}
+		after, _ := store.Get(ctx, o.Key)
+		if after.Version != before.Version {
+			t.Fatal("diagnostic read changed retry state")
+		}
+	}
+	store.Update(ctx, o, func(e *Episode) error { e.Status = "planning"; e.Plan = nil; return nil })
+	_, err := service.SelectTrack(ctx, production.SelectionRequest{Show: o})
+	var pending *production.PendingSelection
+	if !errors.As(err, &pending) || !strings.Contains(pending.Reason, "still choosing") || !pending.RetryAt.IsZero() {
+		t.Fatal("stale failure shown during active preparation", err)
 	}
 }

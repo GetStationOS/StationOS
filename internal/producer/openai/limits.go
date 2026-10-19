@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"stationos.local/stationos/internal/ai"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ type rateLimit struct{ delay time.Duration }
 func (e rateLimit) Error() string {
 	return "OpenAI temporarily limited the request rate. Wait before continuing. Check the selected model’s API rate limits if this persists."
 }
+func (e rateLimit) Unwrap() error             { return ai.ErrRateLimit }
 func (e rateLimit) RetryAfter() time.Duration { return e.delay }
 
 // Inspect bounded structured fields; never expose the provider's raw message,
@@ -32,21 +34,21 @@ func limitError(resp *http.Response) error {
 	code := body.Error.Code
 	switch code {
 	case "credit_balance_exhausted":
-		return errors.New("OpenAI API credits are exhausted. Check the API billing balance for the organization that owns the saved key. Add credits before continuing; retrying cannot restore the balance.")
+		return fmt.Errorf("%w: %s", ai.ErrQuota, "OpenAI API credits are exhausted. Check the API billing balance for the organization that owns the saved key. Add credits before continuing; retrying cannot restore the balance.")
 	case "organization_spend_limit_exceeded":
-		return errors.New("OpenAI’s organization spending limit was reached. Review that organization’s API spending limit before continuing.")
+		return fmt.Errorf("%w: %s", ai.ErrQuota, "OpenAI’s organization spending limit was reached. Review that organization’s API spending limit before continuing.")
 	case "project_spend_limit_exceeded":
-		return errors.New("OpenAI’s project spending limit was reached. Review the saved key’s API project spending limit before continuing.")
+		return fmt.Errorf("%w: %s", ai.ErrQuota, "OpenAI’s project spending limit was reached. Review the saved key’s API project spending limit before continuing.")
 	case "organization_usage_limit_exceeded":
-		return errors.New("OpenAI’s approved organization usage limit was reached. Review its API usage limits before continuing.")
+		return fmt.Errorf("%w: %s", ai.ErrQuota, "OpenAI’s approved organization usage limit was reached. Review its API usage limits before continuing.")
 	case "insufficient_quota":
-		return errors.New("OpenAI API quota is unavailable. Check credits, billing and usage limits for the organization and project that own the saved key. Resolve the quota before continuing; immediate retries will not help.")
+		return fmt.Errorf("%w: %s", ai.ErrQuota, "OpenAI API quota is unavailable. Check credits, billing and usage limits for the organization and project that own the saved key. Resolve the quota before continuing; immediate retries will not help.")
 	}
 	if body.Error.Type == "insufficient_quota" {
-		return errors.New("OpenAI API quota is unavailable. Check the saved key’s API billing and usage limits before continuing; immediate retries will not help.")
+		return fmt.Errorf("%w: %s", ai.ErrQuota, "OpenAI API quota is unavailable. Check the saved key’s API billing and usage limits before continuing; immediate retries will not help.")
 	}
 	if code == "rate_limit_exceeded" && strings.Contains(strings.ToLower(body.Error.Message), "request too large") {
-		return errors.New("This assistant request exceeds OpenAI’s token rate limit for the selected model. Waiting alone will not make it fit. Review the model’s API token limit or choose a model with a larger allowance in Assistant settings.")
+		return fmt.Errorf("%w: %s", ai.ErrTokenRateLimit, "This assistant request exceeds OpenAI’s token rate limit for the selected model. Waiting alone will not make it fit. Review the model’s API token limit or choose a model with a larger allowance in Assistant settings.")
 	}
 	if code == "rate_limit_exceeded" || code == "slow_down" || body.Error.Type == "rate_limit_error" {
 		return rateLimit{delay: retryDelay(resp.Header.Get("Retry-After"), time.Now())}
@@ -68,12 +70,14 @@ func retryDelay(value string, now time.Time) time.Duration {
 func configurationError(resp *http.Response) error {
 	var body struct{ Error struct{ Code, Param string } }
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, (64<<10)+1))
+	category := error(nil)
 	detail := "Check the model and request configuration in Assistant settings."
 	if err == nil && len(raw) <= 64<<10 && json.Unmarshal(raw, &body) == nil {
 		switch body.Error.Code {
 		case "model_not_found":
 			detail = "The selected model does not exist or is not accessible to the saved API key."
 		case "context_length_exceeded":
+			category = ai.ErrContextLimit
 			detail = "The request exceeds the selected model's context limit."
 		case "invalid_json_schema":
 			detail = "The provider rejected the structured output schema."
@@ -96,6 +100,9 @@ func configurationError(resp *http.Response) error {
 		case "reasoning", "reasoning.effort":
 			detail += " Rejected field: reasoning effort."
 		}
+	}
+	if category != nil {
+		return fmt.Errorf("%w: OpenAI rejected the request (HTTP %d). %s", category, resp.StatusCode, detail)
 	}
 	return fmt.Errorf("OpenAI rejected the request (HTTP %d). %s", resp.StatusCode, detail)
 }

@@ -79,6 +79,12 @@ func (r *Router) Generate(ctx context.Context, q ai.TextRequest) (string, error)
 		production.ReportInference(ctx, out.Notice)
 	}
 	if err != nil {
+		if errors.Is(err, producer.ErrOutputLimit) {
+			return "", ai.ErrOutputLimit
+		}
+		if errors.Is(err, producer.ErrInputContextLimit) || errors.Is(err, producer.ErrContextBudget) {
+			return "", ai.ErrContextLimit
+		}
 		return "", err
 	}
 	if len(out.Calls) > 0 {

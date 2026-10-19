@@ -133,3 +133,12 @@ func ReportSpeechTranscript(ctx context.Context, text string) {
 		report(text)
 	}
 }
+
+// PendingSelection preserves an expected fallback's safe cause and retry snapshot.
+type PendingSelection struct {
+	Reason  string
+	RetryAt time.Time
+}
+
+func (e *PendingSelection) Error() string { return e.Reason }
+func (e *PendingSelection) Unwrap() error { return ErrPlanPending }

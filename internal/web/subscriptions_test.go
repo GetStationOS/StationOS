@@ -120,7 +120,7 @@ func TestOperationalSubscriptionsFollowCommitsAndReconnect(t *testing.T) {
 	if !strings.Contains(nextSnapshot(t, indicator), "1 active incident") {
 		t.Fatal("menu did not receive committed incident")
 	}
-	if !strings.Contains(nextSnapshot(t, overview), "1 active incident") {
+	if !strings.Contains(nextSnapshot(t, overview), "1 incident needs review") {
 		t.Fatal("overview did not receive committed incident")
 	}
 	quietSnapshot(t, version) // A failure outside the music filter must not enable refresh.
@@ -129,14 +129,17 @@ func TestOperationalSubscriptionsFollowCommitsAndReconnect(t *testing.T) {
 	}
 	if strings.TrimSpace(nextSnapshot(t, indicator)) != "" {
 		t.Fatal("review did not clear menu warning")
-	} // The active incident remains in the overview.
+	}
+	if strings.Contains(nextSnapshot(t, overview), `class="operational-summary"`) {
+		t.Fatal("review did not clear overview warning")
+	}
 	event.ID = "recovery"
 	event.Recover = true
 	if err := store.Save(ctx, event); err != nil {
 		t.Fatal(err)
 	}
 	quietSnapshot(t, indicator) // Already cleared by review; recovery does not bring it back.
-	nextSnapshot(t, overview)
+	quietSnapshot(t, overview)  // Review already cleared the notice.
 	event = operations.Event{ID: "music", StationID: "radio", Kind: "music", Outcome: "transmitting", Started: time.Now(), Title: "Song"}
 	if err := store.Save(ctx, event); err != nil {
 		t.Fatal(err)

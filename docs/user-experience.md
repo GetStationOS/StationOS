@@ -581,3 +581,8 @@ or approved listener request. Record only results applied to the current queue,
 with recording, presenter and playlist context. Queue selection is not proof of
 airtime or an invented account of the agent's reasoning. Routine outcomes do not
 create incidents; stale preparation results are ignored.
+
+Overview incident notices use the same unreviewed active incident count as the
+menu indicator. Hide the review notice once all active incidents are reviewed;
+reviewing does not assert technical recovery or remove incident history. History
+recording health warnings remain independent.

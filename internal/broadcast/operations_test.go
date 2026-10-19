@@ -85,6 +85,7 @@ func TestSelectionObservationsDescribeOutcomesWithoutIncidents(t *testing.T) {
 		err       error
 		want      string
 	}{
+		{"specific pending", false, &production.PendingSelection{Reason: "The response reached its output token limit.", RetryAt: time.Date(2026, 10, 19, 19, 40, 0, 0, time.UTC)}, "Next DJ retry: 19:40 UTC"},
 		{"DJ", false, nil, "DJ selected"}, {"pending", false, production.ErrPlanPending, "not ready"}, {"failed", false, errors.New("private provider response"), "could not be used"}, {"request", true, nil, "Listener request queued"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

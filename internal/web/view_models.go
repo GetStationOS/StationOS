@@ -50,8 +50,13 @@ type stationDirectoryView struct {
 	playlistChoices
 	StationCards []stationCard
 }
+type stationSourceOption struct {
+	ID, Name, Host string
+	Selected       bool
+}
 type stationPageView struct {
-	Operations operationSummary
+	SourceOptions []stationSourceOption
+	Operations    operationSummary
 	pageView
 	Broadcast                        broadcast.State
 	StreamURL                        string

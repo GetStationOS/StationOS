@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
@@ -366,5 +367,13 @@ func TestOptionalAuthentication(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Legacy journey fixtures explicitly opt their stations into their test libraries.
+func selectTestSources(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT OR IGNORE INTO station_sources(station_id,source_id) SELECT stations.id,sources.id FROM stations CROSS JOIN sources`); err != nil {
+		t.Fatal(err)
 	}
 }

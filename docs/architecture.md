@@ -688,3 +688,9 @@ values. Ordinary selection saves preserve these restrictions. Assistant tools ex
 credit/year searches and ordinary category selections. They keep source-date and
 original-release evidence distinct. No new background subscriptions or audio work are
 introduced by rule editing.
+
+### Station music sources
+
+Migration 31 adds station_sources with cascading station/source foreign keys and snapshots every existing station's currently configured sources. New stations default to the sources present at creation; later sources require explicit selection. Station Save replaces a supplied SourceIDs set in the same transaction as settings; nil preserves existing choices, while an explicit empty slice selects none. Unknown source IDs fail atomically. Removing a shared source removes its station memberships.
+
+Playlist resolution, availability, review and broadcast pools apply the owning station's source set before rule/manual eligibility. Saved selections remain unchanged: manually included tracks from unchecked sources are visible as unavailable, and become available again when reselected. Restoring a missing saved track is allowed only while its source remains selected. New individual/album additions reject unchecked sources. Station-scoped catalogue searches and facets constrain picker choices; global source/catalogue administration remains shared. Live broadcasts revalidate their pool at track boundaries, allowing the current track to finish.

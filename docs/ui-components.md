@@ -166,3 +166,5 @@ fragment and history restoration, escaped labels and the live Incidents target.
 Use the `state-icon` template for Audience review states, Timeline outcomes and incident status. The shared button has a 44px target and a 30px coloured icon mark. Hover, keyboard focus or tap shows a short state label, such as “Awaiting AI review” or “Expired”. Escape dismisses the tooltip. Additional review reasons remain available as accessible descriptions. Tooltips render outside scrolling table frames so they are not clipped.
 
 Table frames own scrolling and header backgrounds; keep the inner table in its normal table layout. A panel’s first section heading has no extra top margin.
+
+For short checkbox groups inside routine forms, `.choice-list.compact` grows with its rows up to 300px, then scrolls. It retains the shared choice-row, search and bulk-action styles without reserving a full library-picker height.

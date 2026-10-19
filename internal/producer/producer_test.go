@@ -2,6 +2,7 @@ package producer_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -282,5 +283,13 @@ func TestFailedModelRetainsCommittedActionsAndRecoveryContext(t *testing.T) {
 	items, _ = stations.List(ctx)
 	if c.Status != "idle" || len(items) != 1 || !strings.Contains(string(c.Transcript), "Saved station") {
 		t.Fatal("recovery replayed or lost committed actions", c, items)
+	}
+}
+
+// Legacy journey fixtures explicitly opt their stations into their test libraries.
+func selectTestSources(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT OR IGNORE INTO station_sources(station_id,source_id) SELECT stations.id,sources.id FROM stations CROSS JOIN sources`); err != nil {
+		t.Fatal(err)
 	}
 }

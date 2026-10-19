@@ -23,3 +23,9 @@ const playlistRulesMatch = `SELECT 1 FROM playlist_rules r WHERE r.playlist_id=?
  GROUP BY r.playlist_id
  HAVING count(DISTINCT ` + playlistRuleCategory + `) =
  count(DISTINCT CASE WHEN ` + playlistRuleMatch + ` THEN ` + playlistRuleCategory + ` END)`
+
+// A station's explicit source choices constrain every playlist candidate path.
+const playlistSources = `WITH selected_sources AS (
+ SELECT ss.source_id FROM station_sources ss JOIN playlists pl ON pl.station_id=ss.station_id WHERE pl.id=?
+) `
+const playlistSourceMatch = `i.source_id IN (SELECT source_id FROM selected_sources)`

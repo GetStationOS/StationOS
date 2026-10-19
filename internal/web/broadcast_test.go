@@ -64,6 +64,7 @@ func TestExternalStreamsAndPlaylistSetup(t *testing.T) {
 		t.Fatal(err)
 	}
 	item := content.AudioItem{ID: content.ID(c.ID, "one"), SourceID: c.ID, SourceItemID: "one", Title: "One", Artist: "Performer", Kind: content.Track, Origin: content.Original}
+	selectTestSources(t, db)
 	cat.Replace(ctx, c, []content.AudioItem{item})
 	pr.Save(ctx, playlists.Playlist{ID: "pool", StationID: a.ID, Name: "Pool"})
 	pr.SetIncluded(ctx, "pool", []string{item.ID}, true)

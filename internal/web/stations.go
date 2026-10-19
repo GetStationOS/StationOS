@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -31,6 +32,10 @@ func (s *Server) stationPage(w http.ResponseWriter, r *http.Request) {
 		v.Section = "settings"
 		v.Title = "Station settings"
 		v.StationLogoGeneration = s.imageGenerationAvailable(r.Context())
+		if err := s.loadStationSourceOptions(r.Context(), &v); err != nil {
+			s.fail(w, err)
+			return
+		}
 	}
 	if strings.HasSuffix(r.URL.Path, "/delete") {
 		v.Section = "delete"
@@ -93,4 +98,23 @@ func (s *Server) upcomingOverview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/producer/stations/"+url.PathEscape(r.PathValue("id"))+"#upcoming", http.StatusFound)
+}
+
+func (s *Server) loadStationSourceOptions(ctx context.Context, v *stationPageView) error {
+	if s.d.Sources == nil {
+		return nil
+	}
+	all, err := s.d.Sources.List(ctx)
+	if err != nil {
+		return err
+	}
+	selected := map[string]bool{}
+	for _, id := range v.Station.SourceIDs {
+		selected[id] = true
+	}
+	for _, source := range all {
+		u, _ := url.Parse(source.Endpoint)
+		v.SourceOptions = append(v.SourceOptions, stationSourceOption{ID: source.ID, Name: source.Name, Host: u.Host, Selected: v.Station.SourceIDs == nil || selected[source.ID]})
+	}
+	return nil
 }

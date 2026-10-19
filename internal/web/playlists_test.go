@@ -25,6 +25,7 @@ func TestPlaylistWebJourney(t *testing.T) {
 	}
 	d := 3 * time.Minute
 	a := content.AudioItem{ID: content.ID(c.ID, "track"), SourceID: c.ID, SourceItemID: "track", Title: "Jazz & <title>", Artist: "Artist", Album: "Album & One", Genre: "Jazz", Duration: &d, Kind: content.Track, Origin: content.Original, Resources: []content.Resource{{URL: "http://server/track", MIME: "audio/flac"}}}
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(ctx, c, []content.AudioItem{a}); err != nil {
 		t.Fatal(err)
 	}

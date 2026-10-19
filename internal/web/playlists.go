@@ -77,11 +77,12 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		v.PlaylistID = v.Playlist.ID
 		if v.PlaylistTab == "selections" {
 			v.Sources, err = s.d.Sources.List(r.Context())
+			v.Sources = stationSources(v.Sources, v.Station)
 			if err != nil {
 				s.fail(w, err)
 				return
 			}
-			if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices); err != nil {
+			if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices, v.StationID); err != nil {
 				s.fail(w, err)
 				return
 			}
@@ -94,6 +95,7 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		}
 		if v.PlaylistTab == "tracks" {
 			v.Sources, err = s.d.Sources.List(r.Context())
+			v.Sources = stationSources(v.Sources, v.Station)
 			if err != nil {
 				s.fail(w, err)
 				return

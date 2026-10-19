@@ -234,13 +234,15 @@ func TestLegacyManagementBookmarksRedirect(t *testing.T) {
 func TestPublicShowPresenterPortraitSources(t *testing.T) {
 	h, stations, _, _ := setupWeb(t, "secret")
 	ctx := context.Background()
+	targetDate := time.Now().UTC().AddDate(0, 0, 1)
+	targetDay := (int(targetDate.Weekday()) + 6) % 7
 	if err := stations.Save(ctx, station.Station{ID: "s", Name: "Radio", StreamSlug: "radio", Timezone: "UTC", Visibility: station.Listed}); err != nil {
 		t.Fatal(err)
 	}
 	if err := (persistence.Playlists{DB: stations.DB}).Save(ctx, playlists.Playlist{ID: "p", StationID: "s", Name: "Pool"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := (persistence.Schedule{DB: stations.DB}).Save(ctx, schedule.Show{ID: "show", StationID: "s", Name: "Show", Description: "Afternoon favourites", DJID: "default-pop", PlaylistID: "p", Day: 0, Start: 0, End: 60}); err != nil {
+	if err := (persistence.Schedule{DB: stations.DB}).Save(ctx, schedule.Show{ID: "show", StationID: "s", Name: "Show", Description: "Afternoon favourites", DJID: "default-pop", PlaylistID: "p", Day: targetDay, Start: 0, End: 60}); err != nil {
 		t.Fatal(err)
 	}
 	for _, portrait := range []string{"/static/djs/alex-bright.jpg", "https://example.com/portrait.jpg", "/djs/default-pop/photo?v=" + strings.Repeat("a", 64)} {
@@ -251,9 +253,7 @@ func TestPublicShowPresenterPortraitSources(t *testing.T) {
 		if strings.HasPrefix(portrait, "/djs/") {
 			want = "/radio/radio/presenters/default-pop/photo"
 		}
-		now := time.Now().UTC()
-		monday := now.AddDate(0, 0, (8-int(now.Weekday()))%7)
-		programme := request(h, "GET", "/radio/radio?day="+monday.Format("2006-01-02"), nil, nil)
+		programme := request(h, "GET", "/radio/radio?day="+targetDate.Format("2006-01-02"), nil, nil)
 		if programme.Code != 200 || !strings.Contains(programme.Body.String(), `class="schedule-presenter-photo" src="`+want+`"`) {
 			t.Fatal(programme.Code, programme.Body.String())
 		}

@@ -25,11 +25,12 @@ func database(t *testing.T) *sql.DB {
 func seed(t *testing.T, db *sql.DB) sources.Config {
 	t.Helper()
 	ctx := context.Background()
-	if err := (Stations{db}).Save(ctx, station.Station{ID: "station", Name: "Independent", Description: "Keep me", Timezone: "UTC", Locale: "en"}); err != nil {
-		t.Fatal(err)
-	}
+
 	c := sources.Config{ID: "source", Name: "Music", Kind: "upnp", Endpoint: "http://server:9790/desc", Revision: 1}
 	if err := (Sources{db}).Save(ctx, c); err != nil {
+		t.Fatal(err)
+	}
+	if err := (Stations{db}).Save(ctx, station.Station{ID: "station", Name: "Independent", Description: "Keep me", Timezone: "UTC", Locale: "en"}); err != nil {
 		t.Fatal(err)
 	}
 	return c

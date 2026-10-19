@@ -14,6 +14,7 @@ import (
 )
 
 type Query struct {
+	StationID        string
 	Artist, Composer string
 	YearFrom, YearTo int
 	Genre            string
@@ -30,7 +31,7 @@ func (q Query) Validate() error {
 	if len(q.Artist) > 4096 || len(q.Composer) > 4096 || q.YearFrom < 0 || q.YearFrom > 9999 || q.YearTo < 0 || q.YearTo > 9999 || (q.YearFrom > 0 && q.YearTo > 0 && q.YearFrom > q.YearTo) {
 		return errors.New("invalid catalogue credit or year filter")
 	}
-	if q.Offset < 0 || q.Offset > 1000000 || q.Limit < 1 || q.Limit > 100 || len(q.Text) > 200 || len(q.Genre) > 4096 || len(q.Album) > 4096 || len(q.SourceID) > 128 {
+	if q.Offset < 0 || q.Offset > 1000000 || q.Limit < 1 || q.Limit > 100 || len(q.Text) > 200 || len(q.Genre) > 4096 || len(q.Album) > 4096 || len(q.SourceID) > 128 || len(q.StationID) > 128 {
 		return errors.New("invalid catalogue query")
 	}
 	switch q.Sort {
@@ -62,7 +63,7 @@ type Repository interface {
 	Replace(context.Context, sources.Config, []content.AudioItem) error
 	Search(context.Context, Query) (Result, error)
 	Clear(context.Context, string) error
-	Facets(context.Context) (Facets, error)
+	Facets(context.Context, ...string) (Facets, error)
 }
 type Sync struct {
 	Sources   sources.Repository

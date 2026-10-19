@@ -63,6 +63,10 @@ func (s *Server) stationFormError(w http.ResponseWriter, r *http.Request, st sta
 		}
 	}
 	v.Station = st
+	if err := s.loadStationSourceOptions(r.Context(), &v); err != nil {
+		s.fail(w, err)
+		return
+	}
 	v.StationRepeatInput = r.PostForm.Get("repeat_minutes")
 	v.StationRepeatSupplied = r.PostForm.Has("repeat_minutes")
 	v.StationError = err.Error() + " Choose the logo again if you selected a file."
@@ -89,6 +93,10 @@ func (s *Server) generateStationLogo(w http.ResponseWriter, r *http.Request, st 
 	}
 	v := stationPageView{pageView: s.baseView(r)}
 	v.Station = st
+	if err := s.loadStationSourceOptions(r.Context(), &v); err != nil {
+		s.fail(w, err)
+		return
+	}
 	v.StationLogoGeneration = true
 	v.StationLogoDraft = draft
 	v.StationRepeatInput = r.PostForm.Get("repeat_minutes")

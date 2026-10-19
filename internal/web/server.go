@@ -351,6 +351,10 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 		v.LogoVersion = existing.LogoVersion
 		v.RepeatMinutes = existing.RepeatMinutes
 		v.Visibility = existing.Visibility
+		v.SourceIDs = existing.SourceIDs
+	}
+	if r.PostForm.Has("sources_supplied") {
+		v.SourceIDs = append([]string{}, r.PostForm["source_id"]...)
 	}
 	if input, supplied := r.PostForm["repeat_minutes"]; supplied {
 		minutes, err := strconv.Atoi(input[0])
@@ -390,7 +394,7 @@ func (s *Server) saveStation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	saved, err := (station.Service{Repo: s.d.Stations}).Save(r.Context(), v)
-	if errors.Is(err, station.ErrSlugTaken) {
+	if errors.Is(err, station.ErrSlugTaken) || errors.Is(err, station.ErrInvalidSource) {
 		s.stationFormError(w, r, v, err)
 		return
 	}

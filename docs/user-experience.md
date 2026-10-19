@@ -556,3 +556,7 @@ form validation and ordinary-form fallback for editing these saved restrictions.
 Year and decade selections prefer the source’s original release date and fall back to its album release date, which may describe a reissue; missing dates do not match date selections.
 
 Source Settings offers Remove source below the form, using the shared confirmation dialog and an ordinary confirmation-page fallback. Explain that removal affects every station, keeps external music files and playlist selections, and makes recordings from that source unavailable. Successful removal returns to Sources with a confirmation.
+
+### Station music sources
+
+Create station and Station Settings include a Music sources checkbox list, selected count and Select all/Clear controls. Save commits source choices with the other station settings. Show unsaved source choices and use the shared discard dialog when leaving; successful Save must not ask to discard. Explain that selecting two servers exposing the same library includes duplicate recordings, new sources require explicit selection, and no selected sources means no music. Existing stations retain access to all sources present at upgrade. Source changes apply to station playlist choices and future track selection; saved rules and manual selections remain, with unchecked-source tracks unavailable. Music files are untouched.

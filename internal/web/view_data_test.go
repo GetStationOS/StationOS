@@ -28,7 +28,7 @@ func (r *unavailableViewCatalogue) Search(context.Context, catalogue.Query) (cat
 	r.calls++
 	return catalogue.Result{}, errors.New("catalogue unavailable")
 }
-func (r *unavailableViewCatalogue) Facets(context.Context) (catalogue.Facets, error) {
+func (r *unavailableViewCatalogue) Facets(context.Context, ...string) (catalogue.Facets, error) {
 	r.calls++
 	return catalogue.Facets{}, errors.New("catalogue unavailable")
 }
@@ -131,7 +131,11 @@ func TestPageDataDependencies(t *testing.T) {
 				if cat.calls != 0 {
 					t.Fatalf("unrelated catalogue reads: %d", cat.calls)
 				}
-				if sourceRepo.lists != 0 {
+				wantSourceLists := 0
+				if tc.path == "/producer/station" || strings.HasPrefix(tc.path, "/producer/stations/new") || tc.path == stationPath+"/settings" {
+					wantSourceLists = 1
+				}
+				if sourceRepo.lists != wantSourceLists {
 					t.Fatalf("unrelated source lists: %d", sourceRepo.lists)
 				}
 				if len(pools.stations) != tc.playlistLists {

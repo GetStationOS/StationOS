@@ -26,6 +26,7 @@ func TestPlaylistRefreshAndExclusionJourney(t *testing.T) {
 	}
 	length := 3 * time.Minute
 	a := content.AudioItem{ID: content.ID(source.ID, "a"), SourceID: source.ID, SourceItemID: "a", Title: "Alpha", Genre: "Jazz", Album: "Album", Duration: &length, Kind: content.Track, Origin: content.Original}
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(ctx, source, []content.AudioItem{a}); err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +63,7 @@ func TestPlaylistRefreshAndExclusionJourney(t *testing.T) {
 	b.SourceItemID = "b"
 	b.Title = "Beta"
 	b.Album = "New album"
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(ctx, source, []content.AudioItem{a, b}); err != nil {
 		t.Fatal(err)
 	}
@@ -84,6 +86,7 @@ func TestPlaylistRefreshAndExclusionJourney(t *testing.T) {
 	c.SourceItemID = "c"
 	c.Title = "Gamma"
 	c.Album = "Latest album"
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(ctx, source, []content.AudioItem{a, b, c}); err != nil {
 		t.Fatal(err)
 	}

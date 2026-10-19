@@ -38,7 +38,8 @@ func (s *Server) playlistFilter(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices); err != nil {
+	v.Sources = stationSources(v.Sources, v.Station)
+	if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices, v.StationID); err != nil {
 		s.fail(w, err)
 		return
 	}

@@ -109,7 +109,7 @@ func (r Playlists) Review(ctx context.Context, id string, offset, limit int) (pl
 	if err != nil {
 		return review, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT coalesce(i.metadata,s.snapshot),i.id IS NOT NULL FROM playlist_selections s LEFT JOIN catalogue_items i ON i.id=s.content_id WHERE s.playlist_id=? AND s.included=0 LIMIT ?`, id, playlists.MaxItems+1)
+	rows, err := tx.QueryContext(ctx, playlistSources+`SELECT coalesce(i.metadata,s.snapshot),i.id IS NOT NULL FROM playlist_selections s LEFT JOIN catalogue_items i ON i.id=s.content_id AND `+playlistSourceMatch+` WHERE s.playlist_id=? AND s.included=0 LIMIT ?`, id, id, playlists.MaxItems+1)
 	if err != nil {
 		return review, err
 	}

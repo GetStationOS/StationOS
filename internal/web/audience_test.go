@@ -205,6 +205,7 @@ func TestPublicAudienceConsentCSRFPolicyAndQueue(t *testing.T) {
 	foreign.Title = "Foreign recording"
 	foreign.Artist = "Foreign band"
 	music = append(music, foreign)
+	selectTestSources(t, db)
 	if err = (persistence.Catalogue{DB: db}).Replace(ctx, source, music); err != nil {
 		t.Fatal(err)
 	}

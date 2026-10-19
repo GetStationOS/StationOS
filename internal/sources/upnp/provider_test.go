@@ -325,6 +325,9 @@ func TestMinimServerImportUsesFlatItemsView(t *testing.T) {
 		t.Fatal(err)
 	}
 	cat := persistence.Catalogue{DB: db}
+	if _, err := db.Exec(`INSERT INTO station_sources(station_id,source_id) SELECT stations.id,sources.id FROM stations CROSS JOIN sources`); err != nil {
+		t.Fatal(err)
+	}
 	syncer := catalogue.Sync{Sources: src, Catalogue: cat, Factory: func(context.Context, sources.Config) (sources.AudioSource, error) { return p, nil }}
 	for n := 0; n < 2; n++ {
 		count, err := syncer.Run(ctx, config.ID)

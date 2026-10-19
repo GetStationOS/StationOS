@@ -32,6 +32,7 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 		t.Fatal(err)
 	}
 	tracks := []content.AudioItem{{ID: content.ID(c.ID, "a"), SourceID: c.ID, SourceItemID: "a", Title: "Current <song>", Artist: "Recording artist", Artwork: "http://server/current.png", Kind: content.Track, Origin: content.Original}, {ID: content.ID(c.ID, "b"), SourceID: c.ID, SourceItemID: "b", Title: "Next song", Artist: "Next artist", Artwork: "http://server/next.png", Kind: content.Track, Origin: content.Original}}
+	selectTestSources(t, cat.DB)
 	if err := cat.Replace(ctx, c, tracks); err != nil {
 		t.Fatal(err)
 	}

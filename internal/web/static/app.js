@@ -17,6 +17,7 @@ function refreshChoices(form) {
   });
   const dirty = form.dataset.initial !== selectionState(form);
   form.dataset.dirty = String(dirty);
+  if (form.matches('[data-choice-form]')) { form.querySelector('[data-source-unsaved]').textContent = dirty ? 'Unsaved source choices' : ''; return; }
   form.querySelector('[data-unsaved]').textContent = dirty ? 'Unsaved changes' : '';
   form.querySelector('.selection-save').classList.toggle('dirty', dirty);
   form.querySelector('button[type="submit"]').disabled = !dirty;
@@ -70,6 +71,7 @@ function initialise() {
     if (link.dataset.nav === active) link.setAttribute('aria-current', 'page');
     else link.removeAttribute('aria-current');
   });
+  document.querySelectorAll('[data-choice-form]').forEach(form => { if (form.dataset.initial === undefined) form.dataset.initial = selectionState(form); refreshChoices(form); });
   document.querySelectorAll('[data-selection-form]').forEach(form => { form.dataset.initial = selectionState(form); refreshChoices(form); });
   document.querySelectorAll('[data-track-form]').forEach(refreshTracks);
   document.querySelectorAll('[data-mixer-form]').forEach(initialiseMixer);
@@ -94,12 +96,12 @@ function refreshMixer(form) {
  });
 
 }
-function unsavedSelections() { return !!document.querySelector('[data-selection-form][data-dirty="true"]'); }
+function unsavedSelections() { return !!document.querySelector('[data-selection-form][data-dirty="true"], [data-choice-form][data-dirty="true"]'); }
 let pendingNavigation = null;
 document.body.addEventListener('htmx:confirm', event => {
   const trigger = event.detail.elt;
   const form = trigger.closest('form');
-  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form]'));
+  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form], [data-choice-form]'));
   if (navigation && unsavedSelections()) {
     event.preventDefault();
     pendingNavigation = () => event.detail.issueRequest(true);
@@ -151,7 +153,7 @@ document.body.addEventListener('htmx:sendError', event => { if (event.detail?.el
 document.body.addEventListener('change', event => {
   const form = event.target.closest('form');
   if (!form) return;
-  if (form.matches('[data-selection-form]')) refreshChoices(form);
+  if (form.matches('[data-selection-form], [data-choice-form]')) refreshChoices(form);
   if (event.target.matches('[data-select-page]')) form.querySelectorAll('input[name="item"]').forEach(input => { input.checked = event.target.checked; });
   if (form.matches('[data-track-form]')) refreshTracks(form);
 });

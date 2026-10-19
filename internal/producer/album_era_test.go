@@ -72,6 +72,7 @@ func TestAlbumEraSelectionDoesNotRequireYearMetadata(t *testing.T) {
 		{ID: content.ID(source.ID, "eighties"), SourceID: source.ID, SourceItemID: "eighties", Title: "Beat It", Artist: "Michael Jackson", Album: "Thriller", Genre: "Pop", Kind: content.Track, Origin: content.Original},
 		{ID: content.ID(source.ID, "other"), SourceID: source.ID, SourceItemID: "other", Title: "Later Recording", Artist: "Other Artist", Album: "Later Album", Genre: "Pop", Kind: content.Track, Origin: content.Original},
 	}
+	selectTestSources(t, stations.DB)
 	if err := (persistence.Catalogue{DB: stations.DB}).Replace(ctx, source, items); err != nil {
 		t.Fatal(err)
 	}

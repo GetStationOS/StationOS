@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
 )
 
 // Catalogue choices belong only to track browsing and playlist rule editing.
-func (s *Server) loadCatalogueChoices(ctx context.Context, v *catalogueChoices) error {
+func (s *Server) loadCatalogueChoices(ctx context.Context, v *catalogueChoices, stationIDs ...string) error {
 	var err error
-	v.Facets, err = s.d.Catalogue.Facets(ctx)
+	v.Facets, err = s.d.Catalogue.Facets(ctx, stationIDs...)
 	if err != nil {
 		return err
 	}
@@ -129,4 +130,21 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 		v.StationCards = append(v.StationCards, card)
 	}
 	return nil
+}
+
+func stationSources(all []sources.Config, st station.Station) []sources.Config {
+	if st.ID == "" {
+		return all
+	}
+	selected := map[string]bool{}
+	for _, id := range st.SourceIDs {
+		selected[id] = true
+	}
+	out := []sources.Config{}
+	for _, source := range all {
+		if selected[source.ID] {
+			out = append(out, source)
+		}
+	}
+	return out
 }

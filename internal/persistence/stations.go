@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -28,6 +29,10 @@ func (r Stations) Save(ctx context.Context, s station.Station) error {
 		return err
 	}
 	defer tx.Rollback()
+	var exists bool
+	if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM stations WHERE id=?)`, s.ID).Scan(&exists); err != nil {
+		return err
+	}
 	if s.StreamSlug == "" {
 		err := tx.QueryRowContext(ctx, `SELECT stream_slug FROM stations WHERE id=?`, s.ID).Scan(&s.StreamSlug)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -58,6 +63,29 @@ func (r Stations) Save(ctx context.Context, s station.Station) error {
 	if err != nil {
 		return err
 	}
+	if s.SourceIDs != nil {
+		for _, id := range s.SourceIDs {
+			var valid bool
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM sources WHERE id=?)`, id).Scan(&valid); err != nil {
+				return err
+			}
+			if !valid {
+				return station.ErrInvalidSource
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM station_sources WHERE station_id=?`, s.ID); err != nil {
+			return err
+		}
+		for _, id := range s.SourceIDs {
+			if _, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO station_sources(station_id,source_id) VALUES(?,?)`, s.ID, id); err != nil {
+				return err
+			}
+		}
+	} else if !exists {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO station_sources(station_id,source_id) SELECT ?,id FROM sources`, s.ID); err != nil {
+			return err
+		}
+	}
 	if s.Logo != nil {
 		if s.Logo.Clear {
 			_, err = tx.ExecContext(ctx, `DELETE FROM station_logos WHERE station_id=?`, s.ID)
@@ -74,22 +102,30 @@ func (r Stations) Save(ctx context.Context, s station.Station) error {
 
 func (r Stations) ByStreamSlug(ctx context.Context, slug string) (station.Station, error) {
 	var s station.Station
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility FROM stations WHERE stream_slug=? AND stream_slug<>''`, slug).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility)
+	var sourceJSON string
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility,(SELECT json_group_array(source_id) FROM station_sources WHERE station_id=stations.id) FROM stations WHERE stream_slug=? AND stream_slug<>''`, slug).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility, &sourceJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = station.ErrNotFound
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(sourceJSON), &s.SourceIDs)
 	}
 	return s, err
 }
 func (r Stations) Get(ctx context.Context, id string) (station.Station, error) {
 	var s station.Station
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility FROM stations WHERE id=?`, id).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility)
+	var sourceJSON string
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility,(SELECT json_group_array(source_id) FROM station_sources WHERE station_id=stations.id) FROM stations WHERE id=?`, id).Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility, &sourceJSON)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = station.ErrNotFound
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(sourceJSON), &s.SourceIDs)
 	}
 	return s, err
 }
 func (r Stations) List(ctx context.Context) ([]station.Station, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility FROM stations ORDER BY name,id`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,description,timezone,locale,stream_slug,repeat_minutes,COALESCE((SELECT version FROM station_logos WHERE station_id=stations.id),''),visibility,(SELECT json_group_array(source_id) FROM station_sources WHERE station_id=stations.id) FROM stations ORDER BY name,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +133,11 @@ func (r Stations) List(ctx context.Context) ([]station.Station, error) {
 	out := []station.Station{}
 	for rows.Next() {
 		var s station.Station
-		if err = rows.Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility); err != nil {
+		var sourceJSON string
+		if err = rows.Scan(&s.ID, &s.Name, &s.Description, &s.Timezone, &s.Locale, &s.StreamSlug, &s.RepeatMinutes, &s.LogoVersion, &s.Visibility, &sourceJSON); err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal([]byte(sourceJSON), &s.SourceIDs); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

@@ -111,6 +111,7 @@ func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
 				t.Fatal(err)
 			}
 			item := content.AudioItem{ID: content.ID(src.ID, "one"), SourceID: src.ID, SourceItemID: "one", Title: "Library Jazz", Genre: "Jazz", Kind: content.Track, Origin: content.Original}
+			selectTestSources(t, stations.DB)
 			if err := (persistence.Catalogue{DB: stations.DB}).Replace(ctx, src, []content.AudioItem{item}); err != nil {
 				t.Fatal(err)
 			}
@@ -195,6 +196,7 @@ func TestPlaylistAvailabilityMatchesResolvedEligibility(t *testing.T) {
 		items = append(items, content.AudioItem{ID: content.ID(src.ID, id), SourceID: src.ID, SourceItemID: id, Title: id, Genre: "Jazz", Album: "Album", Kind: content.Track, Origin: content.Original})
 	}
 	catalogue := persistence.Catalogue{DB: stations.DB}
+	selectTestSources(t, stations.DB)
 	if err := catalogue.Replace(ctx, src, items); err != nil {
 		t.Fatal(err)
 	}
@@ -210,6 +212,7 @@ func TestPlaylistAvailabilityMatchesResolvedEligibility(t *testing.T) {
 	if err := pools.SetIncluded(ctx, pool.ID, []string{items[2].ID}, true); err != nil {
 		t.Fatal(err)
 	}
+	selectTestSources(t, stations.DB)
 	if err := catalogue.Replace(ctx, src, items[:2]); err != nil {
 		t.Fatal(err)
 	}

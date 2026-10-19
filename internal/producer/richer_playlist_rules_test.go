@@ -22,6 +22,7 @@ func TestAssistantRichRulesAndMeasuredExploration(t *testing.T) {
 		t.Fatal(err)
 	}
 	item := content.AudioItem{ID: content.ID(source.ID, "a"), SourceID: source.ID, SourceItemID: "a", Title: "A", Artist: "Miles Davis; John Coltrane", Composer: "Writer", Genre: "Jazz", Year: 1959, Kind: content.Track, Origin: content.Original}
+	selectTestSources(t, stations.DB)
 	if err := (persistence.Catalogue{DB: stations.DB}).Replace(ctx, source, []content.AudioItem{item}); err != nil {
 		t.Fatal(err)
 	}

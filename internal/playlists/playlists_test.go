@@ -23,6 +23,10 @@ func setup(t *testing.T) (playlists.Service, persistence.Playlists, persistence.
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { db.Close() })
+	source, err := (sources.Service{Repo: persistence.Sources{DB: db}}).Save(ctx, sources.Config{Name: "Shared music", Kind: "upnp", Endpoint: "http://server/desc"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	st := persistence.Stations{DB: db}
 	stations := []station.Station{}
 	for _, name := range []string{"Jazz station", "Pop station", "Classical station"} {
@@ -32,10 +36,7 @@ func setup(t *testing.T) (playlists.Service, persistence.Playlists, persistence.
 		}
 		stations = append(stations, saved)
 	}
-	source, err := (sources.Service{Repo: persistence.Sources{DB: db}}).Save(ctx, sources.Config{Name: "Shared music", Kind: "upnp", Endpoint: "http://server/desc"})
-	if err != nil {
-		t.Fatal(err)
-	}
+
 	repo := persistence.Playlists{DB: db}
 	return playlists.Service{Repo: repo, Stations: st}, repo, persistence.Catalogue{DB: db}, source, stations
 }

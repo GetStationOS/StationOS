@@ -1091,3 +1091,5 @@ textarea{font-weight:400;line-height:1.5}
 .rule-choice-label { display:flex; align-items:center; gap:12px; margin:0; flex:1; min-width:0; cursor:pointer; }
 .rule-choice-label span { min-width:0; }
 .choice > a { flex-shrink:0; font-size:12px; }
+
+.choice-list.compact{height:auto;max-height:300px}

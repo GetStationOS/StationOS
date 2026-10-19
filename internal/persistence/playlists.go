@@ -86,7 +86,7 @@ func (r Playlists) AddRule(ctx context.Context, id string, rule playlists.Rule) 
 	defer tx.Rollback()
 	if rule.Kind == "album" {
 		var exists int
-		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM catalogue_items WHERE source_id=? AND album=?`, rule.SourceID, rule.Value).Scan(&exists); err != nil {
+		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM catalogue_items i WHERE source_id=? AND album=? AND EXISTS(SELECT 1 FROM station_sources ss JOIN playlists pl ON pl.station_id=ss.station_id WHERE pl.id=? AND ss.source_id=i.source_id)`, rule.SourceID, rule.Value, id).Scan(&exists); err != nil {
 			return err
 		}
 		if exists == 0 {
@@ -148,6 +148,17 @@ func (r Playlists) SetIncluded(ctx context.Context, id string, ids []string, inc
 		return err
 	}
 	for _, contentID := range ids {
+		if included {
+			var allowed bool
+			if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM station_sources ss JOIN playlists pl ON pl.station_id=ss.station_id
+ WHERE pl.id=? AND ss.source_id=coalesce((SELECT source_id FROM catalogue_items WHERE id=?),
+ (SELECT json_extract(snapshot,'$.source_id') FROM playlist_selections WHERE playlist_id=? AND content_id=?)))`, id, contentID, id, contentID).Scan(&allowed); err != nil {
+				return err
+			}
+			if !allowed {
+				return playlists.ErrUnavailable
+			}
+		}
 		var snapshot string
 		err = tx.QueryRowContext(ctx, `SELECT metadata FROM catalogue_items WHERE id=?`, contentID).Scan(&snapshot)
 		if errors.Is(err, sql.ErrNoRows) {
@@ -177,14 +188,14 @@ func resolvePlaylist(ctx context.Context, tx *sql.Tx, id string) (playlists.Resu
 	if err := requirePlaylist(ctx, tx, id); err != nil {
 		return out, err
 	}
-	rows, err := tx.QueryContext(ctx, `WITH candidates AS (
+	rows, err := tx.QueryContext(ctx, playlistSources+`, candidates AS (
  SELECT i.id,i.metadata,1 AS available FROM catalogue_items i
- WHERE (EXISTS(SELECT 1 FROM playlist_selections p WHERE p.playlist_id=? AND p.content_id=i.id AND p.included=1)
+ WHERE `+playlistSourceMatch+` AND (EXISTS(SELECT 1 FROM playlist_selections p WHERE p.playlist_id=? AND p.content_id=i.id AND p.included=1)
  OR EXISTS(`+playlistRulesMatch+`))
  AND NOT EXISTS(SELECT 1 FROM playlist_selections x WHERE x.playlist_id=? AND x.content_id=i.id AND x.included=0)
- UNION ALL SELECT p.content_id,p.snapshot,0 FROM playlist_selections p LEFT JOIN catalogue_items i ON i.id=p.content_id WHERE p.playlist_id=? AND p.included=1 AND i.id IS NULL
+ UNION ALL SELECT p.content_id,p.snapshot,0 FROM playlist_selections p LEFT JOIN catalogue_items i ON i.id=p.content_id AND `+playlistSourceMatch+` WHERE p.playlist_id=? AND p.included=1 AND i.id IS NULL
  ) SELECT c.metadata,c.available FROM candidates c
- ORDER BY lower(json_extract(c.metadata,'$.title')),c.id LIMIT ?`, id, id, id, id, playlists.MaxItems+1)
+ ORDER BY lower(json_extract(c.metadata,'$.title')),c.id LIMIT ?`, id, id, id, id, id, playlists.MaxItems+1)
 	if err != nil {
 		return out, err
 	}
@@ -285,7 +296,7 @@ func (r Playlists) ReplaceRulesAndRefresh(ctx context.Context, id string, rules 
 		}
 		if rule.Kind == "album" && !existing[rule.SourceID+"\x00"+rule.Value] {
 			var count int
-			if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM catalogue_items WHERE source_id=? AND album=?`, rule.SourceID, rule.Value).Scan(&count); err != nil {
+			if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM catalogue_items i WHERE source_id=? AND album=? AND EXISTS(SELECT 1 FROM station_sources ss JOIN playlists pl ON pl.station_id=ss.station_id WHERE pl.id=? AND ss.source_id=i.source_id)`, rule.SourceID, rule.Value, id).Scan(&count); err != nil {
 				return report, err
 			}
 			if count == 0 {
@@ -334,13 +345,13 @@ func (r Playlists) Availability(ctx context.Context, id string) (playlists.Avail
 	if err = requirePlaylist(ctx, tx, id); err != nil {
 		return counts, err
 	}
-	err = tx.QueryRowContext(ctx, `WITH candidates AS (
+	err = tx.QueryRowContext(ctx, playlistSources+`, candidates AS (
  SELECT 1 AS available FROM catalogue_items i
- WHERE (EXISTS(SELECT 1 FROM playlist_selections p WHERE p.playlist_id=? AND p.content_id=i.id AND p.included=1)
+ WHERE `+playlistSourceMatch+` AND (EXISTS(SELECT 1 FROM playlist_selections p WHERE p.playlist_id=? AND p.content_id=i.id AND p.included=1)
  OR EXISTS(`+playlistRulesMatch+`))
  AND NOT EXISTS(SELECT 1 FROM playlist_selections x WHERE x.playlist_id=? AND x.content_id=i.id AND x.included=0)
- UNION ALL SELECT 0 FROM playlist_selections p LEFT JOIN catalogue_items i ON i.id=p.content_id WHERE p.playlist_id=? AND p.included=1 AND i.id IS NULL
- ) SELECT count(*),coalesce(sum(1-available),0) FROM candidates`, id, id, id, id).Scan(&counts.Total, &counts.Unavailable)
+ UNION ALL SELECT 0 FROM playlist_selections p LEFT JOIN catalogue_items i ON i.id=p.content_id AND `+playlistSourceMatch+` WHERE p.playlist_id=? AND p.included=1 AND i.id IS NULL
+ ) SELECT count(*),coalesce(sum(1-available),0) FROM candidates`, id, id, id, id, id).Scan(&counts.Total, &counts.Unavailable)
 	if err != nil {
 		return counts, err
 	}

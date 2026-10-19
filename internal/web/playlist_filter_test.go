@@ -24,6 +24,7 @@ func TestCombinedRuleJourneyPreservesSelectionsAndValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := content.AudioItem{ID: content.ID(source.ID, "a"), SourceID: source.ID, SourceItemID: "a", Title: "Alpha", Artist: "Miles Davis", Composer: "Writer", Genre: "Jazz", Year: 1959, Album: "Album", Kind: content.Track, Origin: content.Original}
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(ctx, source, []content.AudioItem{a}); err != nil {
 		t.Fatal(err)
 	}
@@ -195,6 +196,7 @@ func TestPopAndDecadeSelectionJourneyHasNoCombinedSelector(t *testing.T) {
 	}{{"Eighties Pop", "Pop", 1984}, {"Nineties Pop", "Pop", 1994}, {"Eighties Rock", "Rock", 1987}, {"Undated Pop", "Pop", 0}} {
 		items = append(items, content.AudioItem{ID: content.ID(source.ID, v.id), SourceID: source.ID, SourceItemID: v.id, Title: v.id, Genre: v.genre, Year: v.year, Kind: content.Track, Origin: content.Original})
 	}
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(ctx, source, items); err != nil {
 		t.Fatal(err)
 	}

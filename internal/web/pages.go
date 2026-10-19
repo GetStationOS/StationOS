@@ -242,6 +242,10 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 	case "/producer/station", "/producer/stations/new":
 		v := stationPageView{pageView: s.baseView(r)}
 		v.Title = "Create a station"
+		if err := s.loadStationSourceOptions(r.Context(), &v); err != nil {
+			s.fail(w, err)
+			return
+		}
 		v.StationLogoGeneration = s.imageGenerationAvailable(r.Context())
 		s.renderPage(w, r, http.StatusOK, "new-station-page", v)
 	case "/producer/sources":
@@ -257,11 +261,27 @@ func (s *Server) cataloguePage(w http.ResponseWriter, r *http.Request) {
 	v := cataloguePageView{pageView: s.baseView(r)}
 	v.Title = "Browse tracks"
 	var err error
-	if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices); err != nil {
+	v.SelectedPlaylist = r.URL.Query().Get("playlist")
+	if r.URL.Path == "/producer/content" && v.SelectedPlaylist != "" && s.d.Playlists != nil {
+		v.TargetPlaylist, err = s.d.Playlists.Get(r.Context(), v.SelectedPlaylist)
+		if err != nil {
+			s.playlistError(w, err)
+			return
+		}
+		v.Station, err = s.d.Stations.Get(r.Context(), v.TargetPlaylist.StationID)
+		if err != nil {
+			s.fail(w, err)
+			return
+		}
+		v.StationID = v.Station.ID
+		v.Section = "playlists"
+	}
+	if err = s.loadCatalogueChoices(r.Context(), &v.catalogueChoices, v.StationID); err != nil {
 		s.fail(w, err)
 		return
 	}
 	v.Sources, err = s.d.Sources.List(r.Context())
+	v.Sources = stationSources(v.Sources, v.Station)
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -280,6 +300,7 @@ func (s *Server) cataloguePage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	q.StationID = v.StationID
 	q.Limit = size
 	q.Offset = (page - 1) * size
 	v.Catalogue, err = s.d.Catalogue.Search(r.Context(), q)
@@ -302,20 +323,7 @@ func (s *Server) cataloguePage(w http.ResponseWriter, r *http.Request) {
 	v.Direction = r.URL.Query().Get("direction")
 	v.AlbumChoice = r.URL.Query().Get("album_choice")
 	v.SelectedPlaylist = r.URL.Query().Get("playlist")
-	if r.URL.Path == "/producer/content" && v.SelectedPlaylist != "" && s.d.Playlists != nil {
-		v.TargetPlaylist, err = s.d.Playlists.Get(r.Context(), v.SelectedPlaylist)
-		if err != nil {
-			s.playlistError(w, err)
-			return
-		}
-		v.Station, err = s.d.Stations.Get(r.Context(), v.TargetPlaylist.StationID)
-		if err != nil {
-			s.fail(w, err)
-			return
-		}
-		v.StationID = v.Station.ID
-		v.Section = "playlists"
-	}
+
 	v.ReturnTo = r.URL.RequestURI()
 	for n, item := range v.Catalogue.Items {
 		v.Rows = append(v.Rows, track(item, v.Sources, q.Offset+n+1, true))

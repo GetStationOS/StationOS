@@ -50,6 +50,7 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 	for _, name := range []string{"First <song>", "Second song"} {
 		items = append(items, content.AudioItem{ID: content.ID(c.ID, name), SourceID: c.ID, SourceItemID: name, Title: name, Artist: "The Quartet", Album: "Night music", Duration: &length, Artwork: "http://server/art.png", Kind: content.Track, Origin: content.Original})
 	}
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(ctx, c, items); err != nil {
 		t.Fatal(err)
 	}

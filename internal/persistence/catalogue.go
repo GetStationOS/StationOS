@@ -104,6 +104,7 @@ func (r Catalogue) Clear(ctx context.Context, id string) error {
 
 func catalogueFilter(q catalogue.Query) (string, []any) {
 	return ` FROM catalogue_items i JOIN sources s ON s.id=i.source_id WHERE
+ (?='' OR EXISTS(SELECT 1 FROM station_sources ss WHERE ss.station_id=? AND ss.source_id=i.source_id)) AND
  (?='' OR i.source_id=?) AND (?='' OR EXISTS(SELECT 1 FROM catalogue_genres g WHERE g.content_id=i.id AND g.genre=?))
  AND (?='' OR i.album=?)
  AND (?='' OR EXISTS(SELECT 1 FROM catalogue_credits c WHERE c.content_id=i.id AND c.role='artist' AND c.name=?))
@@ -111,7 +112,7 @@ func catalogueFilter(q catalogue.Query) (string, []any) {
  AND (?=0 OR coalesce(json_extract(i.metadata,'$.year'),0)>=?)
  AND (?=0 OR (coalesce(json_extract(i.metadata,'$.year'),0)>0 AND json_extract(i.metadata,'$.year')<=?)) AND
  (instr(lower(i.title),lower(?))>0 OR instr(lower(i.artist),lower(?))>0 OR instr(lower(i.album),lower(?))>0 OR instr(lower(COALESCE(json_extract(i.metadata,'$.genre'),'')),lower(?))>0)`,
-		[]any{q.SourceID, q.SourceID, q.Genre, q.Genre, q.Album, q.Album, q.Artist, q.Artist, q.Composer, q.Composer, q.YearFrom, q.YearFrom, q.YearTo, q.YearTo, q.Text, q.Text, q.Text, q.Text}
+		[]any{q.StationID, q.StationID, q.SourceID, q.SourceID, q.Genre, q.Genre, q.Album, q.Album, q.Artist, q.Artist, q.Composer, q.Composer, q.YearFrom, q.YearFrom, q.YearTo, q.YearTo, q.Text, q.Text, q.Text, q.Text}
 }
 func catalogueOrder(q catalogue.Query) string {
 	column := "lower(i.title)"
@@ -129,9 +130,15 @@ func catalogueOrder(q catalogue.Query) string {
 	}
 	return " ORDER BY " + column + direction + ",lower(i.title),i.id"
 }
-func (r Catalogue) Facets(ctx context.Context) (catalogue.Facets, error) {
+func (r Catalogue) Facets(ctx context.Context, stationIDs ...string) (catalogue.Facets, error) {
+	stationID := ""
+	if len(stationIDs) > 0 {
+		stationID = stationIDs[0]
+	}
+	scope := `(?='' OR EXISTS(SELECT 1 FROM station_sources ss WHERE ss.station_id=? AND ss.source_id=i.source_id))`
+	args := []any{stationID, stationID}
 	out := catalogue.Facets{Genres: []string{}, Albums: []catalogue.Album{}}
-	rows, err := r.DB.QueryContext(ctx, `SELECT DISTINCT genre FROM catalogue_genres ORDER BY lower(genre),genre`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT DISTINCT genre FROM catalogue_genres g JOIN catalogue_items i ON i.id=g.content_id WHERE `+scope+` ORDER BY lower(genre),genre`, args...)
 	if err != nil {
 		return out, err
 	}
@@ -148,7 +155,7 @@ func (r Catalogue) Facets(ctx context.Context) (catalogue.Facets, error) {
 	if err != nil {
 		return out, err
 	}
-	rows, err = r.DB.QueryContext(ctx, `SELECT i.source_id,s.name,i.album,count(*) FROM catalogue_items i JOIN sources s ON s.id=i.source_id WHERE i.album<>'' GROUP BY i.source_id,i.album ORDER BY lower(i.album),s.name,i.source_id`)
+	rows, err = r.DB.QueryContext(ctx, `SELECT i.source_id,s.name,i.album,count(*) FROM catalogue_items i JOIN sources s ON s.id=i.source_id WHERE `+scope+` AND i.album<>'' GROUP BY i.source_id,i.album ORDER BY lower(i.album),s.name,i.source_id`, args...)
 	if err != nil {
 		return out, err
 	}
@@ -169,12 +176,12 @@ func (r Catalogue) Facets(ctx context.Context) (catalogue.Facets, error) {
 		query string
 		dest  *[]string
 	}{
-		{`SELECT DISTINCT name FROM catalogue_credits WHERE role='artist' ORDER BY lower(name),name`, &out.Artists},
-		{`SELECT DISTINCT name FROM catalogue_credits WHERE role='composer' ORDER BY lower(name),name`, &out.Composers},
-		{`SELECT DISTINCT CAST(json_extract(metadata,'$.year') AS TEXT) FROM catalogue_items WHERE json_extract(metadata,'$.year') BETWEEN 1 AND 9999 ORDER BY CAST(json_extract(metadata,'$.year') AS INTEGER)`, &out.Years},
-		{`SELECT DISTINCT CAST(CAST(json_extract(metadata,'$.year') AS INTEGER)/10*10 AS TEXT) FROM catalogue_items WHERE json_extract(metadata,'$.year') BETWEEN 10 AND 9999 ORDER BY CAST(json_extract(metadata,'$.year') AS INTEGER)/10`, &out.Decades},
+		{`SELECT DISTINCT name FROM catalogue_credits c JOIN catalogue_items i ON i.id=c.content_id WHERE ` + scope + ` AND role='artist' ORDER BY lower(name),name`, &out.Artists},
+		{`SELECT DISTINCT name FROM catalogue_credits c JOIN catalogue_items i ON i.id=c.content_id WHERE ` + scope + ` AND role='composer' ORDER BY lower(name),name`, &out.Composers},
+		{`SELECT DISTINCT CAST(json_extract(metadata,'$.year') AS TEXT) FROM catalogue_items i WHERE ` + scope + ` AND json_extract(metadata,'$.year') BETWEEN 1 AND 9999 ORDER BY CAST(json_extract(metadata,'$.year') AS INTEGER)`, &out.Years},
+		{`SELECT DISTINCT CAST(CAST(json_extract(metadata,'$.year') AS INTEGER)/10*10 AS TEXT) FROM catalogue_items i WHERE ` + scope + ` AND json_extract(metadata,'$.year') BETWEEN 10 AND 9999 ORDER BY CAST(json_extract(metadata,'$.year') AS INTEGER)/10`, &out.Decades},
 	} {
-		rs, e := r.DB.QueryContext(ctx, facet.query)
+		rs, e := r.DB.QueryContext(ctx, facet.query, args...)
 		if e != nil {
 			return out, e
 		}

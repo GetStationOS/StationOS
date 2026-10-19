@@ -13,6 +13,7 @@ import (
 )
 
 var ErrNotFound = errors.New("station not found")
+var ErrInvalidSource = errors.New("choose available music sources for this station")
 var ErrSlugTaken = errors.New("stream address is already used by another station")
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
@@ -88,6 +89,8 @@ func (s Station) Publication() Visibility {
 func (s Station) Public() bool { return s.Publication() != Private }
 
 type Station struct {
+	// SourceIDs is nil to preserve an existing selection; an empty slice explicitly selects none.
+	SourceIDs     []string    `json:"source_ids"`
 	Visibility    Visibility  `json:"visibility"`
 	RepeatMinutes int         `json:"repeat_minutes"`
 	LogoVersion   string      `json:"logo_version,omitempty"`
@@ -101,6 +104,14 @@ type Station struct {
 }
 
 func (s Station) Validate() error {
+	if len(s.SourceIDs) > 1000 {
+		return ErrInvalidSource
+	}
+	for _, id := range s.SourceIDs {
+		if id == "" || len(id) > 128 {
+			return ErrInvalidSource
+		}
+	}
 	switch s.Publication() {
 	case Listed, Unlisted, Private:
 	default:

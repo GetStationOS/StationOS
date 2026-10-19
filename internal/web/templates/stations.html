@@ -3,7 +3,7 @@
 <section class="panel form-panel dj-settings">
   {{if .StationError}}
   <p class="notice error" role="alert">{{.StationError}}</p>{{end}}
-  <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
+  <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form data-choice-form>
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     {{template "station-logo-field" .}}
     <label>Station name<input name="name" value="{{.Station.Name}}" required maxlength="200" placeholder="e.g. Reni Jazz" autofocus>
@@ -18,7 +18,7 @@
       <label>Locale<input name="locale" value="{{if .Station.Locale}}{{.Station.Locale}}{{else}}en-GB{{end}}" maxlength="64">
       </label>
     </div>
-    {{template "station-publication-field" .}}{{template "station-repeat-field" .}}
+    {{template "station-publication-field" .}}{{template "station-repeat-field" .}}{{template "station-sources-field" .}}
     {{template "form-actions" (formActions "/producer" "Create station")}}
   </form>
 </section>{{end}}
@@ -106,7 +106,7 @@
 <section class="panel form-panel dj-settings">
   {{if .StationError}}
   <p class="notice error" role="alert">{{.StationError}}</p>{{end}}
-  <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form>
+  <form method="post" action="/producer/station" enctype="multipart/form-data" hx-encoding="multipart/form-data" hx-disabled-elt="find button" data-dj-form data-choice-form>
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <input type="hidden" name="id" value="{{.Station.ID}}">
     {{template "station-logo-field" .}}
@@ -123,7 +123,7 @@
       <label>Locale<input name="locale" value="{{.Station.Locale}}" maxlength="64">
       </label>
     </div>
-    {{template "station-publication-field" .}}{{template "station-repeat-field" .}}
+    {{template "station-publication-field" .}}{{template "station-repeat-field" .}}{{template "station-sources-field" .}}
     {{template "form-actions" (formActions (printf "/producer/stations/%s" .Station.ID) "Save")}}
   </form>
 </section>
@@ -187,4 +187,18 @@
 
 {{define "delete-station-page"}}
 {{template "page-heading" (heading .Title)}}{{template "delete-station" .}}
+{{end}}
+
+{{define "station-sources-field"}}
+<fieldset data-choice-group>
+  <legend>Music sources</legend>
+ <p data-source-unsaved class="hint" role="status"></p>
+  <p class="hint">Choose the libraries this station can use. Selecting both servers for the same library includes duplicate tracks. Unchecked sources keep their saved playlist selections, but their tracks become unavailable.</p>
+  <input type="hidden" name="sources_supplied" value="yes">
+  {{if .SourceOptions}}
+  <div class="choice-tools"><output data-choice-count></output><button type="button" class="text-button" data-choose="all">Select all</button><button type="button" class="text-button" data-choose="none">Clear</button></div>
+  <div class="choice-list compact">{{range .SourceOptions}}<label class="choice"><input type="checkbox" name="source_id" value="{{.ID}}" {{if .Selected}}checked{{end}}><span><strong>{{.Name}}</strong><small>{{.Host}}</small></span></label>{{end}}</div>
+  {{else}}<p class="hint">No music sources available. <a href="/producer/sources/new">Add a source</a>, then select it here.</p><output data-choice-count hidden></output>{{end}}
+  <p class="hint">New sources must be selected here before this station can use them. With no sources selected, this station has no music available.</p>
+</fieldset>
 {{end}}

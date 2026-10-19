@@ -57,6 +57,7 @@ func TestBatchPlaylistCheckboxJourney(t *testing.T) {
 		t.Fatal(err)
 	}
 	item := content.AudioItem{ID: content.ID(c.ID, "a"), SourceID: c.ID, SourceItemID: "a", Title: "Track", Genre: "Jazz", Album: "Album", Kind: content.Track, Origin: content.Original}
+	selectTestSources(t, cat.DB)
 	if err = cat.Replace(context.Background(), c, []content.AudioItem{item}); err != nil {
 		t.Fatal(err)
 	}

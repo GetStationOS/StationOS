@@ -336,19 +336,20 @@ func (p *Provider) Resolve(ctx context.Context, id string) ([]content.Resource, 
 }
 
 type didlEntry struct {
-	ID          string       `xml:"id,attr"`
-	Title       string       `xml:"title"`
-	Class       string       `xml:"class"`
-	Artists     []didlCredit `xml:"artist"`
-	Authors     []didlCredit `xml:"author"`
-	Creators    []string     `xml:"creator"`
-	Composers   []string     `xml:"composer"`
-	Album       string       `xml:"album"`
-	Date        string       `xml:"date"`
-	Annotations []string     `xml:"userAnnotation"`
-	Genres      []string     `xml:"genre"`
-	Art         string       `xml:"albumArtURI"`
-	Resources   []struct {
+	ID            string       `xml:"id,attr"`
+	Title         string       `xml:"title"`
+	Class         string       `xml:"class"`
+	Artists       []didlCredit `xml:"artist"`
+	Authors       []didlCredit `xml:"author"`
+	Creators      []string     `xml:"creator"`
+	Composers     []string     `xml:"composer"`
+	Album         string       `xml:"album"`
+	Dates         []didlDate   `xml:"date"`
+	OriginalDates []string     `xml:"urn:schemas-upnp-org:metadata-1-0/upnp/ originalDate"`
+	Annotations   []string     `xml:"userAnnotation"`
+	Genres        []string     `xml:"genre"`
+	Art           string       `xml:"albumArtURI"`
+	Resources     []struct {
 		URL      string `xml:",chardata"`
 		Protocol string `xml:"protocolInfo,attr"`
 		Duration string `xml:"duration,attr"`

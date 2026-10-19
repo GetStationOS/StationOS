@@ -1,6 +1,7 @@
 package upnp
 
 import (
+	"encoding/xml"
 	"strconv"
 	"strings"
 	"time"
@@ -26,10 +27,31 @@ func sourceYear(raw string) int {
 	return 0
 }
 
+type didlDate struct {
+	XMLName xml.Name
+	Value   string `xml:",chardata"`
+}
+
+// dc:date is the release date. Some servers also send upnp:date containing
+// only a year; it must not overwrite the full date, regardless of XML order.
+// Keep unqualified legacy responses and year-only UPnP responses usable.
+func releaseDate(dates []didlDate) string {
+	for _, namespace := range []string{"http://purl.org/dc/elements/1.1/", "", "urn:schemas-upnp-org:metadata-1-0/upnp/"} {
+		for _, date := range dates {
+			if date.XMLName.Space == namespace {
+				if value := strings.TrimSpace(date.Value); value != "" {
+					return value
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // Keep both source dates so the effective year retains its provenance.
 // Invalid originals must not hide a usable album release date.
 func (v didlEntry) applyDates(a *content.AudioItem) {
-	a.ReleaseDate = strings.TrimSpace(v.Date)
+	a.ReleaseDate = releaseDate(v.Dates)
 	a.Year = sourceYear(a.ReleaseDate)
 	for _, annotation := range v.Annotations {
 		tag, value, ok := strings.Cut(annotation, "=")
@@ -40,7 +62,15 @@ func (v didlEntry) applyDates(a *content.AudioItem) {
 		if year := sourceYear(value); year != 0 {
 			a.OriginalDate = value
 			a.Year = year
-			break
+			return
+		}
+	}
+	for _, value := range v.OriginalDates {
+		value = strings.TrimSpace(value)
+		if year := sourceYear(value); year != 0 {
+			a.OriginalDate = value
+			a.Year = year
+			return
 		}
 	}
 }

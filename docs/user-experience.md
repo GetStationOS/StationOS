@@ -568,7 +568,7 @@ The schedule selects a dated week. Each occurrence has a text readiness label an
 pink (Unplanned), amber (Planning/For review) or green (Ready) background.
 Readiness is editorial preparation, independent of live broadcasting. Plans become
 ready automatically; producer review is optional. Clicking a show opens its running
-order in a section beneath the calendar; clicking the selected show closes it.
+order and show details in the main content area through HTMX navigation, with a dated URL and a link back to the selected schedule week.
 Keep its show settings available as a separate link. Show estimated track starts,
 performers, albums and durations. Producer notes, Keep and Exclude controls belong
 to that dated episode, not playlist membership. Live readiness updates preserve

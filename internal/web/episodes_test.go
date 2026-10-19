@@ -17,7 +17,7 @@ import (
 	"stationos.local/stationos/internal/station"
 )
 
-func TestScheduleEpisodeReadinessInlineRunningOrderAndProducerEdits(t *testing.T) {
+func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	h, st, _, _ := setupWeb(t, "")
 	ctx := context.Background()
 	token := csrf(t, h)
@@ -58,7 +58,7 @@ func TestScheduleEpisodeReadinessInlineRunningOrderAndProducerEdits(t *testing.T
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "episode-ready") || !strings.Contains(w.Body.String(), "Ready") {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	match := regexp.MustCompile(`href="([^"]*episode=show[^"]*)"`).FindStringSubmatch(w.Body.String())
+	match := regexp.MustCompile(`href="([^"]*/schedule/show/episode[^"]*)"`).FindStringSubmatch(w.Body.String())
 	if len(match) != 2 {
 		t.Fatal("missing episode link")
 	}
@@ -69,6 +69,18 @@ func TestScheduleEpisodeReadinessInlineRunningOrderAndProducerEdits(t *testing.T
 	if actual.Query().Get("start") != o.Start.Format(time.RFC3339) {
 		t.Fatal("episode timestamp double encoded", actual.String())
 	}
+	hxMatch := regexp.MustCompile(`hx-get="([^"]*/schedule/show/episode[^"]*)"`).FindStringSubmatch(w.Body.String())
+	if len(hxMatch) != 2 {
+		t.Fatal("missing HTMX episode link")
+	}
+	hxURL, err := url.Parse(html.UnescapeString(hxMatch[1]))
+	if err != nil || hxURL.Query().Get("start") != o.Start.Format(time.RFC3339) {
+		t.Fatal("HTMX timestamp incorrectly encoded", hxMatch, err)
+	}
+	hxResponse := request(h, "GET", hxURL.RequestURI(), nil, map[string]string{"HX-Request": "true", "HX-Target": "main"})
+	if hxResponse.Code != 200 || strings.Contains(hxResponse.Body.String(), "weekly-calendar") || !strings.Contains(hxResponse.Body.String(), "First recording") {
+		t.Fatal("HTMX episode navigation", hxResponse.Code, hxResponse.Body.String())
+	}
 	clicked := request(h, "GET", actual.RequestURI(), nil, nil)
 	if clicked.Code != 200 || !strings.Contains(clicked.Body.String(), `id="episode-running-order"`) {
 		t.Fatal("schedule click failed", clicked.Code, clicked.Body.String())
@@ -78,10 +90,13 @@ func TestScheduleEpisodeReadinessInlineRunningOrderAndProducerEdits(t *testing.T
 	}
 	selected := path + "&episode=show&start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
 	w = request(h, "GET", selected, nil, map[string]string{"HX-Request": "true"})
-	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", `aria-expanded="true"`, `name="notes"`, `name="locked"`} {
+	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", "Back to schedule", `name="notes"`, `name="locked"`} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatal("missing", want, w.Body.String())
 		}
+	}
+	if strings.Contains(w.Body.String(), "weekly-calendar") {
+		t.Fatal("episode details rendered beneath calendar")
 	}
 	if strings.Contains(w.Body.String(), "<!doctype") {
 		t.Fatal("HTMX lost shell")
@@ -90,7 +105,7 @@ func TestScheduleEpisodeReadinessInlineRunningOrderAndProducerEdits(t *testing.T
 	editPath := "/producer/stations/s/schedule/show/episode?start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
 	form := url.Values{"csrf": {token}, "version": {strconv.Itoa(before.Version)}, "notes": {"More discoveries"}, "locked": {"b"}, "excluded": {"a"}}
 	w = request(h, "POST", editPath, form, map[string]string{"HX-Request": "true"})
-	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "episode=show") {
+	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "schedule/show/episode") {
 		t.Fatal(w.Code, w.Body.String(), w.Header())
 	}
 	after, _ := store.Get(ctx, o.Key)

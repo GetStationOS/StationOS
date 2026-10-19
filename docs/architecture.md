@@ -741,7 +741,7 @@ well as AI choices. Late/failed planning leaves local music selection running.
 
 The dated schedule shows pink Unplanned, amber Planning/For review and green
 Ready, with text as well as colour. Green requires no human approval. Show clicks
-expand a running-order section beneath the calendar, including estimated starts and
+open a dedicated episode detail page in the main HTMX region, including estimated starts and
 optional episode direction, Keep and Exclude controls. Recurring settings remain a
 separate link. Calendar readiness uses SSE; updates preserve scroll, focus and the
 separate editing form. Refreshing the running order is explicit so unsaved edits are

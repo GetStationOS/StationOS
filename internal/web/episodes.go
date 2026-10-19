@@ -50,6 +50,7 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 		}
 		v.Title = o.Title + " · " + o.Start.In(loc).Format("2 Jan 2006")
 		v.EpisodeStart = o.Start.Format(time.RFC3339)
+		v.Week = schedule.Monday(o.Start, loc).Format("2006-01-02")
 		return v, o, err
 	}
 	return v, schedule.Occurrence{}, schedule.ErrNotFound
@@ -92,9 +93,7 @@ func (s *Server) saveEpisode(w http.ResponseWriter, r *http.Request) {
 		s.renderPage(w, r, 422, "episode-page", v)
 		return
 	}
-	loc, _ := time.LoadLocation(v.Station.Timezone)
-	week := schedule.Monday(o.Start, loc).Format("2006-01-02")
-	s.redirect(w, r, "/producer/stations/"+v.Station.ID+"/schedule?week="+week+"&episode="+url.QueryEscape(o.ShowID)+"&start="+url.QueryEscape(o.Start.Format(time.RFC3339))+"&notice=episode-saved#episode-running-order")
+	s.redirect(w, r, "/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(o.ShowID)+"/episode?start="+url.QueryEscape(o.Start.Format(time.RFC3339))+"&notice=saved")
 }
 func (s *Server) scheduleLive(w http.ResponseWriter, r *http.Request) {
 	v, err := s.scheduleView(r)

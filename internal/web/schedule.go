@@ -66,6 +66,7 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 		return v, err
 	}
 	v.ScheduleCards = calendarCards(v.Shows)
+	v.EpisodeStarts = map[string]string{}
 	loc, err := time.LoadLocation(v.Station.Timezone)
 	if err != nil {
 		return v, err
@@ -86,6 +87,7 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 		if o.Start.Before(week) || !o.Start.Before(week.AddDate(0, 0, 7)) {
 			continue
 		}
+		v.EpisodeStarts[o.ShowID] = o.Start.Format(time.RFC3339)
 		e := episodes.New(o)
 		if s.d.Episodes != nil {
 			loaded, loadErr := s.d.Episodes.Store.Get(r.Context(), o.Key)
@@ -154,7 +156,6 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 			return v, err
 		}
 		v.SelectedEpisodeID = selected
-		v.Title = "Schedule"
 		v.ScheduleMode = "list"
 	}
 	if r.URL.Query().Get("notice") == "episode-saved" {
@@ -170,6 +171,10 @@ func (s *Server) schedulePage(w http.ResponseWriter, r *http.Request) {
 	v, err := s.scheduleView(r)
 	if err != nil {
 		s.scheduleError(w, r, err)
+		return
+	}
+	if v.SelectedEpisodeID != "" {
+		s.renderPage(w, r, http.StatusOK, "episode-page", v)
 		return
 	}
 	s.renderSchedulePage(w, r, http.StatusOK, v)

@@ -9,15 +9,15 @@
     </div>
     {{range .ScheduleHours}}<span class="calendar-time {{.Class}}">{{.Label}}</span>{{end}}{{range .ScheduleDays}}
     <div class="calendar-day day-{{.Index}}">{{.Name}}
-    </div>{{end}}{{range .ScheduleCards}}<a href="/producer/stations/{{$.Station.ID}}/schedule?week={{$.Week}}{{if ne .ID $.SelectedEpisodeID}}&amp;episode={{.ID}}&amp;start={{.EpisodeStart}}#episode-running-order{{end}}" aria-expanded="{{if eq .ID $.SelectedEpisodeID}}true{{else}}false{{end}}" aria-controls="episode-running-order" class="calendar-show {{.Class}} {{if eq .ID $.SelectedEpisodeID}}selected{{end}}" title="{{.Name}} · {{.Time}} · {{.DJ}} · {{.Playlist}}">
+    </div>{{end}}{{range .ScheduleCards}}<a href="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}/episode?start={{.EpisodeStart}}" hx-get="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}/episode?start={{.EpisodeStart | urlquery}}" hx-target="#main" hx-swap="innerHTML show:top" hx-push-url="true" class="calendar-show {{.Class}}" title="{{.Name}} · {{.Time}} · {{.DJ}} · {{.Playlist}}">
       <strong>{{.Name}}</strong>
       <span>{{.Time}}</span>
       <span>{{.DJ}}</span><span>{{.Status}}</span>
     </a>{{end}}
   </div>
 </div>
-<details class="schedule-agenda">
-  <summary>Show list</summary>
+<section class="schedule-agenda" aria-labelledby="show-list-heading">
+  <h2 id="show-list-heading">Show list</h2>
   <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Scheduled shows">
     <table>
       <thead>
@@ -33,7 +33,7 @@
         {{range .Shows}}
         <tr>
           <td>
-            <a href="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}">{{.Name}}</a>
+            <a href="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}/episode?start={{index $.EpisodeStarts .ID}}" hx-get="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}/episode?start={{index $.EpisodeStarts .ID | urlquery}}" hx-target="#main" hx-swap="innerHTML show:top" hx-push-url="true">{{.Name}}</a>
           </td>
           <td>{{indexDay .Day}}</td>
           <td>{{timeLabel .Start}}–{{timeLabel .End}}{{if le .End .Start}} (+1 day){{end}}</td>
@@ -43,7 +43,7 @@
       </tbody>
     </table>
   </div>
-</details>
+</section>
 {{else}}
 <section class="panel empty-state">
   <h2>Your week, your presenters</h2>
@@ -145,7 +145,6 @@
 {{define "schedule-list-page"}}
 {{template "page-heading" (scheduleHeading .)}}
 {{template "schedule-list" .}}
-{{if .SelectedEpisodeID}}{{template "episode-detail" .}}{{end}}
 {{end}}
 
 {{define "schedule-form-page"}}
@@ -158,13 +157,13 @@
 
 {{define "episode-page"}}
 {{template "page-heading" (heading .Title)}}
-<p><a href="/producer/stations/{{.Station.ID}}/schedule?week={{.Week}}">Schedule</a> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}">Show settings</a></p>
+<p><a href="/producer/stations/{{.Station.ID}}/schedule?week={{.Week}}" hx-target="#main">Back to schedule</a></p>
 {{template "episode-detail" .}}
 {{end}}
 {{define "episode-detail"}}
 <section class="panel" id="episode-running-order" tabindex="-1">
 <h2>{{.Show.Name}} · Running order</h2>
-<p><strong>{{.Episode.Label}}</strong> · <a href="/producer/stations/{{.Station.ID}}/schedule?week={{.Week}}&amp;episode={{.Show.ID}}&amp;start={{.EpisodeStart}}#episode-running-order">Refresh running order</a> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}">Show settings</a></p>
+<p><strong>{{.Episode.Label}}</strong> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode?start={{.EpisodeStart}}" hx-target="#main">Refresh running order</a> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}">Show settings</a></p>
 <p>{{.Episode.Start.Format "Mon 2 Jan 15:04 MST"}}–{{.Episode.End.Format "15:04 MST"}} · {{.Show.DJName}} · {{.Show.PlaylistName}}</p>
 <p>{{.Episode.Theme}}</p>{{if .Episode.RepetitionReason}}<p class="hint">{{.Episode.RepetitionReason}}</p>{{end}}{{if .Episode.Plan}}<p>Estimated programme length: {{.Episode.Estimated}}</p>{{end}}
 {{if .Episode.Problem}}<p class="notice" role="status">{{.Episode.Problem}}</p>{{end}}
@@ -177,7 +176,7 @@
 {{range .Episode.RunningOrder}}<tr><td data-label="Estimated start">{{.EstimatedStart.Format "15:04"}}</td><td data-label="Recording">{{.Title}}</td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Producer choices"><label class="choice"><input type="checkbox" name="locked" aria-label="Keep {{.Title}}" value="{{.ID}}" {{if .Locked}}checked{{end}}>Keep</label><label class="choice"><input type="checkbox" name="excluded" aria-label="Exclude {{.Title}}" value="{{.ID}}" {{if index $.EpisodeExclusions .ID}}checked{{end}}>Exclude</label></td></tr>{{end}}
 </tbody></table></div>{{else}}<p>No running order yet. Preparation happens automatically when a curation connection is available.</p>{{end}}
 <span data-unsaved class="hint" role="status"></span>
-{{template "form-actions" (formActions (printf "/producer/stations/%s/schedule" .Station.ID) "Save")}}
+{{template "form-actions" (formActions (printf "/producer/stations/%s/schedule?week=%s" .Station.ID .Week) "Save")}}
 </form>
 </section>
 {{if .Episode.Aired}}<section class="panel"><h2>Actually aired</h2><ol>{{range .Episode.Aired}}<li>{{.Title}} · {{.Artist}}</li>{{end}}</ol></section>{{end}}

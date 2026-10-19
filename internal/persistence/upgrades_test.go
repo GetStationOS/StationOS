@@ -18,7 +18,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -43,7 +43,7 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 			if _, err = db.Exec(`INSERT INTO stations VALUES('station','Keep station','Identity','UTC','en');INSERT INTO sources VALUES('source','station','Music','upnp','http://server/description.xml',7)`); err != nil {
 				t.Fatal(err)
 			}
-			a := content.AudioItem{ID: content.ID("source", "one"), SourceID: "source", SourceItemID: "one", Title: "Keep track", Artist: "First; Second", Composer: "Writer, Name", Year: 1984, Album: "Album", Genre: "Jazz, Blues, Jazz", Kind: content.Track, Origin: content.Original}
+			a := content.AudioItem{ID: content.ID("source", "one"), SourceID: "source", SourceItemID: "one", Title: "Keep track", Artist: "First; Second", Composer: "Writer, Name", Year: 1984, Album: "Album", Genre: "Jazz; Blues, Jazz", Kind: content.Track, Origin: content.Original}
 			raw, _ := json.Marshal(a)
 			if _, err = db.Exec(`INSERT INTO catalogue_items VALUES(?,?,?,?,?,?,?)`, a.ID, a.SourceID, a.SourceItemID, a.Title, "", a.Album, string(raw)); err != nil {
 				t.Fatal(err)

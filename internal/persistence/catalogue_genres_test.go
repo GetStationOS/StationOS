@@ -18,14 +18,14 @@ func TestGenreMembershipAndAuthoritativeRefresh(t *testing.T) {
 	a := item(source, "one", "One")
 	duration := time.Minute
 	a.Duration = &duration
-	a.Genre = " Ballad, Country Pop, Disco, Easy Listening, Electronic, Disco, ,\t "
+	a.Genre = " Ballad;Classic Rock;Disco;Downtempo;Electro, Disco; ,;\t "
 	b := item(source, "two", "Two")
-	b.Genre = " ,\n, "
+	b.Genre = " ,;\n,; "
 	if err := repo.Replace(ctx, source, []content.AudioItem{a, b}); err != nil {
 		t.Fatal(err)
 	}
 	facets, err := repo.Facets(ctx)
-	want := []string{"Ballad", "Country Pop", "Disco", "Easy Listening", "Electronic"}
+	want := []string{"Ballad", "Classic Rock", "Disco", "Downtempo", "Electro"}
 	if err != nil || !reflect.DeepEqual(facets.Genres, want) {
 		t.Fatal(facets, err)
 	}
@@ -35,7 +35,7 @@ func TestGenreMembershipAndAuthoritativeRefresh(t *testing.T) {
 			t.Fatal(g, found, err)
 		}
 	}
-	found, err := repo.Search(ctx, catalogue.Query{Genre: "Country", Limit: 25})
+	found, err := repo.Search(ctx, catalogue.Query{Genre: "Classic", Limit: 25})
 	if err != nil || found.Total != 0 {
 		t.Fatal("partial match", found, err)
 	}
@@ -61,7 +61,7 @@ func TestGenreMembershipAndAuthoritativeRefresh(t *testing.T) {
 		t.Fatal("refresh retained old genres", facets, err)
 	}
 	// Metadata updates and catalogue clearing also maintain the derived index.
-	if _, err = db.Exec(`UPDATE catalogue_items SET metadata=json_set(metadata,'$.genre','Jazz, Blues') WHERE id=?`, a.ID); err != nil {
+	if _, err = db.Exec(`UPDATE catalogue_items SET metadata=json_set(metadata,'$.genre','Jazz; Blues') WHERE id=?`, a.ID); err != nil {
 		t.Fatal(err)
 	}
 	facets, err = repo.Facets(ctx)

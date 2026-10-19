@@ -11,6 +11,8 @@ type repo struct {
 	err error
 }
 
+func (r *repo) Delete(context.Context, string) error { return r.err }
+
 func (r *repo) Get(_ context.Context, id string) (Config, error) {
 	if id != r.v.ID {
 		return Config{}, ErrNotFound

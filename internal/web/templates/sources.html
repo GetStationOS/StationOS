@@ -68,7 +68,28 @@
     </label>
     {{template "form-actions" (formActions (printf "/producer/sources/%s" .Source.ID) "Save changes")}}
   </form>
+</section>
+<div class="entity-delete-action">
+  <a class="entity-delete-link" href="/producer/sources/{{.Source.ID}}/delete" hx-get="/producer/sources/{{.Source.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Remove source</a>
+</div>{{end}}
+{{end}}
+
+{{define "delete-source"}}
+<section class="panel form-panel">
+  <h2 id="dialog-heading">Remove {{.Source.Name}}?</h2>
+  <p id="dialog-description">This removes the connection and its imported library from StationOS for every station. Music files stay on your server. Playlists and their saved selections are kept, but tracks from this source become unavailable.</p>
+  <form method="post" action="/producer/sources/{{.Source.ID}}/delete" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="form-actions">
+      <a class="button secondary" href="/producer/sources/{{.Source.ID}}/settings" data-close-dialog>Cancel</a>
+      <button class="danger">Remove source</button>
+    </div>
+  </form>
 </section>{{end}}
+
+{{define "delete-source-page"}}
+{{template "page-heading" (heading .Title)}}{{template "delete-source" .}}
 {{end}}
 
 {{define "new-source"}}

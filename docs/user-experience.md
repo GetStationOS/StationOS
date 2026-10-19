@@ -554,3 +554,5 @@ remove actions. They further restrict the selected categories; any one saved adv
 restriction must match. Ordinary checkbox saves preserve them. Keep the existing
 form validation and ordinary-form fallback for editing these saved restrictions.
 Year and decade selections prefer the source’s original release date and fall back to its album release date, which may describe a reissue; missing dates do not match date selections.
+
+Source Settings offers Remove source below the form, using the shared confirmation dialog and an ordinary confirmation-page fallback. Explain that removal affects every station, keeps external music files and playlist selections, and makes recordings from that source unavailable. Successful removal returns to Sources with a confirmation.

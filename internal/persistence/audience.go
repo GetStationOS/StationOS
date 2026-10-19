@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/changefeed"
+	"stationos.local/stationos/internal/episodes"
 	"strings"
 	"time"
 )
@@ -57,7 +58,7 @@ func (r Audience) Submit(ctx context.Context, m audience.Message) (changeErr err
 	}
 	var count int
 	// Recheck public/show policy atomically at commit, including occurrence revision.
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM station_shows s JOIN stations t ON t.id=s.station_id WHERE s.id=? AND s.station_id=? AND t.visibility<>'private' AND ? LIKE s.id||':%:'||s.revision AND (s.accept_requests=1 AND ?='request' OR s.accept_shoutouts=1 AND ?='shoutout')`, m.ShowID, m.StationID, m.OccurrenceKey, m.Kind, m.Kind).Scan(&count)
+	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM station_shows s JOIN stations t ON t.id=s.station_id WHERE s.id=? AND s.station_id=? AND t.visibility<>'private' AND ? LIKE s.id||':%:'||s.revision AND (s.accept_requests=1 AND ?='request' OR s.accept_shoutouts=1 AND ?='shoutout') AND NOT EXISTS (SELECT 1 FROM show_episodes WHERE episode_key=? AND json_extract(payload,'$.Cancelled')=1)`, m.ShowID, m.StationID, m.OccurrenceKey, m.Kind, m.Kind, episodes.SessionKey(m.OccurrenceKey)).Scan(&count)
 	if err != nil {
 		return err
 	}

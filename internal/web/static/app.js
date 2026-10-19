@@ -865,8 +865,6 @@ function applyLiveSnapshot(region,html){
   const incoming=template.content.querySelector('#schedule-episodes');if(!incoming)return;
   const calendar=region.querySelector('.calendar-scroll');
   const top=calendar?.scrollTop||0,left=calendar?.scrollLeft||0;
-  const agenda=region.querySelector('.schedule-agenda');
-  if(agenda?.open)incoming.querySelector('.schedule-agenda').open=true;
   patchStationNode(region,incoming,region.contains(document.activeElement)?document.activeElement:null);
   const updated=region.querySelector('.calendar-scroll');if(updated){updated.scrollTop=top;updated.scrollLeft=left;updated.dataset.positioned='true';}
   htmx.process(region);

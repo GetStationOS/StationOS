@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"stationos.local/stationos/internal/changefeed"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/station"
 	"time"
@@ -183,5 +184,37 @@ func (r Schedule) Resolve(ctx context.Context, id string, at time.Time) (schedul
 		}
 		name = p.Name
 	}
-	return schedule.Resolve(shows, id, playlist, name, at, loc), nil
+	cancelled, err := r.CancelledEpisodes(ctx, id)
+	if err != nil {
+		return schedule.Timeline{}, err
+	}
+	eligible := []schedule.Occurrence{}
+	for _, o := range schedule.Occurrences(shows, at, loc) {
+		if !cancelled[episodes.SessionKey(o.Key)] {
+			eligible = append(eligible, o)
+		}
+	}
+	return schedule.ResolveOccurrences(eligible, id, playlist, name, at), nil
+}
+
+func (r Schedule) CancelledEpisodes(ctx context.Context, id string) (map[string]bool, error) {
+	rows, err := r.DB.QueryContext(ctx, `SELECT episode_key FROM show_episodes WHERE station_id=? AND json_extract(payload,'$.Cancelled')=1`, id)
+	if err != nil {
+		return nil, err
+	}
+	cancelled := map[string]bool{}
+	for rows.Next() {
+		var key string
+		if err = rows.Scan(&key); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		cancelled[key] = true
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	return cancelled, nil
 }

@@ -101,7 +101,9 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 			}
 		}
 		class := "episode-unplanned"
-		if e.Status == "ready" {
+		if e.Cancelled {
+			class = "episode-cancelled"
+		} else if e.Status == "ready" {
 			class = "episode-ready"
 		} else if e.Status == "planning" || e.Status == "attention" {
 			class = "episode-attention"

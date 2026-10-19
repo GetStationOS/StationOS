@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/producer"
 )
 
@@ -23,11 +24,24 @@ func (m Model) Respond(ctx context.Context, model, key, instructions string, inp
 	return m.RespondStructured(ctx, model, key, instructions, input, tools, nil)
 }
 func (m Model) RespondStructured(ctx context.Context, model, key, instructions string, input []producer.Item, tools []producer.Tool, schema json.RawMessage) (producer.Response, error) {
+	return m.RespondStructuredWithOptions(ctx, model, key, instructions, input, tools, schema, ai.GenerationOptions{})
+}
+func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, instructions string, input []producer.Item, tools []producer.Tool, schema json.RawMessage, options ai.GenerationOptions) (producer.Response, error) {
 	functions := []any{}
 	for _, t := range tools {
 		functions = append(functions, map[string]any{"type": "function", "name": t.Name, "description": t.Description, "parameters": t.Parameters, "strict": false})
 	}
 	payload := map[string]any{"model": model, "instructions": instructions, "input": input, "tools": functions, "parallel_tool_calls": false, "max_output_tokens": 6000, "store": false}
+	if len(tools) == 0 {
+		delete(payload, "tools")
+		delete(payload, "parallel_tool_calls")
+	}
+	if options.MaxOutputTokens > 0 {
+		payload["max_output_tokens"] = options.MaxOutputTokens
+	}
+	if options.DisableThinking && strings.HasPrefix(model, "gpt-6") {
+		payload["reasoning"] = map[string]string{"effort": "none"}
+	}
 	if len(schema) > 0 {
 		payload["text"] = map[string]any{"format": map[string]any{"type": "json_schema", "name": "stationos", "strict": true, "schema": schema}}
 	}
@@ -103,6 +117,9 @@ func (m Model) RespondStructured(ctx context.Context, model, key, instructions s
 		}
 		if part.Type == "message" {
 			for _, c := range part.Content {
+				if c.Type == "refusal" {
+					return producer.Response{}, errors.New("OpenAI declined the requested DJ response")
+				}
 				if c.Type == "output_text" {
 					text.WriteString(c.Text)
 				}

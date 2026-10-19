@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/producer"
 )
 
@@ -60,5 +61,19 @@ func TestConfigurationErrorsClassifyWithoutExposingPrivateProviderContent(t *tes
 		if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), "HTTP 400") || strings.Contains(err.Error(), "private-secret") || strings.Contains(err.Error(), "listener text") {
 			t.Fatal(err)
 		}
+	}
+}
+
+func TestCurationGenerationHonorsSmallBudgetWithoutToolControls(t *testing.T) {
+	m := Model{Client: &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["max_output_tokens"] != float64(512) || body["tools"] != nil || body["parallel_tool_calls"] != nil || body["reasoning"].(map[string]any)["effort"] != "none" {
+			t.Fatal(body)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"{}"}]}]}`))}, nil
+	})}}
+	if _, err := m.RespondStructuredWithOptions(context.Background(), "gpt-6-luna", "secret", "Instructions", nil, nil, json.RawMessage(`{"type":"object","additionalProperties":false,"properties":{}}`), ai.GenerationOptions{MaxOutputTokens: 512, DisableThinking: true}); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -1,7 +1,7 @@
 {{define "schedule-list"}}
 <div id="schedule-episodes" data-live-url="/producer/stations/{{.Station.ID}}/schedule/live?week={{.Week}}{{if .SelectedEpisodeID}}&amp;episode={{.SelectedEpisodeID}}&amp;start={{.EpisodeStart}}{{end}}">
 <nav class="schedule-week-navigation" aria-label="Schedule week"><a href="?week={{.PreviousWeek}}" aria-label="Previous week"><span class="week-link-wide">Previous week</span><span class="week-link-short">Previous</span></a><strong>{{.WeekLabel}}</strong><a href="?week={{.NextWeek}}" aria-label="Next week"><span class="week-link-wide">Next week</span><span class="week-link-short">Next</span></a></nav>
-<p class="hint">{{.Station.Timezone}} · Pink: unplanned · Amber: planning or for review · Green: ready to run automatically</p>
+<p class="hint">{{.Station.Timezone}} · Pink: unplanned · Amber: planning or for review · Green: ready to run automatically · Grey: cancelled</p>
 {{if .Shows}}
 <div class="calendar-scroll" tabindex="0" aria-label="Weekly schedule">
   <div class="weekly-calendar">
@@ -16,34 +16,7 @@
     </a>{{end}}
   </div>
 </div>
-<section class="schedule-agenda" aria-labelledby="show-list-heading">
-  <h2 id="show-list-heading">Show list</h2>
-  <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Scheduled shows">
-    <table>
-      <thead>
-        <tr>
-          <th>Show</th>
-          <th>Day</th>
-          <th>Time</th>
-          <th>DJ</th>
-          <th>Playlist</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{range .Shows}}
-        <tr>
-          <td>
-            <a href="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}/episode?start={{index $.EpisodeStarts .ID}}" hx-get="/producer/stations/{{$.Station.ID}}/schedule/{{.ID}}/episode?start={{index $.EpisodeStarts .ID | urlquery}}" hx-target="#main" hx-swap="innerHTML show:top" hx-push-url="true">{{.Name}}</a>
-          </td>
-          <td>{{indexDay .Day}}</td>
-          <td>{{timeLabel .Start}}–{{timeLabel .End}}{{if le .End .Start}} (+1 day){{end}}</td>
-          <td>{{.DJName}}</td>
-          <td>{{.PlaylistName}}</td>
-        </tr>{{end}}
-      </tbody>
-    </table>
-  </div>
-</section>
+
 {{else}}
 <section class="panel empty-state">
   <h2>Your week, your presenters</h2>
@@ -125,19 +98,19 @@
 </section>
 {{if .Show.ID}}
 <div class="entity-delete-action">
-  <a class="entity-delete-link" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete show</a>
+  <a class="entity-delete-link" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete show template</a>
 </div>{{end}}
 {{end}}
 {{define "delete-show"}}
 <section class="panel form-panel">
   <h2 id="dialog-heading">Delete {{.Show.Name}}?</h2>
-  <p id="dialog-description">This removes the weekly show. Its DJ and playlist are kept.</p>
+  <p id="dialog-description">This removes the recurring weekly slot from the schedule. Its DJ and playlist are kept.</p>
   <form method="post" action="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-disabled-elt="find button">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <input type="hidden" name="confirm" value="yes">
     <div class="form-actions">
       <a class="button secondary" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}" data-close-dialog>Cancel</a>
-      <button class="danger">Delete show</button>
+      <button class="danger">Delete show template</button>
     </div>
   </form>
 </section>{{end}}
@@ -148,7 +121,9 @@
 {{end}}
 
 {{define "schedule-form-page"}}
-{{template "page-heading" (heading .Title)}}{{template "schedule-form" .}}
+{{template "page-heading" (heading .Title)}}
+{{if .Show.ID}}<p class="hint">Show template · Changes apply to this recurring weekly slot. To stop it running, delete the show template below.</p>{{end}}
+{{template "schedule-form" .}}
 {{end}}
 
 {{define "schedule-delete-page"}}
@@ -156,28 +131,72 @@
 {{end}}
 
 {{define "episode-page"}}
-{{template "page-heading" (heading .Title)}}
+{{template "page-heading" (episodeHeading .)}}
+<p class="hint">This page is for one episode. Edit the show template to change weekly times, DJ, playlist or prompt, or remove the recurring slot.</p>
 <p><a href="/producer/stations/{{.Station.ID}}/schedule?week={{.Week}}" hx-target="#main">Back to schedule</a></p>
 {{template "episode-detail" .}}
 {{end}}
 {{define "episode-detail"}}
 <section class="panel" id="episode-running-order" tabindex="-1">
 <h2>{{.Show.Name}} · Running order</h2>
-<p><strong>{{.Episode.Label}}</strong> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode?start={{.EpisodeStart}}" hx-target="#main">Refresh running order</a> · <a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}">Show settings</a></p>
+<p><a href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode?start={{.EpisodeStart}}&amp;notice=refreshed" hx-target="#main" hx-indicator="#episode-refresh-busy">Refresh running order</a> <span id="episode-refresh-busy" class="htmx-indicator" role="status">Refreshing…</span></p>
+<div id="episode-status" role="status" aria-live="polite" data-live-url="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode/status?start={{.EpisodeStart}}&amp;version={{.Episode.Version}}">{{template "episode-status" .}}</div>
 <p>{{.Episode.Start.Format "Mon 2 Jan 15:04 MST"}}–{{.Episode.End.Format "15:04 MST"}} · {{.Show.DJName}} · {{.Show.PlaylistName}}</p>
-<p>{{.Episode.Theme}}</p>{{if .Episode.RepetitionReason}}<p class="hint">{{.Episode.RepetitionReason}}</p>{{end}}{{if .Episode.Plan}}<p>Estimated programme length: {{.Episode.Estimated}}</p>{{end}}
-{{if .Episode.Problem}}<p class="notice" role="status">{{.Episode.Problem}}</p>{{end}}
-<p class="hint">The show plans and runs automatically. Producer changes are optional. Timings allow approximately 15 seconds for each spoken link.</p>
+<p>{{.Episode.Theme}}</p>{{if .Episode.RepetitionReason}}<p class="hint">{{.Episode.RepetitionReason}}</p>{{end}}{{if .Episode.Plan}}<p>Queued music: {{.Episode.Estimated}}</p>{{end}}
+
+{{if .Episode.Cancelled}}<p class="notice">This episode is cancelled. The station’s default playlist will play during this slot. The show template and other episodes are unchanged.</p>{{end}}
 {{if .EpisodeError}}<p class="notice error" role="alert">{{.EpisodeError}}</p>{{end}}
+{{if not .Episode.Cancelled}}
+<p class="hint">The DJ keeps one upcoming track in this episode’s session and chooses the next as music plays. Producer changes are optional.</p>
+
 <form method="post" action="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode?start={{.EpisodeStart}}" hx-disabled-elt="find button" data-episode-form>
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}">
+
 <label>Episode DJ music prompt (optional)<textarea name="notes" rows="4" maxlength="4000">{{.Episode.Notes}}</textarea></label>
 {{if .Episode.Plan}}<div class="table-scroll episode-order-scroll" tabindex="0" role="region" aria-label="Episode running order"><table class="episode-order-table"><thead><tr><th>Estimated start</th><th>Recording</th><th>Performer</th><th>Album</th><th>Duration</th><th>Producer choices</th></tr></thead><tbody>
 {{range .Episode.RunningOrder}}<tr><td data-label="Estimated start">{{.EstimatedStart.Format "15:04"}}</td><td data-label="Recording">{{.Title}}</td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Producer choices"><label class="choice"><input type="checkbox" name="locked" aria-label="Keep {{.Title}}" value="{{.ID}}" {{if .Locked}}checked{{end}}>Keep</label><label class="choice"><input type="checkbox" name="excluded" aria-label="Exclude {{.Title}}" value="{{.ID}}" {{if index $.EpisodeExclusions .ID}}checked{{end}}>Exclude</label></td></tr>{{end}}
-</tbody></table></div>{{else}}<p>No running order yet. Preparation happens automatically when a curation connection is available.</p>{{end}}
+</tbody></table></div>{{else}}<p>No running order yet. The DJ starts with the show introduction, then chooses one next track at a time.</p>{{end}}
 <span data-unsaved class="hint" role="status"></span>
 {{template "form-actions" (formActions (printf "/producer/stations/%s/schedule?week=%s" .Station.ID .Week) "Save")}}
-</form>
+</form>{{end}}
+{{if .EpisodeCanCancel}}
+{{if .Episode.Cancelled}}<form method="post" action="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode/cancel?start={{.EpisodeStart}}" hx-disabled-elt="find button">
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}"><input type="hidden" name="confirm" value="yes"><input type="hidden" name="restore" value="yes"><button class="secondary">Restore episode</button></form>
+{{else}}<div class="entity-delete-action"><a class="entity-delete-link" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode/cancel?start={{.EpisodeStart}}" hx-get="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode/cancel?start={{.EpisodeStart | urlquery}}" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Cancel episode</a></div>{{end}}{{end}}
 </section>
-{{if .Episode.Aired}}<section class="panel"><h2>Actually aired</h2><ol>{{range .Episode.Aired}}<li>{{.Title}} · {{.Artist}}</li>{{end}}</ol></section>{{end}}
+{{if .Episode.Aired}}
+<section class="panel" aria-labelledby="episode-played-heading">
+  <h2 id="episode-played-heading">Played tracks</h2>
+  <p class="hint">{{len .Episode.Aired}} tracks · Start times in {{.Station.Timezone}} · Duration is the recording length.</p>
+  <div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Played show tracks">
+    <table class="episode-order-table">
+      <thead><tr><th scope="col">Started</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th></tr></thead>
+      <tbody>{{range .Episode.Aired}}
+        <tr>
+          <td data-label="Started">{{if .AiredAt.IsZero}}—{{else}}<time datetime="{{.AiredAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.AiredAt.Format "15:04:05"}}</time>{{end}}</td>
+          <td data-label="Recording">{{.Title}}</td>
+          <td data-label="Performer">{{if .Artist}}{{.Artist}}{{else}}—{{end}}</td>
+          <td data-label="Album">{{if .Album}}{{.Album}}{{else}}—{{end}}</td>
+          <td data-label="Duration">{{if gt .Seconds 0}}{{.Duration}}{{else}}—{{end}}</td>
+        </tr>{{end}}
+      </tbody>
+    </table>
+  </div>
+</section>{{end}}
 {{end}}
+
+{{define "episode-status"}}
+<p><strong>{{.Episode.Label}}</strong>{{if eq .Episode.Status "planning"}} · The DJ is choosing the next track.{{else if eq .Episode.Status "starting"}} · The DJ is preparing the show introduction.{{else if .Episode.Problem}} · {{.Episode.Problem}}{{else if eq .Episode.Status "unplanned"}} · Waiting for the live episode session to start.{{end}}</p>
+{{if and .Episode.PlanningFailed (not .Episode.RetryAt.IsZero)}}<p class="hint">Next automatic retry: {{.Episode.RetryAt.Format "15:04 MST"}}.</p>{{end}}
+{{if .EpisodePlanChanged}}<p class="notice">A new running order is available. Refresh running order to load it; save any producer changes first.</p>{{end}}
+{{end}}
+
+{{define "cancel-episode-page"}}{{template "page-heading" (heading .Title)}}{{template "cancel-episode-confirm" .}}{{end}}
+{{define "cancel-episode-confirm"}}
+<section class="panel form-panel">
+<h2 id="dialog-heading">Cancel {{.Show.Name}} on {{.Episode.Start.Format "2 Jan 2006"}}?</h2>
+<p id="dialog-description">Only this episode will be skipped. The station will use its default playlist during the slot. The show template and other episodes are kept. You can restore this episode before it starts.</p>
+<form method="post" action="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode/cancel?start={{.EpisodeStart}}" hx-disabled-elt="find button">
+<input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}"><input type="hidden" name="confirm" value="yes">
+<div class="form-actions"><a class="button secondary" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode?start={{.EpisodeStart}}" data-close-dialog>Keep episode</a><button class="danger">Cancel episode</button></div>
+</form></section>{{end}}

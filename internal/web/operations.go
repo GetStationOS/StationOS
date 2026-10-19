@@ -21,6 +21,7 @@ import (
 type operationSummary struct {
 	Available, Healthy bool
 	Active             int
+	NeedsReview        int
 }
 
 func (s *Server) operationalSummary(r *http.Request, id string) operationSummary {
@@ -37,6 +38,11 @@ func (s *Server) operationalSummary(r *http.Request, id string) operationSummary
 		return v
 	}
 	v.Active = len(incidents)
+	for _, i := range incidents {
+		if i.Acknowledged.IsZero() {
+			v.NeedsReview++
+		}
+	}
 	return v
 }
 
@@ -541,7 +547,7 @@ func (s *Server) incidentIndicator(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	s.renderHTML(w, http.StatusOK, "incident-menu-icon", s.operationalSummary(r, id).Active)
+	s.renderHTML(w, http.StatusOK, "incident-menu-icon", s.operationalSummary(r, id).NeedsReview)
 }
 
 func reviewIncidents(rows []operations.Incident, review string) []operations.Incident {

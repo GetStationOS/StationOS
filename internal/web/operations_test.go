@@ -128,8 +128,8 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 		t.Fatal("ack incorrectly resolved incident")
 	}
 	indicator := request(h, "GET", base+"/operations/indicator", nil, auth)
-	if !strings.Contains(indicator.Body.String(), "1 active incident") {
-		t.Fatal("acknowledgement hid unresolved incident")
+	if strings.TrimSpace(indicator.Body.String()) != "" {
+		t.Fatal("reviewed incident still flagged", indicator.Body.String())
 	}
 	e.ID, e.Kind, e.Recover = "speech-recovered", "recovery", true
 	if err = store.Save(ctx, e); err != nil {
@@ -489,8 +489,8 @@ func TestIncidentViewsAndReviewPreserveHistory(t *testing.T) {
 		}
 	}
 	indicator := request(h, "GET", "/producer/stations/"+st.ID+"/operations/indicator", nil, nil)
-	if !strings.Contains(indicator.Body.String(), "1 active incident") {
-		t.Fatal("review hid active incident")
+	if strings.TrimSpace(indicator.Body.String()) != "" {
+		t.Fatal("reviewed incident still warns in menu", indicator.Body.String())
 	}
 	rows, err := store.Incidents(ctx, st.ID, false)
 	if err != nil || len(rows) != 2 {

@@ -102,10 +102,16 @@
 <tr id="incident-{{.ID}}" role="row">
 <td class="incident-time" role="cell"><time title="{{.LatestLabel}}" datetime="{{.Latest.Format "2006-01-02T15:04:05Z07:00"}}">{{.LatestDate}}<span>{{.LatestTime}}</span></time>{{if gt .Count 1}}<span class="incident-occurrences" title="First occurred {{.FirstLabel}}">{{.Count}} occurrences</span>{{end}}</td>
 <td class="incident-description" role="cell"><strong>{{.Message}}</strong>{{if .ShowEffect}}<p>{{.Effect}}</p>{{end}}{{if and .Recovered.IsZero .Action}}<p class="incident-guidance">{{.Action}}</p>{{end}}
-<div class="incident-footer"><a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a><div class="incident-actions">{{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge"><input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return_to" value="{{$.RefreshURL}}"><button class="secondary icon-button incident-review-button" aria-label="Mark incident as reviewed: {{.Message}}" title="Mark as reviewed">{{template "ui-icon" "review"}}</button></form>{{else}}<span class="incident-reviewed" title="Reviewed">{{template "ui-icon" "review"}}<span>Reviewed</span></span>{{end}}
-
-</div></div></td>
-<td class="incident-state table-state-cell" role="cell">{{template "state-icon" (incidentStateIcon .)}}</td>
+<div class="incident-footer"><a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a></div></td>
+<td class="incident-state table-state-cell" role="cell">
+  <div class="incident-actions">
+    {{template "state-icon" (incidentStateIcon .)}}
+    {{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge" hx-disabled-elt="find button">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return_to" value="{{$.RefreshURL}}">
+      <button class="secondary incident-review-button" aria-label="Mark incident as reviewed: {{.Message}}" title="Mark as reviewed">{{template "ui-icon" "review"}}<span>Mark reviewed</span></button>
+    </form>{{else}}<span class="incident-reviewed" title="Reviewed">{{template "ui-icon" "review"}}<span>Reviewed</span></span>{{end}}
+  </div>
+</td>
 
 </tr>{{end}}</tbody></table></div>
 {{else}}<div class="empty-state table-outline"><h2>{{if eq .IncidentReview "needed"}}No incidents need review{{else if not .IncidentReview}}No active incidents{{else}}No incidents recorded{{end}}</h2><p>{{if eq .IncidentReview "needed"}}All incidents in this history have been reviewed.{{else if not .IncidentReview}}Recovered incidents remain in All incidents.{{else}}Production failures and recoveries will appear here.{{end}}</p></div>{{end}}

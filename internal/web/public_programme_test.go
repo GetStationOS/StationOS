@@ -100,3 +100,30 @@ func TestPublicCurrentShowRendersExpandedAndCloseable(t *testing.T) {
 		}
 	}
 }
+
+func TestCancelledDatedEpisodeIsContinuousMusicOnPublicProgramme(t *testing.T) {
+	loc := time.UTC
+	date := time.Date(2026, 10, 19, 0, 0, 0, 0, loc)
+	now := date.Add(8 * time.Hour)
+	shows := []schedule.Show{{ID: "cancelled", StationID: "s", Name: "Cancelled airing", Day: 0, Start: 540, End: 600}}
+	cancelled := map[string]bool{}
+	for _, o := range schedule.Occurrences(shows, date, loc) {
+		if o.Start.Equal(date.Add(9 * time.Hour)) {
+			cancelled[schedule.EpisodeKey(o.Key)] = true
+		}
+	}
+	rows := publicDayProgramme(shows, now, date, loc, "/radio/s", true, cancelled)
+	if len(rows) != 1 || rows[0].Name != "Continuous music" {
+		t.Fatal(rows)
+	}
+	next := publicDayProgramme(shows, now, date.AddDate(0, 0, 7), loc, "/radio/s", true, cancelled)
+	found := false
+	for _, row := range next {
+		if row.Name == "Cancelled airing" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("cancelled the recurring template", next)
+	}
+}

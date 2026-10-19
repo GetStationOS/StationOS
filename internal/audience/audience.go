@@ -140,10 +140,20 @@ func (s Service) Opportunities(ctx context.Context, stationID string, kind Kind)
 	if err != nil {
 		return nil, err
 	}
+	cancelled := map[string]bool{}
+	if exceptions, ok := s.Shows.(schedule.Cancellations); ok {
+		cancelled, err = exceptions.CancelledEpisodes(ctx, stationID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	now := s.now()
 	seen := map[string]bool{}
 	out := []schedule.Occurrence{}
 	for _, o := range schedule.Occurrences(shows, now, loc) {
+		if cancelled[schedule.EpisodeKey(o.Key)] {
+			continue
+		}
 		if !o.End.After(now) || o.Start.After(now.Add(7*24*time.Hour)) || seen[o.ShowID] {
 			continue
 		}

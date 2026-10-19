@@ -46,7 +46,7 @@
       {{range .Fields}}<input type="hidden" name="{{.Key}}" value="{{.Value}}">{{end}}
       <button{{if .Secondary}} class="secondary"{{end}}{{if .Hint}} title="{{.Hint}}"{{end}}>{{if .Icon}}{{template "ui-icon" .Icon}}{{end}}{{.Label}}</button>
     </form>
-    {{else}}<a class="button{{if .Secondary}} secondary{{end}}" href="{{.URL}}">{{.Label}}</a>{{end}}
+    {{else}}<a class="button{{if .Secondary}} secondary{{end}}{{if .IconOnly}} icon-button{{end}}" href="{{.URL}}"{{if .Hint}} title="{{.Hint}}"{{end}}{{if .IconOnly}} aria-label="{{.Label}}"{{end}}>{{if .Icon}}{{template "ui-icon" .Icon}}{{end}}{{if not .IconOnly}}{{.Label}}{{end}}</a>{{end}}
     {{end}}
   </div>{{end}}
 </header>

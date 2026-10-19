@@ -116,6 +116,13 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if show.DJ.ID == "" || (!show.DJ.HasKey && p.Text == nil) {
 		return production.Prepared{}, production.ErrUnavailable
 	}
+	if starter, ok := p.Session.(interface {
+		Begin(context.Context, schedule.Occurrence) error
+	}); ok {
+		if err := starter.Begin(parent, show); err != nil {
+			return production.Prepared{}, err
+		}
+	}
 	budget, err := p.textBudget(parent, "curation", 0)
 	if err != nil {
 		return production.Prepared{}, err
@@ -150,6 +157,10 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+instructions)
 	if p.Store != nil {
 		if prepared, err := p.Store.Get(ctx, cacheKey); err == nil && production.ValidatePresentation(prepared.Plan) == nil {
+			if p.Session != nil {
+				raw, _ := json.Marshal(prepared.Plan)
+				_ = p.Session.Remember(ctx, show, "prepared presentation (not yet aired)", string(raw))
+			}
 			return prepared, nil
 		}
 	}

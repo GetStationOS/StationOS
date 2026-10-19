@@ -241,8 +241,12 @@ func Occurrences(shows []Show, now time.Time, loc *time.Location) []Occurrence {
 	return out
 }
 func Resolve(shows []Show, stationID, defaultPlaylist, defaultName string, now time.Time, loc *time.Location) Timeline {
+	return ResolveOccurrences(Occurrences(shows, now, loc), stationID, defaultPlaylist, defaultName, now)
+}
+
+// ResolveOccurrences resolves an already filtered dated programme schedule.
+func ResolveOccurrences(all []Occurrence, stationID, defaultPlaylist, defaultName string, now time.Time) Timeline {
 	fallback := Occurrence{Key: "default:" + stationID + ":" + defaultPlaylist, StationID: stationID, Title: "Continuous music", PlaylistID: defaultPlaylist, PlaylistName: defaultName}
-	all := Occurrences(shows, now, loc)
 	timeline := Timeline{Current: fallback}
 	for _, o := range all {
 		if !now.Before(o.Start) && now.Before(o.End) {
@@ -277,4 +281,27 @@ func Resolve(shows []Show, stationID, defaultPlaylist, defaultName string, now t
 }
 func TimeLabel(minutes int) string {
 	return time.Date(2000, 1, 1, minutes/60, minutes%60, 0, 0, time.UTC).Format("15:04")
+}
+
+// Cancellations supplies dated exceptions without removing recurring templates.
+type Cancellations interface {
+	CancelledEpisodes(context.Context, string) (map[string]bool, error)
+}
+
+// EpisodeKey identifies a dated occurrence independently of template revision.
+func EpisodeKey(key string) string {
+	i := strings.LastIndex(key, ":")
+	if i < 0 {
+		return key
+	}
+	suffix := key[i+1:]
+	if suffix == "" {
+		return key
+	}
+	for _, c := range suffix {
+		if c < '0' || c > '9' {
+			return key
+		}
+	}
+	return key[:i]
 }

@@ -710,26 +710,21 @@ identity in the same transaction as every write and publishes `episodes` only af
 commit. Show/station deletion cascades episode state; there is no catalogue FK.
 
 `internal/episodes` owns the provider-independent session, plan validation and a
-single cancellable preparation worker. It prepares only the next scheduled occurrence per station, plus recovery of an
-active episode, without listeners or audio production. A ready, failed or disabled
-next show never advances preparation to later shows. Later occurrences remain
-unplanned; saved plans and producer notes are retained. It uses a five-minute job budget, persisted
-retry/lease deadlines and at most four jobs per sweep. Failed jobs retry after five
-minutes; abandoned leases expire after six. Every planner response and search result
-is checkpointed. Context replays retained theme, producer constraints, running order,
-actual aired recordings and bounded recent exchanges; this is an application-owned
-agent session, not an OpenAI-only opaque conversation ID. The same checkpoint feeds
-presentation and spoken-link generation; prepared speech is explicitly distinct from
-aired speech. Only first emitted audio bytes create aired receipts.
+single cancellable preparation worker. Automatic curation waits for an opened active
+episode session, created by presentation preparation or actual playback. It never
+prepares future running orders or requires approval. Each job chooses one upcoming
+recording, retaining theme, prompts, producer constraints, actual aired history and
+spoken links. Failed jobs retry after five minutes; abandoned leases expire after
+six. Intro/presentation and spoken-link generation share this provider-independent
+session; prepared speech remains distinct from actual airtime receipts.
 
-The planner explores the complete eligible playlist through a bounded JSON
-search/plan protocol on the existing curation text port: up to 24 steps, 30 metadata
-results per search and 128 planned recordings. Source transport and artwork never
-enter model context. Invalid choices, repeated IDs, unknown durations, removed
-recordings, lost producer keeps, avoidable performer/album clustering and unsuitable
-duration totals are rejected with feedback inside the same session. Plans reserve
-approximately 15 seconds per link; estimated timings are not a promise of airtime.
-Current track completion is allowed when replanning an active episode.
+The planner receives up to 30 initial eligible metadata snapshots and can explore
+the complete eligible playlist using a bounded JSON search/choose protocol: at most
+six turns, 30 metadata results per search, one selected recording and 512 output
+tokens per turn. Source transport and artwork never enter model context. Unknown
+IDs or durations, exclusions, avoidable performer/album repetition and avoidable
+schedule overrun are rejected with feedback. Technical search turns are retained
+in storage but not duplicated in ordinary speech/session checkpoints.
 
 Playback receives all currently eligible episode candidates instead of the legacy
 ten-item shortlist, follows the first unplayed valid planned recording, and rechecks
@@ -790,3 +785,26 @@ five-minute retry delay and a recovery event after a successful retry. OpenAI
 response-body failures identify the endpoint and elapsed time without including
 provider payloads, addresses or credentials; timeouts retain their cancellation
 cause and follow the existing bounded transport retry policy.
+
+Default episode curation now selects exactly one upcoming recording per live
+episode session. Presentation preparation opens the dated session with its DJ and
+show prompts; prepared presentation or actual playback enables rolling choices.
+No default worker request is made for an unopened or future episode. The rolling
+protocol immediately offers up to 30 eligible metadata snapshots, has a six-step
+search/validation bound and a 512-token output cap, preserving theme, constraints,
+played history and speech while omitting duplicate technical turns. Playback
+receipts invalidate consumed choices and notify the single worker to replenish.
+The process has no full-show planning mode or producer approval gate. Provider options
+now reach the OpenAI Responses adapter; no-tool calls omit tool-only controls.
+Episode status uses the existing read-only SSE subscription contract independently
+of the producer form. Refresh confirms a state read and never triggers generation.
+
+A dated episode's persisted Cancelled flag is a reversible schedule exception,
+independent of template revision. The schedule adapter filters those episode keys
+before resolving current/next programme, so default music covers skipped dates.
+The same cancellation port filters public programmes and audience opportunities;
+audience submission rechecks cancellation inside its transaction. Cancellation
+requires an unaired future occurrence and optimistic version, increments the
+editorial revision to reject in-flight generation, and publishes after commit.
+Restore retains the session and constraints. No template or transmission history
+is deleted. Producer confirmation uses the shared dialog with a full-page fallback.

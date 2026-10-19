@@ -66,8 +66,10 @@ func (r Episodes) Update(ctx context.Context, o schedule.Occurrence, fn func(*ep
 		e.RepetitionReason = ""
 		e.Start = o.Start
 		e.End = o.End
-		e.Status = "attention"
-		e.Problem = "Show settings changed; updating the running order."
+		if !e.Cancelled {
+			e.Status = "attention"
+			e.Problem = "Show settings changed; updating the running order."
+		}
 		e.RetryAt = time.Time{}
 	}
 	if err = fn(&e); err != nil {

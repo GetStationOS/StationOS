@@ -90,7 +90,7 @@ select:disabled{background-color:var(--bg);color:var(--muted);cursor:not-allowed
 textarea{font-weight:400;line-height:1.5}
 .check{display:flex;align-items:center;gap:8px;font-weight:400}.check input{margin:0}
 
-.calendar-scroll{overflow:auto;border:1px solid var(--border,#dbe2ea);border-radius:12px;background:var(--surface,#fff);max-height:650px}.weekly-calendar{display:grid;grid-template-columns:54px repeat(7,minmax(130px,1fr));grid-template-rows:42px repeat(96,16px);min-width:980px;position:relative;background:repeating-linear-gradient(to bottom,transparent 0,transparent 63px,#e7eaf0 63px,#e7eaf0 64px);background-position:0 42px}.calendar-day{grid-row:1;position:sticky;top:0;background:#f6f8fb;z-index:1;padding:10px;font-weight:600;border-right:1px solid #e7eaf0;text-align:center}.calendar-show{display:flex;flex-direction:column;overflow:hidden;margin:1px 3px;padding:5px 7px;border-radius:7px;background:var(--tint);border-left:3px solid var(--accent);color:var(--text);font-size:.8rem;line-height:1.35;text-decoration:none}.calendar-show:hover,.calendar-show:focus-visible{background:#cceff8;outline:2px solid var(--accent)}.calendar-show strong{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.schedule-agenda{margin-top:18px}.schedule-agenda summary{cursor:pointer;padding:12px}.programme-status{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;align-items:center}
+.calendar-scroll{overflow:auto;border:1px solid var(--border,#dbe2ea);border-radius:12px;background:var(--surface,#fff);max-height:650px}.weekly-calendar{display:grid;grid-template-columns:54px repeat(7,minmax(130px,1fr));grid-template-rows:42px repeat(96,16px);min-width:980px;position:relative;background:repeating-linear-gradient(to bottom,transparent 0,transparent 63px,#e7eaf0 63px,#e7eaf0 64px);background-position:0 42px}.calendar-day{grid-row:1;position:sticky;top:0;background:#f6f8fb;z-index:1;padding:10px;font-weight:600;border-right:1px solid #e7eaf0;text-align:center}.calendar-show{display:flex;flex-direction:column;overflow:hidden;margin:1px 3px;padding:5px 7px;border-radius:7px;background:var(--tint);border-left:3px solid var(--accent);color:var(--text);font-size:.8rem;line-height:1.35;text-decoration:none}.calendar-show:hover,.calendar-show:focus-visible{background:#cceff8;outline:2px solid var(--accent)}.calendar-show strong{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.programme-status{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0;align-items:center}
 .day-0{grid-column:2}
 .day-1{grid-column:3}
 .day-2{grid-column:4}
@@ -957,7 +957,7 @@ textarea{font-weight:400;line-height:1.5}
 .incident-table { table-layout:fixed; width:100%; }
 .incident-table th,.incident-table td { vertical-align:top; overflow-wrap:anywhere; padding:12px 14px; }
 .incident-table th:first-child { width:145px; }
-.incident-table th:last-child { width:130px; }
+.incident-table th:last-child { width:165px; }
 .incident-time { font-size:12px; font-variant-numeric:tabular-nums; }
 .incident-time time>span { display:block; color:var(--muted); }
 .incident-occurrences { display:block; font-size:11px; color:var(--muted); margin-top:3px; }
@@ -970,9 +970,9 @@ textarea{font-weight:400;line-height:1.5}
 
 .incident-footer { display:flex; align-items:center; gap:12px; margin-top:2px; }
 .incident-footer>a { display:inline-flex; align-items:center; min-height:44px; font-size:12px; }
-.incident-actions { display:flex; align-items:center; margin-left:auto; }
+.incident-actions { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
 .incident-actions form { margin:0; }
-.incident-actions .incident-review-button { display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; min-height:44px; padding:0; }
+.incident-actions .incident-review-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:44px; padding:6px 10px; white-space:nowrap; font-size:12px; }
 .incident-reviewed { display:inline-flex; align-items:center; gap:5px; font-size:11px; white-space:nowrap; color:var(--muted); }
 .incident-reviewed .ui-icon { width:16px; height:16px; }
 .incident-filters { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
@@ -995,6 +995,7 @@ textarea{font-weight:400;line-height:1.5}
  .incident-time time>span { display:inline; margin-left:6px; }
  .incident-occurrences { display:inline; margin-left:6px; }
  .incident-state { grid-column:2; grid-row:1; text-align:right; }
+ .incident-actions { flex-direction:row; align-items:center; }
 
 
  .incident-description { grid-column:1/-1; grid-row:2; }
@@ -1126,6 +1127,7 @@ textarea{font-weight:400;line-height:1.5}
  .episode-order-table, .episode-order-table tbody { display:block; width:100%; min-width:0; }
  .episode-order-table thead { display:none; }
  .episode-order-table tr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; padding:16px 0; border-bottom:1px solid var(--line); }
+ .table-outline > .episode-order-table tr { padding-left:12px; padding-right:12px; }
  .episode-order-table td { display:block; min-width:0; padding:0; border:0; overflow-wrap:anywhere; }
  .episode-order-table td::before { content:attr(data-label); display:block; font-size:.75rem; font-weight:400; color:var(--muted); }
  .episode-order-table td:nth-child(2), .episode-order-table td:nth-child(3), .episode-order-table td:nth-child(4), .episode-order-table td:nth-child(6) { grid-column:1 / -1; }
@@ -1136,3 +1138,10 @@ textarea{font-weight:400;line-height:1.5}
  .episode-order-table .choice { flex:1; min-height:44px; margin:0; }
  #episode-running-order .form-actions > * { min-height:44px; }
 }
+
+/* Compact settings actions stay beside the heading on small screens. */
+.page-heading:has(> .heading-actions > .icon-button) { flex-wrap:nowrap; align-items:flex-start; }
+.page-heading:has(> .heading-actions > .icon-button) > .heading-copy { flex:1 1 0; }
+.page-heading:has(> .heading-actions > .icon-button) > .heading-actions { flex:none; }
+
+.calendar-show.episode-cancelled { background:var(--surface); border-color:var(--muted); color:var(--muted); }

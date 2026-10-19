@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/changefeed"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/station"
@@ -78,9 +79,15 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 		}
 		for _, o := range preparationWindow(ss, now, loc) {
 			episode, e := s.Store.Get(ctx, o.Key)
-			if errors.Is(e, ErrNotFound) {
-				e = s.Store.Update(ctx, o, func(*Episode) error { return nil })
-				episode = New(o)
+			if e == nil && episode.Cancelled {
+				continue
+			}
+			// Rolling curation begins with the live episode session, never a week of preplanning.
+			if errors.Is(e, ErrNotFound) || (e == nil && !episodeSessionReady(episode)) {
+				continue
+			}
+			if e == nil && o.Start.After(now) {
+				continue
 			}
 			if e != nil {
 				return e
@@ -167,6 +174,9 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 					e.Status = "unplanned"
 				}
 				e.Problem = "Episode planning failed. Music continues automatically; preparation will retry. Check the curation connection and server logs."
+				if errors.Is(failure, ai.ErrInvalidStructuredResponse) {
+					e.Problem = "The DJ returned an invalid planning response. No new running order was saved. Automatic preparation will retry."
+				}
 				if errors.Is(failure, context.DeadlineExceeded) {
 					e.Problem = "Episode planning timed out. Music continues automatically; preparation will retry."
 				}
@@ -193,4 +203,16 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 		}
 	}
 	return nil
+}
+
+func episodeSessionReady(e Episode) bool {
+	if len(e.Aired) > 0 {
+		return true
+	}
+	for _, t := range e.Turns {
+		if t.Kind == "prepared presentation (not yet aired)" || t.Kind == "aired speech" {
+			return true
+		}
+	}
+	return false
 }

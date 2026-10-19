@@ -79,7 +79,7 @@ type Server struct {
 }
 
 func templateFunctions() template.FuncMap {
-	return template.FuncMap{"audienceStateIcon": audienceStateIcon, "historyStateIcon": historyStateIcon, "incidentStateIcon": incidentStateIcon, "heading": heading, "headingLink": headingLink, "scheduleHeading": scheduleHeading, "playlistsHeading": playlistsHeading, "playlistHeading": playlistHeading, "assistantHeading": assistantHeading, "crumb": crumb, "breadcrumbs": breadcrumbs, "stationBreadcrumbs": stationBreadcrumbs, "sourceBreadcrumbs": sourceBreadcrumbs, "publicBreadcrumbs": publicBreadcrumbs, "stationTabs": stationTabs, "sourceTabs": sourceTabs, "playlistTabs": playlistTabs, "assistantTabs": assistantTabs, "formActions": formActions, "operationTypeLabel": operationTypeLabel, "operationOutcomeLabel": operationOutcomeLabel, "operationKinds": func() []string {
+	return template.FuncMap{"audienceStateIcon": audienceStateIcon, "historyStateIcon": historyStateIcon, "incidentStateIcon": incidentStateIcon, "heading": heading, "headingLink": headingLink, "scheduleHeading": scheduleHeading, "episodeHeading": episodeHeading, "playlistsHeading": playlistsHeading, "playlistHeading": playlistHeading, "assistantHeading": assistantHeading, "crumb": crumb, "breadcrumbs": breadcrumbs, "stationBreadcrumbs": stationBreadcrumbs, "sourceBreadcrumbs": sourceBreadcrumbs, "publicBreadcrumbs": publicBreadcrumbs, "stationTabs": stationTabs, "sourceTabs": sourceTabs, "playlistTabs": playlistTabs, "assistantTabs": assistantTabs, "formActions": formActions, "operationTypeLabel": operationTypeLabel, "operationOutcomeLabel": operationOutcomeLabel, "operationKinds": func() []string {
 		return []string{"music", "speech", "started", "stopped", "handover", "ai", "failure", "recovery", "stall", "listener", "intervention", "unavailable"}
 	}, "operationOutcomes": func() []string {
 		return []string{"transmitting", "completed", "interrupted", "failed", "unknown", "observed"}
@@ -176,7 +176,10 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/stations/{id}/schedule", s.schedulePage)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/live", s.subscription("episodes", "schedule-episodes", s.scheduleLive))
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}/episode", s.episodePage)
+	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}/episode/status", s.subscription("episodes", "episode-status", s.episodeStatus))
 	mux.HandleFunc("POST /producer/stations/{id}/schedule/{show}/episode", s.saveEpisode)
+	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}/episode/cancel", s.cancelEpisode)
+	mux.HandleFunc("POST /producer/stations/{id}/schedule/{show}/episode/cancel", s.cancelEpisode)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/new", s.schedulePage)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}", s.schedulePage)
 	mux.HandleFunc("GET /producer/stations/{id}/schedule/{show}/delete", s.schedulePage)

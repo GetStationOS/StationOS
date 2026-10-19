@@ -47,6 +47,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	if err := store.Update(ctx, o, func(e *episodes.Episode) error {
 		e.Status = "ready"
 		e.Theme = "City lights"
+		e.Aired = []episodes.Track{{ID: "played", Title: "Previously played recording", Artist: "Played performer", Album: "Played album", Seconds: 245, AiredAt: o.Start.UTC().Add(15 * time.Minute)}}
 		e.Plan = []episodes.Track{{ID: "a", Title: "First recording", Artist: "One", Seconds: 240}, {ID: "b", Title: "Second recording", Artist: "Two", Seconds: 240}}
 		return nil
 	}); err != nil {
@@ -90,7 +91,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	}
 	selected := path + "&episode=show&start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
 	w = request(h, "GET", selected, nil, map[string]string{"HX-Request": "true"})
-	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", "Back to schedule", `name="notes"`, `name="locked"`} {
+	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", "Back to schedule", "Edit show template", "change weekly times", "Played tracks", "Played album", "4:05", `scope="col"`, o.Start.Add(15 * time.Minute).Format("15:04:05"), `name="notes"`, `name="locked"`} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatal("missing", want, w.Body.String())
 		}
@@ -120,10 +121,93 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "episode-attention") {
 		t.Fatal(w.Body.String())
 	}
+	// Refresh is visibly acknowledged and does not start generation.
+	w = request(h, "GET", editPath+"&notice=refreshed", nil, map[string]string{"HX-Request": "true"})
+	for _, want := range []string{"Running order refreshed", `id="episode-status"`, `data-live-url=`, `episode-refresh-busy`} {
+		if !strings.Contains(w.Body.String(), want) {
+			t.Fatal("missing feedback", want, w.Body.String())
+		}
+	}
+	statusPath := "/producer/stations/s/schedule/show/episode/status?start=" + url.QueryEscape(o.Start.Format(time.RFC3339)) + "&version=" + strconv.Itoa(after.Version)
+	for _, state := range []string{"planning", "failed", "ready"} {
+		store.Update(ctx, o, func(e *episodes.Episode) error {
+			e.Status = state
+			e.Problem = ""
+			if state == "failed" {
+				e.Status = "unplanned"
+				e.PlanningFailed = true
+				e.Problem = "The DJ returned an invalid planning response."
+				e.RetryAt = time.Now().Add(5 * time.Minute)
+			}
+			return nil
+		})
+		beforeStatus, _ := store.Get(ctx, o.Key)
+		w = request(h, "GET", statusPath, nil, nil)
+		want := map[string]string{"planning": "choosing the next track", "failed": "invalid planning response", "ready": "new running order is available"}[state]
+		if w.Code != 200 || !strings.Contains(w.Body.String(), want) || strings.Contains(w.Body.String(), "textarea") || strings.Contains(w.Body.String(), "checkbox") {
+			t.Fatal("status replaced producer controls", w.Code, w.Body.String())
+		}
+		afterStatus, _ := store.Get(ctx, o.Key)
+		if beforeStatus.Version != afterStatus.Version {
+			t.Fatal("status read wrote episode")
+		}
+	}
 	// Merely viewing a later episode must neither create it nor inherit this plan.
 	nextStart := schedule.WallTime(tomorrow.AddDate(0, 0, 7), show.Start, false)
 	w = request(h, "GET", "/producer/stations/s/schedule?week="+nextStart.Format("2006-01-02")+"&episode=show&start="+url.QueryEscape(nextStart.Format(time.RFC3339)), nil, nil)
 	if w.Code != 200 || strings.Contains(w.Body.String(), "City lights") || !strings.Contains(w.Body.String(), "Unplanned") {
 		t.Fatal(w.Code, w.Body.String())
+	}
+}
+
+func TestCancelAndRestoreEpisodeFromProducerPage(t *testing.T) {
+	h, st, _, _ := setupWeb(t, "")
+	ctx := context.Background()
+	st.Save(ctx, station.Station{ID: "s", Name: "Station", Timezone: "UTC", Locale: "en"})
+	(persistence.Playlists{DB: st.DB}).Save(ctx, playlists.Playlist{ID: "pool", StationID: "s", Name: "Pool"})
+	day := time.Now().UTC().AddDate(0, 0, 1)
+	show := schedule.Show{ID: "show", StationID: "s", Name: "Weekly", Day: (int(day.Weekday()) + 6) % 7, Start: 540, End: 600, DJID: "default-pop", PlaylistID: "pool"}
+	shows := persistence.Schedule{DB: st.DB}
+	if err := shows.Save(ctx, show); err != nil {
+		t.Fatal(err)
+	}
+	start := schedule.WallTime(day, 540, false)
+	path := "/producer/stations/s/schedule/show/episode?start=" + url.QueryEscape(start.Format(time.RFC3339))
+	w := request(h, "GET", path, nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), ">Cancel episode</a>") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	cancelPath := "/producer/stations/s/schedule/show/episode/cancel?start=" + url.QueryEscape(start.Format(time.RFC3339))
+	w = request(h, "GET", cancelPath, nil, map[string]string{"HX-Request": "true", "HX-Target": "dialog-body"})
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Only this episode") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	form := url.Values{"csrf": {csrf(t, h)}, "version": {"0"}, "confirm": {"yes"}}
+	w = request(h, "POST", cancelPath, form, map[string]string{"HX-Request": "true"})
+	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "notice=cancelled") {
+		t.Fatal(w.Code, w.Body.String(), w.Header())
+	}
+	w = request(h, "GET", path, nil, nil)
+	if !strings.Contains(w.Body.String(), "Restore episode") || !strings.Contains(w.Body.String(), "Cancelled") || strings.Contains(w.Body.String(), `name="notes"`) {
+		t.Fatal(w.Body.String())
+	}
+	store := persistence.Episodes{DB: st.DB}
+	var o schedule.Occurrence
+	show, _ = shows.Get(ctx, "s", "show")
+	for _, candidate := range schedule.Occurrences([]schedule.Show{show}, start, time.UTC) {
+		if candidate.Start.Equal(start) {
+			o = candidate
+		}
+	}
+	e, _ := store.Get(ctx, o.Key)
+	form.Set("version", strconv.Itoa(e.Version))
+	form.Set("restore", "yes")
+	w = request(h, "POST", cancelPath, form, nil)
+	if w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "notice=restored") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	e, _ = store.Get(ctx, o.Key)
+	if e.Cancelled {
+		t.Fatal(e)
 	}
 }

@@ -127,15 +127,15 @@ func TestOperationalSubscriptionsFollowCommitsAndReconnect(t *testing.T) {
 	if err := store.Acknowledge(ctx, "radio", "failure", time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	quietSnapshot(t, indicator) // Review is not recovery.
+	if strings.TrimSpace(nextSnapshot(t, indicator)) != "" {
+		t.Fatal("review did not clear menu warning")
+	} // The active incident remains in the overview.
 	event.ID = "recovery"
 	event.Recover = true
 	if err := store.Save(ctx, event); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(nextSnapshot(t, indicator), "active incident") {
-		t.Fatal("recovered indicator retained")
-	}
+	quietSnapshot(t, indicator) // Already cleared by review; recovery does not bring it back.
 	nextSnapshot(t, overview)
 	event = operations.Event{ID: "music", StationID: "radio", Kind: "music", Outcome: "transmitting", Started: time.Now(), Title: "Song"}
 	if err := store.Save(ctx, event); err != nil {

@@ -57,6 +57,11 @@ func (r *Router) respond(ctx context.Context, role, model, prompt string, input 
 				prompt += "\nReturn only JSON matching this schema: " + string(schema)
 			}
 			if structured, ok := r.OpenAI.(interface {
+				RespondStructuredWithOptions(context.Context, string, string, string, []producer.Item, []producer.Tool, json.RawMessage, ai.GenerationOptions) (producer.Response, error)
+			}); ok {
+				return structured.RespondStructuredWithOptions(ctx, model, key, prompt, cloudInput, tools, schema, options)
+			}
+			if structured, ok := r.OpenAI.(interface {
 				RespondStructured(context.Context, string, string, string, []producer.Item, []producer.Tool, json.RawMessage) (producer.Response, error)
 			}); ok && len(schema) > 0 {
 				return structured.RespondStructured(ctx, model, key, prompt, cloudInput, tools, schema)
@@ -80,7 +85,7 @@ func (r *Router) Generate(ctx context.Context, q ai.TextRequest) (string, error)
 		return "", errors.New("Text preparation returned unexpected tool calls")
 	}
 	if len(q.Schema) > 0 && !json.Valid([]byte(out.Text)) {
-		return "", errors.New("Provider returned invalid structured JSON")
+		return "", ai.ErrInvalidStructuredResponse
 	}
 	return out.Text, err
 }

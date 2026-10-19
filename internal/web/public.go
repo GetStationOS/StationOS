@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/station"
 )
@@ -125,6 +126,13 @@ func (s *Server) publicView(r *http.Request) (publicPageView, error) {
 		if err != nil {
 			return v, err
 		}
+		cancelled := map[string]bool{}
+		if exceptions, ok := s.d.Schedule.(schedule.Cancellations); ok {
+			cancelled, err = exceptions.CancelledEpisodes(r.Context(), st.ID)
+			if err != nil {
+				return v, err
+			}
+		}
 		now := time.Now()
 		var date time.Time
 		v.PublicDayLinks, date = publicScheduleDays(now, loc, r.URL.Query().Get("day"), v.AudienceBase)
@@ -133,6 +141,9 @@ func (s *Server) publicView(r *http.Request) (publicPageView, error) {
 		local := now.In(loc)
 		v.LiveDeadline = time.Date(local.Year(), local.Month(), local.Day()+1, 0, 0, 0, 0, loc)
 		for _, occurrence := range schedule.Occurrences(shows, now, loc) {
+			if cancelled[episodes.SessionKey(occurrence.Key)] {
+				continue
+			}
 			for _, boundary := range []time.Time{occurrence.Start, occurrence.End} {
 				if boundary.After(now) && boundary.Before(v.LiveDeadline) {
 					v.LiveDeadline = boundary
@@ -142,6 +153,9 @@ func (s *Server) publicView(r *http.Request) (publicPageView, error) {
 		contributions := map[string]string{}
 		if s.d.Audience != nil && s.d.BroadcastConfig != nil {
 			for _, o := range schedule.Occurrences(shows, now, loc) {
+				if cancelled[episodes.SessionKey(o.Key)] {
+					continue
+				}
 				if o.End.After(now) && !o.Start.After(now.Add(7*24*time.Hour)) && (o.AcceptRequests || o.AcceptShoutouts) && contributions[o.ShowID] == "" {
 					contributions[o.ShowID] = "/radio/" + url.PathEscape(st.StreamSlug) + "/contribute?show=" + url.QueryEscape(o.Key)
 				}
@@ -164,6 +178,9 @@ func (s *Server) publicView(r *http.Request) (publicPageView, error) {
 			}
 			v.PublicShow.Portrait = publicPresenterPortrait("/radio/"+url.PathEscape(st.StreamSlug), show.DJID, show.DJ.PortraitURL)
 			for _, o := range schedule.Occurrences(shows, now, loc) {
+				if cancelled[episodes.SessionKey(o.Key)] {
+					continue
+				}
 				if o.ShowID == id && ((r.URL.Query().Get("show") != "" && o.Key == r.URL.Query().Get("show")) || (r.URL.Query().Get("show") == "" && o.End.After(now))) {
 					v.PublicShow.NextLabel = "Next airing"
 					if !o.Start.After(now) {
@@ -177,7 +194,7 @@ func (s *Server) publicView(r *http.Request) (publicPageView, error) {
 				}
 			}
 		}
-		v.PublicDays = []publicDay{{Name: v.PublicDate, Shows: publicDayProgramme(shows, now, date, loc, "/radio/"+url.PathEscape(st.StreamSlug), s.d.Audience != nil && s.d.BroadcastConfig != nil)}}
+		v.PublicDays = []publicDay{{Name: v.PublicDate, Shows: publicDayProgramme(shows, now, date, loc, "/radio/"+url.PathEscape(st.StreamSlug), s.d.Audience != nil && s.d.BroadcastConfig != nil, cancelled)}}
 	}
 	return v, nil
 }
@@ -385,7 +402,7 @@ func publicScheduleDays(now time.Time, loc *time.Location, raw, base string) ([]
 
 // Today contains only unfinished programme; future civil days remain complete.
 // Contribution links always identify the displayed airing.
-func publicDayProgramme(shows []schedule.Show, now, date time.Time, loc *time.Location, base string, participation bool) []publicShow {
+func publicDayProgramme(shows []schedule.Show, now, date time.Time, loc *time.Location, base string, participation bool, exceptions ...map[string]bool) []publicShow {
 	today := date.In(loc).Format("2006-01-02") == now.In(loc).Format("2006-01-02")
 	descriptions := map[string]string{}
 	for _, show := range shows {
@@ -405,6 +422,9 @@ func publicDayProgramme(shows []schedule.Show, now, date time.Time, loc *time.Lo
 		out = append(out, publicShow{Name: "Continuous music", Time: start.Format("15:04") + "–" + label})
 	}
 	for _, o := range schedule.Occurrences(shows, date, loc) {
+		if len(exceptions) > 0 && exceptions[0][episodes.SessionKey(o.Key)] {
+			continue
+		}
 		if !o.End.After(date) || !o.Start.Before(end) {
 			continue
 		}

@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var ErrInvalidStructuredResponse = errors.New("Provider returned invalid structured JSON")
+
 type Connection struct {
 	ID, Name, Type, Address     string
 	HasKey                      bool

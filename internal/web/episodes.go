@@ -44,10 +44,18 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 			v.Episode = episodes.New(o)
 			err = nil
 		}
-		if err == nil && v.Episode.ShowKey != o.Key {
+		if err == nil && !v.Episode.Cancelled && v.Episode.ShowKey != o.Key {
 			v.Episode.Status = "attention"
 			v.Episode.Problem = "Show settings changed; the DJ will update this episode automatically."
 		}
+		v.Episode.Start = v.Episode.Start.In(loc)
+		v.Episode.End = v.Episode.End.In(loc)
+		v.Episode.PlanStartsAt = v.Episode.PlanStartsAt.In(loc)
+		v.Episode.RetryAt = v.Episode.RetryAt.In(loc)
+		for i := range v.Episode.Aired {
+			v.Episode.Aired[i].AiredAt = v.Episode.Aired[i].AiredAt.In(loc)
+		}
+		v.EpisodeCanCancel = time.Now().Before(o.Start) && len(v.Episode.Aired) == 0
 		v.Title = o.Title + " · " + o.Start.In(loc).Format("2 Jan 2006")
 		v.EpisodeStart = o.Start.Format(time.RFC3339)
 		v.Week = schedule.Monday(o.Start, loc).Format("2006-01-02")
@@ -60,6 +68,15 @@ func (s *Server) episodePage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.scheduleError(w, r, err)
 		return
+	}
+	if r.URL.Query().Get("notice") == "refreshed" {
+		v.Notice = "Running order refreshed. This checks the latest saved plan; automatic preparation continues separately."
+	}
+	if r.URL.Query().Get("notice") == "cancelled" {
+		v.Notice = "Episode cancelled. The station will use its default playlist during this slot."
+	}
+	if r.URL.Query().Get("notice") == "restored" {
+		v.Notice = "Episode restored. It will run automatically at its scheduled time."
 	}
 	if r.URL.Query().Get("notice") == "saved" {
 		v.Notice = "Producer changes saved. The DJ will update the plan automatically."
@@ -102,4 +119,61 @@ func (s *Server) scheduleLive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderHTML(w, 200, "schedule-list", v)
+}
+
+func (s *Server) episodeStatus(w http.ResponseWriter, r *http.Request) {
+	v, _, err := s.episodeView(r)
+	if err != nil {
+		s.scheduleError(w, r, err)
+		return
+	}
+	version, err := strconv.Atoi(r.URL.Query().Get("version"))
+	if err != nil || version < 0 {
+		s.scheduleError(w, r, schedule.ErrInvalid)
+		return
+	}
+	v.EpisodePlanChanged = v.Episode.Status == "ready" && version != v.Episode.Version
+	s.renderHTML(w, 200, "episode-status", v)
+}
+
+func (s *Server) cancelEpisode(w http.ResponseWriter, r *http.Request) {
+	v, o, err := s.episodeView(r)
+	if err != nil {
+		s.scheduleError(w, r, err)
+		return
+	}
+	if !v.EpisodeCanCancel {
+		s.scheduleError(w, r, schedule.ErrInvalid)
+		return
+	}
+	if r.Method == http.MethodGet {
+		if r.Header.Get("HX-Target") == "dialog-body" {
+			s.renderHTML(w, 200, "cancel-episode-confirm", v)
+			return
+		}
+		v.Title = "Cancel episode · " + v.Show.Name
+		s.renderPage(w, r, 200, "cancel-episode-page", v)
+		return
+	}
+	version, err := strconv.Atoi(r.PostForm.Get("version"))
+	if err == nil && r.PostForm.Get("confirm") != "yes" {
+		err = schedule.ErrInvalid
+	}
+	restore := r.PostForm.Get("restore") == "yes"
+	if err == nil {
+		err = s.d.Episodes.Cancel(r.Context(), o, version, !restore)
+	}
+	if err != nil {
+		v.EpisodeError = err.Error()
+		s.renderPage(w, r, 422, "episode-page", v)
+		return
+	}
+	if s.d.Broadcast != nil {
+		s.d.Broadcast.Changed()
+	}
+	notice := "cancelled"
+	if restore {
+		notice = "restored"
+	}
+	s.redirect(w, r, "/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(o.ShowID)+"/episode?start="+url.QueryEscape(o.Start.Format(time.RFC3339))+"&notice="+notice)
 }

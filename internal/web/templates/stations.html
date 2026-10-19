@@ -190,8 +190,8 @@
 {{end}}
 
 {{define "station-sources-field"}}
-<fieldset class="form-group" data-choice-group aria-describedby="station-sources-description">
-  <legend>Music sources</legend>
+<section class="panel" data-choice-group role="group" aria-labelledby="station-sources-heading" aria-describedby="station-sources-description">
+  <h2 id="station-sources-heading">Music sources</h2>
   <p id="station-sources-description" class="hint">Choose the sources available to this station’s playlists.</p>
   <input type="hidden" name="sources_supplied" value="yes">
   {{if .SourceOptions}}
@@ -214,5 +214,5 @@
   <output data-choice-count hidden></output>
   <p data-source-unsaved class="hint" role="status"></p>
   {{end}}
-</fieldset>
+</section>
 {{end}}

@@ -168,3 +168,5 @@ Use the `state-icon` template for Audience review states, Timeline outcomes and 
 Table frames own scrolling and header backgrounds; keep the inner table in its normal table layout. A panel’s first section heading has no extra top margin.
 
 For short checkbox groups inside routine forms, `.choice-list.compact` grows with its rows up to 300px, then scrolls. It retains the shared choice-row, search and bulk-action styles without reserving a full library-picker height.
+
+Use `.form-group` for a labelled fieldset inside an existing form panel. It shares the unbordered grouping, heading and spacing used by DJ settings; avoid another card outline around routine field choices.

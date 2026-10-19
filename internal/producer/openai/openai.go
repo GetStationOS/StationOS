@@ -54,7 +54,7 @@ func (m Model) RespondStructured(ctx context.Context, model, key, instructions s
 		case 429:
 			return producer.Response{}, limitError(resp)
 		case 400, 404:
-			return producer.Response{}, errors.New("OpenAI rejected the model or tool configuration. Check the model in Assistant settings.")
+			return producer.Response{}, configurationError(resp)
 		default:
 			return producer.Response{}, errors.New("The assistant model service is unavailable. Try again shortly.")
 		}

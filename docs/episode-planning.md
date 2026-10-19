@@ -2,7 +2,7 @@
 
 Each dated occurrence owns a durable editorial session. Recurring shows supply an optional musical-direction prompt; DJ profiles supply personality and presentation. A session never carries editorial conversation into another dated occurrence. Revisions invalidate affected plans while retaining producer decisions for review.
 
-Episodes prepare automatically before airtime without starting audio, opening a stream or requiring producer approval. A validated plan is ready to air immediately. Producers may inspect the proposed running order, request revisions and lock or remove recordings. Explicit producer choices take precedence over subsequent autonomous replanning.
+Only the next scheduled show for each station prepares automatically; an active show can also recover its plan. Later shows wait until they become next, even when the next show is already ready or waiting for a retry. Preparation does not start audio, open a stream or require producer approval. A validated plan is ready to air immediately. Producers may inspect the proposed running order, request revisions and lock or remove recordings. Explicit producer choices take precedence over subsequent autonomous replanning.
 
 The episode session can search the complete eligible playlist through bounded tools. Results contain recording metadata and durations, never source URLs or credentials. All choices are validated server-side against current station sources, playlist membership and rotation policy. A varied mix is the default. Artist and album specials are requested in the DJ music prompt; the agent records its reason for deliberate repetition in the episode plan. There is no separate rotation-format setting.
 

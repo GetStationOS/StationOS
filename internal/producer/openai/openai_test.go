@@ -43,3 +43,22 @@ func TestProviderFailureDoesNotExposeBodyOrCredential(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestConfigurationErrorsClassifyWithoutExposingPrivateProviderContent(t *testing.T) {
+	for _, tc := range []struct{ code, param, want string }{
+		{"model_not_found", "model", "not accessible"},
+		{"invalid_json_schema", "text.format.schema", "structured output schema"},
+		{"unsupported_parameter", "parallel_tool_calls", "parallel tool calls"},
+		{"context_length_exceeded", "input", "context limit"},
+		{"private-secret", "private-secret", "Check the model"},
+	} {
+		m := Model{Client: &http.Client{Transport: transport(func(*http.Request) (*http.Response, error) {
+			raw, _ := json.Marshal(map[string]any{"error": map[string]string{"code": tc.code, "param": tc.param, "message": "private-secret listener text"}})
+			return &http.Response{StatusCode: 400, Body: io.NopCloser(strings.NewReader(string(raw)))}, nil
+		})}}
+		_, err := m.Respond(context.Background(), "gpt-6-luna", "private-secret", "", nil, nil)
+		if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), "HTTP 400") || strings.Contains(err.Error(), "private-secret") || strings.Contains(err.Error(), "listener text") {
+			t.Fatal(err)
+		}
+	}
+}

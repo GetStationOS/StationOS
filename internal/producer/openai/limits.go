@@ -3,6 +3,7 @@ package openai
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -60,4 +61,41 @@ func retryDelay(value string, now time.Time) time.Duration {
 		return date.Sub(now)
 	}
 	return 0
+}
+
+// Classify only documented codes and known request fields. Provider messages and
+// unknown values can contain submitted content and must never enter our logs.
+func configurationError(resp *http.Response) error {
+	var body struct{ Error struct{ Code, Param string } }
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, (64<<10)+1))
+	detail := "Check the model and request configuration in Assistant settings."
+	if err == nil && len(raw) <= 64<<10 && json.Unmarshal(raw, &body) == nil {
+		switch body.Error.Code {
+		case "model_not_found":
+			detail = "The selected model does not exist or is not accessible to the saved API key."
+		case "context_length_exceeded":
+			detail = "The request exceeds the selected model's context limit."
+		case "invalid_json_schema":
+			detail = "The provider rejected the structured output schema."
+		case "unsupported_parameter", "unsupported_value", "invalid_value":
+			detail = "The provider rejected a request parameter or value."
+		}
+		switch body.Error.Param {
+		case "model":
+			detail += " Rejected field: model."
+		case "text.format", "text.format.schema", "response_format":
+			detail += " Rejected field: structured output format."
+		case "tools":
+			detail += " Rejected field: tools."
+		case "parallel_tool_calls":
+			detail += " Rejected field: parallel tool calls."
+		case "max_output_tokens":
+			detail += " Rejected field: output token limit."
+		case "input":
+			detail += " Rejected field: input."
+		case "reasoning", "reasoning.effort":
+			detail += " Rejected field: reasoning effort."
+		}
+	}
+	return fmt.Errorf("OpenAI rejected the request (HTTP %d). %s", resp.StatusCode, detail)
 }

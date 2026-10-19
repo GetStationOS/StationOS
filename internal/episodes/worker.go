@@ -12,7 +12,7 @@ import (
 	"stationos.local/stationos/internal/station"
 )
 
-// Start prepares the coming seven days on a single bounded worker. A persisted
+// Start prepares only the next show per station, plus recovery for an active show. A persisted
 // retry deadline doubles as a crash-recoverable lease. No audio work is started.
 func (s *Service) Start(parent context.Context, stations station.Repository, shows schedule.Repository, bus *changefeed.Bus, logger *slog.Logger) func() {
 	if logger == nil {
@@ -42,11 +42,30 @@ func (s *Service) Start(parent context.Context, stations station.Repository, sho
 	return func() { cancel(); <-done }
 }
 func (s *Service) sweep(ctx context.Context, stations station.Repository, shows schedule.Repository) error {
+	return s.sweepAt(ctx, stations, shows, time.Now())
+}
+
+// preparationWindow selects by airtime, never by readiness: a ready, failed or
+// disabled next show must not open the gate for planning the rest of the week.
+func preparationWindow(shows []schedule.Show, now time.Time, loc *time.Location) []schedule.Occurrence {
+	out := []schedule.Occurrence{}
+	for _, o := range schedule.Occurrences(shows, now, loc) {
+		if !o.End.After(now) {
+			continue
+		}
+		out = append(out, o)
+		if o.Start.After(now) {
+			break
+		}
+	}
+	return out
+}
+
+func (s *Service) sweepAt(ctx context.Context, stations station.Repository, shows schedule.Repository, now time.Time) error {
 	all, err := stations.List(ctx)
 	if err != nil {
 		return err
 	}
-	now := time.Now()
 	pending := []schedule.Occurrence{}
 	for _, st := range all {
 		loc, e := time.LoadLocation(st.Timezone)
@@ -57,10 +76,7 @@ func (s *Service) sweep(ctx context.Context, stations station.Repository, shows 
 		if e != nil {
 			return e
 		}
-		for _, o := range schedule.Occurrences(ss, now, loc) {
-			if !o.End.After(now) || o.Start.After(now.AddDate(0, 0, 7)) {
-				continue
-			}
+		for _, o := range preparationWindow(ss, now, loc) {
 			episode, e := s.Store.Get(ctx, o.Key)
 			if errors.Is(e, ErrNotFound) {
 				e = s.Store.Update(ctx, o, func(*Episode) error { return nil })
@@ -142,7 +158,7 @@ func (s *Service) sweep(ctx context.Context, stations station.Repository, shows 
 			if logger == nil {
 				logger = slog.Default()
 			}
-			logger.Warn("Episode planning failed", "station_id", o.StationID, "show_id", o.ShowID, "episode_start", o.Start, "error", err)
+			logger.Warn("Episode planning failed", "station_id", o.StationID, "show_id", o.ShowID, "episode_start", o.Start, "model", o.DJ.Model, "error", err)
 			failure := err
 			saveErr := s.Store.Update(ctx, o, func(e *Episode) error {
 				e.PlanningFailed = true

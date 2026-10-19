@@ -710,8 +710,10 @@ identity in the same transaction as every write and publishes `episodes` only af
 commit. Show/station deletion cascades episode state; there is no catalogue FK.
 
 `internal/episodes` owns the provider-independent session, plan validation and a
-single cancellable preparation worker. It prepares occurrences within the next seven
-days without listeners or audio production, with a five-minute job budget, persisted
+single cancellable preparation worker. It prepares only the next scheduled occurrence per station, plus recovery of an
+active episode, without listeners or audio production. A ready, failed or disabled
+next show never advances preparation to later shows. Later occurrences remain
+unplanned; saved plans and producer notes are retained. It uses a five-minute job budget, persisted
 retry/lease deadlines and at most four jobs per sweep. Failed jobs retry after five
 minutes; abandoned leases expire after six. Every planner response and search result
 is checkpointed. Context replays retained theme, producer constraints, running order,

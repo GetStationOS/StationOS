@@ -378,3 +378,85 @@ func TestGenuinePlanningFailureIsReportedOnceAndRetryBackoffSurvivesPlayback(t *
 		t.Fatal("real recovery missing", after, recovered)
 	}
 }
+
+func TestPreparationWindowFollowsAirtimeAcrossWeekBoundary(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/London")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 25, 23, 30, 0, 0, loc)
+	shows := []schedule.Show{
+		{ID: "overnight", Day: 6, Start: 23 * 60, End: 60},
+		{ID: "next", Day: 0, Start: 60, End: 120},
+		{ID: "later", Day: 0, Start: 120, End: 180},
+	}
+	window := preparationWindow(shows, now, loc)
+	if len(window) != 2 || window[0].ShowID != "overnight" || window[1].ShowID != "next" {
+		t.Fatal(window)
+	}
+	// At the exact handover the old show is no longer eligible; advance once.
+	window = preparationWindow(shows, time.Date(2026, 10, 26, 1, 0, 0, 0, loc), loc)
+	if len(window) != 2 || window[0].ShowID != "next" || window[1].ShowID != "later" {
+		t.Fatal(window)
+	}
+	// In a gap only the nearest future show is eligible.
+	window = preparationWindow(shows[1:], now, loc)
+	if len(window) != 1 || window[0].ShowID != "next" {
+		t.Fatal(window)
+	}
+}
+
+func TestAutomaticPlanningNeverSkipsNextShowToPlanLaterEpisodes(t *testing.T) {
+	for _, state := range []string{"unplanned", "ready", "backoff", "disabled"} {
+		t.Run(state, func(t *testing.T) {
+			ctx := context.Background()
+			now := time.Now().UTC().Truncate(24 * time.Hour)
+			weekday := (int(now.Weekday()) + 6) % 7
+			shows := scheduleStub{values: []schedule.Show{
+				{ID: "next", StationID: "station", Day: weekday, Start: 60, End: 120, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: state != "disabled"}},
+				{ID: "later", StationID: "station", Day: weekday, Start: 120, End: 180, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}},
+				{ID: "later-still", StationID: "station", Day: weekday, Start: 180, End: 240, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}},
+			}}
+			stations := stationStub{values: []station.Station{{ID: "station", Timezone: "UTC"}}}
+			store := &memoryStore{}
+			nearest := preparationWindow(shows.values, now, time.UTC)[0]
+			if state == "ready" || state == "backoff" {
+				store.Update(ctx, nearest, func(e *Episode) error {
+					if state == "ready" {
+						e.Status = "ready"
+						e.Plan = []Track{Snapshot(recording("one", 885))}
+					} else {
+						e.RetryAt = now.Add(24 * time.Hour)
+					}
+					return nil
+				})
+			}
+			text := &textStub{generate: func(ai.TextRequest, int) (string, error) { return "", errors.New("test failure") }}
+			service := &Service{Store: store, Pool: poolStub{recording("one", 885)}, Text: text, Logger: slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))}
+			for i := 0; i < 3; i++ {
+				if err := service.sweepAt(ctx, stations, shows, now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := 0
+			if state == "unplanned" {
+				want = 1
+			}
+			if text.calls != want || len(store.items) != 1 {
+				t.Fatalf("planned beyond next show: calls=%d episodes=%d", text.calls, len(store.items))
+			}
+			for _, e := range store.items {
+				if e.ShowID != "next" {
+					t.Fatal(e)
+				}
+			}
+			// Once the next show ends, recover the active show and prepare its successor.
+			if err := service.sweepAt(ctx, stations, shows, now.Add(2*time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			if text.calls != want+2 || len(store.items) != 3 {
+				t.Fatalf("did not advance at handover: calls=%d episodes=%d", text.calls, len(store.items))
+			}
+		})
+	}
+}

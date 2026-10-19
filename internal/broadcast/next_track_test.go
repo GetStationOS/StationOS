@@ -85,6 +85,9 @@ func TestNextTrackChoiceRunsDuringMusic(t *testing.T) {
 				receive(t, sub)
 				state := m.State("radio")
 				if state.CurationStatus == want {
+					if state.NextProgrammeKey == "" {
+						t.Fatal("queue missing owning programme", state)
+					}
 					if valid && state.Next.ID != choice {
 						t.Fatal("live next track not updated", state)
 					}

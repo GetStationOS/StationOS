@@ -140,7 +140,7 @@
 {{end}}
 {{define "episode-detail"}}
 <section class="panel episode-panel" id="episode-running-order" tabindex="-1">
-<div class="episode-panel-heading"><h2>{{if .EpisodeEditing}}Episode direction{{else}}Up next{{end}}</h2><div id="episode-status" role="status" aria-live="polite">{{template "episode-status" .}}</div></div>
+<div class="episode-panel-heading"><h2>{{if .EpisodeEditing}}Episode direction{{else if .EpisodeQueueLive}}Up next{{else}}DJ selection{{end}}</h2><div id="episode-status" role="status" aria-live="polite">{{template "episode-status" .}}</div></div>
 <div id="episode-summary"><p class="episode-byline">{{.Show.DJName}}<span aria-hidden="true"> · </span>{{.Show.PlaylistName}}</p>{{if .Episode.Theme}}<p class="episode-theme">{{.Episode.Theme}}</p>{{end}}</div>
 {{if .EpisodeError}}<p class="notice error" role="alert" data-episode-error>{{.EpisodeError}}</p>{{end}}
 {{if .Episode.Cancelled}}
@@ -171,11 +171,11 @@
 </section>{{end}}</div>
 {{end}}
 {{define "episode-queue"}}
-{{if .Episode.Upcoming}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Upcoming tracks"><table class="episode-order-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th></tr></thead><tbody>{{range .Episode.Upcoming}}<tr><td data-label="Expected start">{{.EstimatedStart.Format "15:04"}}</td><td data-label="Recording"><strong>{{.Title}}</strong></td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td></tr>{{end}}</tbody></table></div>{{else}}<p class="hint episode-empty">The next track will appear here.</p>{{end}}
+{{if .EpisodeQueue}}<div class="episode-next-list">{{range .EpisodeQueue}}<div class="episode-next"><div><h3>{{.Title}}</h3><p>{{.Artist}}{{if .Album}} · {{.Album}}{{end}}</p>{{if not .EstimatedStart.IsZero}}<p class="hint">Expected {{.EstimatedStart.Format "15:04"}}</p>{{end}}</div><span class="episode-next-duration" aria-label="Duration {{.Duration}}">{{.Duration}}</span></div>{{end}}</div>{{else}}<p class="hint episode-empty">{{if .EpisodeQueueLive}}No track queued.{{else}}The next selection will appear here.{{end}}</p>{{end}}
 {{end}}
 {{define "episode-status"}}
 <span class="episode-state{{if .Episode.PlanningFailed}} episode-state-delayed{{end}}">{{if .Episode.Cancelled}}Cancelled{{else if or (eq .Episode.Status "starting") (eq .Episode.Status "planning")}}{{.Episode.Label}}{{else if .Episode.PlanningFailed}}Preparation delayed{{else if eq .Episode.Status "attention"}}Updating{{else if eq .Episode.Status "unplanned"}}Waiting to start{{else}}{{.Episode.Label}}{{end}}</span>
-{{if and .Episode.PlanningFailed (ne .Episode.Status "starting") (ne .Episode.Status "planning")}}{{if not .Episode.RetryAt.IsZero}}<span class="hint episode-retry">Retry {{.Episode.RetryAt.Format "15:04 MST"}}</span>{{end}}{{if .Episode.Problem}}<details class="episode-error-details"><summary>Details</summary><p>{{.Episode.Problem}}</p></details>{{end}}{{end}}
+{{if and .Episode.PlanningFailed (ne .Episode.Status "starting") (ne .Episode.Status "planning")}}{{if not .Episode.RetryAt.IsZero}}<span class="hint episode-retry">Retry {{.Episode.RetryAt.Format "15:04 MST"}}</span>{{end}}{{if .Episode.Problem}}<p class="episode-error-message">{{.Episode.Problem}}</p>{{end}}{{end}}
 {{if .EpisodePlanChanged}}<span class="visually-hidden">Running order updated.</span>{{end}}
 {{end}}
 

@@ -429,7 +429,7 @@ outcome and useful failure explanations. Keep show context aligned with the titl
 Phones hide page-size choices and use simple Previous/Next navigation;
 the desktop view and CSV retain the full data.
 
-Avoid arrow disclosures for producer content. Show transmission spoken text in full,
+The producer explicitly dislikes arrow dropdowns: do not use details/summary or chevron disclosures for producer content. Keep episode preparation errors visible inline, without a “Details” toggle. Show transmission spoken text in full,
 inline in its speech entry. Use a plain Filters + / Filters − button for optional
 history fields, with an accessible expanded state and visible fields without JavaScript.
 

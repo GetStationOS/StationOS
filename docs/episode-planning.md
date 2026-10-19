@@ -20,3 +20,8 @@ in-flight planning, suppresses preparation and public contributions, and resolve
 the skipped slot to the station default playlist. Cancelled dates remain visibly
 labelled on the producer schedule. Started or aired episodes cannot be cancelled
 or restored; their transmission history remains available.
+
+The episode page uses the broadcast runtime as the source of truth for Up next,
+matching the player. Saved choices are provisional DJ selections until queued.
+Runtime queue ownership identifies the dated episode across handovers; live
+updates follow broadcast events. Do not infer an exact start from a saved plan.

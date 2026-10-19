@@ -118,6 +118,8 @@ type schedulePageView struct {
 	EpisodePlanChanged                                    bool
 	EpisodeCanCancel                                      bool
 	EpisodeEditing                                        bool
+	EpisodeQueue                                          []episodes.RunningTrack
+	EpisodeQueueLive                                      bool
 	EpisodePlayed                                         []episodes.Track
 	EpisodePagination                                     pagination
 	EpisodeStart, Week, WeekLabel, PreviousWeek, NextWeek string

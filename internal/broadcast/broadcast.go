@@ -43,6 +43,7 @@ type State struct {
 	Status                 string
 	Listeners              int
 	Current, Next          content.AudioItem
+	NextProgrammeKey       string
 	Started                time.Time
 	Error                  string
 }
@@ -556,10 +557,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 		// Reflect completed preparation while the current track is still playing.
 		// Draining ready results never waits for external generation.
 		drain()
+		if state.Next.ID != "" && state.Phase == "chatter" {
+			state.NextProgrammeKey = state.Programme.Key
+		}
 		state.AINotice = noticeStates[state.Programme.Key]
 		state.CurationStatus = selectionStates[state.Programme.Key]
 		if state.Phase == "music" && state.Current.ID == queuedAfter {
 			state.Next = queued
+			state.NextProgrammeKey = queuedShow
 		}
 
 		if state.Phase == "music" && (state.Programme.DJ.HasKey || state.Programme.DJ.TextReady) {

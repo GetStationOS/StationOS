@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/playlists"
@@ -174,7 +176,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 		beforeStatus, _ := store.Get(ctx, o.Key)
 		w = request(h, "GET", statusPath, nil, nil)
 		want := map[string]string{"planning": "Choosing next track", "failed": "invalid planning response", "ready": "Running order updated"}[state]
-		if w.Code != 200 || !strings.Contains(w.Body.String(), want) || strings.Contains(w.Body.String(), "textarea") || strings.Contains(w.Body.String(), "checkbox") {
+		if w.Code != 200 || !strings.Contains(w.Body.String(), want) || strings.Contains(w.Body.String(), "textarea") || strings.Contains(w.Body.String(), "checkbox") || strings.Contains(w.Body.String(), "<details") || strings.Contains(w.Body.String(), "<summary") {
 			t.Fatal("status replaced producer controls", w.Code, w.Body.String())
 		}
 		afterStatus, _ := store.Get(ctx, o.Key)
@@ -302,5 +304,37 @@ func TestEpisodeLiveSnapshotsFollowCommittedTracksWithoutStartingProduction(t *t
 	after, _ := store.Get(ctx, o.Key)
 	if after.Version != before.Version+1 {
 		t.Fatal("subscription modified episode state", before.Version, after.Version)
+	}
+}
+
+func TestEpisodeQueueUsesBroadcastRatherThanProvisionalPlan(t *testing.T) {
+	key := "show:2026-10-19T19:00:00Z"
+	episode := episodes.Episode{Key: key, Plan: []episodes.Track{{ID: "proposal", Title: "Of Smiles Remembered"}}}
+	live := broadcast.State{Status: "Broadcasting", Programme: schedule.Occurrence{Key: key + ":2"}, NextProgrammeKey: key + ":3", Next: content.AudioItem{ID: "queued", Title: "Blue Moon", Artist: "Kenny Barron"}}
+	queue, active := episodeQueue(episode, live)
+	if !active || len(queue) != 1 || queue[0].ID != "queued" || !queue[0].EstimatedStart.IsZero() {
+		t.Fatal("must show actual queue without invented time", queue, active)
+	}
+	live.Next = content.AudioItem{}
+	queue, active = episodeQueue(episode, live)
+	if !active || len(queue) != 0 {
+		t.Fatal("must not substitute proposal for empty live queue")
+	}
+	live.Next = content.AudioItem{ID: "other"}
+	live.NextProgrammeKey = "other:2026-10-19T20:00:00Z:1"
+	queue, active = episodeQueue(episode, live)
+	if !active || len(queue) != 0 {
+		t.Fatal("handover track attributed to outgoing episode")
+	}
+	live.Programme.Key = "previous:2026-10-19T18:00:00Z:1"
+	live.NextProgrammeKey = key + ":2"
+	queue, active = episodeQueue(episode, live)
+	if !active || len(queue) != 1 || queue[0].ID != "other" {
+		t.Fatal("incoming episode lost its queued track")
+	}
+	live.Status = "Dormant"
+	queue, active = episodeQueue(episode, live)
+	if active || len(queue) != 1 || queue[0].ID != "proposal" {
+		t.Fatal("dormant proposal incorrectly claimed as live")
 	}
 }

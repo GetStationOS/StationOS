@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/schedule"
 )
@@ -69,6 +70,10 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 		v.EpisodePagination = paging("/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(showID)+"/episode", r.URL.Query(), page, size, len(v.EpisodePlayed))
 		v.EpisodePagination.CountLabel = "track"
 		v.EpisodePlayed = v.EpisodePlayed[(v.EpisodePagination.Number-1)*size : min(v.EpisodePagination.Number*size, len(v.EpisodePlayed))]
+		v.EpisodeQueue = v.Episode.Upcoming()
+		if s.d.Broadcast != nil {
+			v.EpisodeQueue, v.EpisodeQueueLive = episodeQueue(v.Episode, s.d.Broadcast.State(v.Station.ID))
+		}
 		v.EpisodeCanCancel = time.Now().Before(o.Start) && len(v.Episode.Aired) == 0
 		v.Title = o.Title + " · " + o.Start.In(loc).Format("2 Jan 2006")
 		v.EpisodeStart = o.Start.Format(time.RFC3339)
@@ -208,4 +213,18 @@ func (s *Server) episodeDirection(w http.ResponseWriter, r *http.Request) {
 	}
 	v.EpisodeEditing = true
 	s.renderPage(w, r, 200, "episode-page", v)
+}
+
+// The saved editorial choice is provisional; only runtime owns the broadcast queue.
+func episodeQueue(e episodes.Episode, state broadcast.State) ([]episodes.RunningTrack, bool) {
+	active := state.Status == "Broadcasting" || state.Status == "Starting" || state.Status == "Retrying"
+	matches := func(key string) bool { return key != "" && episodes.SessionKey(key) == episodes.SessionKey(e.Key) }
+	if !active || (!matches(state.Programme.Key) && !matches(state.NextProgrammeKey)) {
+		return e.Upcoming(), false
+	}
+	if state.Next.ID == "" || !matches(state.NextProgrammeKey) {
+		return nil, true
+	}
+	// Link duration and buffering are not a dependable wall-clock start estimate.
+	return []episodes.RunningTrack{{Track: episodes.Snapshot(state.Next)}}, true
 }

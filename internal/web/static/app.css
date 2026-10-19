@@ -1153,14 +1153,20 @@ textarea{font-weight:400;line-height:1.5}
 .episode-panel-heading #episode-status { display:flex; align-items:center; justify-content:flex-end; gap:6px 10px; flex-wrap:wrap; font-size:12px; }
 .episode-state { display:inline-flex; padding:4px 9px; border-radius:999px; background:var(--bg); color:var(--muted); font-weight:600; }
 .episode-state-delayed { background:var(--tone-warning-bg,#fff2cd); color:var(--tone-warning-text,#755700); }
-.episode-byline { margin:0 0 16px; color:var(--muted); font-size:13px; }
-.episode-theme { margin:0 0 16px; }
-.episode-empty { margin:24px 0; }
-.episode-tools { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 20px; margin-top:20px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; }
+.episode-byline { margin:0 0 8px; color:var(--muted); font-size:13px; }
+.episode-theme { margin:0 0 12px; }
+.episode-empty { margin:12px 0; }
+.episode-tools { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 20px; margin-top:12px; padding-top:4px; border-top:1px solid var(--line); font-size:13px; }
 .episode-tools a { display:inline-flex; align-items:center; min-height:44px; }
 .episode-tools .entity-delete-link { margin:0; }
-.episode-error-details { flex-basis:100%; max-width:36rem; text-align:left; }
-.episode-error-details summary { cursor:pointer; }
-.episode-error-details p { font-size:13px; margin:8px 0 0; }
+.episode-error-message { flex-basis:100%; max-width:36rem; text-align:left; font-size:13px; margin:8px 0 0; }
 .episode-restore { margin-top:16px; }
 @media(max-width:600px) { .episode-panel-heading #episode-status { justify-content:flex-start; } }
+
+.episode-panel { padding:20px 24px; }
+.episode-next { display:flex; align-items:flex-start; gap:16px; padding:10px 0; }
+.episode-next > div { flex:1; min-width:0; }
+.episode-next h3 { font-size:16px; margin:0 0 3px; }
+.episode-next p { color:var(--muted); font-size:13px; margin:0; overflow-wrap:anywhere; }
+.episode-next-duration { color:var(--muted); font-size:13px; white-space:nowrap; }
+@media(max-width:600px) { .episode-panel { padding:16px; } }

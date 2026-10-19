@@ -70,7 +70,7 @@ func paging(path string, values url.Values, page, size, total int) pagination {
 	out := pagination{Number: page, Size: size, Total: total, Pages: max(1, (total+size-1)/size), Path: path}
 	out.Number = min(out.Number, out.Pages)
 	params := url.Values{}
-	for _, key := range []string{"q", "genre", "album_choice", "source", "sort", "direction", "playlist", "station", "per_page", "from", "until", "kind", "outcome", "show", "dj", "before", "anchor", "review", "filtered"} {
+	for _, key := range []string{"q", "genre", "album_choice", "source", "sort", "direction", "playlist", "station", "per_page", "from", "until", "kind", "outcome", "show", "dj", "before", "anchor", "review", "filtered", "start"} {
 		if value := values.Get(key); value != "" {
 			params.Set(key, value)
 			out.Fields = append(out.Fields, field{key, value})

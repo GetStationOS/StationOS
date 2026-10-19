@@ -861,7 +861,24 @@ function operationsVersion(region,raw){
 function applyLiveSnapshot(region,html){
  if(region.hasAttribute('data-operations-version')){operationsVersion(region,html);return;}
  const template=document.createElement('template');template.innerHTML=html;
- if(region.id==='schedule-episodes'){
+ if(region.id==='episode-content'){
+  const incoming=template.content.querySelector('#episode-content');if(!incoming)return;
+  const form=region.querySelector('[data-episode-form]');
+  if(form&&(form.dataset.dirty==='true'||form.contains(document.activeElement)||region.querySelector('[data-episode-error]'))){
+   // Background state remains live; editing controls retain their values/version.
+   for(const id of ['episode-status','episode-summary','episode-queue','episode-played']){
+    const current=region.querySelector('#'+id),next=incoming.querySelector('#'+id);
+    if(current&&next)patchStationNode(current,next,null);
+   }
+   const subscription=liveSubscriptions.get(region.id);if(subscription)subscription.pending=html;
+   return;
+  }
+  patchStationNode(region,incoming,region.contains(document.activeElement)?document.activeElement:null);
+  const nextForm=incoming.querySelector('[data-episode-form]'),currentForm=region.querySelector('[data-episode-form]');
+  if(nextForm&&currentForm)currentForm.replaceWith(nextForm.cloneNode(true));
+  htmx.process(region);
+  region.querySelectorAll('[data-episode-form]').forEach(form=>{form.dataset.initial=episodeFormState(form);refreshEpisodeForm(form);});
+ }else if(region.id==='schedule-episodes'){
   const incoming=template.content.querySelector('#schedule-episodes');if(!incoming)return;
   const calendar=region.querySelector('.calendar-scroll');
   const top=calendar?.scrollTop||0,left=calendar?.scrollLeft||0;

@@ -806,3 +806,21 @@ func (s *Service) Cancel(ctx context.Context, o schedule.Occurrence, version int
 		return nil
 	})
 }
+
+// Upcoming excludes actual aired receipts and producer exclusions from the queue.
+func (e Episode) Upcoming() []RunningTrack {
+	blocked := map[string]bool{}
+	for _, a := range e.Aired {
+		blocked[a.ID] = true
+	}
+	for _, id := range e.Excluded {
+		blocked[id] = true
+	}
+	out := []RunningTrack{}
+	for _, a := range e.RunningOrder() {
+		if !blocked[a.ID] {
+			out = append(out, a)
+		}
+	}
+	return out
+}

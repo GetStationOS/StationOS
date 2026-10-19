@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"time"
 
@@ -55,6 +56,19 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 		for i := range v.Episode.Aired {
 			v.Episode.Aired[i].AiredAt = v.Episode.Aired[i].AiredAt.In(loc)
 		}
+		page, size, pageErr := pageRequest(r.URL.Query())
+		if pageErr != nil {
+			return v, o, schedule.ErrInvalid
+		}
+		v.EpisodePlayed = append([]episodes.Track(nil), v.Episode.Aired...)
+		// Reverse receipts first so equal or unknown timestamps retain newest receipt first.
+		for i, j := 0, len(v.EpisodePlayed)-1; i < j; i, j = i+1, j-1 {
+			v.EpisodePlayed[i], v.EpisodePlayed[j] = v.EpisodePlayed[j], v.EpisodePlayed[i]
+		}
+		sort.SliceStable(v.EpisodePlayed, func(i, j int) bool { return v.EpisodePlayed[i].AiredAt.After(v.EpisodePlayed[j].AiredAt) })
+		v.EpisodePagination = paging("/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(showID)+"/episode", r.URL.Query(), page, size, len(v.EpisodePlayed))
+		v.EpisodePagination.CountLabel = "track"
+		v.EpisodePlayed = v.EpisodePlayed[(v.EpisodePagination.Number-1)*size : min(v.EpisodePagination.Number*size, len(v.EpisodePlayed))]
 		v.EpisodeCanCancel = time.Now().Before(o.Start) && len(v.Episode.Aired) == 0
 		v.Title = o.Title + " · " + o.Start.In(loc).Format("2 Jan 2006")
 		v.EpisodeStart = o.Start.Format(time.RFC3339)
@@ -69,9 +83,6 @@ func (s *Server) episodePage(w http.ResponseWriter, r *http.Request) {
 		s.scheduleError(w, r, err)
 		return
 	}
-	if r.URL.Query().Get("notice") == "refreshed" {
-		v.Notice = "Running order refreshed. This checks the latest saved plan; automatic preparation continues separately."
-	}
 	if r.URL.Query().Get("notice") == "cancelled" {
 		v.Notice = "Episode cancelled. The station will use its default playlist during this slot."
 	}
@@ -79,7 +90,7 @@ func (s *Server) episodePage(w http.ResponseWriter, r *http.Request) {
 		v.Notice = "Episode restored. It will run automatically at its scheduled time."
 	}
 	if r.URL.Query().Get("notice") == "saved" {
-		v.Notice = "Producer changes saved. The DJ will update the plan automatically."
+		v.Notice = "Episode direction saved."
 	}
 	s.renderPage(w, r, 200, "episode-page", v)
 }
@@ -94,6 +105,7 @@ func (s *Server) saveEpisode(w http.ResponseWriter, r *http.Request) {
 		err = s.d.Episodes.Edit(r.Context(), o, version, r.PostForm.Get("notes"), r.PostForm["locked"], r.PostForm["excluded"])
 	}
 	if err != nil {
+		v.EpisodeEditing = true
 		v.Episode.Notes = r.PostForm.Get("notes")
 		kept := map[string]bool{}
 		for _, id := range r.PostForm["locked"] {
@@ -176,4 +188,24 @@ func (s *Server) cancelEpisode(w http.ResponseWriter, r *http.Request) {
 		notice = "restored"
 	}
 	s.redirect(w, r, "/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(o.ShowID)+"/episode?start="+url.QueryEscape(o.Start.Format(time.RFC3339))+"&notice="+notice)
+}
+
+func (s *Server) episodeLive(w http.ResponseWriter, r *http.Request) {
+	v, _, err := s.episodeView(r)
+	if err != nil {
+		s.scheduleError(w, r, err)
+		return
+	}
+	v.EpisodeEditing = r.URL.Query().Get("edit") == "1"
+	s.renderHTML(w, 200, "episode-live", v)
+}
+
+func (s *Server) episodeDirection(w http.ResponseWriter, r *http.Request) {
+	v, _, err := s.episodeView(r)
+	if err != nil {
+		s.scheduleError(w, r, err)
+		return
+	}
+	v.EpisodeEditing = true
+	s.renderPage(w, r, 200, "episode-page", v)
 }

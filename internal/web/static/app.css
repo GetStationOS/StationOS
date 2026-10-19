@@ -1145,3 +1145,22 @@ textarea{font-weight:400;line-height:1.5}
 .page-heading:has(> .heading-actions > .icon-button) > .heading-actions { flex:none; }
 
 .calendar-show.episode-cancelled { background:var(--surface); border-color:var(--muted); color:var(--muted); }
+
+/* Episode monitoring keeps programme facts and optional editing separate. */
+.episode-back { margin:0 0 14px; font-size:13px; }
+.episode-panel-heading { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; margin-bottom:12px; }
+.episode-panel-heading h2 { margin:0; }
+.episode-panel-heading #episode-status { display:flex; align-items:center; justify-content:flex-end; gap:6px 10px; flex-wrap:wrap; font-size:12px; }
+.episode-state { display:inline-flex; padding:4px 9px; border-radius:999px; background:var(--bg); color:var(--muted); font-weight:600; }
+.episode-state-delayed { background:var(--tone-warning-bg,#fff2cd); color:var(--tone-warning-text,#755700); }
+.episode-byline { margin:0 0 16px; color:var(--muted); font-size:13px; }
+.episode-theme { margin:0 0 16px; }
+.episode-empty { margin:24px 0; }
+.episode-tools { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 20px; margin-top:20px; padding-top:12px; border-top:1px solid var(--line); font-size:13px; }
+.episode-tools a { display:inline-flex; align-items:center; min-height:44px; }
+.episode-tools .entity-delete-link { margin:0; }
+.episode-error-details { flex-basis:100%; max-width:36rem; text-align:left; }
+.episode-error-details summary { cursor:pointer; }
+.episode-error-details p { font-size:13px; margin:8px 0 0; }
+.episode-restore { margin-top:16px; }
+@media(max-width:600px) { .episode-panel-heading #episode-status { justify-content:flex-start; } }

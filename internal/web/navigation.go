@@ -19,7 +19,7 @@ func headingLink(title, metadata, label, destination string) headingView {
 	return headingView{Title: title, Metadata: metadata, Actions: []headingAction{{Label: label, URL: destination}}}
 }
 func episodeHeading(v schedulePageView) headingView {
-	return headingView{Title: v.Title, Metadata: "This episode", Actions: []headingAction{{Label: "Edit show template", URL: "/producer/stations/" + v.Station.ID + "/schedule/" + v.Show.ID, Icon: "settings", IconOnly: true, Secondary: true, Hint: "Edit show template"}}}
+	return headingView{Title: v.Show.Name, Metadata: v.Episode.Start.Format("Mon 2 Jan · 15:04") + "–" + v.Episode.End.Format("15:04 MST"), Actions: []headingAction{{Label: "Edit show template", URL: "/producer/stations/" + v.Station.ID + "/schedule/" + v.Show.ID, Icon: "settings", IconOnly: true, Secondary: true, Hint: "Edit show template"}}}
 }
 func scheduleHeading(v schedulePageView) headingView {
 	return headingLink(v.Title, "Repeats weekly · "+v.Station.Timezone, "+ Add show", "/producer/stations/"+v.Station.ID+"/schedule/new")

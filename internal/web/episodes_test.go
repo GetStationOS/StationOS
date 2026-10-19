@@ -3,8 +3,10 @@ package web
 import (
 	"context"
 	"html"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
+	"stationos.local/stationos/internal/changefeed"
 	"strconv"
 	"strings"
 	"testing"
@@ -91,7 +93,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	}
 	selected := path + "&episode=show&start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
 	w = request(h, "GET", selected, nil, map[string]string{"HX-Request": "true"})
-	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", "Back to schedule", "Edit show template", "change weekly times", "Played tracks", "Played album", "4:05", `scope="col"`, o.Start.Add(15 * time.Minute).Format("15:04:05"), `name="notes"`, `name="locked"`} {
+	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", "← Schedule", "Edit show template", "Played tracks", "Played album", "4:05", `scope="col"`, o.Start.Add(15 * time.Minute).Format("15:04:05")} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatal("missing", want, w.Body.String())
 		}
@@ -101,6 +103,34 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), "<!doctype") {
 		t.Fatal("HTMX lost shell")
+	}
+	if strings.Contains(w.Body.String(), `name="notes"`) {
+		t.Fatal("monitoring view contains editing form")
+	}
+	direction := request(h, "GET", "/producer/stations/s/schedule/show/episode/direction?start="+url.QueryEscape(o.Start.Format(time.RFC3339)), nil, map[string]string{"HX-Request": "true"})
+	if direction.Code != 200 || !strings.Contains(direction.Body.String(), `name="notes"`) {
+		t.Fatal("episode editing missing", direction.Body.String())
+	}
+	original, _ := store.Get(ctx, o.Key)
+	if err := store.Update(ctx, o, func(e *episodes.Episode) error {
+		for i := 0; i < 30; i++ {
+			e.Aired = append(e.Aired, episodes.Track{ID: strconv.Itoa(i), Title: "Receipt " + strconv.Itoa(i), AiredAt: o.Start.Add(time.Duration(i+16) * time.Minute)})
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	historyURL := "/producer/stations/s/schedule/show/episode?start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
+	first := request(h, "GET", historyURL, nil, map[string]string{"HX-Request": "true"}).Body.String()
+	if strings.Index(first, "Receipt 29") > strings.Index(first, "Receipt 28") || !strings.Contains(first, "Showing 1–25 of 31") || strings.Contains(first, "Previously played recording") {
+		t.Fatal("newest-first page incorrect", first)
+	}
+	second := request(h, "GET", historyURL+"&page=2", nil, map[string]string{"HX-Request": "true"}).Body.String()
+	if !strings.Contains(second, "Previously played recording") || strings.Contains(second, "Receipt 29") || !strings.Contains(second, "page=2&amp;per_page=25") {
+		t.Fatal("second page or live page context incorrect", second)
+	}
+	if err := store.Update(ctx, o, func(e *episodes.Episode) error { e.Aired = original.Aired; return nil }); err != nil {
+		t.Fatal(err)
 	}
 	before, _ := store.Get(ctx, o.Key)
 	editPath := "/producer/stations/s/schedule/show/episode?start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
@@ -121,9 +151,9 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	if !strings.Contains(w.Body.String(), "episode-attention") {
 		t.Fatal(w.Body.String())
 	}
-	// Refresh is visibly acknowledged and does not start generation.
+	// The live region replaces the manual refresh control and never starts generation.
 	w = request(h, "GET", editPath+"&notice=refreshed", nil, map[string]string{"HX-Request": "true"})
-	for _, want := range []string{"Running order refreshed", `id="episode-status"`, `data-live-url=`, `episode-refresh-busy`} {
+	for _, want := range []string{`id="episode-content"`, `id="episode-status"`, `/episode/live?start=`, `data-live-url=`} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatal("missing feedback", want, w.Body.String())
 		}
@@ -143,7 +173,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 		})
 		beforeStatus, _ := store.Get(ctx, o.Key)
 		w = request(h, "GET", statusPath, nil, nil)
-		want := map[string]string{"planning": "choosing the next track", "failed": "invalid planning response", "ready": "new running order is available"}[state]
+		want := map[string]string{"planning": "Choosing next track", "failed": "invalid planning response", "ready": "Running order updated"}[state]
 		if w.Code != 200 || !strings.Contains(w.Body.String(), want) || strings.Contains(w.Body.String(), "textarea") || strings.Contains(w.Body.String(), "checkbox") {
 			t.Fatal("status replaced producer controls", w.Code, w.Body.String())
 		}
@@ -155,7 +185,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	// Merely viewing a later episode must neither create it nor inherit this plan.
 	nextStart := schedule.WallTime(tomorrow.AddDate(0, 0, 7), show.Start, false)
 	w = request(h, "GET", "/producer/stations/s/schedule?week="+nextStart.Format("2006-01-02")+"&episode=show&start="+url.QueryEscape(nextStart.Format(time.RFC3339)), nil, nil)
-	if w.Code != 200 || strings.Contains(w.Body.String(), "City lights") || !strings.Contains(w.Body.String(), "Unplanned") {
+	if w.Code != 200 || strings.Contains(w.Body.String(), "City lights") || !strings.Contains(w.Body.String(), "Waiting to start") {
 		t.Fatal(w.Code, w.Body.String())
 	}
 }
@@ -209,5 +239,68 @@ func TestCancelAndRestoreEpisodeFromProducerPage(t *testing.T) {
 	e, _ = store.Get(ctx, o.Key)
 	if e.Cancelled {
 		t.Fatal(e)
+	}
+}
+
+func TestEpisodeLiveSnapshotsFollowCommittedTracksWithoutStartingProduction(t *testing.T) {
+	_, stations, _, _ := setupWeb(t, "")
+	ctx := context.Background()
+	db := stations.DB
+	stations.Save(ctx, station.Station{ID: "live", Name: "Live", Timezone: "UTC", Locale: "en"})
+	pools := persistence.Playlists{DB: db}
+	pools.Save(ctx, playlists.Playlist{ID: "pool", StationID: "live", Name: "Pool"})
+	shows := persistence.Schedule{DB: db}
+	day := time.Now().UTC().AddDate(0, 0, 1)
+	show := schedule.Show{ID: "live-show", StationID: "live", Name: "Live show", Day: (int(day.Weekday()) + 6) % 7, Start: 540, End: 600, DJID: "default-pop", PlaylistID: "pool"}
+	if err := shows.Save(ctx, show); err != nil {
+		t.Fatal(err)
+	}
+	show, _ = shows.Get(ctx, "live", "live-show")
+	start := schedule.WallTime(day, 540, false)
+	var o schedule.Occurrence
+	for _, candidate := range schedule.Occurrences([]schedule.Show{show}, start, time.UTC) {
+		if candidate.Start.Equal(start) {
+			o = candidate
+		}
+	}
+	changes := &changefeed.Bus{}
+	store := persistence.Episodes{DB: db, Changes: changes}
+	store.Update(ctx, o, func(e *episodes.Episode) error {
+		e.Status = "ready"
+		e.Plan = []episodes.Track{{ID: "a", Title: "First queued track", Seconds: 240}}
+		return nil
+	})
+	djsRepo, err := persistence.NewDJs(db, make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h, err := New(Dependencies{Changes: changes, Stations: stations, Schedule: shows, DJs: djsRepo, Playlists: pools, Episodes: &episodes.Service{Store: store}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(h)
+	t.Cleanup(server.Close)
+	t.Cleanup(server.CloseClientConnections)
+	path := "/producer/stations/live/schedule/live-show/episode/live?start=" + url.QueryEscape(start.Format(time.RFC3339)) + "&subscribe=1"
+	stream := openSnapshots(t, server, path)
+	first := nextSnapshot(t, stream)
+	if !strings.Contains(first, "First queued track") || strings.Contains(first, "Refresh running order") {
+		t.Fatal(first)
+	}
+	before, _ := store.Get(ctx, o.Key)
+	if err = store.Update(ctx, o, func(e *episodes.Episode) error {
+		e.Plan = []episodes.Track{{ID: "b", Title: "Second queued track", Seconds: 180}}
+		e.Aired = []episodes.Track{{ID: "a", Title: "First played track", Seconds: 240, AiredAt: start}}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	next := nextSnapshot(t, stream)
+	if !strings.Contains(next, "Second queued track") || !strings.Contains(next, "First played track") || !strings.Contains(next, `id="episode-played"`) {
+		t.Fatal(next)
+	}
+	after, _ := store.Get(ctx, o.Key)
+	if after.Version != before.Version+1 {
+		t.Fatal("subscription modified episode state", before.Version, after.Version)
 	}
 }

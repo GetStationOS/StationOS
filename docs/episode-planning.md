@@ -7,10 +7,11 @@ actual played history and spoken links. Each new dated episode starts fresh.
 No full running order is generated automatically. Intro failure does not stop
 music; actual playback also opens the session for subsequent track selection.
 
-Episode details subscribe to committed preparation status updates without
-replacing editing controls. Refresh running order reads the latest saved state;
-it does not start another model request. A ready changed plan is announced so
-producers can save edits before loading it. Failures show a safe explanation and
+Episode details subscribe to committed events and automatically update status,
+upcoming recordings and played tracks. There is no manual refresh control. While
+a producer is editing, only read-only status, summary and played history update;
+the form and its version remain intact. The latest queued snapshot applies after
+the pristine form loses focus, or after successful navigation/save. Failures show a safe explanation and
 retry time. No model response content or credentials are exposed in errors.
 
 A future, unaired occurrence can be cancelled and restored from its episode page.

@@ -24,6 +24,9 @@ func TestScheduleFormsCalendarAndScopedWrites(t *testing.T) {
 	}
 	for _, path := range []string{"/producer/stations/s/schedule", "/producer/stations/s/schedule/new"} {
 		w := request(h, "GET", path, nil, nil)
+		if strings.HasSuffix(path, "/new") && (!strings.Contains(w.Body.String(), "DJ music prompt (optional)") || strings.Contains(w.Body.String(), "Rotation format")) {
+			t.Fatal("show agent prompt form", w.Body.String())
+		}
 		if w.Code != 200 || !strings.Contains(w.Body.String(), "Schedule") {
 			t.Fatal(w.Code, w.Body.String())
 		}

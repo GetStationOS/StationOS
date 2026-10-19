@@ -746,3 +746,12 @@ optional episode direction, Keep and Exclude controls. Recurring settings remain
 separate link. Calendar readiness uses SSE; updates preserve scroll, focus and the
 separate editing form. Refreshing the running order is explicit so unsaved edits are
 not replaced. Optimistic versions reject stale producer submissions.
+
+
+Migration 34 removes the rotation-format setting. Existing artist/album settings
+are translated into DJ music prompt instructions before dropping the column, and
+show revisions invalidate affected plans. The planner may explain deliberate
+repetition in its episode plan only when requested by show/DJ/producer prompts;
+playback honours that editorial decision. Ordinary plans retain variety checks.
+The producer form labels musical direction as “DJ music prompt” with explicit
+agent-instruction help, rather than presenting a second music-format control.

@@ -863,7 +863,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 			return
 		}
 		candidates, repeatRelaxed := rotationPool(pool, rotation, playoutNow(), previous)
-		candidates = varietyPoolFormat(candidates, pool, rotation, previous, previousMusic, timeline.Current.RotationFormat)
+		candidates = varietyPoolFormat(candidates, pool, rotation, previous, previousMusic, m.episodeMusicPolicy(r.ctx, timeline.Current))
 		if len(candidates) == 0 {
 			return
 		}
@@ -988,7 +988,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		nextCatalogue := nextPool
 		nextPool, _ = rotationPool(nextPool, rotation, predictedEnd, current.ID)
-		nextPool = varietyPoolFormat(nextPool, nextCatalogue, rotation, current.ID, current, nextTimeline.Current.RotationFormat)
+		nextPool = varietyPoolFormat(nextPool, nextCatalogue, rotation, current.ID, current, m.episodeMusicPolicy(r.ctx, nextTimeline.Current))
 		queued = requestTrack(m.approvedAudience(r.ctx, nextTimeline.Current, playoutNow()), nextPool, nextRemaining)
 		requestedTrack := queued.ID != ""
 		if queued.ID == "" {

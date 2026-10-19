@@ -15,12 +15,12 @@ type Schedule struct {
 	Changes *changefeed.Bus
 }
 
-const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + speechReadySQL + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction,s.rotation_format`
+const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + speechReadySQL + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction`
 const showJoin = ` FROM station_shows s JOIN djs d ON d.id=s.dj_id JOIN playlists p ON p.id=s.playlist_id `
 
 func scanShow(row interface{ Scan(...any) error }) (schedule.Show, error) {
 	var v schedule.Show
-	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection, &v.RotationFormat)
+	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection)
 	v.DJ.ID = v.DJID
 	v.DJ.Name = v.DJName
 	if errors.Is(err, sql.ErrNoRows) {
@@ -131,7 +131,7 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 	if !found && len(existing) >= schedule.MaxShows {
 		return schedule.Invalid("station has reached its scheduled-show limit")
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO station_shows(id,station_id,name,weekday,start_minute,end_minute,dj_id,playlist_id,accept_requests,accept_shoutouts,description,music_direction,rotation_format) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,weekday=excluded.weekday,start_minute=excluded.start_minute,end_minute=excluded.end_minute,dj_id=excluded.dj_id,playlist_id=excluded.playlist_id,accept_requests=excluded.accept_requests,accept_shoutouts=excluded.accept_shoutouts,description=excluded.description,music_direction=excluded.music_direction,rotation_format=excluded.rotation_format,revision=station_shows.revision+1 WHERE station_shows.station_id=excluded.station_id`, v.ID, v.StationID, v.Name, v.Day, v.Start, v.End, v.DJID, v.PlaylistID, v.AcceptRequests, v.AcceptShoutouts, v.Description, v.MusicDirection, normalizedRotation(v.RotationFormat))
+	result, err := tx.ExecContext(ctx, `INSERT INTO station_shows(id,station_id,name,weekday,start_minute,end_minute,dj_id,playlist_id,accept_requests,accept_shoutouts,description,music_direction) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,weekday=excluded.weekday,start_minute=excluded.start_minute,end_minute=excluded.end_minute,dj_id=excluded.dj_id,playlist_id=excluded.playlist_id,accept_requests=excluded.accept_requests,accept_shoutouts=excluded.accept_shoutouts,description=excluded.description,music_direction=excluded.music_direction,revision=station_shows.revision+1 WHERE station_shows.station_id=excluded.station_id`, v.ID, v.StationID, v.Name, v.Day, v.Start, v.End, v.DJID, v.PlaylistID, v.AcceptRequests, v.AcceptShoutouts, v.Description, v.MusicDirection)
 	if err != nil {
 		return err
 	}
@@ -157,12 +157,6 @@ func (r Schedule) Delete(ctx context.Context, stationID, id string) error {
 		r.Changes.Publish("episodes")
 	}
 	return err
-}
-func normalizedRotation(v string) string {
-	if v == "" {
-		return "varied"
-	}
-	return v
 }
 func (r Schedule) Resolve(ctx context.Context, id string, at time.Time) (schedule.Timeline, error) {
 	st, err := (Stations{DB: r.DB}).Get(ctx, id)

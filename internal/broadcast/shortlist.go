@@ -88,3 +88,12 @@ func (m *Manager) editorialPool(ctx context.Context, o schedule.Occurrence, pool
 	}
 	return pool, nil
 }
+
+func (m *Manager) episodeMusicPolicy(ctx context.Context, o schedule.Occurrence) string {
+	if selector, ok := m.options.Selector.(interface {
+		RepetitionAllowed(context.Context, schedule.Occurrence) bool
+	}); ok && selector.RepetitionAllowed(ctx, o) {
+		return "album"
+	}
+	return "varied"
+}

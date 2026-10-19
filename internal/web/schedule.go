@@ -214,7 +214,7 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 	}
 	start, e2 := parseShowTime(r.PostForm.Get("start"))
 	end, e3 := parseShowTime(r.PostForm.Get("end"))
-	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), Description: r.PostForm.Get("description"), MusicDirection: r.PostForm.Get("music_direction"), RotationFormat: r.PostForm.Get("rotation_format"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Start: start, End: end}
+	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), Description: r.PostForm.Get("description"), MusicDirection: r.PostForm.Get("music_direction"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Start: start, End: end}
 	if r.PostForm.Get("audience_settings") == "yes" {
 		v.AcceptRequests = r.PostForm.Get("accept_requests") == "yes"
 		v.AcceptShoutouts = r.PostForm.Get("accept_shoutouts") == "yes"

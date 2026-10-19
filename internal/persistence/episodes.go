@@ -63,6 +63,7 @@ func (r Episodes) Update(ctx context.Context, o schedule.Occurrence, fn func(*ep
 	}
 	if e.ShowKey != o.Key {
 		e.ShowKey = o.Key
+		e.RepetitionReason = ""
 		e.Start = o.Start
 		e.End = o.End
 		e.Status = "attention"

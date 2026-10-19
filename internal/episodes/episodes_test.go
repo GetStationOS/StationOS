@@ -219,3 +219,30 @@ func TestAutomaticPreparationRequiresNoApproval(t *testing.T) {
 		t.Fatal("ready episode replanned", text.calls)
 	}
 }
+
+func TestMusicPromptCanDeliberatelyRepeatPerformerAndAlbum(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	o.MusicDirection = "An album special: stay with this artist and album."
+	store := &memoryStore{}
+	store.Update(ctx, o, func(*Episode) error { return nil })
+	a, b := recording("a", 165), recording("b", 165)
+	b.Artist = a.Artist
+	b.Album = a.Album
+	text := &textStub{generate: func(q ai.TextRequest, n int) (string, error) {
+		if !strings.Contains(q.Input, o.MusicDirection) {
+			t.Fatal("DJ music prompt missing")
+		}
+		if n == 1 {
+			return `{"Action":"search"}`, nil
+		}
+		return `{"Action":"plan","Tracks":["a","b"],"Theme":"Album special","RepetitionReason":"The DJ music prompt requests an album special."}`, nil
+	}}
+	service := &Service{Store: store, Pool: poolStub{a, b, recording("alternative", 165)}, Text: text}
+	if err := service.Plan(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+	if !service.RepetitionAllowed(ctx, o) {
+		t.Fatal("prompt-driven special blocked by runtime variety rules")
+	}
+}

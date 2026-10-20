@@ -106,7 +106,7 @@ type workspaceTabsView struct {
 func stationTabs(v pageFrame) workspaceTabsView {
 	base := "/producer/stations/" + v.Station.ID
 	out := workspaceTabsView{Label: "Station navigation", ScrollKey: "station:" + v.Station.ID}
-	for _, item := range []struct{ label, key, path string }{{"Overview", "overview", ""}, {"Schedule", "schedule", "/schedule"}, {"Audience", "audience", "/audience"}, {"Timeline", "timeline", "/timeline"}, {"Incidents", "incidents", "/incidents"}, {"Mixer", "mixer", "/mixer"}, {"Playlists", "playlists", ""}, {"Settings", "settings", "/settings"}} {
+	for _, item := range []struct{ label, key, path string }{{"Overview", "overview", ""}, {"Schedule", "schedule", "/schedule"}, {"Timeline", "timeline", "/timeline"}, {"Audience", "audience", "/audience"}, {"Incidents", "incidents", "/incidents"}, {"Mixer", "mixer", "/mixer"}, {"Playlists", "playlists", ""}, {"Settings", "settings", "/settings"}} {
 		tab := workspaceTab{Label: item.label, URL: base + item.path, Current: v.Section == item.key}
 		if item.key == "playlists" {
 			tab.URL = "/producer/playlists?station=" + v.Station.ID

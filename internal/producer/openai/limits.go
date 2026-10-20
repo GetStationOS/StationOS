@@ -73,6 +73,9 @@ func configurationError(resp *http.Response) error {
 	category := error(nil)
 	detail := "Check the model and request configuration in Assistant settings."
 	if err == nil && len(raw) <= 64<<10 && json.Unmarshal(raw, &body) == nil {
+		if body.Error.Param == "previous_response_id" && (resp.StatusCode == 404 || body.Error.Code == "previous_response_not_found") {
+			return ai.ErrConversationUnavailable
+		}
 		switch body.Error.Code {
 		case "model_not_found":
 			detail = "The selected model does not exist or is not accessible to the saved API key."

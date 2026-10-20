@@ -168,7 +168,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"intro", "outro"}, "properties": map[string]any{"intro": map[string]any{"type": "string"}, "outro": map[string]any{"type": "string"}}}
 
 	body := map[string]any{"model": show.DJ.Model, "instructions": instructions, "input": string(input), "max_output_tokens": 512, "store": false, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "radio_show", "strict": true, "schema": schema}}}
-	plan, err := p.generatePlan(ctx, key, body)
+	plan, err := p.generatePlan(ai.WithSession(ctx, schedule.EpisodeKey(show.Key)), key, body)
 	if err != nil {
 		return production.Prepared{}, err
 	}
@@ -276,7 +276,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		}
 		body["text"] = map[string]any{"format": map[string]any{"type": "json_schema", "name": "audience_link", "strict": true, "schema": map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"speech": map[string]any{"type": "string"}, "used_ids": map[string]any{"type": "array", "maxItems": len(link.Audience), "items": map[string]any{"type": "string"}}}, "required": []string{"speech", "used_ids"}}}}
 	}
-	raw, err := p.textCall(ctx, key, body, 1<<20)
+	raw, err := p.textCall(ai.WithSession(ctx, schedule.EpisodeKey(link.Show.Key)), key, body, 1<<20)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -403,7 +403,7 @@ func (p Producer) textCall(ctx context.Context, key string, body map[string]any,
 		return p.call(ctx, "responses", key, body, limit)
 	}
 	maxTokens, _ := body["max_output_tokens"].(int)
-	q := ai.TextRequest{Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: maxTokens}, Role: "curation", Model: body["model"].(string), Instructions: body["instructions"].(string), Input: body["input"].(string)}
+	q := ai.TextRequest{Session: ai.Session(ctx), Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: maxTokens}, Role: "curation", Model: body["model"].(string), Instructions: body["instructions"].(string), Input: body["input"].(string)}
 	if format, ok := body["text"].(map[string]any); ok {
 		if f, ok := format["format"].(map[string]any); ok {
 			q.Schema, _ = json.Marshal(f["schema"])

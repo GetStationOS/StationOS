@@ -32,6 +32,12 @@ func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, ins
 		functions = append(functions, map[string]any{"type": "function", "name": t.Name, "description": t.Description, "parameters": t.Parameters, "strict": false})
 	}
 	payload := map[string]any{"model": model, "instructions": instructions, "input": input, "tools": functions, "parallel_tool_calls": false, "max_output_tokens": 6000, "store": false}
+	if options.StoreConversation {
+		payload["store"] = true
+	}
+	if options.PreviousResponseID != "" {
+		payload["previous_response_id"] = options.PreviousResponseID
+	}
 	if len(tools) == 0 {
 		delete(payload, "tools")
 		delete(payload, "parallel_tool_calls")
@@ -85,6 +91,7 @@ func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, ins
 		return producer.Response{}, errors.New("Assistant response exceeds the limit")
 	}
 	var v struct {
+		ID         string `json:"id"`
 		Status     string `json:"status"`
 		Incomplete struct {
 			Reason string `json:"reason"`
@@ -104,7 +111,7 @@ func (m Model) RespondStructuredWithOptions(ctx context.Context, model, key, ins
 		}
 		return producer.Response{Usage: v.Usage}, errors.New("Assistant returned an incomplete response")
 	}
-	out := producer.Response{Items: v.Output, Usage: v.Usage}
+	out := producer.Response{ResponseID: v.ID, Items: v.Output, Usage: v.Usage}
 	var text strings.Builder
 	for _, item := range v.Output {
 		var part struct {

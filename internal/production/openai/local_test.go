@@ -102,3 +102,42 @@ func TestLocalSelectionDoesNotReplayAmbiguousProviderFailure(t *testing.T) {
 		t.Fatal("ambiguous request replayed", err, len(l.requests))
 	}
 }
+
+func TestDJTasksShareDatedSessionAndNewEpisodeResets(t *testing.T) {
+	ctx := context.Background()
+	local := &localText{reply: `{"intro":"Welcome","outro":"Goodbye"}`}
+	p := New(testKeys{}, nil, testAudio{})
+	p.Text = local
+	p.Client = &http.Client{Transport: transport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("mp3"))}, nil
+	})}
+	show := profile()
+	show.Key = "show:2026-10-20T09:00:00Z:1"
+	if _, err := p.Prepare(ctx, show, schedule.Occurrence{}); err != nil {
+		t.Fatal(err)
+	}
+	local.reply = "Here is the next recording."
+	if _, err := p.Link(ctx, production.LinkRequest{Show: show}); err != nil {
+		t.Fatal(err)
+	}
+	selection := selectionRequest()
+	selection.Show = show
+	selection.Show.Key = "show:2026-10-20T09:00:00Z:2" // template revision preserves session
+	local.reply = `{"track_id":"t02"}`
+	if _, err := p.SelectTrack(ctx, selection); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range local.requests {
+		if q.Session != "show:2026-10-20T09:00:00Z" {
+			t.Fatal("task escaped dated session", q.Session)
+		}
+	}
+	show.Key = "show:2026-10-21T09:00:00Z:1"
+	local.reply = "New episode link"
+	if _, err := p.Link(ctx, production.LinkRequest{Show: show}); err != nil {
+		t.Fatal(err)
+	}
+	if local.requests[len(local.requests)-1].Session == local.requests[0].Session {
+		t.Fatal("episode context leaked")
+	}
+}

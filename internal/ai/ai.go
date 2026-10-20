@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var ErrConversationUnavailable = errors.New("provider conversation is no longer available")
+
 var ErrInvalidStructuredResponse = errors.New("Provider returned invalid structured JSON")
 
 type Connection struct {
@@ -35,12 +37,32 @@ type Store interface {
 	DeleteConnection(context.Context, string) error
 	Routes(context.Context) (Routes, error)
 }
+type Conversation struct {
+	KnownAired         map[string]bool
+	ProviderIdentity   string
+	PreviousResponseID string
+	History            []json.RawMessage
+}
+type ConversationStore interface {
+	LoadConversation(context.Context, string) (Conversation, error)
+	SaveConversation(context.Context, string, Conversation) error
+}
+type sessionKey struct{}
+
+func WithSession(ctx context.Context, key string) context.Context {
+	return context.WithValue(ctx, sessionKey{}, key)
+}
+func Session(ctx context.Context) string { key, _ := ctx.Value(sessionKey{}).(string); return key }
+
 type GenerationOptions struct {
-	MaxOutputTokens int
-	DisableThinking bool
-	CompactContext  bool
+	StoreConversation  bool
+	PreviousResponseID string
+	MaxOutputTokens    int
+	DisableThinking    bool
+	CompactContext     bool
 }
 type TextRequest struct {
+	Session                          string
 	Options                          GenerationOptions
 	Role, Model, Instructions, Input string
 	Schema                           json.RawMessage

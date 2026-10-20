@@ -24,12 +24,12 @@ var ErrCancelled = errors.New("this episode is cancelled")
 var ErrStale = errors.New("episode changed; reload and try again")
 
 type Track struct {
-	ID, Title, Artist, Album string
-	SelectionSource          string
-	Seconds                  int64
-	Locked                   bool
-	Approved                 bool
-	AiredAt                  time.Time
+	ID, Title, Artist, Album, Composer string
+	SelectionSource                    string
+	Seconds                            int64
+	Locked                             bool
+	Approved                           bool
+	AiredAt                            time.Time
 }
 type Turn struct{ Kind, Text string }
 type Episode struct {
@@ -112,7 +112,7 @@ func (e Episode) Label() string {
 	}
 }
 func Snapshot(a content.AudioItem) Track {
-	t := Track{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album}
+	t := Track{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album, Composer: a.Composer}
 	if a.Duration != nil {
 		t.Seconds = int64(a.Duration.Seconds())
 	}
@@ -537,6 +537,11 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 	for _, a := range pool {
 		byID[a.ID] = a
 	}
+	for i := range base.Aired {
+		if item, ok := byID[base.Aired[i].ID]; ok && base.Aired[i].Composer == "" {
+			base.Aired[i].Composer = item.Composer
+		}
+	}
 	base.Plan = s.readyTracks(base, byID)
 	if len(base.Plan) >= 2 {
 		return s.Store.Update(ctx, o, func(e *Episode) error {
@@ -552,14 +557,14 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		prior := []production.SelectionPlay{}
 
 		for _, a := range base.Aired[max(0, len(base.Aired)-5):] {
-			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album}, Started: a.AiredAt})
+			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album, Composer: a.Composer}, Started: a.AiredAt})
 		}
 		if base.QueueCurrent.ID != "" {
-			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: base.QueueCurrent.ID, Title: base.QueueCurrent.Title, Artist: base.QueueCurrent.Artist, Album: base.QueueCurrent.Album}, Started: base.QueueCurrent.AiredAt})
+			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: base.QueueCurrent.ID, Title: base.QueueCurrent.Title, Artist: base.QueueCurrent.Artist, Album: base.QueueCurrent.Album, Composer: base.QueueCurrent.Composer}, Started: base.QueueCurrent.AiredAt})
 		}
 		start := queueStart(base, o, time.Now())
 		for _, a := range base.Plan {
-			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album}, Started: start})
+			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album, Composer: a.Composer}, Started: start})
 			start = start.Add(time.Duration(a.Seconds+15) * time.Second)
 		}
 		pool, err = s.Eligibility.EligibleTracks(ctx, o, planningStart(base, o, time.Now()), prior)
@@ -666,7 +671,7 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		input["steps_remaining"] = steps - step
 		input["planning_mode"] = "next_track"
 		raw, _ := json.Marshal(input)
-		answer, e := s.Text.Generate(ctx, ai.TextRequest{Role: "curation", Model: o.DJ.Model, Instructions: instructions, Input: string(raw), Schema: schema, Options: ai.GenerationOptions{MaxOutputTokens: 512, DisableThinking: true, CompactContext: true}})
+		answer, e := s.Text.Generate(ctx, ai.TextRequest{Session: SessionKey(o.Key), Role: "curation", Model: o.DJ.Model, Instructions: instructions, Input: string(raw), Schema: schema, Options: ai.GenerationOptions{MaxOutputTokens: 512, DisableThinking: true, CompactContext: true}})
 		if e != nil {
 			if errors.Is(e, ai.ErrInvalidStructuredResponse) {
 				if repairErr := repairResponse(); repairErr != nil {
@@ -910,7 +915,7 @@ func validatePlan(cmd command, base Episode, byID map[string]content.AudioItem, 
 	recent := []content.AudioItem{}
 	for i := len(base.Aired) - 1; i >= 0 && len(recent) < 5; i-- {
 		a := base.Aired[i]
-		recent = append(recent, content.AudioItem{ID: a.ID, Artist: a.Artist, Album: a.Album})
+		recent = append(recent, content.AudioItem{ID: a.ID, Artist: a.Artist, Album: a.Album, Composer: a.Composer})
 	}
 	used := map[string]bool{}
 	for _, a := range base.Aired {
@@ -984,7 +989,7 @@ func modelCheckpoint(e Episode) map[string]any {
 		turns = append(turns, t)
 	}
 	turns = turns[max(0, len(turns)-6):]
-	recent := e.Aired[max(0, len(e.Aired)-10):]
+	recent := e.Aired
 	played := []string{}
 	for _, a := range e.Aired {
 		played = append(played, a.ID)

@@ -861,3 +861,33 @@ The rolling episode planner loads the same shared `selection` prompt as the
 legacy selector. Its separate episode protocol describes search/schema fields and
 queue invariants; it does not duplicate editorial direction. Production wires the
 prompt store into both paths. No migration or bulk rewrite of custom prompts is needed.
+
+
+## Dated DJ conversations
+
+Every curation request for a dated episode uses one shared conversation key,
+independent of template revision. Introduction/sign-off writing, rolling track
+selection (including searches and repair turns), and spoken links all continue
+that conversation. Requests for the same episode are serialised with cancellable
+admission; different episodes remain independent. A new dated episode starts fresh.
+
+Provider continuations send newly aired receipts instead of repeating the whole
+aired history; portable replay and recovery supply the complete current checkpoint.
+The inference router persists portable user/assistant exchanges and the provider
+cursor in SQLite. OpenAI Responses uses stored responses and previous_response_id;
+Ollama, compatible, Anthropic and Gemini receive the portable history through their
+existing adapters. Changing connection, credentials or model replays portable history
+rather than reusing an incompatible cursor. An explicitly expired OpenAI cursor or rejected oversized chain
+can be rebuilt once from portable musical memory; uncertain network failures are never automatically replayed.
+Task instructions and current DJ/show direction are supplied on every request,
+because provider response chaining does not inherit the previous instructions.
+
+Portable history retains every returned choice and spoken link, including chosen
+recording credits, while discarding old candidate searches and repeated episode
+snapshots. Each current request also supplies the authoritative episode facts:
+retained aired receipts (up to 256, including composer), current and queued music,
+exclusions, and recent actually aired speech. Prepared output is not proof of airtime.
+No provider key, source URL or hidden reasoning is stored in the conversation.
+Provider context windows and token charges still apply; oversized history produces
+an explicit context failure rather than silently discarding earlier turns. Existing
+accepted-next and automatic continuity rules remain authoritative during failures.

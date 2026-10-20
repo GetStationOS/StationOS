@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"stationos.local/stationos/internal/prompts"
+	"stationos.local/stationos/internal/schedule"
 	"strings"
 
 	"stationos.local/stationos/internal/ai"
@@ -71,13 +72,13 @@ func (p Producer) SelectTrack(parent context.Context, request production.Selecti
 	}
 	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + request.Show.DJ.Prompt, background}, "\n\n")
 	var ref string
-	if kind == "openai" && model == "gpt-6-luna" {
+	if p.Text == nil && kind == "openai" && model == "gpt-6-luna" {
 		ref, err = p.decideTrack(ctx, request.Show.DJ.ID, model, string(input), instructions, ids)
 	} else {
 		schema, _ := json.Marshal(map[string]any{"type": "object", "additionalProperties": false, "required": []string{"track_id"}, "properties": map[string]any{"track_id": map[string]any{"type": "string", "enum": ids}}})
 		var raw string
 		if p.Text != nil {
-			raw, err = p.Text.Generate(ctx, ai.TextRequest{Role: "curation", Model: model, Instructions: instructions + " Return JSON containing track_id only.", Input: string(input), Schema: schema, Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: 128}})
+			raw, err = p.Text.Generate(ctx, ai.TextRequest{Session: schedule.EpisodeKey(request.Show.Key), Role: "curation", Model: model, Instructions: instructions + " Return JSON containing track_id only.", Input: string(input), Schema: schema, Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: 128}})
 		} else {
 			key, e := p.Keys.APIKey(ctx, request.Show.DJ.ID)
 			if e != nil || key == "" {

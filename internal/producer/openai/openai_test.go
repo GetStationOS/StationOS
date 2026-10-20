@@ -77,3 +77,18 @@ func TestCurationGenerationHonorsSmallBudgetWithoutToolControls(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestResponsesEpisodeContinuationContract(t *testing.T) {
+	m := Model{Client: &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		if body["store"] != true || body["previous_response_id"] != "previous" || body["instructions"] != "Current task" {
+			t.Fatal(body)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"id":"next","status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"Hello"}]}]}`))}, nil
+	})}}
+	out, err := m.RespondStructuredWithOptions(context.Background(), "model", "key", "Current task", nil, nil, nil, ai.GenerationOptions{StoreConversation: true, PreviousResponseID: "previous"})
+	if err != nil || out.ResponseID != "next" {
+		t.Fatal(out, err)
+	}
+}

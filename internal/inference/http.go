@@ -208,7 +208,7 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 	} else {
 		rawMessages, _ := json.Marshal(msgs)
 		if len(rawMessages)+len(rawTools) > (conn.ContextTokens-conn.OutputTokens)*3 {
-			return producer.Response{}, errors.New("The endpoint context budget cannot fit the full requirements and tools")
+			return producer.Response{}, fmt.Errorf("%w: The endpoint context budget cannot fit the full requirements and tools", producer.ErrContextBudget)
 		}
 	}
 	queueWait := conn.QueueTimeout(live)

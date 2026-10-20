@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"stationos.local/stationos/internal/ai"
@@ -14,9 +15,12 @@ import (
 )
 
 type Router struct {
-	Store  ai.Store
-	OpenAI producer.Model
-	Local  *Client
+	Conversations ai.ConversationStore
+	sessionMu     sync.Mutex
+	sessionLocks  map[string]*conversationLock
+	Store         ai.Store
+	OpenAI        producer.Model
+	Local         *Client
 }
 
 func New(store ai.Store, cloud producer.Model) *Router {
@@ -74,7 +78,7 @@ func (r *Router) respond(ctx context.Context, role, model, prompt string, input 
 }
 func (r *Router) Generate(ctx context.Context, q ai.TextRequest) (string, error) {
 	input, _ := json.Marshal(map[string]string{"role": "user", "content": q.Input})
-	out, err := r.respond(ctx, q.Role, q.Model, q.Instructions, []producer.Item{input}, nil, q.Schema, q.Options)
+	out, err := r.converse(ctx, q, input)
 	if out.Notice != "" {
 		production.ReportInference(ctx, out.Notice)
 	}

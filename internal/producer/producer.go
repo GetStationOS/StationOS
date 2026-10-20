@@ -265,6 +265,7 @@ type Usage struct {
 	Output int `json:"output_tokens"`
 }
 type Response struct {
+	ResponseID string
 	// Reasoning contains only readable reasoning explicitly returned by the provider.
 	Reasoning string
 	Notice    string

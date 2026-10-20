@@ -140,6 +140,7 @@ func run(args []string, logger *slog.Logger) error {
 		return err
 	}
 	textProviders := inference.New(sharedAI, producerAI.New())
+	textProviders.Conversations = persistence.Conversations{DB: db}
 	presenter := ai.New(persistence.ProducerKeys{Producer: sharedAI}, persistence.PresenterAssets{DB: db}, production.FFmpeg{Path: ffmpeg})
 	promptStore := persistence.Prompts{DB: db}
 	presenter.Prompts = promptStore

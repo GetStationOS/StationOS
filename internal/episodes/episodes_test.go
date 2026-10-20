@@ -1069,3 +1069,15 @@ func TestSelectionPromptReadFailureDoesNotInvokeProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEpisodeCheckpointRetainsEarlierWorksAndComposer(t *testing.T) {
+	e := Episode{}
+	for i := 0; i < 20; i++ {
+		e.Aired = append(e.Aired, Track{ID: fmt.Sprint(i), Title: "Work " + fmt.Sprint(i), Composer: "Composer"})
+	}
+	state := modelCheckpoint(e)
+	aired := state["Aired"].([]Track)
+	if len(aired) != 20 || aired[0].Title != "Work 0" || aired[0].Composer != "Composer" {
+		t.Fatal(aired)
+	}
+}

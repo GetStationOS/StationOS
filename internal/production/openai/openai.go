@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"stationos.local/stationos/internal/ai"
@@ -260,6 +261,12 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	}
 	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions}, "\n\n")
 	body := map[string]any{"model": link.Show.DJ.Model, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
+	// An explicit JSON field makes silence distinguishable from an empty or
+	// incomplete provider response across every supported inference adapter.
+	if len(link.Audience) == 0 {
+		body["instructions"] = instructions + "\nResponse contract: return JSON with exactly one field, speech. Put the spoken link in speech. Only for a normal transition, an empty string intentionally skips the link. Handovers require non-empty speech. Do not return an empty provider response."
+		body["text"] = map[string]any{"format": map[string]any{"type": "json_schema", "name": "optional_link", "strict": true, "schema": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"speech"}, "properties": map[string]any{"speech": map[string]any{"type": "string"}}}}}
+	}
 	if len(link.Audience) > 0 {
 		audiencePrompt, err := prompts.Load(ctx, p.Prompts, "audience-link")
 		if err != nil {
@@ -267,7 +274,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		}
 		body["instructions"] = instructions + "\n\n" + audiencePrompt
 		if len(link.Audience) > 1 {
-			body["instructions"] = strings.Replace(body["instructions"].(string), "maximum 45 words", "maximum 75 words", 1)
+			body["instructions"] = strings.Replace(body["instructions"].(string), "maximum 45 words", "maximum 75 words", 1) + "\nAudience section contract: maximum 75 words, overriding the normal link limit."
 		}
 		for _, item := range link.Audience {
 			if item.Kind == audience.Request && item.TrackID != link.Next.ID {
@@ -303,6 +310,20 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	}
 	spoken := strings.TrimSpace(text.String())
 	var used []string
+	if len(link.Audience) == 0 && (strings.HasPrefix(spoken, "{") || strings.HasPrefix(spoken, "[") || json.Valid([]byte(spoken))) {
+		var optional struct {
+			Speech *string `json:"speech"`
+		}
+		decoder := json.NewDecoder(strings.NewReader(spoken))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&optional) != nil || optional.Speech == nil || decoder.Decode(new(any)) != io.EOF {
+			return nil, nil, errors.New("invalid optional presenter link")
+		}
+		spoken = strings.TrimSpace(*optional.Speech)
+		if spoken == "" && !link.Handover {
+			return nil, nil, nil
+		}
+	}
 	if len(link.Audience) > 0 {
 		var result struct {
 			Speech string   `json:"speech"`

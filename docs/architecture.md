@@ -891,3 +891,15 @@ No provider key, source URL or hidden reasoning is stored in the conversation.
 Provider context windows and token charges still apply; oversized history produces
 an explicit context failure rather than silently discarding earlier turns. Existing
 accepted-next and automatic continuity rules remain authoritative during failures.
+
+
+### Optional DJ links
+
+Ordinary track transitions request a structured speech field; an empty string is
+an explicit music-only decision, not an empty provider response. It makes no TTS
+call, creates no aired speech receipt and raises no preparation failure or false
+recovery. Current and committed next recordings stay unchanged. The episode
+conversation records the decision, and actual aired history lets later links
+acknowledge a previously unintroduced recording. Handovers and approved audience
+acknowledgements require non-empty speech. Incomplete, malformed and missing
+provider responses remain errors. Plain speech from older adapters remains accepted.

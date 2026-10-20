@@ -101,6 +101,9 @@ type LinkRequest struct {
 	Handover         bool
 	RemainingSeconds int64
 }
+
+// LinkProducer may return nil audio and nil error for an intentional normal-link
+// skip. Required handovers and audience acknowledgements must contain speech.
 type LinkProducer interface {
 	Link(context.Context, LinkRequest) ([]byte, error)
 }

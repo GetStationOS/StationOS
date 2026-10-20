@@ -1144,7 +1144,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 						m.logger.Warn("DJ link unavailable", "station_id", id, "error", err)
 						m.observe(id, "ai", "DJ speech preparation failed; music continues", State{Programme: req.Show}, "speech", false)
 					}
-					if err == nil {
+					if err == nil && len(audio) > 0 {
 						m.observe(id, "recovery", "DJ speech preparation recovered", State{Programme: req.Show}, "speech", true)
 					}
 					status := "Ready"

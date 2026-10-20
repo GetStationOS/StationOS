@@ -240,3 +240,57 @@ func TestDJGainConversionCompletesDuringMusicBeforeHandover(t *testing.T) {
 		t.Fatal("DJ volume was converted again at boundary", e.conversions.Load())
 	}
 }
+
+type musicOnlyLinks struct{ called chan production.LinkRequest }
+
+func (p musicOnlyLinks) Link(_ context.Context, request production.LinkRequest) ([]byte, error) {
+	p.called <- request
+	return nil, nil
+}
+
+func TestSkippedLinkContinuesCommittedMusicWithoutChatter(t *testing.T) {
+	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+	shows := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
+	repo := &memoryRepo{playlist: "pool", pool: []content.AudioItem{length("one", 180), length("two", 180)}}
+	encoder := &aheadTestEncoder{fakeEncoder: fakeEncoder{calls: make(chan opening, 8)}, cleanupRelease: make(chan struct{}), cleanupStarted: make(chan struct{}), primed: make(chan struct{}, 8)}
+	links := musicOnlyLinks{called: make(chan production.LinkRequest, 8)}
+	m := New(repo, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: shows, Links: links, Now: func() time.Time { return now }})
+	defer m.Close()
+	defer close(encoder.cleanupRelease)
+	listener, err := m.Subscribe(context.Background(), "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	current := opened(t, &encoder.fakeEncoder)
+	next := opened(t, &encoder.fakeEncoder)
+	select {
+	case request := <-links.called:
+		if request.Next.ID != next.item.ID || request.Handover {
+			t.Fatal(request)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no link decision")
+	}
+	next.write.Write([]byte("NEXT MUSIC"))
+	<-encoder.primed
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		current.write.Write([]byte("CURRENT MUSIC"))
+		if string(receive(t, listener)) != "CURRENT MUSIC" {
+			t.Fatal("missing current music")
+		}
+		if m.State("radio").PresenterStatus == "Ready" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("skip reported as failed preparation", m.State("radio"))
+		}
+	}
+
+	current.write.Close()
+	if string(receive(t, listener)) != "NEXT MUSIC" {
+		t.Fatal("skip inserted chatter or changed committed recording")
+	}
+	waitFor(t, func() bool { return m.State("radio").Current.ID == next.item.ID })
+}

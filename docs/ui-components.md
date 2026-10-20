@@ -178,3 +178,14 @@ success or warning tokens. Place explanatory feedback in a full-width `.feedback
 block below the heading, with an icon, left-aligned copy and separate retry metadata.
 Never squeeze paragraphs into the right-hand badge area or hide them in a disclosure.
 Active preparation supersedes old failure feedback until the attempt finishes.
+
+## Search fields
+
+Wrap search inputs in `.search-input` and use the shared `search-clear-button`
+template. The X has an accessible name and sits inside the field; it never changes
+checkbox selections. Submitted searches clear and resubmit the current filters;
+listener searches retain their existing HTMX live-search behaviour, and local
+choice filters update in place. The control is enhanced on initial load and HTMX
+swaps; without JavaScript, the native search-input clear control remains available.
+Keep explicit search/apply buttons compact, with a 42px height. Full filter resets
+are separate from clearing only the search text.

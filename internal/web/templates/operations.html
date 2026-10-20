@@ -15,9 +15,9 @@
 <form method="get" action="/producer/stations/{{.Station.ID}}/timeline" class="operations-filters history-filters">
   <div class="history-search">
     <label for="history-search">Search</label>
-    <div class="history-search-input">
-      <input id="history-search" name="q" value="{{.Query}}" maxlength="200" placeholder="Title, artist or spoken text">
-      <a class="history-search-clear" href="/producer/stations/{{.Station.ID}}/timeline" aria-label="Clear search and filters" title="Clear search and filters">{{template "ui-icon" "failed"}}</a>
+    <div class="search-input">
+      <input id="history-search" type="search" name="q" value="{{.Query}}" maxlength="200" placeholder="Title, artist or spoken text">
+      {{template "search-clear-button" .}}
     </div>
   </div>
   <div class="operations-filter-actions">

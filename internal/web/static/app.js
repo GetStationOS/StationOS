@@ -46,6 +46,7 @@ document.body.addEventListener('htmx:beforeRequest', event => {
   if (event.detail.elt?.closest('[data-results-navigation]')) resultsNavigation = true;
 });
 function initialise() {
+  document.querySelectorAll("[data-clear-search-input]").forEach(button=>{button.hidden=false;});
   initialiseSaveControls();
   initialiseEventNotices();
   document.querySelectorAll('[data-history-filter-toggle]:not([data-ready])').forEach(button => {
@@ -147,6 +148,15 @@ document.body.addEventListener('htmx:afterSettle', event => {
  const target=event.detail.target || event.detail.elt;
  if (target?.id === 'source-album-results' || target?.id === 'source-album-tracks') document.getElementById('table-results-heading')?.focus({preventScroll:true});
  if (target?.id === 'playlist-track-results') {
+  const search=document.querySelector('.playlist-track-search');
+  if (search) {
+   const size=new URLSearchParams(window.location.search).get('per_page')||'25';
+   search.querySelector('input[name=per_page]').value=size;
+   const clear=search.querySelector('[data-clear-search]');
+   const destination=window.location.pathname+'?per_page='+encodeURIComponent(size);
+   clear.setAttribute('href',destination);clear.setAttribute('hx-get',destination);
+   htmx.process(clear);
+  }
   const destination=document.querySelector('#playlist-page-heading input[name=return_to]');
   if (destination) destination.value=window.location.pathname+window.location.search;
  }
@@ -1168,4 +1178,20 @@ document.body.addEventListener('htmx:afterRequest',event => {
 });
 document.body.addEventListener('htmx:timeout',event => {
  failSaveControl(event,'Saving timed out. Check your changes before trying again.');
+});
+
+document.body.addEventListener('click',event => {
+ const clear=event.target.closest('[data-clear-search]');
+ if (!clear) return;
+ const input=clear.closest('.search-input')?.querySelector('input[type=search]');
+ if (input) {input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));}
+});
+
+// One clear control for submitted searches, live listener searches and local choices.
+document.body.addEventListener('click',event => {
+ const clear=event.target.closest('[data-clear-search-input]');
+ if (!clear) return;
+ const input=clear.closest('.search-input').querySelector('input');
+ input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus({preventScroll:true});
+ if (!input.matches('[data-filter-choices]') && !input.closest('.audience-track-search')) input.form?.requestSubmit();
 });

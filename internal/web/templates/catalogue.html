@@ -7,8 +7,10 @@
 </div>{{end}}
 <form class="filters" action="/producer/content" method="get" hx-get="/producer/content" hx-target="#main" hx-push-url="true">
   <input type="hidden" name="playlist" value="{{.SelectedPlaylist}}">
-  <label>Search title, artist, album or genre<input type="search" name="q" value="{{.Query}}" maxlength="200">
-  </label>
+  <div class="catalogue-search-field">
+    <label for="catalogue-search">Search title, artist, album or genre</label>
+    <div class="search-input"><input id="catalogue-search" type="search" name="q" value="{{.Query}}" maxlength="200">{{template "search-clear-button" .}}</div>
+  </div>
   <label>Genre<select name="genre">
       <option value="">All genres</option>
       {{range .Facets.Genres}}
@@ -34,7 +36,7 @@
   <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
   <div class="filter-actions">
     <button>Apply filters</button>
-    <a href="/producer/content{{if .SelectedPlaylist}}?playlist={{.SelectedPlaylist}}{{end}}">Clear filters</a>
+    <a href="/producer/content{{if .SelectedPlaylist}}?playlist={{.SelectedPlaylist}}{{end}}">Reset filters</a>
   </div>
 </form>
 

@@ -118,10 +118,10 @@
     <div class="choice-grid">
       <fieldset data-choice-group>
         <legend>Genres</legend>
-        <label class="choice-search">
+        <div class="choice-search search-input">
           <span class="visually-hidden">Find a genre</span>
           <input type="search" data-filter-choices placeholder="Find a genre" aria-label="Find a genre">
-        </label>
+        {{template "search-clear-button" .}}</div>
         <div class="choice-tools">
           <output data-choice-count>
           </output>
@@ -143,10 +143,10 @@
       </fieldset>
       <fieldset data-choice-group>
         <legend>Albums</legend>
-        <label class="choice-search">
+        <div class="choice-search search-input">
           <span class="visually-hidden">Find an album</span>
           <input type="search" data-filter-choices placeholder="Find an album or source" aria-label="Find an album or source">
-        </label>
+        {{template "search-clear-button" .}}</div>
         <div class="choice-tools">
           <output data-choice-count>
           </output>
@@ -170,10 +170,10 @@
       {{range .RuleGroups}}
       <fieldset data-choice-group>
         <legend>{{.Name}}</legend>
-        <label class="choice-search">
+        <div class="choice-search search-input">
           <span class="visually-hidden">Find {{.Name}}</span>
           <input type="search" data-filter-choices placeholder="Find {{.Name}}" aria-label="Find {{.Name}}">
-        </label>
+        {{template "search-clear-button" .}}</div>
         <div class="choice-tools">
           <output data-choice-count></output>
           <button type="button" class="text-button" data-choose="all" title="Select all visible results">Select all</button>
@@ -292,9 +292,15 @@
 {{template "playlist-heading" .}}
 {{template "playlist-navigation" .}}
 <form class="panel filters playlist-track-search" method="get" action="/producer/playlists/{{.Playlist.ID}}/tracks" hx-get="/producer/playlists/{{.Playlist.ID}}/tracks" hx-target="#playlist-track-results" hx-swap="outerHTML show:none" hx-push-url="true" data-results-navigation>
- <label>Search tracks<input type="search" name="q" value="{{.TrackSearch}}" maxlength="300" placeholder="Title, performer, album or composer"></label>
+ <div class="playlist-track-search-field">
+  <label for="playlist-track-query">Search tracks</label>
+  <div class="search-input">
+   <input id="playlist-track-query" type="search" name="q" value="{{.TrackSearch}}" maxlength="300" placeholder="Title, performer, album or composer">
+   <a class="search-clear" href="/producer/playlists/{{.Playlist.ID}}/tracks?per_page={{.Pagination.Size}}" hx-get="/producer/playlists/{{.Playlist.ID}}/tracks?per_page={{.Pagination.Size}}" hx-target="#playlist-track-results" hx-swap="outerHTML show:none" hx-push-url="true" data-clear-search data-results-navigation aria-label="Clear search" title="Clear search">{{template "ui-icon" "failed"}}</a>
+  </div>
+ </div>
  <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
- <button>Search</button><a href="/producer/playlists/{{.Playlist.ID}}/tracks?per_page={{.Pagination.Size}}">Clear search</a>
+ <button>Search</button>
 </form>
 {{template "playlist-tracks" .}}
 {{end}}

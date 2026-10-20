@@ -36,8 +36,8 @@
 <form class="audience-track-search" method="get" action="{{.Page}}" hx-get="{{.Page}}" hx-trigger="submit, input changed delay:300ms, search" hx-sync="closest section:replace" hx-target="#audience-track-options-{{.AudiencePanel}}" hx-select="#audience-track-options-{{.AudiencePanel}}" hx-swap="outerHTML show:none" hx-push-url="false" hx-indicator="#track-search-busy-{{.AudiencePanel}}">
   <input type="hidden" name="show" value="{{.AudienceKey}}">
   <input type="hidden" name="day" value="{{.AudienceDay}}">
-  <label>Search for a track or artist<input type="search" name="q" value="{{.AudienceQuery}}" maxlength="100" placeholder="Track, artist or band name" autocomplete="off" aria-describedby="track-search-help-{{.AudiencePanel}}" aria-controls="audience-track-options-{{.AudiencePanel}}">
-  </label>
+  <label for="audience-search-{{.AudiencePanel}}">Search for a track or artist</label>
+  <div class="search-input"><input id="audience-search-{{.AudiencePanel}}" type="search" name="q" value="{{.AudienceQuery}}" maxlength="100" placeholder="Track, artist or band name" autocomplete="off" aria-describedby="track-search-help-{{.AudiencePanel}}" aria-controls="audience-track-options-{{.AudiencePanel}}">{{template "search-clear-button" .}}</div>
   <p class="hint" id="track-search-help-{{.AudiencePanel}}">Search this show's playlist by track, artist or band, then choose a recording.</p>
   <span id="track-search-busy-{{.AudiencePanel}}" class="htmx-indicator" role="status">Searching…</span>
   <button class="secondary" data-track-search-submit>Find tracks</button>

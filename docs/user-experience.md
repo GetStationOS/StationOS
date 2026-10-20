@@ -665,3 +665,8 @@ scope, album and return-page context in GET URLs. HTMX pagination replaces only
 the results card and focuses its results heading; browser history and ordinary
 GET navigation remain available. Artwork uses the same authenticated, bounded,
 source-validated proxy as broadcast artwork; never expose remote server URLs.
+
+Search fields place their clear action inside the text box as an accessible X icon,
+never a separate Clear search text link. Search submit buttons stay compact beside
+the field at desktop, tablet and mobile widths. Preserve the page-size setting
+when clearing a query; use the same HTMX results region as the search submission.

@@ -534,3 +534,23 @@ func TestActualHandoverErrorRetainsErrorState(t *testing.T) {
 		t.Fatal("genuine error was hidden", row)
 	}
 }
+
+func TestCurationRecoveryNamesOneSuccessfulSelection(t *testing.T) {
+	for _, code := range []string{"curation", "episode-plan:show:2026-10-20T09:00:00Z"} {
+		event := operations.Event{Kind: "recovery", Recover: true, Outcome: "observed", IncidentCode: code, Reason: "Episode planning recovered; a validated running order is ready.", Started: time.Now()}
+		row := producerEvent(event, time.UTC)
+		if row.TypeLabel != "DJ selection succeeded" || row.OutcomeLabel != "Selection succeeded" || row.Reason != "One track choice passed validation. Queue readiness is shown in the episode view." {
+			t.Fatal(row)
+		}
+		if row.Notes != row.Reason {
+			t.Fatal("timeline retained misleading readiness note", row)
+		}
+		if !row.Recover || row.IncidentCode != code {
+			t.Fatal("recovery semantics changed", row)
+		}
+	}
+	row := producerEvent(operations.Event{Kind: "recovery", Recover: true, Outcome: "observed", IncidentCode: "audio", Reason: "Audio delivery resumed", Started: time.Now()}, time.UTC)
+	if row.TypeLabel != "Recovered" || row.Reason != "Audio delivery resumed" {
+		t.Fatal("unrelated recovery changed", row)
+	}
+}

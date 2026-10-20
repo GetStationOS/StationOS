@@ -453,6 +453,10 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 		}
 	}
 	v.TypeLabel = operationTypeLabel(e.Kind)
+	if (e.Recover || e.Kind == "recovery") && (e.Phase == "curation" || e.IncidentCode == "curation" || strings.HasPrefix(e.IncidentCode, "episode-plan:")) {
+		v.TypeLabel = "DJ selection succeeded"
+		v.Reason = "One track choice passed validation. Queue readiness is shown in the episode view."
+	}
 	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
 	v.OutcomeStyle, v.OutcomeIcon = e.Outcome, e.Outcome
 	if e.Outcome == "observed" {
@@ -482,6 +486,10 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 		}
 	} else {
 		v.Notes = e.Reason
+	}
+	if v.TypeLabel == "DJ selection succeeded" {
+		v.OutcomeLabel = "Selection succeeded"
+		v.Notes = v.Reason
 	}
 	return v
 }

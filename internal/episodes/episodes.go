@@ -586,7 +586,19 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 				}
 			}
 		}
+		if len(initial) == 0 {
+			return ai.ErrNoEligibleTracks
+		}
 		transcript = append(transcript, toolResult{Query: "Initial candidates", Total: len(pool), Tracks: initial})
+	}
+	responseRepairs := 0
+	repairResponse := func() error {
+		if responseRepairs >= 1 {
+			return ai.ErrInvalidStructuredResponse
+		}
+		responseRepairs++
+		transcript = append(transcript, map[string]string{"validation_error": "The previous response was unreadable. Return one complete JSON object matching the schema, with one offered track ID for Action plan. Do not use markdown or prose."})
+		return checkpoint("response repair", "Retrying one unreadable DJ response before automatic fallback.")
 	}
 	for step := 0; step < steps; step++ {
 		input["episode"] = modelCheckpoint(base)
@@ -596,6 +608,12 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		raw, _ := json.Marshal(input)
 		answer, e := s.Text.Generate(ctx, ai.TextRequest{Role: "curation", Model: o.DJ.Model, Instructions: instructions, Input: string(raw), Schema: schema, Options: ai.GenerationOptions{MaxOutputTokens: 512, DisableThinking: true, CompactContext: true}})
 		if e != nil {
+			if errors.Is(e, ai.ErrInvalidStructuredResponse) {
+				if repairErr := repairResponse(); repairErr != nil {
+					return repairErr
+				}
+				continue
+			}
 			return e
 		}
 		if len(answer) > 64<<10 {
@@ -603,7 +621,10 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		}
 		var cmd command
 		if json.Unmarshal([]byte(answer), &cmd) != nil {
-			return ai.ErrInvalidStructuredResponse
+			if repairErr := repairResponse(); repairErr != nil {
+				return repairErr
+			}
+			continue
 		}
 		if err := checkpoint("DJ planning", answer); err != nil {
 			return err

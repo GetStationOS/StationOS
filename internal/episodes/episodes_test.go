@@ -815,3 +815,49 @@ func TestUnacceptedLegacyChoicesDoNotCountAsReady(t *testing.T) {
 		t.Fatal("unaccepted legacy queue counted as ready", ready, err)
 	}
 }
+
+func TestUnreadableDJResponseGetsOneBoundedRepair(t *testing.T) {
+	for _, persistent := range []bool{false, true} {
+		t.Run(fmt.Sprint(persistent), func(t *testing.T) {
+			ctx := context.Background()
+			o := futureEpisode()
+			store := &memoryStore{}
+			store.Update(ctx, o, func(*Episode) error { return nil })
+			text := &textStub{generate: func(q ai.TextRequest, n int) (string, error) {
+				if n == 1 || persistent {
+					return "", ai.ErrInvalidStructuredResponse
+				}
+				if !strings.Contains(q.Input, "previous response was unreadable") {
+					t.Fatal("missing repair instruction")
+				}
+				return `{"Action":"plan","Tracks":["a"]}`, nil
+			}}
+			service := &Service{Store: store, Pool: poolStub{recording("a", 60)}, Text: text}
+			err := service.Plan(ctx, o)
+			if text.calls != 2 {
+				t.Fatal("repair call count", text.calls)
+			}
+			if persistent && !errors.Is(err, ai.ErrInvalidStructuredResponse) {
+				t.Fatal(err)
+			}
+			if !persistent && err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+func TestExhaustedEpisodePoolSkipsProvider(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	a := recording("a", 60)
+	store.Update(ctx, o, func(e *Episode) error { e.Aired = []Track{Snapshot(a)}; return nil })
+	text := &textStub{generate: func(ai.TextRequest, int) (string, error) {
+		t.Fatal("provider called without candidates")
+		return "", nil
+	}}
+	service := &Service{Store: store, Pool: poolStub{a}, Text: text}
+	if err := service.Plan(ctx, o); !errors.Is(err, ai.ErrNoEligibleTracks) {
+		t.Fatal(err)
+	}
+}

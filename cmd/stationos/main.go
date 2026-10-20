@@ -152,7 +152,7 @@ func run(args []string, logger *slog.Logger) error {
 		kind, reason := "ai", "DJ selection delayed. "+agentai.FailureMessage(agentai.FailureCode(planningErr))+" Automatic preparation will retry."
 		if planningErr == nil {
 			kind = "recovery"
-			reason = "DJ selection recovered; an accepted track is ready."
+			reason = "One track choice passed validation. Queue readiness is shown in the episode view."
 		}
 		recorder.Record(operations.Event{ID: operations.ID(), StationID: o.StationID, ShowID: o.ShowID, Show: o.Title, DJID: o.DJ.ID, DJ: o.DJ.Name, PlaylistID: o.PlaylistID, Playlist: o.PlaylistName, Started: at, Ended: at, Kind: kind, Outcome: "observed", Phase: "curation", Reason: reason, IncidentCode: "episode-plan:" + o.ShowID + ":" + o.Start.UTC().Format(time.RFC3339), Recover: planningErr == nil, Severity: "warning", Effect: "Local music continues", Action: "Review curation connection settings, episode details and server logs."})
 	}

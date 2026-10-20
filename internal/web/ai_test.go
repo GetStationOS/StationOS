@@ -277,7 +277,7 @@ func TestChatterboxEndpointAndSpeechOnlySelection(t *testing.T) {
 	if strings.Count(body, `value="nano"`) != 1 || !strings.Contains(body, `data-provider-kind="chatterbox"`) {
 		t.Fatal("Nano must be offered only for speech", body)
 	}
-	if !strings.Contains(body, "DJ voice, vibe and speed settings apply to OpenAI only") {
+	if !strings.Contains(body, "Choose its voice on each DJ’s profile") {
 		t.Fatal("default voice capabilities missing")
 	}
 }

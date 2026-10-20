@@ -158,6 +158,7 @@ type TrackEligibility interface {
 // Speech returns source audio for the existing presenter normalizer.
 // Voice, direction and speed are provider capabilities; Nano uses its default voice.
 type SpeechRequest struct {
+	SpeechVoices                  map[string]string
 	Text, Model, Voice, Direction string
 	Speed                         float64
 }

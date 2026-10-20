@@ -31,11 +31,15 @@ type Provider struct {
 	Logger *slog.Logger
 }
 
-func (p Provider) Synthesize(ctx context.Context, conn ai.Connection, text string) ([]byte, error) {
+func (p Provider) Synthesize(ctx context.Context, conn ai.Connection, text, voice string) ([]byte, error) {
 	if strings.TrimSpace(text) == "" {
 		return nil, errors.New("Chatterbox speech text is empty")
 	}
-	raw, _ := json.Marshal(map[string]string{"text": text})
+	body := map[string]string{"text": text}
+	if voice != "" {
+		body["voice"] = voice
+	}
+	raw, _ := json.Marshal(body)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, strings.TrimRight(conn.Address, "/")+"/tts", bytes.NewReader(raw))
 	if err != nil {
 		return nil, errors.New("Invalid Chatterbox address")

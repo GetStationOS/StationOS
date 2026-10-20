@@ -19,7 +19,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -292,6 +292,10 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 				t.Fatal("DJ schema not upgraded", err)
 			}
 			if version >= 6 {
+				var voices string
+				if err = db.QueryRow(`SELECT speech_voices FROM djs WHERE id='dj'`).Scan(&voices); err != nil || voices != "{}" {
+					t.Fatal("upgrade did not preserve default voice behaviour", voices, err)
+				}
 				var name, voice, prompt, vibe string
 				var speed float64
 				var encrypted []byte

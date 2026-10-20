@@ -190,7 +190,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		if strings.TrimSpace(text) == "" {
 			return nil, nil
 		}
-		raw, err := p.synthesize(ctx, production.SpeechRequest{Text: text, Model: speechModel, Voice: show.DJ.Voice, Direction: show.DJ.Vibe, Speed: show.DJ.ConversationSpeed})
+		raw, err := p.synthesize(ctx, production.SpeechRequest{Text: text, Model: speechModel, Voice: show.DJ.Voice, SpeechVoices: show.DJ.SpeechVoices, Direction: show.DJ.Vibe, Speed: show.DJ.ConversationSpeed})
 		if err != nil {
 			return nil, err
 		}
@@ -374,7 +374,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if len(spoken) == 0 || len(spoken) > maxSpeechBytes {
 		return nil, nil, errors.New("presenter link exceeds limits")
 	}
-	raw, err = p.synthesize(ctx, production.SpeechRequest{Text: spoken, Model: speechModel, Voice: link.Show.DJ.Voice, Direction: link.Show.DJ.Vibe, Speed: link.Show.DJ.ConversationSpeed})
+	raw, err = p.synthesize(ctx, production.SpeechRequest{Text: spoken, Model: speechModel, Voice: link.Show.DJ.Voice, SpeechVoices: link.Show.DJ.SpeechVoices, Direction: link.Show.DJ.Vibe, Speed: link.Show.DJ.ConversationSpeed})
 	if err != nil {
 		return nil, nil, err
 	}

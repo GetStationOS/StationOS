@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"stationos.local/stationos/internal/changefeed"
 	"stationos.local/stationos/internal/episodes"
@@ -16,12 +17,16 @@ type Schedule struct {
 	Changes *changefeed.Bus
 }
 
-const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + speechReadySQL + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction`
+const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + speechReadySQL + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction,d.speech_voices`
 const showJoin = ` FROM station_shows s JOIN djs d ON d.id=s.dj_id JOIN playlists p ON p.id=s.playlist_id `
 
 func scanShow(row interface{ Scan(...any) error }) (schedule.Show, error) {
 	var v schedule.Show
-	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection)
+	var voices string
+	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection, &voices)
+	if err == nil {
+		err = json.Unmarshal([]byte(voices), &v.DJ.SpeechVoices)
+	}
 	v.DJ.ID = v.DJID
 	v.DJ.Name = v.DJName
 	if errors.Is(err, sql.ErrNoRows) {

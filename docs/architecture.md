@@ -905,3 +905,23 @@ acknowledgements require non-empty speech. Incomplete, malformed and missing
 provider responses remain errors. Plain speech from older adapters remains accepted.
 
 Changing music normalisation applies at the next track boundary and invalidates preloaded audio made with the previous setting, without changing the committed recording. With the switch off, the previous fixed-gain playback path is retained.
+
+
+### Provider-specific DJ speech voices
+
+Migration 38 adds a bounded JSON map of speech connection IDs to voice IDs on each
+DJ, separate from the unchanged OpenAI voice column. The DJ application service
+validates explicit voice-selection commands through a provider-independent voice
+source, while omitted selections survive profile and portrait edits. Its write-only
+command is not part of broadcast snapshots. Schedule projections include saved
+voice selections so presentation and links use the same DJ settings.
+
+The inference speech router implements voice discovery: OpenAI returns its built-in
+catalogue; Chatterbox retrieves bounded `/voices` metadata from the configured
+server. DJ forms discover on page load and validate changed choices on Save, without
+background polling or generation. Unavailable saved choices are retained and labelled;
+stale forms cannot apply a choice to a different active speech connection. Chatterbox
+receives an optional exact voice ID on `/tts`; an omitted ID preserves server default
+behaviour. Voice assets and model execution remain outside StationOS. The producer
+assistant uses the same discovery and application validation via `list_voices` and
+`save_dj.speech_voice`, preserving the existing OpenAI `voice` tool field.

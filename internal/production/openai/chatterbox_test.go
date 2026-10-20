@@ -16,6 +16,7 @@ import (
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/schedule"
 )
 
 type speechStore struct {
@@ -124,9 +125,20 @@ func TestChatterboxLiveDJLink(t *testing.T) {
 	}
 	p := New(noKey{}, nil, production.FFmpeg{Path: ffmpeg})
 	p.Text = &localText{reply: "You're listening to StationOS. Here's another great recording, brought to you by Chatterbox Nano."}
-	p.Speech = inference.New(speechStore{conn: ai.Connection{ID: "nano", Type: "chatterbox", Address: address}}, nil)
+	speechRouter := inference.New(speechStore{conn: ai.Connection{ID: "nano", Type: "chatterbox", Address: address}}, nil)
+	p.Speech = speechRouter
+	catalog, err := speechRouter.Voices(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	selectedVoice := os.Getenv("STATIONOS_CHATTERBOX_TEST_VOICE")
+	if selectedVoice == "" {
+		selectedVoice = catalog.DefaultVoice
+	}
+	t.Log("Selected Chatterbox voice:", selectedVoice)
 	link := production.LinkRequest{Show: profile()}
 	link.Show.DJ.HasKey = false
+	link.Show.DJ.SpeechVoices = map[string]string{"nano": selectedVoice}
 	out, err := p.Link(context.Background(), link)
 	if err != nil {
 		t.Fatal(err)
@@ -144,4 +156,46 @@ func TestChatterboxLiveDJLink(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log("Playable StationOS DJ link:", path)
+}
+
+func TestSelectedDJVoiceReachesLinksAndShowPresentation(t *testing.T) {
+	for _, kind := range []string{"link", "presentation"} {
+		t.Run(kind, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var body map[string]string
+				if json.NewDecoder(r.Body).Decode(&body) != nil || body["voice"] != "warm" {
+					t.Error("DJ voice not forwarded", body)
+				}
+				w.Header().Set("Content-Type", "audio/wav")
+				w.Write(testWave())
+			}))
+			defer server.Close()
+			p := New(noKey{}, nil, &waveNormalizer{t: t})
+			p.Text = &localText{reply: "A short link."}
+			p.Speech = inference.New(speechStore{conn: ai.Connection{ID: "nano", Type: "chatterbox", Address: server.URL}}, nil)
+			show := profile()
+			show.DJ.HasKey = false
+			show.DJ.Voice = "onyx"
+			show.DJ.SpeechVoices = map[string]string{"nano": "warm", "other-server": "wrong"}
+			if kind == "link" {
+				if _, err := p.Link(context.Background(), production.LinkRequest{Show: show}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				p.Text = &localText{reply: `{"intro":"Welcome","outro":"Goodbye"}`}
+				if _, err := p.Prepare(context.Background(), show, schedule.Occurrence{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := 1
+			if kind == "presentation" {
+				want = 2
+			}
+			if calls != want {
+				t.Fatal(calls, want)
+			}
+		})
+	}
 }

@@ -674,3 +674,17 @@ when clearing a query; use the same HTMX results region as the search submission
 Table headings and ordinary metadata should wrap at spaces, without splitting
 words. Give metadata columns enough width and allow the table's own horizontal
 scroll on mobile. Keep fixed playlist column widths stable during row updates.
+
+
+### DJ speech provider voices
+
+With Chatterbox selected for Speech, DJ creation/editing shows a Chatterbox voice
+selector populated by the selected endpoint's catalogue, including Server default.
+Keep each DJ's choices separately for each Chatterbox connection, preserving its
+OpenAI voice when switching providers. Label retained speed/vibe controls as OpenAI
+settings. Failed discovery shows a local warning and retains the saved selection;
+a removed voice remains selected and labelled unavailable. Allow unrelated edits
+without forcing a replacement. Validate new selections against the active endpoint,
+retain input on errors, and reject a stale form if its speech provider changed.
+Discovery runs only when opening a DJ form or validating a selection, never through
+background polling and never by generating sample speech.

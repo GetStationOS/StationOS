@@ -91,6 +91,9 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe"), Background: r.PostForm.Get("background")}
+	if _, ok := r.PostForm["speech_voice"]; ok {
+		p.SpeechVoiceChange = &djs.VoiceSelection{Connection: r.PostForm.Get("speech_connection"), Voice: r.PostForm.Get("speech_voice")}
+	}
 	p.ConversationSpeed = djs.DefaultConversationSpeed
 	if p.ID != "" {
 		saved, err := s.d.DJs.Get(r.Context(), p.ID)
@@ -103,6 +106,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		p.PortraitURL = saved.PortraitURL
+		p.SpeechVoices = saved.SpeechVoices
 	}
 	photo, err := s.readDJPhoto(r)
 	p.Photo = photo
@@ -135,7 +139,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		} else {
-			_, err = (djs.Service{Repo: s.d.DJs}).Save(r.Context(), p, djs.KeyChange{})
+			_, err = (djs.Service{Repo: s.d.DJs, Voices: s.d.Voices}).Save(r.Context(), p, djs.KeyChange{})
 		}
 	}
 	if errors.Is(err, djs.ErrInvalid) {
@@ -213,6 +217,9 @@ func (s *Server) deleteDJ(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) renderDJPage(w http.ResponseWriter, r *http.Request, status int, v djPageView) {
+	if v.DJMode == "new" || v.DJMode == "edit" {
+		s.djSpeechView(r, &v)
+	}
 	name := "dj-form-page"
 	switch v.DJMode {
 	case "list":
@@ -252,4 +259,34 @@ func (s *Server) renderDJPhotoDraft(w http.ResponseWriter, r *http.Request, p dj
 		}
 	}
 	s.renderDJPage(w, r, http.StatusOK, v)
+}
+
+func (s *Server) djSpeechView(r *http.Request, v *djPageView) {
+	if s.d.Voices == nil {
+		return
+	}
+	catalog, err := s.d.Voices.Voices(r.Context())
+	if catalog.Provider != "chatterbox" {
+		return
+	}
+	v.ChatterboxVoice = true
+	v.SpeechCatalog = catalog
+	v.SpeechVoice = v.DJ.SpeechVoices[catalog.Connection]
+	if change := v.DJ.SpeechVoiceChange; change != nil && change.Connection == catalog.Connection {
+		v.SpeechVoice = change.Voice
+	}
+	if err != nil {
+		v.SpeechVoiceError = "Could not load Chatterbox voices. The saved choice is retained; retry by reopening this DJ."
+	}
+	if v.SpeechVoice != "" {
+		found := false
+		for _, voice := range catalog.Voices {
+			if voice.ID == v.SpeechVoice {
+				found = true
+			}
+		}
+		if !found {
+			v.SpeechCatalog.Voices = append(v.SpeechCatalog.Voices, djs.Voice{ID: v.SpeechVoice, Name: v.SpeechVoice + " (unavailable)"})
+		}
+	}
 }

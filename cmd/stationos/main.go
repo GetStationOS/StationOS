@@ -169,13 +169,13 @@ func run(args []string, logger *slog.Logger) error {
 	playlistsRepo := persistence.Playlists{DB: db}
 	images := producerAI.NewImages(sharedAI)
 	images.Prompts = promptStore
-	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Episodes: episodeService, Images: images, Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), textProviders)
+	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Voices: textProviders, Episodes: episodeService, Images: images, Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), textProviders)
 	if err != nil {
 		return err
 	}
 	defer assistant.Close()
 	assistant.Prompts = promptStore
-	handler, err := web.New(web.Dependencies{Episodes: episodeService, Changes: changes, Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
+	handler, err := web.New(web.Dependencies{Voices: textProviders, Episodes: episodeService, Changes: changes, Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
 	if err != nil {
 		return err
 	}

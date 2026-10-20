@@ -707,7 +707,7 @@ function providerAddressHelp(select, changed) {
  field.placeholder=defaults[select.value];
  if (changed && (!field.value || Object.values(defaults).includes(field.value)) && ['openai','anthropic','gemini','chatterbox'].includes(select.value)) field.value=defaults[select.value];
  const help=select.form.querySelector('[data-provider-address-help]');
- if (help) help.textContent=(select.value==='chatterbox'?'Use the Chatterbox base URL without /tts. Nano uses one default voice; no credential or token settings are needed. ':select.value==='ollama'?'Use the server address without /api. ':select.value==='compatible'?'Use the API base, usually ending /v1. ':'Use the provider API address shown above. ')+'The address must be reachable from StationOS. Localhost refers to its computer or container.';
+ if (help) help.textContent=(select.value==='chatterbox'?'Use the Chatterbox base URL without /tts. Voices are discovered on DJ profiles; no credential or token settings are needed. ':select.value==='ollama'?'Use the server address without /api. ':select.value==='compatible'?'Use the API base, usually ending /v1. ':'Use the provider API address shown above. ')+'The address must be reachable from StationOS. Localhost refers to its computer or container.';
 }
 document.addEventListener('change',event=>{if(event.target.matches('[data-provider-type]'))providerAddressHelp(event.target,true);});
 

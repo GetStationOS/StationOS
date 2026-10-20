@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/url"
 	"os"
@@ -88,14 +89,18 @@ func OpenDJs(ctx context.Context, db *sql.DB, path string) (DJs, error) {
 }
 func (r DJs) Get(ctx context.Context, id string) (djs.Profile, error) {
 	var p djs.Profile
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1) FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision)
+	var voices string
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1),speech_voices FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision, &voices)
+	if err == nil {
+		err = json.Unmarshal([]byte(voices), &p.SpeechVoices)
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		err = djs.ErrNotFound
 	}
 	return p, err
 }
 func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1) FROM djs ORDER BY name COLLATE NOCASE,id`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1),speech_voices FROM djs ORDER BY name COLLATE NOCASE,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +108,11 @@ func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
 	out := []djs.Profile{}
 	for rows.Next() {
 		var p djs.Profile
-		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision); err != nil {
+		var voices string
+		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision, &voices); err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal([]byte(voices), &p.SpeechVoices); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -134,7 +143,11 @@ func (r DJs) Save(ctx context.Context, p djs.Profile, k djs.KeyChange) error {
 			p.PortraitURL = "/djs/" + url.PathEscape(p.ID) + "/photo?v=" + hex.EncodeToString(hash[:])
 		}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO djs(id,name,voice,prompt,vibe,conversation_speed,background,portrait_url) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url`, p.ID, p.Name, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL)
+	voices := []byte("{}")
+	if p.SpeechVoices != nil {
+		voices, _ = json.Marshal(p.SpeechVoices)
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO djs(id,name,voice,prompt,vibe,conversation_speed,background,portrait_url,speech_voices) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url,speech_voices=CASE WHEN ? THEN excluded.speech_voices ELSE djs.speech_voices END`, p.ID, p.Name, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL, string(voices), p.SpeechVoices != nil)
 	if err != nil {
 		return err
 	}

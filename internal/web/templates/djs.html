@@ -74,17 +74,30 @@
     </fieldset>
     <fieldset class="dj-form-group">
       <legend>Voice</legend>
+      {{if .ChatterboxVoice}}
+      <input type="hidden" name="voice" value="{{.DJ.Voice}}">
+      <input type="hidden" name="speech_connection" value="{{.SpeechCatalog.Connection}}">
+      <label>Chatterbox voice<select name="speech_voice">
+          <option value="" {{if eq .SpeechVoice ""}}selected{{end}}>Server default</option>
+          {{range .SpeechCatalog.Voices}}
+          <option value="{{.ID}}" {{if eq .ID $.SpeechVoice}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+      </label>
+      {{if .SpeechVoiceError}}
+      <p class="notice warning" role="status">{{.SpeechVoiceError}}</p>{{end}}
+      <p class="hint">Voices come from the selected Chatterbox endpoint. Your OpenAI voice is retained. Speed and vibe below apply only to OpenAI.</p>
+      {{else}}
       <label>Voice<select name="voice" required>
           {{range .DJVoices}}
           <option value="{{.ID}}" {{if eq .ID $.DJ.Voice}}selected{{end}}>{{.Name}}</option>{{end}}</select>
       </label>
-      <label for="conversation-speed">Conversation speed</label>
+      {{end}}
+      <label for="conversation-speed">{{if .ChatterboxVoice}}OpenAI conversation speed{{else}}Conversation speed{{end}}</label>
       <div class="speed-control">
         <input id="conversation-speed" type="range" name="conversation_speed" min="0.25" max="4" step="0.05" value="{{.DJ.ConversationSpeed}}" aria-describedby="conversation-speed-help" data-conversation-speed>
         <output for="conversation-speed" data-speed-value>{{printf "%.2f" .DJ.ConversationSpeed}}×</output>
       </div>
       <p id="conversation-speed-help" class="hint">1.00× is normal. Applies to newly generated speech.</p>
-      <label>Vibe<textarea name="vibe" rows="4" maxlength="16000" placeholder="e.g. Warm, relaxed, conversational, with clear phrasing.">{{.DJ.Vibe}}</textarea>
+      <label>{{if .ChatterboxVoice}}OpenAI vibe{{else}}Vibe{{end}}<textarea name="vibe" rows="4" maxlength="16000" placeholder="e.g. Warm, relaxed, conversational, with clear phrasing.">{{.DJ.Vibe}}</textarea>
         <span class="hint">Voice direction, phrasing and tone.</span>
       </label>
     </fieldset>

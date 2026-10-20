@@ -43,6 +43,7 @@ type ImageGenerator interface {
 }
 
 type Dependencies struct {
+	Voices          djs.VoiceSource
 	Changes         *changefeed.Bus
 	Prompts         prompts.Store
 	Operations      operations.Store

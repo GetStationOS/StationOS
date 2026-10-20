@@ -51,7 +51,7 @@ func TestSynthesize(t *testing.T) {
 				w.Write(wave())
 			}))
 			defer server.Close()
-			audio, err := (Provider{HTTP: NewClient()}).Synthesize(context.Background(), ai.Connection{Address: server.URL + suffix}, "Hello, DJ 世界")
+			audio, err := (Provider{HTTP: NewClient()}).Synthesize(context.Background(), ai.Connection{Address: server.URL + suffix}, "Hello, DJ 世界", "")
 			if err != nil || !bytes.Equal(audio, wave()) {
 				t.Fatal(audio, err)
 			}
@@ -73,7 +73,7 @@ func TestInvalidResponses(t *testing.T) {
 				w.Write(tc.body)
 			}))
 			defer server.Close()
-			if _, err := (Provider{HTTP: NewClient()}).Synthesize(context.Background(), ai.Connection{Address: server.URL}, "Hello"); err == nil {
+			if _, err := (Provider{HTTP: NewClient()}).Synthesize(context.Background(), ai.Connection{Address: server.URL}, "Hello", ""); err == nil {
 				t.Fatal("bad audio accepted")
 			}
 		})
@@ -84,12 +84,12 @@ func TestTransportFailures(t *testing.T) {
 	address := server.URL
 	server.Close()
 	p := Provider{HTTP: NewClient()}
-	if _, err := p.Synthesize(context.Background(), ai.Connection{Address: address}, "Hello"); err == nil || !strings.Contains(err.Error(), "connection failed") {
+	if _, err := p.Synthesize(context.Background(), ai.Connection{Address: address}, "Hello", ""); err == nil || !strings.Contains(err.Error(), "connection failed") {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := p.Synthesize(ctx, ai.Connection{Address: address}, "Hello"); !errors.Is(err, context.Canceled) {
+	if _, err := p.Synthesize(ctx, ai.Connection{Address: address}, "Hello", ""); !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), time.Millisecond)
@@ -101,20 +101,20 @@ func TestTransportFailures(t *testing.T) {
 		}
 	}))
 	defer server.Close()
-	if _, err := p.Synthesize(ctx, ai.Connection{Address: server.URL}, "Hello"); !errors.Is(err, context.DeadlineExceeded) {
+	if _, err := p.Synthesize(ctx, ai.Connection{Address: server.URL}, "Hello", ""); !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatal(err)
 	}
-	if _, err := p.Synthesize(context.Background(), ai.Connection{Address: "://bad"}, "Hello"); err == nil {
+	if _, err := p.Synthesize(context.Background(), ai.Connection{Address: "://bad"}, "Hello", ""); err == nil {
 		t.Fatal("invalid URL accepted")
 	}
-	if _, err := p.Synthesize(context.Background(), ai.Connection{Address: address}, " "); err == nil {
+	if _, err := p.Synthesize(context.Background(), ai.Connection{Address: address}, " ", ""); err == nil {
 		t.Fatal("empty text accepted")
 	}
 }
 func TestRejectRedirect(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/elsewhere", 307) }))
 	defer server.Close()
-	if _, err := (Provider{HTTP: NewClient()}).Synthesize(context.Background(), ai.Connection{Address: server.URL}, "Hello"); err == nil {
+	if _, err := (Provider{HTTP: NewClient()}).Synthesize(context.Background(), ai.Connection{Address: server.URL}, "Hello", ""); err == nil {
 		t.Fatal("redirect followed")
 	}
 }

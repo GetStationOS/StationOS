@@ -146,14 +146,17 @@ type schedulePageView struct {
 }
 type djPageView struct {
 	pageView
-	DJ                           djs.Profile
-	DJCards                      []djCard
-	DJs                          []djs.Profile
-	DJVoices                     []djs.Voice
-	DJError, DJMode, ExampleVibe string
-	DJPhotoDraft                 string
-	DJPhotoGeneration            bool
-	AssistantSettings            producer.Settings
+	DJ                            djs.Profile
+	DJCards                       []djCard
+	DJs                           []djs.Profile
+	DJVoices                      []djs.Voice
+	SpeechCatalog                 djs.VoiceCatalog
+	SpeechVoice, SpeechVoiceError string
+	ChatterboxVoice               bool
+	DJError, DJMode, ExampleVibe  string
+	DJPhotoDraft                  string
+	DJPhotoGeneration             bool
+	AssistantSettings             producer.Settings
 }
 type mixerPageView struct {
 	pageView

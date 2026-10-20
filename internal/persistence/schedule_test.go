@@ -39,11 +39,12 @@ func TestScheduleOwnershipOverlapAndDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 	profile.ConversationSpeed = 1.15
+	profile.SpeechVoices = map[string]string{"nano": "warm"}
 	if err = dj.Save(ctx, profile, djs.KeyChange{}); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := repo.Get(ctx, "s", "show")
-	if err != nil || loaded.DJ.ConversationSpeed != 1.15 || loaded.Description != show.Description {
+	if err != nil || loaded.DJ.ConversationSpeed != 1.15 || loaded.DJ.SpeechVoices["nano"] != "warm" || loaded.Description != show.Description {
 		t.Fatal("scheduled DJ lost speed", loaded.DJ, err)
 	}
 	wrong := show

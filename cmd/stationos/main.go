@@ -140,12 +140,15 @@ func run(args []string, logger *slog.Logger) error {
 		return err
 	}
 	textProviders := inference.New(sharedAI, producerAI.New())
+	textProviders.Chatterbox.Logger = logger
 	textProviders.Conversations = persistence.Conversations{DB: db}
 	presenter := ai.New(persistence.ProducerKeys{Producer: sharedAI}, persistence.PresenterAssets{DB: db}, production.FFmpeg{Path: ffmpeg})
 	promptStore := persistence.Prompts{DB: db}
 	presenter.Prompts = promptStore
 	presenter.Models = sharedAI
 	presenter.Text = textProviders
+	textProviders.OpenAISpeech = presenter
+	presenter.Speech = textProviders
 	episodeStore := persistence.Episodes{DB: db, Changes: changes}
 	episodeService := &episodes.Service{Store: episodeStore, Pool: config, Text: textProviders, Fallback: presenter, Prompts: promptStore}
 	episodeService.ReportPlanning = func(o schedule.Occurrence, planningErr error) {

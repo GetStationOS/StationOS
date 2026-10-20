@@ -701,13 +701,13 @@ for (const eventName of ['htmx:responseError', 'htmx:sendError', 'htmx:timeout']
 
 // Provider changes offer a matching address while preserving custom server values.
 function providerAddressHelp(select, changed) {
- const defaults={ollama:'http://your-server:11434',compatible:'https://your-provider/v1',openai:'https://api.openai.com/v1',anthropic:'https://api.anthropic.com/v1',gemini:'https://generativelanguage.googleapis.com/v1beta'};
+ const defaults={chatterbox:'http://127.0.0.1:8000',ollama:'http://your-server:11434',compatible:'https://your-provider/v1',openai:'https://api.openai.com/v1',anthropic:'https://api.anthropic.com/v1',gemini:'https://generativelanguage.googleapis.com/v1beta'};
  const field=select.form?.querySelector('[name="address"]');
  if (!field) return;
  field.placeholder=defaults[select.value];
- if (changed && (!field.value || Object.values(defaults).includes(field.value)) && ['openai','anthropic','gemini'].includes(select.value)) field.value=defaults[select.value];
+ if (changed && (!field.value || Object.values(defaults).includes(field.value)) && ['openai','anthropic','gemini','chatterbox'].includes(select.value)) field.value=defaults[select.value];
  const help=select.form.querySelector('[data-provider-address-help]');
- if (help) help.textContent=(select.value==='ollama'?'Use the server address without /api. ':select.value==='compatible'?'Use the API base, usually ending /v1. ':'Use the provider API address shown above. ')+'The address must be reachable from StationOS. Localhost refers to its computer or container.';
+ if (help) help.textContent=(select.value==='chatterbox'?'Use the Chatterbox base URL without /tts. Nano uses one default voice; no credential or token settings are needed. ':select.value==='ollama'?'Use the server address without /api. ':select.value==='compatible'?'Use the API base, usually ending /v1. ':'Use the provider API address shown above. ')+'The address must be reachable from StationOS. Localhost refers to its computer or container.';
 }
 document.addEventListener('change',event=>{if(event.target.matches('[data-provider-type]'))providerAddressHelp(event.target,true);});
 
@@ -721,6 +721,8 @@ function discoverFeatureModels() {
  const requests=new Map();
  document.querySelectorAll('[data-feature-provider]').forEach(select=>{
   const id=select.value, role=select.dataset.featureProvider;
+  const nano=select.selectedOptions[0]?.dataset.providerKind==='chatterbox';
+  if(nano){const model=document.querySelector('[data-feature-model="'+role+'"]');if(model)model.value='chatterbox-nano';}
   const list=document.getElementById('models-'+role);
   const status=document.querySelector('[data-feature-model-status="'+role+'"]');
   if (!list || !status) return;

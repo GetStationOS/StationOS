@@ -135,8 +135,11 @@ func (p Producer) validateRoutes(ctx context.Context, r ai.Routes) error {
 		if err != nil {
 			return err
 		}
-		if (role == "speech" || role == "image") && c.Type != "openai" {
-			return errors.New("Speech and artwork currently require an OpenAI connection")
+		if role == "speech" && c.Type != "openai" && c.Type != "chatterbox" {
+			return errors.New("Speech requires an OpenAI or Chatterbox connection")
+		}
+		if (role != "speech" && c.Type == "chatterbox") || (role == "image" && c.Type != "openai") {
+			return errors.New("Chatterbox supports speech only; artwork requires OpenAI")
 		}
 
 	}
@@ -144,5 +147,5 @@ func (p Producer) validateRoutes(ctx context.Context, r ai.Routes) error {
 }
 
 // Queries return only configuration readiness, never credentials or inferred health.
-const speechReadySQL = `(CASE WHEN COALESCE(json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Speech.Connection'),'') IN ('','openai') THEN (SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) ELSE COALESCE((SELECT length(api_key_cipher)>0 FROM ai_connections WHERE id=json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Speech.Connection')),0) END)`
+const speechReadySQL = `(CASE WHEN COALESCE(json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Speech.Connection'),'') IN ('','openai') THEN (SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) ELSE COALESCE((SELECT provider_type='chatterbox' OR length(api_key_cipher)>0 FROM ai_connections WHERE id=json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Speech.Connection')),0) END)`
 const textReadySQL = `(CASE WHEN COALESCE(json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Curation.Connection'),'') IN ('','openai') THEN (SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) ELSE COALESCE((SELECT provider_type!='openai' OR length(api_key_cipher)>0 FROM ai_connections WHERE id=json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Curation.Connection')),0) END)`

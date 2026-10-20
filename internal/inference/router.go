@@ -12,19 +12,22 @@ import (
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/production/chatterbox"
 )
 
 type Router struct {
+	Chatterbox    chatterbox.Provider
 	Conversations ai.ConversationStore
 	sessionMu     sync.Mutex
 	sessionLocks  map[string]*conversationLock
 	Store         ai.Store
+	OpenAISpeech  production.SpeechGenerator
 	OpenAI        producer.Model
 	Local         *Client
 }
 
 func New(store ai.Store, cloud producer.Model) *Router {
-	return &Router{Store: store, OpenAI: cloud, Local: NewClient()}
+	return &Router{Store: store, OpenAI: cloud, Local: NewClient(), Chatterbox: chatterbox.Provider{HTTP: chatterbox.NewClient()}}
 }
 func (r *Router) selection(ctx context.Context, role string) (ai.Selection, ai.Connection, string, error) {
 	routes, err := r.routes(ctx)
@@ -104,6 +107,11 @@ func (r *Router) Identity(ctx context.Context, role string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Keep existing OpenAI presentation cache identities unchanged. Configuration
+	// revisions already invalidate them; additional providers need source identity.
+	if role == "speech" && c.Type == "openai" {
+		return "", nil
+	}
 	b, _ := json.Marshal(struct {
 		S ai.Selection
 		C ai.Connection
@@ -157,6 +165,9 @@ func (r *Router) Budget(ctx context.Context, role string) (time.Duration, error)
 	c, err := r.Store.Connection(ctx, routes.For(role).Connection)
 	if err != nil {
 		return 0, err
+	}
+	if role == "speech" && c.Type == "chatterbox" {
+		return c.RequestTimeout(), nil
 	}
 	if c.Type == "openai" || role == "assistant" {
 		return 0, nil

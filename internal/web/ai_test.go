@@ -257,3 +257,27 @@ func TestOpenAIKeySaveShowsSafeDiscoveryFailuresAndPreservesStoredKey(t *testing
 		})
 	}
 }
+
+func TestChatterboxEndpointAndSpeechOnlySelection(t *testing.T) {
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" || r.URL.Path != "/health" {
+			t.Error("endpoint save generated speech", r.Method, r.URL.Path)
+		}
+		w.Write([]byte(`{"status":"ok","model":"chatterbox-nano","device":"cpu"}`))
+	}))
+	defer provider.Close()
+	h, _, _ := setupAssistant(t, "", &assistantModel{})
+	form := url.Values{"csrf": {csrf(t, h)}, "connection_action": {"save"}, "connection_name": {"Nano"}, "connection_id": {"nano"}, "provider_type": {"chatterbox"}, "address": {provider.URL}, "context_tokens": {"16384"}, "output_tokens": {"2048"}}
+	w := request(h, "POST", "/producer/assistant/endpoints", form, nil)
+	if w.Code != 303 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	w = request(h, "GET", "/producer/assistant/settings", nil, nil)
+	body := w.Body.String()
+	if strings.Count(body, `value="nano"`) != 1 || !strings.Contains(body, `data-provider-kind="chatterbox"`) {
+		t.Fatal("Nano must be offered only for speech", body)
+	}
+	if !strings.Contains(body, "DJ voice, vibe and speed settings apply to OpenAI only") {
+		t.Fatal("default voice capabilities missing")
+	}
+}

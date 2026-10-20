@@ -9,6 +9,7 @@ import (
 
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/producer"
+	"stationos.local/stationos/internal/production/chatterbox"
 )
 
 type Check struct {
@@ -23,6 +24,17 @@ func (c *Client) Check(parent context.Context, conn ai.Connection, key, model st
 	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()
 	var out Check
+	if conn.Type == "chatterbox" {
+		raw, err := c.request(ctx, conn, "", "GET", "/health", nil)
+		if err != nil {
+			return out, err
+		}
+		var health struct{ Status, Model string }
+		if json.Unmarshal(raw, &health) != nil || health.Status != "ok" || health.Model != chatterbox.Model {
+			return out, errors.New("Chatterbox health did not report a ready Nano model")
+		}
+		return Check{Reachable: true, ModelAvailable: model == "" || model == chatterbox.Model, Models: []string{chatterbox.Model}, Message: "Chatterbox Nano is ready. One default voice; no text or tool capabilities."}, nil
+	}
 	path := "/models"
 	if conn.Type == "gemini" {
 		path = "/models?pageSize=200"

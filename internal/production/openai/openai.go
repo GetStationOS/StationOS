@@ -22,6 +22,7 @@ import (
 )
 
 type Producer struct {
+	Speech  production.Speech
 	Session production.EditorialSession
 	Prompts prompts.Store
 	Text    ai.Text
@@ -128,10 +129,10 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil {
 		return production.Prepared{}, err
 	}
-	ctx, cancel := context.WithTimeout(parent, budget+production.Timeout)
+	ctx, cancel := context.WithTimeout(parent, budget+p.speechBudget(parent))
 	defer cancel()
 	key, err := p.Keys.APIKey(ctx, show.DJ.ID)
-	if err != nil || key == "" {
+	if err != nil || (key == "" && p.Speech == nil) {
 		production.ReportInference(ctx, "Spoken links are unavailable because the selected speech connection has no key.")
 		return production.Prepared{}, production.ErrUnavailable
 	}
@@ -155,7 +156,14 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		return production.Prepared{}, err
 	}
 	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + show.DJ.Prompt, background, speechContinuityInstructions}, "\n\n")
-	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+instructions)
+	speechIdentity := ""
+	if p.Speech != nil {
+		speechIdentity, err = p.Speech.Identity(ctx, "speech")
+		if err != nil {
+			return production.Prepared{}, err
+		}
+	}
+	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+speechIdentity+instructions)
 	if p.Store != nil {
 		if prepared, err := p.Store.Get(ctx, cacheKey); err == nil && production.ValidatePresentation(prepared.Plan) == nil {
 			if p.Session != nil {
@@ -182,7 +190,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		if strings.TrimSpace(text) == "" {
 			return nil, nil
 		}
-		raw, err := p.call(ctx, "audio/speech", key, map[string]any{"model": speechModel, "voice": show.DJ.Voice, "input": text, "instructions": show.DJ.Vibe, "speed": show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
+		raw, err := p.synthesize(ctx, production.SpeechRequest{Text: text, Model: speechModel, Voice: show.DJ.Voice, Direction: show.DJ.Vibe, Speed: show.DJ.ConversationSpeed})
 		if err != nil {
 			return nil, err
 		}
@@ -230,10 +238,10 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
-	ctx, cancel := context.WithTimeout(parent, budget+production.Timeout)
+	ctx, cancel := context.WithTimeout(parent, budget+p.speechBudget(parent))
 	defer cancel()
 	key, err := p.Keys.APIKey(ctx, link.Show.DJ.ID)
-	if err != nil || key == "" {
+	if err != nil || (key == "" && p.Speech == nil) {
 		production.ReportInference(ctx, "Spoken links are unavailable because the selected speech connection has no key.")
 		return nil, nil, production.ErrUnavailable
 	}
@@ -366,7 +374,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if len(spoken) == 0 || len(spoken) > maxSpeechBytes {
 		return nil, nil, errors.New("presenter link exceeds limits")
 	}
-	raw, err = p.call(ctx, "audio/speech", key, map[string]any{"model": speechModel, "voice": link.Show.DJ.Voice, "input": spoken, "instructions": link.Show.DJ.Vibe, "speed": link.Show.DJ.ConversationSpeed, "response_format": "mp3"}, 1<<20)
+	raw, err = p.synthesize(ctx, production.SpeechRequest{Text: spoken, Model: speechModel, Voice: link.Show.DJ.Voice, Direction: link.Show.DJ.Vibe, Speed: link.Show.DJ.ConversationSpeed})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -492,4 +500,31 @@ func (p Producer) episodeContext(ctx context.Context, o schedule.Occurrence) str
 		return "Episode context unavailable; do not claim earlier tracks aired."
 	}
 	return value
+}
+
+func (p Producer) synthesize(ctx context.Context, q production.SpeechRequest) ([]byte, error) {
+	if p.Speech != nil {
+		return p.Speech.Synthesize(ctx, q)
+	}
+	return p.Synthesize(ctx, q)
+}
+
+// Synthesize retains the existing OpenAI transport and retry behaviour.
+func (p Producer) Synthesize(ctx context.Context, q production.SpeechRequest) ([]byte, error) {
+	key, err := p.Keys.APIKey(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	if key == "" {
+		return nil, production.ErrUnavailable
+	}
+	return p.call(ctx, "audio/speech", key, map[string]any{"model": q.Model, "voice": q.Voice, "input": q.Text, "instructions": q.Direction, "speed": q.Speed, "response_format": "mp3"}, 1<<20)
+}
+func (p Producer) speechBudget(ctx context.Context) time.Duration {
+	if p.Speech != nil {
+		if budget, err := p.Speech.Budget(ctx, "speech"); err == nil && budget > 0 {
+			return 2*budget + 40*time.Second
+		}
+	}
+	return production.Timeout
 }

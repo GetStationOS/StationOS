@@ -154,3 +154,18 @@ type SelectionPlay struct {
 type TrackEligibility interface {
 	EligibleTracks(context.Context, schedule.Occurrence, time.Time, []SelectionPlay) ([]content.AudioItem, error)
 }
+
+// Speech returns source audio for the existing presenter normalizer.
+// Voice, direction and speed are provider capabilities; Nano uses its default voice.
+type SpeechRequest struct {
+	Text, Model, Voice, Direction string
+	Speed                         float64
+}
+type SpeechGenerator interface {
+	Synthesize(context.Context, SpeechRequest) ([]byte, error)
+}
+type Speech interface {
+	SpeechGenerator
+	Identity(context.Context, string) (string, error)
+	Budget(context.Context, string) (time.Duration, error)
+}

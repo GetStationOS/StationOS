@@ -3,6 +3,7 @@ package production
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
@@ -73,5 +74,30 @@ func TestSpeechEdgeSilenceRemovedButInternalPausePreserved(t *testing.T) {
 	}
 	if float64(first)/44100 > 0.1 {
 		t.Fatal("speech still begins with silence")
+	}
+}
+
+func TestPresenterWAVUsesExistingMP3Normalizer(t *testing.T) {
+	path, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	// A file output gives a finite RIFF size, matching Chatterbox's response.
+	file := t.TempDir() + "/speech.wav"
+	if out, err := exec.Command(path, "-v", "error", "-f", "lavfi", "-i", "sine=frequency=500:duration=2", "-ar", "24000", file).CombinedOutput(); err != nil {
+		t.Fatal(string(out), err)
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	audio, err := (FFmpeg{Path: path}).MP3(context.Background(), raw)
+	if err != nil || len(audio) < 10000 {
+		t.Fatal(len(audio), err)
+	}
+	decode := exec.Command(path, "-v", "error", "-f", "mp3", "-i", "pipe:0", "-f", "s16le", "pipe:1")
+	decode.Stdin = bytes.NewReader(audio)
+	if pcm, err := decode.Output(); err != nil || len(pcm) < 44100*2*2 {
+		t.Fatal("WAV presenter MP3 cannot play", len(pcm), err)
 	}
 }

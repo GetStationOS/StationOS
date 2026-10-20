@@ -117,7 +117,7 @@ func (c Connection) Validate() error {
 	if !regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`).MatchString(c.ID) || strings.TrimSpace(c.Name) == "" || len(c.Name) > 120 {
 		return errors.New("Enter a connection name")
 	}
-	if c.Type != "openai" && c.Type != "ollama" && c.Type != "compatible" && c.Type != "anthropic" && c.Type != "gemini" {
+	if c.Type != "openai" && c.Type != "ollama" && c.Type != "compatible" && c.Type != "anthropic" && c.Type != "gemini" && c.Type != "chatterbox" {
 		return errors.New("Choose a supported provider type")
 	}
 	u, err := url.Parse(c.Address)

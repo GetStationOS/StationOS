@@ -112,3 +112,60 @@ func TestProviderRouteValidationAndSpeechIsolation(t *testing.T) {
 		t.Fatal("saved missing provider")
 	}
 }
+
+func TestChatterboxSpeechRouteAndReadinessWithoutKey(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	d, _ := NewDJs(db, make([]byte, 32))
+	p := NewProducer(d)
+	c := ai.Connection{ID: "nano", Name: "Chatterbox", Type: "chatterbox", Address: "http://chatterbox:8000/", ContextTokens: 8192, OutputTokens: 2048}
+	if err = p.SaveConnection(ctx, c, ai.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := p.Connection(ctx, "nano")
+	if err != nil || saved.Address != "http://chatterbox:8000" || saved.HasKey {
+		t.Fatal(saved, err)
+	}
+	settings, _ := p.Settings(ctx)
+	settings.Routes.Speech.Connection = "nano"
+	if err = p.Configure(ctx, settings, producer.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	var ready bool
+	if err = db.QueryRow("SELECT " + speechReadySQL).Scan(&ready); err != nil || !ready {
+		t.Fatal("Nano requires no key", ready, err)
+	}
+	for _, role := range []string{"assistant", "curation", "audience", "image"} {
+		bad := settings
+		switch role {
+		case "assistant":
+			bad.Routes.Assistant.Connection = "nano"
+		case "curation":
+			bad.Routes.Curation.Connection = "nano"
+		case "audience":
+			bad.Routes.Audience.Connection = "nano"
+		case "image":
+			bad.Routes.Image.Connection = "nano"
+		}
+		if err = p.Configure(ctx, bad, producer.KeyChange{}); err == nil {
+			t.Fatal("speech-only provider accepted for", role)
+		}
+	}
+	settings.Routes.Speech.Connection = "openai"
+	if err = p.Configure(ctx, settings, producer.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.QueryRow("SELECT " + speechReadySQL).Scan(&ready); err != nil || ready {
+		t.Fatal("OpenAI readiness changed", ready, err)
+	}
+	if err = p.Configure(ctx, settings, producer.KeyChange{Value: "keep-openai"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.QueryRow("SELECT " + speechReadySQL).Scan(&ready); err != nil || !ready {
+		t.Fatal(ready, err)
+	}
+}

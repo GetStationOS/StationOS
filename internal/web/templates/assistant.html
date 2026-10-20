@@ -140,7 +140,7 @@
         <a href="/producer/assistant/endpoints?connection={{.ID}}">{{.Name}}</a>
       </h2>
       <span>
-        {{if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span>
+        {{if eq .Type "chatterbox"}}Chatterbox Nano{{else if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span>
     </div>
     <a class="button secondary" href="/producer/assistant/endpoints?connection={{.ID}}">Manage endpoint</a>
   </article>{{end}}
@@ -156,15 +156,16 @@
 <fieldset class="dj-form-group">
   <legend>{{.Label}}</legend>
   <label>{{.Label}} provider<select name="{{.Name}}_connection" data-feature-provider="{{.Name}}">
-      {{range $.AIConnections}}{{if or $role.Text (eq .Type "openai")}}
-      <option value="{{.ID}}" {{if or (eq .ID $role.Connection) (and (eq .ID "openai") (eq $role.Connection ""))}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}</select>
+      {{range $.AIConnections}}{{if or (and $role.Text (ne .Type "chatterbox")) (eq .Type "openai") (and (eq $role.Name "speech") (eq .Type "chatterbox"))}}
+      <option value="{{.ID}}" data-provider-kind="{{.Type}}" {{if or (eq .ID $role.Connection) (and (eq .ID "openai") (eq $role.Connection ""))}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}</select>
   </label>
   <label data-model-picker="{{.Name}}" hidden>Model<select data-model-choice="{{.Name}}">
     </select>
   </label>
   <label data-model-manual="{{.Name}}">Model ID<input name="{{.ModelField}}" data-feature-model="{{.Name}}" list="models-{{.Name}}" value="{{.Model}}" required maxlength="128">
-    <span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} This provider and model plan episodes, select tracks and write DJ links for all shows and DJs. Speech uses the separate setting below.{{else if or (eq .Name "speech") (eq .Name "image")}} Requires an OpenAI endpoint.{{end}}</span>
+    <span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} This provider and model plan episodes, select tracks and write DJ links for all shows and DJs. Speech uses the separate setting below.{{else if eq .Name "speech"}} OpenAI or Chatterbox.{{else if eq .Name "image"}} Requires an OpenAI endpoint.{{end}}</span>
   </label>
+  {{if eq .Name "speech"}}<p class="hint">Chatterbox uses chatterbox-nano and one default voice. DJ voice, vibe and speed settings apply to OpenAI only.</p>{{end}}
   <datalist id="models-{{.Name}}">
   </datalist>
   <p class="hint" role="status" data-feature-model-status="{{.Name}}">
@@ -182,6 +183,7 @@
   <label>Name<input name="connection_name" required maxlength="120" value="{{.AIConnection.Name}}">
   </label>
   <label>Provider<select name="provider_type" data-provider-type>
+      <option value="chatterbox" {{if eq .AIConnection.Type "chatterbox"}}selected{{end}}>Chatterbox Nano (speech)</option>
       <option value="ollama" {{if eq .AIConnection.Type "ollama"}}selected{{end}}>Ollama</option>
       <option value="compatible" {{if eq .AIConnection.Type "compatible"}}selected{{end}}>OpenAI-compatible chat completions</option>
       <option value="anthropic" {{if eq .AIConnection.Type "anthropic"}}selected{{end}}>Anthropic</option>
@@ -189,7 +191,7 @@
       <option value="openai" {{if eq .AIConnection.Type "openai"}}selected{{end}}>OpenAI</option>
     </select>
   </label>
-  <label>Server address<input name="address" type="url" required maxlength="2048" value="{{.AIConnection.Address}}" placeholder="{{if eq .AIConnection.Type "anthropic"}}https://api.anthropic.com/v1{{else if eq .AIConnection.Type "gemini"}}https://generativelanguage.googleapis.com/v1beta{{else if eq .AIConnection.Type "openai"}}https://api.openai.com/v1{{else if eq .AIConnection.Type "compatible"}}https://your-provider/v1{{else}}http://your-server:11434{{end}}">
+  <label>Server address<input name="address" type="url" required maxlength="2048" value="{{.AIConnection.Address}}" placeholder="{{if eq .AIConnection.Type "chatterbox"}}http://127.0.0.1:8000{{else if eq .AIConnection.Type "anthropic"}}https://api.anthropic.com/v1{{else if eq .AIConnection.Type "gemini"}}https://generativelanguage.googleapis.com/v1beta{{else if eq .AIConnection.Type "openai"}}https://api.openai.com/v1{{else if eq .AIConnection.Type "compatible"}}https://your-provider/v1{{else}}http://your-server:11434{{end}}">
     <span class="hint" data-provider-address-help>Enter an address reachable from the computer running StationOS. For Ollama, use the server address without /api; for compatible services, use the API base (usually ending /v1). Localhost refers to StationOS's computer or container.</span>
   </label>
   <label>Optional credential<input name="credential" type="password" maxlength="4096" autocomplete="new-password">

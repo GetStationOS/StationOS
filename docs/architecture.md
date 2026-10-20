@@ -829,3 +829,14 @@ the last playable pool, identify it as continuous music and record the failure. 
 no alternative eligible recording, reserve the current playable recording again rather
 than publishing music with an empty next slot. This cannot recover inaccessible audio
 sources or a failed database; those failures remain visible.
+
+
+Between-track speech receives an explicit playout sequence. A handover signs off
+the outgoing presenter before the incoming introduction and recording; incoming
+track introductions belong to the incoming DJ. This playback contract accompanies
+saved custom prompts as well as defaults. Episode checkpoints retain the last six
+actually aired speech segments independently of bounded planning turns, so planning
+activity cannot erase recent wording/credit context. Prepared speech is distinct
+from aired speech; continuity instructions avoid repeating phrases and metadata
+credits without inventing new facts. Older checkpoints seed this memory from their
+existing aired-speech turns, and new dated episodes start with fresh speech memory.

@@ -153,7 +153,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil {
 		return production.Prepared{}, err
 	}
-	instructions := basePrompt + "DJ prompt:\n" + show.DJ.Prompt + background
+	instructions := basePrompt + "DJ prompt:\n" + show.DJ.Prompt + background + speechContinuityInstructions
 	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+instructions)
 	if p.Store != nil {
 		if prepared, err := p.Store.Get(ctx, cacheKey); err == nil && production.ValidatePresentation(prepared.Plan) == nil {
@@ -240,7 +240,16 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
-	rawInput, _ := json.Marshal(map[string]any{"episode_session": p.episodeContext(ctx, link.Show), "musical_direction": link.Show.MusicDirection, "show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background, "following_show": link.Following.Title, "following_dj": link.Following.DJ.Name, "current": songDetails(link.Current), "next": songDetails(link.Next), "next_track_id": link.Next.ID, "handover": link.Handover, "remaining_seconds": link.RemainingSeconds, "audience": link.Audience})
+	sequence := []string{"spoken_link", "next_recording"}
+	nextPresenter := link.Show.DJ.Name
+	if link.Handover {
+		sequence = []string{"outgoing_signoff", "incoming_show_introduction", "next_recording"}
+		nextPresenter = link.Following.DJ.Name
+		if link.Following.DJ.ID == "" {
+			sequence = []string{"outgoing_signoff", "continuous_music"}
+		}
+	}
+	rawInput, _ := json.Marshal(map[string]any{"playout_sequence": sequence, "next_recording_presenter": nextPresenter, "episode_session": p.episodeContext(ctx, link.Show), "musical_direction": link.Show.MusicDirection, "show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background, "following_show": link.Following.Title, "following_dj": link.Following.DJ.Name, "current": songDetails(link.Current), "next": songDetails(link.Next), "next_track_id": link.Next.ID, "handover": link.Handover, "remaining_seconds": link.RemainingSeconds, "audience": link.Audience})
 	basePrompt, err := prompts.Load(ctx, p.Prompts, "link")
 	if err != nil {
 		return nil, nil, err
@@ -249,7 +258,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
-	instructions := basePrompt + "DJ prompt:\n" + link.Show.DJ.Prompt + background
+	instructions := basePrompt + "DJ prompt:\n" + link.Show.DJ.Prompt + background + speechContinuityInstructions + handoverPlaybackInstructions
 	body := map[string]any{"model": link.Show.DJ.Model, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
 	if len(link.Audience) > 0 {
 		audiencePrompt, err := prompts.Load(ctx, p.Prompts, "audience-link")

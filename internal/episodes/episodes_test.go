@@ -735,8 +735,14 @@ func (g upcomingGate) EligibleTracks(context.Context, schedule.Occurrence, time.
 func (g upcomingGate) CanPrepareEpisode(o schedule.Occurrence) bool { return o.ShowID == g.next }
 func TestWorkerPreparesOnlyImmediateUpcomingShow(t *testing.T) {
 	ctx := context.Background()
-	now := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
-	shows := scheduleStub{values: []schedule.Show{{ID: "current", StationID: "station", Day: 1, Start: 480, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}, {ID: "next", StationID: "station", Day: 1, Start: 600, End: 660, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}, {ID: "later", StationID: "station", Day: 1, Start: 660, End: 720, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}}}
+	now := time.Now().UTC()
+	shows := scheduleStub{}
+	for i, id := range []string{"current", "next", "later"} {
+		start := now.Truncate(time.Hour).Add(time.Duration(i) * time.Hour)
+		end := start.Add(time.Hour)
+		shows.values = append(shows.values, schedule.Show{ID: id, StationID: "station", Day: (int(start.Weekday()) + 6) % 7, Start: start.Hour() * 60, End: end.Hour() * 60, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}})
+	}
+
 	stations := stationStub{values: []station.Station{{ID: "station", Timezone: "UTC"}}}
 	store := &memoryStore{}
 	pool := poolStub{recording("a", 60), recording("b", 60), recording("c", 60)}
@@ -931,5 +937,68 @@ func TestColdStartReceiptIsAutomaticWhenNoSavedChoiceExists(t *testing.T) {
 	e, _ := store.Get(ctx, o.Key)
 	if e.Aired[0].SelectionSource != "automatic" {
 		t.Fatal(e.Aired)
+	}
+}
+
+func TestRecentAiredSpeechSurvivesPlanningNoiseAndStaysEpisodeScoped(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	service := &Service{Store: store}
+	cue := content.AudioItem{Kind: content.PresenterLink}
+	for i := 0; i < 8; i++ {
+		if err := service.Aired(ctx, o, cue, fmt.Sprintf("Heard link %d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 50; i++ {
+		service.Remember(ctx, o, "DJ planning", "planning noise")
+	}
+	service.Remember(ctx, o, "prepared speech (not yet aired)", "Unheard speech")
+	raw, err := service.Context(ctx, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state struct {
+		Speech []string `json:"recent_aired_speech"`
+	}
+	if err := json.Unmarshal([]byte(raw), &state); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.Speech) != 6 || state.Speech[0] != "Heard link 2" || state.Speech[5] != "Heard link 7" {
+		t.Fatal("aired memory lost to planning or unplayed speech", state.Speech)
+	}
+	other := o
+	other.Key = "different-episode"
+	other.Start = other.Start.AddDate(0, 0, 7)
+	other.End = other.End.AddDate(0, 0, 7)
+	if err := service.Begin(ctx, other); err != nil {
+		t.Fatal(err)
+	}
+	next, _ := service.Context(ctx, other)
+	if strings.Contains(next, "Heard link") {
+		t.Fatal("speech leaked between episodes", next)
+	}
+}
+func TestLegacyAiredSpeechSeedsEditorialContext(t *testing.T) {
+	state := modelCheckpoint(Episode{Turns: []Turn{{Kind: "prepared speech (not yet aired)", Text: "Not heard"}, {Kind: "aired speech", Text: "Already credited this composer"}}})
+	speech := state["recent_aired_speech"].([]string)
+	if len(speech) != 1 || speech[0] != "Already credited this composer" {
+		t.Fatal(speech)
+	}
+}
+
+func TestLegacySpeechMemoryIsPreservedWhenNewSpeechAirs(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	store.Update(ctx, o, func(e *Episode) error { e.Note("aired speech", "Old heard link"); return nil })
+	service := &Service{Store: store}
+	if err := service.Aired(ctx, o, content.AudioItem{Kind: content.PresenterLink}, "New heard link"); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if len(e.RecentSpeech) != 2 || e.RecentSpeech[0] != "Old heard link" || e.RecentSpeech[1] != "New heard link" {
+		t.Fatal(e.RecentSpeech)
 	}
 }

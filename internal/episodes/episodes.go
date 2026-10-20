@@ -45,6 +45,7 @@ type Episode struct {
 	Excluded                         []string
 	Aired                            []Track
 	Turns                            []Turn
+	RecentSpeech                     []string
 	Version                          int
 	EditorialRevision, AiredRevision int
 	PlanningFailed                   bool
@@ -207,7 +208,19 @@ func (s *Service) Aired(ctx context.Context, o schedule.Occurrence, a content.Au
 	}
 	return s.Store.Update(ctx, o, func(e *Episode) error {
 		if a.Kind == content.PresenterLink {
+			if len(e.RecentSpeech) == 0 {
+				for _, turn := range e.Turns {
+					if turn.Kind == "aired speech" && strings.TrimSpace(turn.Text) != "" {
+						e.RecentSpeech = append(e.RecentSpeech, turn.Text)
+					}
+				}
+			}
 			e.Note("aired speech", text)
+			heard := []rune(strings.TrimSpace(text))
+			if len(heard) > 0 {
+				e.RecentSpeech = append(e.RecentSpeech, string(heard[:min(len(heard), 1000)]))
+				e.RecentSpeech = e.RecentSpeech[max(0, len(e.RecentSpeech)-6):]
+			}
 			return nil
 		}
 		aired := Snapshot(a)
@@ -946,10 +959,19 @@ func (s *Service) Remember(ctx context.Context, o schedule.Occurrence, kind, tex
 // Retain the authoritative plan and constraints; bound conversational replay.
 // Full records remain in the durable episode, including all actual-play receipts.
 func modelCheckpoint(e Episode) map[string]any {
+	recentSpeech := e.RecentSpeech
+	if len(recentSpeech) == 0 {
+		for _, turn := range e.Turns {
+			if turn.Kind == "aired speech" && strings.TrimSpace(turn.Text) != "" {
+				recentSpeech = append(recentSpeech, turn.Text)
+			}
+		}
+	}
+	recentSpeech = recentSpeech[max(0, len(recentSpeech)-6):]
 	turns := []Turn{}
 	for _, t := range e.Turns {
 		switch t.Kind {
-		case "DJ planning", "playlist search", "planning attempt", "plan validation":
+		case "DJ planning", "playlist search", "planning attempt", "plan validation", "aired speech":
 			continue
 		}
 		turns = append(turns, t)
@@ -960,7 +982,7 @@ func modelCheckpoint(e Episode) map[string]any {
 	for _, a := range e.Aired {
 		played = append(played, a.ID)
 	}
-	return map[string]any{"Key": e.Key, "Theme": e.Theme, "RepetitionReason": e.RepetitionReason, "Notes": e.Notes, "Plan": e.Plan, "current_or_prepared_music": e.QueueCurrent, "Excluded": e.Excluded, "Aired": recent, "AiredIDs": played, "recent_session_turns": turns}
+	return map[string]any{"Key": e.Key, "Theme": e.Theme, "RepetitionReason": e.RepetitionReason, "Notes": e.Notes, "Plan": e.Plan, "current_or_prepared_music": e.QueueCurrent, "Excluded": e.Excluded, "Aired": recent, "AiredIDs": played, "recent_session_turns": turns, "recent_aired_speech": recentSpeech}
 }
 
 func queueStart(e Episode, o schedule.Occurrence, now time.Time) time.Time {

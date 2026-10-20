@@ -113,8 +113,8 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	if direction.Code != 200 || !strings.Contains(direction.Body.String(), `name="notes"`) {
 		t.Fatal("episode editing missing", direction.Body.String())
 	}
-	for _, body := range []string{w.Body.String(), direction.Body.String()} {
-		for _, want := range []string{"Selection", "Status", "Accepted", "Automatic", "data-label=\"Selection\">DJ"} {
+	for _, body := range []string{w.Body.String()} {
+		for _, want := range []string{"Selection", "Status", "Upcoming", "Automatic", "data-label=\"Selection\">DJ"} {
 			if !strings.Contains(body, want) {
 				t.Fatal("missing queue provenance", want, body)
 			}
@@ -122,6 +122,9 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 		if strings.Contains(body, `name="locked"`) || strings.Contains(body, `name="excluded"`) {
 			t.Fatal("manual track choices remain", body)
 		}
+	}
+	if strings.Contains(direction.Body.String(), `aria-label="Upcoming tracks"`) {
+		t.Fatal("direction page contains queue table")
 	}
 	original, _ := store.Get(ctx, o.Key)
 	if err := store.Update(ctx, o, func(e *episodes.Episode) error {
@@ -386,7 +389,7 @@ func TestEpisodeQueueShowsCommittedNextAndAcceptedBuffer(t *testing.T) {
 	e := episodes.Episode{Key: key, Plan: []episodes.Track{{ID: "next", Approved: true, SelectionSource: "automatic"}, {ID: "later", Approved: true, SelectionSource: "dj"}, {ID: "old", Approved: false}}}
 	state := broadcast.State{Status: "Broadcasting", Programme: schedule.Occurrence{Key: key}, NextProgrammeKey: key, Current: content.AudioItem{ID: "current"}, Next: content.AudioItem{ID: "next", Title: "Listener-visible title"}}
 	queue, live := episodeQueue(e, state)
-	if !live || len(queue) != 2 || queue[0].Title != "Listener-visible title" || queue[0].AcceptanceLabel() != "Committed next" || queue[0].SelectionLabel() != "Automatic" || queue[1].AcceptanceLabel() != "Accepted" || queue[1].SelectionLabel() != "DJ" {
+	if !live || len(queue) != 2 || queue[0].Title != "Listener-visible title" || queue[0].AcceptanceLabel() != "Next" || queue[0].SelectionLabel() != "Automatic" || queue[1].AcceptanceLabel() != "Upcoming" || queue[1].SelectionLabel() != "DJ" {
 		t.Fatal(queue, live)
 	}
 }

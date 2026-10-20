@@ -66,6 +66,13 @@ func (t Track) SelectionLabel() string {
 }
 func (t RunningTrack) AcceptanceLabel() string {
 	if t.Committed {
+		return "Next"
+	}
+	return "Upcoming"
+}
+
+func (t RunningTrack) AcceptanceDescription() string {
+	if t.Committed {
 		return "Committed next"
 	}
 	if t.Approved {

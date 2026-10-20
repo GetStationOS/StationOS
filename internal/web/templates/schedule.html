@@ -150,7 +150,6 @@
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}">
 <label>DJ music prompt<textarea name="notes" rows="4" maxlength="4000" aria-describedby="episode-direction-help">{{.Episode.Notes}}</textarea></label>
 <p class="hint" id="episode-direction-help">Optional instructions for this episode only. The show template supplies the usual direction.</p>
-<div id="episode-choices">{{template "episode-queue" .}}</div>
 <span data-unsaved class="hint" role="status"></span>
 {{template "form-actions" (formActions (printf "/producer/stations/%s/schedule/%s/episode?start=%s" .Station.ID .Show.ID (.EpisodeStart | urlquery)) "Save")}}
 </form>
@@ -169,8 +168,8 @@
 </section>{{end}}</div>
 {{end}}
 {{define "episode-queue"}}
-{{if .EpisodeQueue}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Upcoming tracks"><table class="episode-order-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Selection</th><th scope="col">Status</th></tr></thead><tbody>
-{{range .EpisodeQueue}}<tr><td data-label="Expected start">{{if .EstimatedStart.IsZero}}—{{else}}{{.EstimatedStart.Format "15:04"}}{{end}}</td><td data-label="Recording"><strong>{{.Title}}</strong></td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Selection">{{.SelectionLabel}}</td><td data-label="Status"><span class="badge{{if .Committed}} episode-state-preparing{{else if .Approved}} episode-state-ready{{end}}">{{.AcceptanceLabel}}</span></td></tr>{{end}}
+{{if .EpisodeQueue}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Upcoming tracks"><table class="episode-order-table episode-queue-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Selection</th><th scope="col">Status</th></tr></thead><tbody>
+{{range .EpisodeQueue}}<tr><td data-label="Expected start">{{if .EstimatedStart.IsZero}}—{{else}}{{.EstimatedStart.Format "15:04"}}{{end}}</td><td data-label="Recording"><strong>{{.Title}}</strong></td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Selection">{{.SelectionLabel}}</td><td data-label="Status"><span title="{{.AcceptanceDescription}}" aria-label="{{.AcceptanceDescription}}" class="badge{{if .Committed}} episode-state-preparing{{else if .Approved}} episode-state-ready{{end}}">{{.AcceptanceLabel}}</span></td></tr>{{end}}
 </tbody></table></div>{{else}}<p class="hint episode-empty">{{if .EpisodeQueueLive}}No track queued.{{else}}The next selection will appear here.{{end}}</p>{{end}}
 {{end}}
 

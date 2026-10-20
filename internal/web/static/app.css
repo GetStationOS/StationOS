@@ -1,7 +1,7 @@
 :root{--bg:#f5f7fa;--surface:#fff;--text:#10243a;--muted:#657680;--line:#dfe6eb;--brand-navy:#10243a;--brand-cyan:#00b9e8;--accent:#007b99;--accent-dark:#005e76;--tint:#e6f8fd;--focus:#007b99;--radius:14px;--shadow:0 3px 15px #172a3505;--control-height:42px;--control-height-compact:36px;--tone-error-bg:#fff0ee;--tone-error-text:#962e26;--tone-error-line:#efc8c2;--tone-warning-bg:#fff3dc;--tone-warning-text:#855c17;--tone-neutral-bg:#edf1f4;--tone-neutral-text:#53636d;--tone-info-bg:#e9eefb;--tone-info-text:#3b5689;--tone-success-bg:#e8f4ee;--tone-success-text:#24674a;--touch-target:44px}
 /* Badge anatomy is shared; domain state classes own tone and meaning. */
 .status,.badge,.dj-card-status {
- display:inline-flex; align-items:center; gap:6px; padding:5px 9px;
+ display:inline-flex; align-items:center; justify-content:center; text-align:center; gap:6px; padding:5px 9px;
  border-radius:20px; font-size:12px; font-weight:650; line-height:1.4;
 }
 
@@ -1124,19 +1124,6 @@ textarea{font-weight:400;line-height:1.5}
  .week-link-wide { display:none; }
  .week-link-short { display:inline; }
  .calendar-scroll { max-width:100%; max-height:55vh; }
- .episode-order-scroll { max-width:100%; }
- .episode-order-table, .episode-order-table tbody { display:block; width:100%; min-width:0; }
- .episode-order-table thead { display:none; }
- .episode-order-table tr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px 12px; padding:16px 0; border-bottom:1px solid var(--line); }
- .table-outline > .episode-order-table tr { padding-left:12px; padding-right:12px; }
- .episode-order-table td { display:block; min-width:0; padding:0; border:0; overflow-wrap:anywhere; }
- .episode-order-table td::before { content:attr(data-label); display:block; font-size:.75rem; font-weight:400; color:var(--muted); }
- .episode-order-table td:nth-child(2), .episode-order-table td:nth-child(3), .episode-order-table td:nth-child(4), .episode-order-table td:nth-child(6), .episode-order-table td:nth-child(7) { grid-column:1 / -1; }
- .episode-order-table td:nth-child(2) { font-weight:600; }
- .episode-order-table td:nth-child(5) { grid-column:2; grid-row:1; }
- .episode-order-table td:nth-child(6) { display:flex; flex-wrap:wrap; gap:8px; }
- .episode-order-table td:nth-child(6)::before { flex-basis:100%; }
- .episode-order-table .choice { flex:1; min-height:44px; margin:0; }
  #episode-running-order .form-actions > * { min-height:44px; }
 }
 
@@ -1178,3 +1165,32 @@ textarea{font-weight:400;line-height:1.5}
 .feedback p { margin:0; }
 .feedback .feedback-meta { margin-top:6px; font-size:12px; }
 .feedback-warning { background:var(--tone-warning-bg); color:var(--tone-warning-text); }
+
+/* Keep queue headings readable without breaking words; badges remain centred. */
+.episode-order-table th { overflow-wrap:normal; word-break:normal; white-space:nowrap; }
+.episode-order-table td::before { overflow-wrap:normal; word-break:normal; }
+.episode-queue-table th:last-child, .episode-queue-table td:last-child { text-align:center; }
+.episode-queue-table .badge { justify-content:center; text-align:center; white-space:nowrap; }
+
+/* Compact track rows on phones/tablets: details left, duration/status right. */
+@media (max-width:1000px) {
+ .episode-order-scroll { max-width:100%; }
+ .episode-order-table, .episode-order-table tbody { display:block; width:100%; min-width:0; }
+ .episode-order-table thead { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+ .episode-order-table tr { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 12px; padding:12px; border-bottom:1px solid var(--line); }
+ .episode-order-table td { display:block; min-width:0; padding:0; border:0; overflow-wrap:break-word; }
+ .episode-order-table td::before { content:none; }
+ .episode-order-table td:nth-child(2) { grid-column:1; grid-row:1; font-weight:650; }
+ .episode-order-table td:nth-child(3) { grid-column:1; grid-row:2; }
+ .episode-order-table td:nth-child(4) { grid-column:1 / -1; grid-row:3; font-size:12px; color:var(--muted); }
+ .episode-order-table td:nth-child(1) { grid-column:1; grid-row:4; font-size:12px; color:var(--muted); }
+ .episode-order-table td:nth-child(1)::before { content:"Started "; }
+ .episode-queue-table td:nth-child(1)::before { content:"Expected "; }
+ .episode-order-table td:nth-child(5) { grid-column:2; grid-row:1; text-align:right; white-space:nowrap; }
+ .episode-queue-table td:nth-child(5) { grid-row:2; }
+ .episode-queue-table td:nth-child(6) { grid-column:2; grid-row:4; font-size:12px; text-align:right; color:var(--muted); }
+ .episode-queue-table td:nth-child(6)::before { content:"Selection "; }
+ .episode-queue-table td:nth-child(7) { grid-column:2; grid-row:1; text-align:right; }
+ .episode-queue-table .badge { padding:3px 8px; }
+ .episode-order-table tbody tr:last-child { border-bottom:0; }
+}

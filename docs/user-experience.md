@@ -575,7 +575,8 @@ performers, albums and durations. Producer notes belong to that dated episode, n
 are agent-driven: the default episode screen shows the upcoming queue in the same
 table style as Played tracks, with expected start, recording, performer, album,
 duration, selection source and acceptance status. Only live runtime can label a track
-Committed next; validated buffer tracks are Accepted. Legacy origins are Not recorded.
+Next; following choices use Upcoming. Retain the precise acceptance state in the
+accessible label and tooltip. Legacy origins are Not recorded.
 Do not show Keep/Exclude controls. Live readiness updates preserve
 calendar scroll/focus and never overwrite the producer form. Offer an explicit
 running-order refresh, protect unsaved changes and retain input on validation.
@@ -614,3 +615,15 @@ the last playable pool, identify it as continuous music and record the failure. 
 no alternative eligible recording, reserve the current playable recording again rather
 than publishing music with an empty next slot. This cannot recover inaccessible audio
 sources or a failed database; those failures remain visible.
+
+
+### Compact episode tables on phones and tablets
+
+Upcoming and played track tables retain compact rows below 1000px. Group title,
+performer and album together, with status and duration beside the details and time
+and selection source on one small metadata row. Do not turn every table cell into
+a separate labelled block or repeat Recording/Performer/Album labels for every row.
+Keep all producer information available, allow long names to wrap at word boundaries,
+retain accessible table headings and use centred text inside short Next/Upcoming
+lozenges. Desktop headings must not break words. Episode direction contains only
+prompt editing; the live queue belongs on the default episode screen.

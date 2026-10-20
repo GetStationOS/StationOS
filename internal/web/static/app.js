@@ -870,15 +870,6 @@ function applyLiveSnapshot(region,html){
     const current=region.querySelector('#'+id),next=incoming.querySelector('#'+id);
     if(current&&next)patchStationNode(current,next,null);
    }
-   if(form.dataset.dirty!=='true'){
-    const choices=region.querySelector('#episode-choices'),next=incoming.querySelector('#episode-choices');
-    if(choices&&next&&!choices.contains(document.activeElement)){
-     patchStationNode(choices,next,null);
-     const version=form.querySelector('[name=version]'),nextVersion=incoming.querySelector('[name=version]');
-     if(version&&nextVersion)version.value=nextVersion.value;
-     form.dataset.initial=episodeFormState(form);htmx.process(choices);
-    }
-   }
    const subscription=liveSubscriptions.get(region.id);if(subscription)subscription.pending=html;
    return;
   }

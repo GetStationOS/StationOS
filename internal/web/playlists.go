@@ -131,7 +131,9 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, totalRows)
-			v.Pagination.ActionURL = "/producer/content?playlist=" + id
+			if v.PlaylistTab != "tracks" {
+				v.Pagination.ActionURL = "/producer/content?playlist=" + id
+			}
 			if v.PlaylistTab == "tracks" {
 				v.Pagination.Target = "#playlist-track-results"
 			}

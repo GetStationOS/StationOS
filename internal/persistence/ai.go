@@ -93,6 +93,14 @@ func (p Producer) SaveConnection(ctx context.Context, c ai.Connection, k ai.KeyC
 		return err
 	}
 	defer tx.Rollback()
+	var used int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM djs JOIN ai_connections c ON c.id=djs.speech_connection WHERE c.id=? AND c.provider_type!=?`, c.ID, c.Type).Scan(&used); err != nil {
+		return err
+	}
+	if used > 0 {
+		return errors.New("This endpoint is used by DJs; choose their replacement endpoint before changing its provider type")
+	}
+
 	_, err = tx.ExecContext(ctx, `INSERT INTO ai_connections(id,name,provider_type,address,api_key_cipher,context_tokens,output_tokens,request_timeout_seconds) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,provider_type=excluded.provider_type,address=excluded.address,context_tokens=excluded.context_tokens,output_tokens=excluded.output_tokens,request_timeout_seconds=excluded.request_timeout_seconds,api_key_cipher=CASE WHEN ? THEN excluded.api_key_cipher ELSE ai_connections.api_key_cipher END`, c.ID, c.Name, c.Type, c.Address, encrypted, c.ContextTokens, c.OutputTokens, c.RequestTimeoutSeconds, k.Clear || k.Value != "")
 	if err != nil {
 		return err
@@ -106,18 +114,40 @@ func (p Producer) DeleteConnection(ctx context.Context, id string) error {
 	if id == "" || id == "openai" {
 		return errors.New("The existing OpenAI connection cannot be removed")
 	}
+	var count int
+	if err := p.DB.QueryRowContext(ctx, `SELECT count(*) FROM djs WHERE speech_connection=?`, id).Scan(&count); err != nil {
+		return err
+	}
+	if count > 0 {
+		return errors.New("Choose another speech endpoint for every DJ before removing this connection")
+	}
 	routes, err := p.Routes(ctx)
 	if err != nil {
 		return err
 	}
-	for _, role := range []string{"assistant", "curation", "audience", "speech", "image"} {
+	for _, role := range []string{"assistant", "curation", "audience", "image"} {
 		s := routes.For(role)
 		if s.Connection == id {
 			return errors.New("Choose another connection for every role before removing this connection")
 		}
 	}
-	_, err = p.DB.ExecContext(ctx, `DELETE FROM ai_connections WHERE id=?`, id)
-	return err
+	result, err := p.DB.ExecContext(ctx, `DELETE FROM ai_connections WHERE id=? AND NOT EXISTS(SELECT 1 FROM djs WHERE speech_connection=?)`, id, id)
+	if err != nil {
+		return err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		if err = p.DB.QueryRowContext(ctx, `SELECT count(*) FROM djs WHERE speech_connection=?`, id).Scan(&count); err != nil {
+			return err
+		}
+		if count > 0 {
+			return errors.New("Choose another speech endpoint for every DJ before removing this connection")
+		}
+	}
+	return nil
 }
 func (p Producer) Routes(ctx context.Context) (ai.Routes, error) {
 	var raw string
@@ -129,7 +159,7 @@ func (p Producer) Routes(ctx context.Context) (ai.Routes, error) {
 	return routes, err
 }
 func (p Producer) validateRoutes(ctx context.Context, r ai.Routes) error {
-	for _, role := range []string{"assistant", "curation", "audience", "speech", "image"} {
+	for _, role := range []string{"assistant", "curation", "audience", "image"} {
 		s := r.For(role)
 		c, err := p.Connection(ctx, s.Connection)
 		if err != nil {
@@ -147,5 +177,5 @@ func (p Producer) validateRoutes(ctx context.Context, r ai.Routes) error {
 }
 
 // Queries return only configuration readiness, never credentials or inferred health.
-const speechReadySQL = `(CASE WHEN COALESCE(json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Speech.Connection'),'') IN ('','openai') THEN (SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) ELSE COALESCE((SELECT provider_type='chatterbox' OR length(api_key_cipher)>0 FROM ai_connections WHERE id=json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Speech.Connection')),0) END)`
+const speechReadySQL = `(CASE WHEN djs.speech_connection='openai' THEN (SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) ELSE COALESCE((SELECT provider_type='chatterbox' OR length(api_key_cipher)>0 FROM ai_connections WHERE id=djs.speech_connection),0) END)`
 const textReadySQL = `(CASE WHEN COALESCE(json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Curation.Connection'),'') IN ('','openai') THEN (SELECT length(api_key_cipher)>0 FROM producer_settings WHERE id=1) ELSE COALESCE((SELECT provider_type!='openai' OR length(api_key_cipher)>0 FROM ai_connections WHERE id=json_extract((SELECT provider_routes FROM producer_settings WHERE id=1),'$.Curation.Connection')),0) END)`

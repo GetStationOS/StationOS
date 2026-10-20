@@ -9,6 +9,7 @@ import (
 	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/station"
+	"strings"
 	"time"
 )
 
@@ -17,15 +18,19 @@ type Schedule struct {
 	Changes *changefeed.Bus
 }
 
-const showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + speechReadySQL + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction,d.speech_voices`
+var showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + strings.ReplaceAll(speechReadySQL, "djs.", "d.") + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction,d.speech_voices,d.speech_connection,d.speech_model,d.speech_settings`
+
 const showJoin = ` FROM station_shows s JOIN djs d ON d.id=s.dj_id JOIN playlists p ON p.id=s.playlist_id `
 
 func scanShow(row interface{ Scan(...any) error }) (schedule.Show, error) {
 	var v schedule.Show
-	var voices string
-	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection, &voices)
+	var voices, speechSettings string
+	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection, &voices, &v.DJ.SpeechConnection, &v.DJ.SpeechModel, &speechSettings)
 	if err == nil {
 		err = json.Unmarshal([]byte(voices), &v.DJ.SpeechVoices)
+		if err == nil {
+			err = json.Unmarshal([]byte(speechSettings), &v.DJ.SpeechSettings)
+		}
 	}
 	v.DJ.ID = v.DJID
 	v.DJ.Name = v.DJName

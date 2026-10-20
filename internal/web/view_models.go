@@ -153,6 +153,10 @@ type djPageView struct {
 	SpeechCatalog                 djs.VoiceCatalog
 	SpeechVoice, SpeechVoiceError string
 	ChatterboxVoice               bool
+	SpeechFields                  bool
+	SpeechEndpoints               []djs.SpeechEndpoint
+	SpeechPreference              djs.SpeechPreference
+	SpeechDraftJSON               string
 	DJError, DJMode, ExampleVibe  string
 	DJPhotoDraft                  string
 	DJPhotoGeneration             bool

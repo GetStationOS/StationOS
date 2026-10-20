@@ -274,10 +274,10 @@ func TestChatterboxEndpointAndSpeechOnlySelection(t *testing.T) {
 	}
 	w = request(h, "GET", "/producer/assistant/settings", nil, nil)
 	body := w.Body.String()
-	if strings.Count(body, `value="nano"`) != 1 || !strings.Contains(body, `data-provider-kind="chatterbox"`) {
-		t.Fatal("Nano must be offered only for speech", body)
+	if strings.Contains(body, `value="nano"`) || strings.Contains(body, `name="speech_connection"`) {
+		t.Fatal("Speech providers must be configured on DJs, not global models", body)
 	}
-	if !strings.Contains(body, "Choose its voice on each DJ’s profile") {
+	if !strings.Contains(body, "Each DJ chooses their own speech") {
 		t.Fatal("default voice capabilities missing")
 	}
 }

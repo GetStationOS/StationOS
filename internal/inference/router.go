@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"stationos.local/stationos/internal/ai"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/producer"
 	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/production/chatterbox"
@@ -35,6 +36,9 @@ func (r *Router) selection(ctx context.Context, role string) (ai.Selection, ai.C
 		return ai.Selection{}, ai.Connection{}, "", err
 	}
 	s := routes.For(role)
+	if role == "speech" && djs.SpeechConnection(ctx) != "" {
+		s.Connection = djs.SpeechConnection(ctx)
+	}
 	c, err := r.Store.Connection(ctx, s.Connection)
 	if err != nil {
 		return s, c, "", err
@@ -125,7 +129,11 @@ func (r *Router) Kind(ctx context.Context, role string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	c, err := r.Store.Connection(ctx, routes.For(role).Connection)
+	id := routes.For(role).Connection
+	if role == "speech" && djs.SpeechConnection(ctx) != "" {
+		id = djs.SpeechConnection(ctx)
+	}
+	c, err := r.Store.Connection(ctx, id)
 	return c.Type, err
 }
 
@@ -162,7 +170,11 @@ func (r *Router) Budget(ctx context.Context, role string) (time.Duration, error)
 	if err != nil {
 		return 0, err
 	}
-	c, err := r.Store.Connection(ctx, routes.For(role).Connection)
+	id := routes.For(role).Connection
+	if role == "speech" && djs.SpeechConnection(ctx) != "" {
+		id = djs.SpeechConnection(ctx)
+	}
+	c, err := r.Store.Connection(ctx, id)
 	if err != nil {
 		return 0, err
 	}

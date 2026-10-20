@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/producer"
 )
 
@@ -94,6 +95,9 @@ func (p Producer) Configure(ctx context.Context, settings producer.Settings, k p
 type ProducerKeys struct{ Producer Producer }
 
 func (p ProducerKeys) APIKey(ctx context.Context, _ string) (string, error) {
+	if id := djs.SpeechConnection(ctx); id != "" {
+		return p.Producer.Credential(ctx, id)
+	}
 	r, e := p.Producer.Routes(ctx)
 	if e != nil {
 		return "", e

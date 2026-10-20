@@ -72,6 +72,9 @@
         <span class="hint">Direct the DJ’s selections and on-air commentary.</span>
       </label>
     </fieldset>
+    {{if .SpeechFields}}
+    {{template "dj-speech-settings" .}}
+    {{else}}
     <fieldset class="dj-form-group">
       <legend>Voice</legend>
       {{if .ChatterboxVoice}}
@@ -101,6 +104,7 @@
         <span class="hint">Voice direction, phrasing and tone.</span>
       </label>
     </fieldset>
+    {{end}}
     {{ $action := "Create DJ" }}
     {{if .DJ.ID}}{{$action = "Save"}}{{end}}
     {{template "form-actions" (formActions "/producer/djs" $action)}}
@@ -145,4 +149,48 @@
 
 {{define "dj-photo-field"}}
 {{template "photo-editor" (djPhotoEditor .)}}
+{{end}}
+
+{{define "dj-speech-settings"}}
+<fieldset class="dj-form-group" id="dj-speech-settings">
+  <legend>Voice</legend>
+  <input type="hidden" name="speech_config" value="yes">
+  <input type="hidden" name="speech_draft" value="{{.SpeechDraftJSON}}">
+  <input type="hidden" name="speech_fields_connection" value="{{.DJ.SpeechConnection}}">
+  <input type="hidden" name="speech_kind" value="{{if .ChatterboxVoice}}chatterbox{{else}}openai{{end}}">
+  <label>Speech endpoint<select name="speech_connection" data-dj-speech-endpoint hx-disabled-elt="this" hx-sync="closest form:replace" hx-post="/producer/djs/speech" hx-trigger="change" hx-include="closest form" hx-target="#dj-speech-settings" hx-swap="outerHTML" hx-push-url="false">
+    {{range .SpeechEndpoints}}
+    <option value="{{.ID}}" {{if eq .ID $.DJ.SpeechConnection}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+  </label>
+  <button type="submit" class="secondary" data-speech-preview formaction="/producer/djs/speech" formnovalidate hx-post="/producer/djs/speech" hx-target="#dj-speech-settings" hx-swap="outerHTML" hx-push-url="false">Update voice options</button>
+  {{if .SpeechVoiceError}}<p class="notice warning" role="status">{{.SpeechVoiceError}}</p>{{end}}
+  {{if .ChatterboxVoice}}
+  <input type="hidden" name="speech_model" value="{{.SpeechPreference.Model}}">
+  <p class="hint">Model: {{.SpeechPreference.Model}}</p>
+  <label>Chatterbox voice<select name="speech_voice">
+    <option value="" {{if eq .SpeechVoice ""}}selected{{end}}>Server default</option>
+    {{range .SpeechCatalog.Voices}}
+    <option value="{{.ID}}" {{if eq .ID $.SpeechVoice}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+  </label>
+  {{else}}
+  <label>Speech model<input name="speech_model" value="{{.SpeechPreference.Model}}" required maxlength="128" list="dj-speech-models"></label>
+  <datalist id="dj-speech-models">
+    <option value="gpt-4o-mini-tts"></option>
+    <option value="tts-1"></option>
+    <option value="tts-1-hd"></option>
+  </datalist>
+  <label>Voice<select name="voice" required>
+    {{range .SpeechCatalog.Voices}}
+    <option value="{{.ID}}" {{if eq .ID $.SpeechVoice}}selected{{end}}>{{.Name}}</option>{{end}}</select>
+  </label>
+  <label for="conversation-speed">Conversation speed</label>
+  <div class="speed-control">
+    <input id="conversation-speed" type="range" name="conversation_speed" min="0.25" max="4" step="0.05" value="{{.SpeechPreference.Speed}}" data-conversation-speed>
+    <output for="conversation-speed" data-speed-value>{{printf "%.2f" .SpeechPreference.Speed}}×</output>
+  </div>
+  <label>Vibe<textarea name="vibe" rows="4" maxlength="16000">{{.SpeechPreference.Vibe}}</textarea>
+    <span class="hint">Voice direction, phrasing and tone.</span>
+  </label>
+  {{end}}
+</fieldset>
 {{end}}

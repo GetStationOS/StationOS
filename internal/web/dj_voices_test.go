@@ -2,9 +2,12 @@ package web
 
 import (
 	"context"
+	"encoding/json"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -16,6 +19,14 @@ import (
 	"stationos.local/stationos/internal/producer"
 )
 
+func speechDraft(t *testing.T, body string) string {
+	t.Helper()
+	found := regexp.MustCompile(`name="speech_draft" value="([^"]*)"`).FindStringSubmatch(body)
+	if len(found) != 2 {
+		t.Fatal("missing speech draft", body)
+	}
+	return html.UnescapeString(found[1])
+}
 func TestDJChatterboxVoiceFormAndPreservation(t *testing.T) {
 	var mode atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -41,40 +52,35 @@ func TestDJChatterboxVoiceFormAndPreservation(t *testing.T) {
 	if err := store.SaveConnection(ctx, conn, ai.KeyChange{}); err != nil {
 		t.Fatal(err)
 	}
-	settings, _ := store.Settings(ctx)
-	settings.Routes.Speech.Connection = "nano"
-	if err := store.Configure(ctx, settings, producer.KeyChange{}); err != nil {
-		t.Fatal(err)
-	}
-	p, err := (djs.Service{Repo: repo}).Save(ctx, djs.Profile{Name: "Voice test", Voice: "onyx"}, djs.KeyChange{})
+	voices := inference.New(store, nil)
+	p, err := (djs.Service{Repo: repo, Voices: voices}).Save(ctx, djs.Profile{Name: "Voice test", Voice: "onyx", ConversationSpeed: 1.25, Vibe: "Warm direction", SpeechChange: &djs.SpeechSelection{Connection: "nano", Settings: djs.SpeechPreference{Model: "chatterbox-nano", Speed: 1}}}, djs.KeyChange{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	h, err := New(Dependencies{Voices: inference.New(store, nil), DJs: repo, Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: st.DB}, Ready: st.DB.PingContext})
+	h, err := New(Dependencies{Voices: voices, DJs: repo, Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: st.DB}, Ready: st.DB.PingContext})
 	if err != nil {
 		t.Fatal(err)
 	}
 	path := "/producer/djs/" + p.ID
 	w := request(h, "GET", path, nil, nil)
-	if w.Code != 200 || !strings.Contains(w.Body.String(), `name="speech_voice"`) || !strings.Contains(w.Body.String(), "Warm &lt;voice&gt;") || !strings.Contains(w.Body.String(), `name="voice" value="onyx"`) {
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `name="speech_voice"`) || !strings.Contains(w.Body.String(), "Warm &lt;voice&gt;") || strings.Contains(w.Body.String(), `name="conversation_speed"`) || strings.Contains(w.Body.String(), `name="vibe"`) {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	form := url.Values{"csrf": {csrf(t, h)}, "id": {p.ID}, "name": {p.Name}, "voice": {"onyx"}, "speech_connection": {"nano"}, "speech_voice": {"warm"}, "conversation_speed": {"1.25"}, "vibe": {"Warm OpenAI direction"}}
+	form := url.Values{"csrf": {csrf(t, h)}, "id": {p.ID}, "name": {p.Name}, "prompt": {"Unsaved prompt"}, "speech_config": {"yes"}, "speech_connection": {"nano"}, "speech_fields_connection": {"nano"}, "speech_kind": {"chatterbox"}, "speech_model": {"chatterbox-nano"}, "speech_voice": {"warm"}, "speech_draft": {"{}"}}
 	w = request(h, "POST", "/producer/djs", form, nil)
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	saved, _ := repo.Get(ctx, p.ID)
-	if saved.Voice != "onyx" || saved.SpeechVoices["nano"] != "warm" || saved.ConversationSpeed != 1.25 {
+	if saved.SpeechConnection != "nano" || saved.Voice != "onyx" || saved.SpeechVoices["nano"] != "warm" || saved.ConversationSpeed != 1.25 {
 		t.Fatal(saved)
 	}
 	for _, m := range []int32{1, 2} {
 		mode.Store(m)
 		w = request(h, "GET", path, nil, map[string]string{"HX-Request": "true"})
 		if w.Code != 200 || !strings.Contains(w.Body.String(), `value="warm" selected`) || !strings.Contains(w.Body.String(), "(unavailable)") {
-			t.Fatal("missing saved voice lost", w.Body.String())
+			t.Fatal(w.Body.String())
 		}
-		form.Set("name", "Edited while unavailable")
 		w = request(h, "POST", "/producer/djs", form, nil)
 		if w.Code != 303 {
 			t.Fatal("unrelated edit blocked", w.Code, w.Body.String())
@@ -83,43 +89,72 @@ func TestDJChatterboxVoiceFormAndPreservation(t *testing.T) {
 	form.Set("speech_voice", "invented")
 	w = request(h, "POST", "/producer/djs", form, nil)
 	if w.Code != 422 || !strings.Contains(w.Body.String(), `value="invented" selected`) {
-		t.Fatal("invalid selection or input lost", w.Code, w.Body.String())
-	}
-	saved, _ = repo.Get(ctx, p.ID)
-	if saved.SpeechVoices["nano"] != "warm" {
-		t.Fatal("invalid selection overwritten", saved)
+		t.Fatal(w.Code, w.Body.String())
 	}
 	mode.Store(0)
+	form.Set("speech_voice", "warm")
+	settings, _ := store.Settings(ctx)
 	settings.Routes.Speech.Connection = "openai"
 	if err = store.Configure(ctx, settings, producer.KeyChange{}); err != nil {
 		t.Fatal(err)
 	}
-	// A stale Chatterbox form must not overwrite voice settings after a route change.
-	w = request(h, "POST", "/producer/djs", form, nil)
-	if w.Code != 422 {
-		t.Fatal("stale form accepted", w.Code)
-	}
 	w = request(h, "GET", path, nil, nil)
-	if strings.Contains(w.Body.String(), `name="speech_voice"`) || !strings.Contains(w.Body.String(), `value="onyx" selected`) {
-		t.Fatal("OpenAI choice lost", w.Body.String())
+	if !strings.Contains(w.Body.String(), `name="speech_voice"`) {
+		t.Fatal("global route changed DJ", w.Body.String())
 	}
-	form.Del("speech_voice")
-	form.Del("speech_connection")
+	// Changing provider previews only its fields, preserving unsaved text and settings.
+	form.Set("speech_connection", "openai")
+	w = request(h, "POST", "/producer/djs/speech", form, map[string]string{"HX-Request": "true", "HX-Target": "dj-speech-settings"})
+	if w.Code != 200 || strings.Contains(w.Body.String(), "<!doctype") || !strings.Contains(w.Body.String(), `name="conversation_speed"`) {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var pending map[string]djs.SpeechPreference
+	if json.Unmarshal([]byte(speechDraft(t, w.Body.String())), &pending) != nil || pending["nano"].Voice != "warm" {
+		t.Fatal(pending)
+	}
+	saved, _ = repo.Get(ctx, p.ID)
+	if saved.SpeechConnection != "nano" {
+		t.Fatal("preview wrote settings")
+	}
+	form.Set("speech_draft", speechDraft(t, w.Body.String()))
+	form.Set("speech_fields_connection", "openai")
+	form.Set("speech_kind", "openai")
+	form.Set("speech_model", "tts-1")
 	form.Set("voice", "marin")
+	form.Set("conversation_speed", "1.4")
+	form.Set("vibe", "New OpenAI direction")
+	form.Del("speech_voice")
 	w = request(h, "POST", "/producer/djs", form, nil)
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	saved, _ = repo.Get(ctx, p.ID)
-	if saved.Voice != "marin" || saved.SpeechVoices["nano"] != "warm" {
-		t.Fatal("provider choices crossed", saved)
+	if saved.SpeechConnection != "openai" || saved.SpeechModel != "tts-1" || saved.Voice != "marin" || saved.SpeechVoices["nano"] != "warm" {
+		t.Fatal(saved)
 	}
-	settings.Routes.Speech.Connection = "nano"
-	if err = store.Configure(ctx, settings, producer.KeyChange{}); err != nil {
-		t.Fatal(err)
+	// The normal-form fallback retains the complete page and unsaved editorial input.
+	form.Set("speech_connection", "nano")
+	w = request(h, "POST", "/producer/djs/speech", form, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "<!doctype") || !strings.Contains(w.Body.String(), "Unsaved prompt") || !strings.Contains(w.Body.String(), `value="warm" selected`) {
+		t.Fatal(w.Code, w.Body.String())
 	}
-	w = request(h, "GET", path, nil, nil)
-	if !strings.Contains(w.Body.String(), `value="warm" selected`) {
-		t.Fatal("Chatterbox choice not restored", w.Body.String())
+	form.Set("speech_draft", speechDraft(t, w.Body.String()))
+	form.Set("speech_fields_connection", "nano")
+	form.Set("speech_kind", "chatterbox")
+	form.Set("speech_model", "chatterbox-nano")
+	form.Set("speech_voice", "warm")
+	form.Del("voice")
+	form.Del("conversation_speed")
+	form.Del("vibe")
+	w = request(h, "POST", "/producer/djs", form, nil)
+	if w.Code != 303 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	saved, _ = repo.Get(ctx, p.ID)
+	if saved.SpeechConnection != "nano" || saved.SpeechSettings["openai"].Model != "tts-1" || saved.SpeechSettings["openai"].Voice != "marin" || saved.ConversationSpeed != 1.4 {
+		t.Fatal("provider settings lost", saved)
+	}
+	if err = store.DeleteConnection(ctx, "nano"); err == nil {
+		t.Fatal("deleted endpoint in use by DJ")
 	}
 }

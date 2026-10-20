@@ -925,3 +925,28 @@ receives an optional exact voice ID on `/tts`; an omitted ID preserves server de
 behaviour. Voice assets and model execution remain outside StationOS. The producer
 assistant uses the same discovery and application validation via `list_voices` and
 `save_dj.speech_voice`, preserving the existing OpenAI `voice` tool field.
+
+
+### DJ-owned speech routing
+
+Migration 39 snapshots the existing global speech connection/model onto every DJ
+and initializes per-endpoint preferences, preserving legacy OpenAI voice/speed/vibe
+and Chatterbox voice selections. The global speech columns remain as compatibility
+metadata and no longer control configured DJs. Frozen v38 upgrade coverage and
+configured-provider migration tests verify unchanged effective provider choices.
+
+DJ application commands validate selected speech endpoints and all edited endpoint
+preferences before the repository saves them atomically. Speech selection is
+independent of curation/text model selection. Endpoint credentials remain shared,
+while DJ-owned connections/models/settings are projected through Schedule into
+immutable production snapshots. Speech routing and credential lookup use a
+request-scoped connection; concurrent DJ requests do not change global routes.
+Normalizer, paced delivery, lifecycle and music continuity remain unchanged.
+
+DJ forms preview provider controls through an explicit bounded POST fragment,
+retaining unsaved settings and whole-form fallback. The preview performs no writes,
+generation or listener admission. Actual Save validates and commits the chosen
+endpoint and edited preferences together. Global Models omits speech. Assistant
+tools expose speech endpoints and DJ-aware voice discovery/editing through the
+same application service. Active DJ connection references protect endpoint removal
+and provider-type changes; retained inactive preferences do not block removal.

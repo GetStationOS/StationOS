@@ -11,13 +11,18 @@ import (
 // Synthesize routes only explicitly selected speech providers. OpenAI retains its
 // original production adapter, including voices, direction, speed and retries.
 func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) ([]byte, error) {
+	ctx = djs.WithSpeechConnection(ctx, q.Connection)
 	_, conn, _, err := r.selection(ctx, "speech")
 	if err != nil {
 		return nil, err
 	}
 	switch conn.Type {
 	case "chatterbox":
-		return r.Chatterbox.Synthesize(ctx, conn, q.Text, q.SpeechVoices[conn.ID])
+		voice := q.SpeechVoices[conn.ID]
+		if q.Connection != "" {
+			voice = q.Voice
+		}
+		return r.Chatterbox.Synthesize(ctx, conn, q.Text, voice)
 	case "openai":
 		if r.OpenAISpeech != nil {
 			return r.OpenAISpeech.Synthesize(ctx, q)
@@ -32,7 +37,11 @@ func (r *Router) Voices(parent context.Context) (djs.VoiceCatalog, error) {
 	if err != nil {
 		return djs.VoiceCatalog{}, err
 	}
-	conn, err := r.Store.Connection(parent, routes.Speech.Connection)
+	id := routes.Speech.Connection
+	if djs.SpeechConnection(parent) != "" {
+		id = djs.SpeechConnection(parent)
+	}
+	conn, err := r.Store.Connection(parent, id)
 	if err != nil {
 		return djs.VoiceCatalog{}, err
 	}
@@ -51,4 +60,22 @@ func (r *Router) Voices(parent context.Context) (djs.VoiceCatalog, error) {
 	out.DefaultVoice = catalog.DefaultVoice
 	out.Voices = catalog.Voices
 	return out, err
+}
+
+func (r *Router) SpeechConnections(ctx context.Context) ([]djs.SpeechEndpoint, error) {
+	connections, err := r.Store.Connections(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := []djs.SpeechEndpoint{}
+	for _, conn := range connections {
+		if conn.Type == "openai" || conn.Type == "chatterbox" {
+			endpoint := djs.SpeechEndpoint{ID: conn.ID, Name: conn.Name, Provider: conn.Type}
+			if conn.Type == "chatterbox" {
+				endpoint.Model = "chatterbox-nano"
+			}
+			out = append(out, endpoint)
+		}
+	}
+	return out, nil
 }

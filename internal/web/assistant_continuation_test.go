@@ -70,7 +70,7 @@ func TestAssistantSettingsRoleChoicesPreserveTheSharedKey(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	settings, e := store.Settings(ctx)
-	if e != nil || settings.Model != "producer-choice" || settings.CurationModel != "curation-choice" || settings.SpeechModel != "speech-choice" || settings.AudienceModel != "review-choice" || settings.ImageModel != "art-choice" {
+	if e != nil || settings.Model != "producer-choice" || settings.CurationModel != "curation-choice" || settings.SpeechModel != "gpt-4o-mini-tts" || settings.AudienceModel != "review-choice" || settings.ImageModel != "art-choice" {
 		t.Fatal(settings, e)
 	}
 	key, e := store.APIKey(ctx)

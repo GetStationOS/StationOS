@@ -1,5 +1,6 @@
 const mixerSaves = new WeakMap();
 const formSaves = new WeakMap();
+const speechPreviews=new WeakMap();
 const liveSubscriptions=new Map();
 let stationEvents=null;
 let stationEventOwner=null;
@@ -46,6 +47,7 @@ document.body.addEventListener('htmx:beforeRequest', event => {
   if (event.detail.elt?.closest('[data-results-navigation]')) resultsNavigation = true;
 });
 function initialise() {
+ document.querySelectorAll("[data-speech-preview]").forEach(button=>button.hidden=true);
   document.querySelectorAll("[data-clear-search-input]").forEach(button=>{button.hidden=false;});
   initialiseSaveControls();
   initialiseEventNotices();
@@ -1143,7 +1145,7 @@ function setSaveControl(form,phase) {
  state.button.dataset.saveState=phase;
 }
 function updateSaveControl(form) {
- const state=formSaves.get(form);if (!state||state.phase==='saving') return;
+ const state=formSaves.get(form);if (!state||state.phase==='saving'||form.dataset.speechLoading==='true') return;
  const dirty=editableFormState(form)!==state.baseline;
  form.querySelector('[data-save-error]')?.remove();
  if (dirty) setSaveControl(form,'edited');
@@ -1165,6 +1167,11 @@ for (const name of ['input','change']) document.body.addEventListener(name,event
 document.body.addEventListener('htmx:beforeRequest',event => {
  const element=event.detail.elt;
  const form=element?.matches?.('form')?element:element?.closest?.('form');
+ if(element?.matches('[data-dj-speech-endpoint], [data-speech-preview]')){
+  speechPreviews.set(event.detail.xhr,form);form.dataset.speechLoading='true';
+  const state=formSaves.get(form);if(state)state.button.disabled=true;
+  return;
+ }
  if (formSaves.has(form) && event.detail.requestConfig?.parameters?.action !== 'reset') setSaveControl(form,'saving');
 });
 
@@ -1172,6 +1179,8 @@ document.body.addEventListener('htmx:beforeRequest',event => {
 document.body.addEventListener('htmx:afterRequest',event => {
  const element=event.detail.elt;
  const form=element?.matches?.('form')?element:element?.closest?.('form');
+ const previewForm=speechPreviews.get(event.detail.xhr);
+ if(previewForm){speechPreviews.delete(event.detail.xhr);delete previewForm.dataset.speechLoading;updateSaveControl(previewForm);previewForm.querySelector('[data-dj-speech-endpoint]')?.focus({preventScroll:true});return;}
  const state=formSaves.get(form);
  if (state?.phase==='saving' && event.detail.successful && form.isConnected) {
   state.baseline=editableFormState(form);

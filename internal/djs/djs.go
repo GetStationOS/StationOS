@@ -20,6 +20,10 @@ var photoVersion = regexp.MustCompile(`^[a-f0-9]{64}$`)
 var connectionID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
 type Profile struct {
+	SpeechConnection, SpeechModel string
+	SpeechSettings                map[string]SpeechPreference `json:",omitempty"`
+	SpeechChange                  *SpeechSelection            `json:"-"`
+	SpeechDraft                   map[string]SpeechPreference `json:"-"`
 	// SpeechVoices retains choices by speech connection; Voice remains OpenAI's choice.
 	SpeechVoices                  map[string]string `json:",omitempty"`
 	SpeechVoiceChange             *VoiceSelection   `json:"-"`
@@ -88,6 +92,20 @@ func Voices() []Voice {
 	return []Voice{{"alloy", "Alloy"}, {"ash", "Ash"}, {"ballad", "Ballad"}, {"cedar", "Cedar"}, {"coral", "Coral"}, {"echo", "Echo"}, {"fable", "Fable"}, {"marin", "Marin"}, {"nova", "Nova"}, {"onyx", "Onyx"}, {"sage", "Sage"}, {"shimmer", "Shimmer"}, {"verse", "Verse"}}
 }
 func (p Profile) Validate() error {
+	if p.SpeechConnection != "" && !connectionID.MatchString(p.SpeechConnection) {
+		return errors.New("invalid speech endpoint")
+	}
+	if len(p.SpeechSettings) > 100 {
+		return errors.New("too many speech settings")
+	}
+	for id, pref := range p.SpeechSettings {
+		if !connectionID.MatchString(id) {
+			return errors.New("invalid speech endpoint")
+		}
+		if err := validateSpeech(pref); err != nil {
+			return err
+		}
+	}
 	if len(p.SpeechVoices) > 100 {
 		return errors.New("too many saved speech voices")
 	}
@@ -152,12 +170,18 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 		}
 		// Only the explicit selection command changes connection-specific voices.
 		p.SpeechVoices = maps.Clone(saved.SpeechVoices)
+		p.SpeechConnection = saved.SpeechConnection
+		p.SpeechModel = saved.SpeechModel
+		p.SpeechSettings = maps.Clone(saved.SpeechSettings)
+	}
+	if err := s.applySpeech(ctx, &p); err != nil {
+		return Profile{}, errors.Join(ErrInvalid, err)
 	}
 	if change := p.SpeechVoiceChange; change != nil {
 		if s.Voices == nil {
 			return Profile{}, errors.Join(ErrInvalid, errors.New("Speech voice discovery is unavailable"))
 		}
-		catalog, err := s.Voices.Voices(ctx)
+		catalog, err := s.Voices.Voices(WithSpeechConnection(ctx, p.SpeechConnection))
 		if change.Connection != catalog.Connection || catalog.Provider != "chatterbox" {
 			return Profile{}, errors.Join(ErrInvalid, errors.New("The speech provider changed; reopen this DJ before saving its voice"))
 		}
@@ -180,6 +204,27 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 			p.SpeechVoices = map[string]string{}
 		}
 		p.SpeechVoices[change.Connection] = change.Voice
+	}
+	if p.SpeechConnection == "" {
+		p.SpeechConnection = "openai"
+	}
+	if p.SpeechModel == "" {
+		p.SpeechModel = DefaultSpeechModel
+	}
+	// Legacy OpenAI edits still update the active endpoint's stored preferences.
+	if p.SpeechChange == nil && p.SpeechModel != "chatterbox-nano" {
+		if p.SpeechSettings == nil {
+			p.SpeechSettings = map[string]SpeechPreference{}
+		}
+		p.SpeechSettings[p.SpeechConnection] = SpeechPreference{Model: p.SpeechModel, Voice: p.Voice, Speed: p.ConversationSpeed, Vibe: p.Vibe}
+	}
+	if p.SpeechVoiceChange != nil && p.SpeechConnection == p.SpeechVoiceChange.Connection && p.SpeechModel == "chatterbox-nano" {
+		if p.SpeechSettings == nil {
+			p.SpeechSettings = map[string]SpeechPreference{}
+		}
+		pref := p.Preference(p.SpeechConnection, "chatterbox")
+		pref.Voice = p.SpeechVoiceChange.Voice
+		p.SpeechSettings[p.SpeechConnection] = pref
 	}
 	if err := p.Validate(); err != nil {
 		return Profile{}, errors.Join(ErrInvalid, err)

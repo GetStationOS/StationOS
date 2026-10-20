@@ -64,7 +64,7 @@ func presenterCard(p djs.Profile, stations []djStation, now time.Time) djCard {
 		}
 	}
 	if !p.HasKey {
-		card.SetupNote = "Add the shared API key in Assistant settings."
+		card.SetupNote = "Add an API key to this DJ’s speech endpoint in Assistant settings."
 	}
 	if p.Voice == "" {
 		card.SetupNote = "Choose a voice for this DJ."

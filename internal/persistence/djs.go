@@ -89,10 +89,13 @@ func OpenDJs(ctx context.Context, db *sql.DB, path string) (DJs, error) {
 }
 func (r DJs) Get(ctx context.Context, id string) (djs.Profile, error) {
 	var p djs.Profile
-	var voices string
-	err := r.DB.QueryRowContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1),speech_voices FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision, &voices)
+	var voices, speechSettings string
+	err := r.DB.QueryRowContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1),speech_voices,speech_connection,speech_model,speech_settings FROM djs WHERE id=?`, id).Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision, &voices, &p.SpeechConnection, &p.SpeechModel, &speechSettings)
 	if err == nil {
 		err = json.Unmarshal([]byte(voices), &p.SpeechVoices)
+		if err == nil {
+			err = json.Unmarshal([]byte(speechSettings), &p.SpeechSettings)
+		}
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		err = djs.ErrNotFound
@@ -100,7 +103,7 @@ func (r DJs) Get(ctx context.Context, id string) (djs.Profile, error) {
 	return p, err
 }
 func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1),speech_voices FROM djs ORDER BY name COLLATE NOCASE,id`)
+	rows, err := r.DB.QueryContext(ctx, `SELECT id,name,(SELECT curation_model FROM producer_settings WHERE id=1),voice,prompt,vibe,conversation_speed,background,portrait_url,`+speechReadySQL+`,`+textReadySQL+`,(SELECT ai_revision FROM producer_settings WHERE id=1),speech_voices,speech_connection,speech_model,speech_settings FROM djs ORDER BY name COLLATE NOCASE,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -108,11 +111,14 @@ func (r DJs) List(ctx context.Context) ([]djs.Profile, error) {
 	out := []djs.Profile{}
 	for rows.Next() {
 		var p djs.Profile
-		var voices string
-		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision, &voices); err != nil {
+		var voices, speechSettings string
+		if err = rows.Scan(&p.ID, &p.Name, &p.Model, &p.Voice, &p.Prompt, &p.Vibe, &p.ConversationSpeed, &p.Background, &p.PortraitURL, &p.HasKey, &p.TextReady, &p.AIRevision, &voices, &p.SpeechConnection, &p.SpeechModel, &speechSettings); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal([]byte(voices), &p.SpeechVoices); err != nil {
+			return nil, err
+		}
+		if err = json.Unmarshal([]byte(speechSettings), &p.SpeechSettings); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -143,11 +149,30 @@ func (r DJs) Save(ctx context.Context, p djs.Profile, k djs.KeyChange) error {
 			p.PortraitURL = "/djs/" + url.PathEscape(p.ID) + "/photo?v=" + hex.EncodeToString(hash[:])
 		}
 	}
+	speechSettings := []byte("{}")
+	if p.SpeechSettings != nil {
+		speechSettings, _ = json.Marshal(p.SpeechSettings)
+	}
+	if p.SpeechConnection == "" {
+		p.SpeechConnection = "openai"
+	}
+	if p.SpeechModel == "" {
+		p.SpeechModel = djs.DefaultSpeechModel
+	}
+	if p.SpeechConnection != "openai" {
+		var kind string
+		if err := tx.QueryRowContext(ctx, `SELECT provider_type FROM ai_connections WHERE id=?`, p.SpeechConnection).Scan(&kind); err != nil {
+			return errors.Join(djs.ErrInvalid, errors.New("The speech endpoint was removed; choose another endpoint"))
+		}
+		if (kind != "openai" && kind != "chatterbox") || (kind == "chatterbox" && p.SpeechModel != "chatterbox-nano") {
+			return errors.Join(djs.ErrInvalid, errors.New("The speech provider changed; reopen this DJ before saving"))
+		}
+	}
 	voices := []byte("{}")
 	if p.SpeechVoices != nil {
 		voices, _ = json.Marshal(p.SpeechVoices)
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO djs(id,name,voice,prompt,vibe,conversation_speed,background,portrait_url,speech_voices) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url,speech_voices=CASE WHEN ? THEN excluded.speech_voices ELSE djs.speech_voices END`, p.ID, p.Name, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL, string(voices), p.SpeechVoices != nil)
+	_, err = tx.ExecContext(ctx, `INSERT INTO djs(id,name,voice,prompt,vibe,conversation_speed,background,portrait_url,speech_voices,speech_connection,speech_model,speech_settings) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,voice=excluded.voice,prompt=excluded.prompt,vibe=excluded.vibe,conversation_speed=excluded.conversation_speed,background=excluded.background,portrait_url=excluded.portrait_url,speech_connection=excluded.speech_connection,speech_model=excluded.speech_model,speech_settings=CASE WHEN ? THEN excluded.speech_settings ELSE djs.speech_settings END,speech_voices=CASE WHEN ? THEN excluded.speech_voices ELSE djs.speech_voices END`, p.ID, p.Name, p.Voice, p.Prompt, p.Vibe, p.ConversationSpeed, p.Background, p.PortraitURL, string(voices), p.SpeechConnection, p.SpeechModel, string(speechSettings), p.SpeechSettings != nil, p.SpeechVoices != nil)
 	if err != nil {
 		return err
 	}

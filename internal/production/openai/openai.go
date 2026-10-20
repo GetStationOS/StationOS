@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/audience"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/prompts"
 	"stationos.local/stationos/internal/schedule"
@@ -115,6 +116,7 @@ func (p Producer) callOnce(ctx context.Context, path, key string, body any, limi
 	return nil, fmt.Errorf("OpenAI %s response incomplete or exceeds limits", path)
 }
 func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence) (production.Prepared, error) {
+	parent = djs.WithSpeechConnection(parent, show.DJ.SpeechConnection)
 	if show.DJ.ID == "" || (!show.DJ.HasKey && p.Text == nil) {
 		return production.Prepared{}, production.ErrUnavailable
 	}
@@ -136,7 +138,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		production.ReportInference(ctx, "Spoken links are unavailable because the selected speech connection has no key.")
 		return production.Prepared{}, production.ErrUnavailable
 	}
-	speechModel, err := p.model(ctx, "speech", "gpt-4o-mini-tts")
+	speechModel, err := p.speechModel(ctx, show.DJ)
 	if err != nil {
 		return production.Prepared{}, err
 	}
@@ -190,7 +192,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		if strings.TrimSpace(text) == "" {
 			return nil, nil
 		}
-		raw, err := p.synthesize(ctx, production.SpeechRequest{Text: text, Model: speechModel, Voice: show.DJ.Voice, SpeechVoices: show.DJ.SpeechVoices, Direction: show.DJ.Vibe, Speed: show.DJ.ConversationSpeed})
+		raw, err := p.synthesize(ctx, speechRequest(show.DJ, text, speechModel))
 		if err != nil {
 			return nil, err
 		}
@@ -231,6 +233,7 @@ func (p Producer) AudienceLink(ctx context.Context, link production.LinkRequest)
 	return p.audienceLink(ctx, link)
 }
 func (p Producer) audienceLink(parent context.Context, link production.LinkRequest) ([]byte, []string, error) {
+	parent = djs.WithSpeechConnection(parent, link.Show.DJ.SpeechConnection)
 	if link.Show.DJ.ID == "" || (!link.Show.DJ.HasKey && p.Text == nil) {
 		return nil, nil, production.ErrUnavailable
 	}
@@ -245,7 +248,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		production.ReportInference(ctx, "Spoken links are unavailable because the selected speech connection has no key.")
 		return nil, nil, production.ErrUnavailable
 	}
-	speechModel, err := p.model(ctx, "speech", "gpt-4o-mini-tts")
+	speechModel, err := p.speechModel(ctx, link.Show.DJ)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -374,7 +377,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if len(spoken) == 0 || len(spoken) > maxSpeechBytes {
 		return nil, nil, errors.New("presenter link exceeds limits")
 	}
-	raw, err = p.synthesize(ctx, production.SpeechRequest{Text: spoken, Model: speechModel, Voice: link.Show.DJ.Voice, SpeechVoices: link.Show.DJ.SpeechVoices, Direction: link.Show.DJ.Vibe, Speed: link.Show.DJ.ConversationSpeed})
+	raw, err = p.synthesize(ctx, speechRequest(link.Show.DJ, spoken, speechModel))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -527,4 +530,15 @@ func (p Producer) speechBudget(ctx context.Context) time.Duration {
 		}
 	}
 	return production.Timeout
+}
+
+func (p Producer) speechModel(ctx context.Context, dj djs.Profile) (string, error) {
+	if dj.SpeechModel != "" {
+		return dj.SpeechModel, nil
+	}
+	return p.model(ctx, "speech", djs.DefaultSpeechModel)
+}
+func speechRequest(dj djs.Profile, text, model string) production.SpeechRequest {
+	pref := dj.ActiveSpeech()
+	return production.SpeechRequest{Connection: dj.SpeechConnection, Text: text, Model: model, Voice: pref.Voice, Direction: pref.Vibe, Speed: pref.Speed, SpeechVoices: dj.SpeechVoices}
 }

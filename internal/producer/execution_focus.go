@@ -27,7 +27,7 @@ func focusedTools(tools []Tool, focus string, reads map[string]int) []Tool {
 			allowed[name] = true
 		}
 	case "presenters":
-		for _, name := range []string{"list_djs", "get_dj", "save_dj", "list_voices", "generate_dj_photo"} {
+		for _, name := range []string{"list_djs", "get_dj", "save_dj", "list_voices", "list_speech_endpoints", "generate_dj_photo"} {
 			allowed[name] = true
 		}
 	case "sources":

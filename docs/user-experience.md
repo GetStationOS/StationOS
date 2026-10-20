@@ -264,7 +264,7 @@ and history navigation remain supported. Links in conversation messages, includi
 
 Show concrete saved outcomes and failed actions in the conversation. Never claim
 that the whole request rolled back when some actions succeeded. Interrupted runs
-remain visible and are not replayed. Assistant settings owns centrally managed provider connections and independent provider/model choices for producer, DJ, speech, audience and artwork roles. Existing OpenAI settings remain preserved. The key field is write-only; blank preserves it. DJ forms have no model override; all DJs use the global curation/writing provider and model and link to Assistant settings. Do not expose credentials
+remain visible and are not replayed. Assistant settings owns centrally managed provider connections and independent provider/model choices for producer, DJ writing, audience and artwork roles. Speech endpoint/model/voice settings belong to each DJ. Existing OpenAI settings remain preserved. The key field is write-only; blank preserves it. DJ forms have no text-model override; all DJs use the global curation/writing provider and model. Each DJ chooses a speech endpoint and model independently; endpoint addresses and credentials stay in Assistant settings. Do not expose credentials
 in conversation history or model tools. Saved configuration is not a tested key.
 
 Assistant responses support Markdown paragraphs, headings, emphasis, lists, links,
@@ -688,3 +688,21 @@ without forcing a replacement. Validate new selections against the active endpoi
 retain input on errors, and reject a stale form if its speech provider changed.
 Discovery runs only when opening a DJ form or validating a selection, never through
 background polling and never by generating sample speech.
+
+
+### DJ-owned speech settings
+
+Each DJ's Voice section selects a shared speech endpoint. OpenAI shows model,
+voice, conversation speed and direction; Chatterbox shows its fixed Nano model
+and discovered voices. Hide unsupported controls while preserving their values.
+Changing endpoint previews fields without saving, generating audio or resetting
+editorial input, uploads, focus or navigation. Keep unsaved preferences when
+switching and commit them atomically with the DJ. Provide normal-form fallback
+through Update voice options; JavaScript enhances selection to update immediately.
+A preview must never show Saved or reset the form's unsaved baseline.
+
+Shared endpoint addresses and keys remain under Assistant → Endpoints. Remove
+Speech from global Models. Existing DJs inherit the previous global speech
+endpoint/model on upgrade; new DJs default to OpenAI. Readiness reflects each DJ's
+selected endpoint, not the legacy global speech route. Protect endpoints in use
+by DJs from deletion or changing provider type.

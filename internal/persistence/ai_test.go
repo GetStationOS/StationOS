@@ -135,8 +135,11 @@ func TestChatterboxSpeechRouteAndReadinessWithoutKey(t *testing.T) {
 	if err = p.Configure(ctx, settings, producer.KeyChange{}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = db.Exec(`UPDATE djs SET speech_connection='nano',speech_model='chatterbox-nano' WHERE id='default-pop'`); err != nil {
+		t.Fatal(err)
+	}
 	var ready bool
-	if err = db.QueryRow("SELECT " + speechReadySQL).Scan(&ready); err != nil || !ready {
+	if err = db.QueryRow("SELECT " + speechReadySQL + " FROM djs WHERE id='default-pop'").Scan(&ready); err != nil || !ready {
 		t.Fatal("Nano requires no key", ready, err)
 	}
 	for _, role := range []string{"assistant", "curation", "audience", "image"} {
@@ -159,13 +162,16 @@ func TestChatterboxSpeechRouteAndReadinessWithoutKey(t *testing.T) {
 	if err = p.Configure(ctx, settings, producer.KeyChange{}); err != nil {
 		t.Fatal(err)
 	}
-	if err = db.QueryRow("SELECT " + speechReadySQL).Scan(&ready); err != nil || ready {
+	if _, err = db.Exec(`UPDATE djs SET speech_connection='openai' WHERE id='default-pop'`); err != nil {
+		t.Fatal(err)
+	}
+	if err = db.QueryRow("SELECT " + speechReadySQL + " FROM djs WHERE id='default-pop'").Scan(&ready); err != nil || ready {
 		t.Fatal("OpenAI readiness changed", ready, err)
 	}
 	if err = p.Configure(ctx, settings, producer.KeyChange{Value: "keep-openai"}); err != nil {
 		t.Fatal(err)
 	}
-	if err = db.QueryRow("SELECT " + speechReadySQL).Scan(&ready); err != nil || !ready {
+	if err = db.QueryRow("SELECT " + speechReadySQL + " FROM djs WHERE id='default-pop'").Scan(&ready); err != nil || !ready {
 		t.Fatal(ready, err)
 	}
 }

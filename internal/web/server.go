@@ -194,6 +194,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/djs/{id}/photo", s.djPhoto)
 	mux.HandleFunc("GET /producer/djs/{id}/delete", s.djPage)
 	mux.HandleFunc("POST /producer/djs", s.saveDJ)
+	mux.HandleFunc("POST /producer/djs/speech", s.previewDJSpeech)
 	mux.HandleFunc("POST /producer/djs/{id}/delete", s.deleteDJ)
 	mux.HandleFunc("GET /producer/sources", s.page)
 	mux.HandleFunc("GET /producer/sources/new", s.page)
@@ -267,7 +268,7 @@ func (s *Server) protect(next http.Handler) http.Handler {
 			}
 			kind, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			var formErr error
-			if (r.URL.Path == "/producer/djs" || r.URL.Path == "/producer/station") && kind == "multipart/form-data" {
+			if (r.URL.Path == "/producer/djs" || r.URL.Path == "/producer/djs/speech" || r.URL.Path == "/producer/station") && kind == "multipart/form-data" {
 				r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
 				formErr = r.ParseMultipartForm(6 << 20)
 				if r.MultipartForm != nil {

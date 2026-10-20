@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"stationos.local/stationos/internal/ai"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/schedule"
@@ -139,6 +140,9 @@ func TestChatterboxLiveDJLink(t *testing.T) {
 	link := production.LinkRequest{Show: profile()}
 	link.Show.DJ.HasKey = false
 	link.Show.DJ.SpeechVoices = map[string]string{"nano": selectedVoice}
+	link.Show.DJ.SpeechConnection = "nano"
+	link.Show.DJ.SpeechModel = "chatterbox-nano"
+	link.Show.DJ.SpeechSettings = map[string]djs.SpeechPreference{"nano": {Model: "chatterbox-nano", Voice: selectedVoice, Speed: 1}}
 	out, err := p.Link(context.Background(), link)
 	if err != nil {
 		t.Fatal(err)

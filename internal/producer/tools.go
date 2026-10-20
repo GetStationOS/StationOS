@@ -276,15 +276,20 @@ type playlistPatch struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
 }
+type voiceQuery struct {
+	DJID       string `json:"dj_id"`
+	Connection string `json:"connection"`
+}
 type djPatch struct {
-	ID                string              `json:"id"`
-	Name              *string             `json:"name"`
-	Voice             *string             `json:"voice"`
-	SpeechVoice       *djs.VoiceSelection `json:"speech_voice"`
-	Prompt            *string             `json:"prompt"`
-	Vibe              *string             `json:"vibe"`
-	Background        *string             `json:"background"`
-	ConversationSpeed *float64            `json:"conversation_speed"`
+	ID                string               `json:"id"`
+	Name              *string              `json:"name"`
+	Voice             *string              `json:"voice"`
+	SpeechVoice       *djs.VoiceSelection  `json:"speech_voice"`
+	Speech            *djs.SpeechSelection `json:"speech"`
+	Prompt            *string              `json:"prompt"`
+	Vibe              *string              `json:"vibe"`
+	Background        *string              `json:"background"`
+	ConversationSpeed *float64             `json:"conversation_speed"`
 }
 type showPatch struct {
 	ID              string  `json:"id"`
@@ -703,14 +708,33 @@ func NewRegistry(d Dependencies) *Registry {
 		return read(v, e)
 	})
 	register(r, "get_dj", "Read a DJ profile before editing. No credentials are returned.", false, func(ctx context.Context, a entityID) (Result, error) { v, e := d.DJs.Get(ctx, a.ID); return read(v, e) })
-	register(r, "list_voices", "List voices for the currently selected speech provider, including its connection ID. Use speech_voice with that connection and a discovered voice ID to select Chatterbox voices; an empty voice uses the server default. The voice field on save_dj remains the OpenAI voice.", false, func(ctx context.Context, _ empty) (Result, error) {
+	register(r, "list_speech_endpoints", "List shared OpenAI and Chatterbox speech connections available for each DJ. Credentials and server addresses are not returned.", false, func(ctx context.Context, _ empty) (Result, error) {
+		source, ok := d.Voices.(djs.SpeechSource)
+		if !ok {
+			return read([]djs.SpeechEndpoint{}, nil)
+		}
+		endpoints, err := source.SpeechConnections(ctx)
+		return read(endpoints, err)
+	})
+	register(r, "list_voices", "List voices for a DJ's saved speech endpoint, or a specified connection before editing. Supply dj_id or connection. Omission lists built-in OpenAI voices. Use list_speech_endpoints before choosing a provider. No speech is generated.", false, func(ctx context.Context, a voiceQuery) (Result, error) {
+		id := a.Connection
+		if id == "" && a.DJID != "" {
+			dj, err := d.DJs.Get(ctx, a.DJID)
+			if err != nil {
+				return Result{}, err
+			}
+			id = dj.SpeechConnection
+		}
+		if id == "" {
+			id = "openai"
+		}
 		if d.Voices != nil {
-			v, e := d.Voices.Voices(ctx)
+			v, e := d.Voices.Voices(djs.WithSpeechConnection(ctx, id))
 			return read(v, e)
 		}
 		return read(djs.Voices(), nil)
 	})
-	register(r, "save_dj", "Create or update supplied fields of a shared fictional DJ. First assess existing DJs using list_djs/get_dj and reuse a suitable presenter in shows. Create when existing profiles do not cover a programme’s needs or the distinct identities needed for a varied weekly lineup, or when an original presenter is explicitly requested. Use an original name, never an existing name with a station suffix. Duplicate names are rejected. Defaults: cedar OpenAI voice, speed 1; Chatterbox uses its server default until speech_voice is selected. Use list_voices and supply speech_voice with its connection and voice IDs for Chatterbox; voice remains the saved OpenAI choice. All DJs use the global curation/writing provider and model in Assistant settings; DJ profiles cannot override model selection. New DJs automatically receive a generated fictional portrait. artwork_error means the DJ was saved but the photo failed; retry only the artwork using its returned ID. All DJs use the shared key in Assistant settings; no DJ credential is needed.", true, func(ctx context.Context, a djPatch) (Result, error) {
+	register(r, "save_dj", "Create or update supplied fields of a shared fictional DJ. First assess existing DJs using list_djs/get_dj and reuse a suitable presenter in shows. Create when existing profiles do not cover a programme’s needs or the distinct identities needed for a varied weekly lineup, or when an original presenter is explicitly requested. Use an original name, never an existing name with a station suffix. Duplicate names are rejected. Defaults: cedar OpenAI voice, speed 1; Chatterbox uses its server default until speech_voice is selected. Use list_speech_endpoints and list_voices, then set speech={connection,settings:{model,voice,speed,vibe}} for this DJ. Chatterbox uses its fixed Nano model, server-discovered voice, speed 1 and no vibe. Prior endpoint settings are retained when switching. speech_voice is a legacy Chatterbox-only edit; voice remains the legacy OpenAI choice. All DJs use the global curation/writing provider and model in Assistant settings; DJ profiles cannot override text model selection; each DJ owns its speech endpoint and model. New DJs automatically receive a generated fictional portrait. artwork_error means the DJ was saved but the photo failed; retry only the artwork using its returned ID. Credentials belong to shared endpoints in Assistant settings; DJ profiles contain no keys.", true, func(ctx context.Context, a djPatch) (Result, error) {
 		r.djMu.Lock()
 		defer r.djMu.Unlock()
 		v := djs.Profile{}
@@ -725,6 +749,7 @@ func NewRegistry(d Dependencies) *Registry {
 		set(&v.Name, a.Name)
 		set(&v.Voice, a.Voice)
 		v.SpeechVoiceChange = a.SpeechVoice
+		v.SpeechChange = a.Speech
 		set(&v.Prompt, a.Prompt)
 		set(&v.Vibe, a.Vibe)
 		set(&v.Background, a.Background)

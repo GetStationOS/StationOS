@@ -91,7 +91,7 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := djs.Profile{ID: r.PostForm.Get("id"), Name: r.PostForm.Get("name"), Voice: r.PostForm.Get("voice"), Prompt: r.PostForm.Get("prompt"), Vibe: r.PostForm.Get("vibe"), Background: r.PostForm.Get("background")}
-	if _, ok := r.PostForm["speech_voice"]; ok {
+	if _, ok := r.PostForm["speech_voice"]; ok && !r.PostForm.Has("speech_config") {
 		p.SpeechVoiceChange = &djs.VoiceSelection{Connection: r.PostForm.Get("speech_connection"), Voice: r.PostForm.Get("speech_voice")}
 	}
 	p.ConversationSpeed = djs.DefaultConversationSpeed
@@ -107,8 +107,21 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		}
 		p.PortraitURL = saved.PortraitURL
 		p.SpeechVoices = saved.SpeechVoices
+		p.SpeechConnection = saved.SpeechConnection
+		p.SpeechModel = saved.SpeechModel
+		p.SpeechSettings = saved.SpeechSettings
+		if r.PostForm.Has("speech_config") {
+			p.Voice = saved.Voice
+			p.ConversationSpeed = saved.ConversationSpeed
+			p.Vibe = saved.Vibe
+		}
 	}
 	photo, err := s.readDJPhoto(r)
+	if r.PostForm.Has("speech_config") {
+		if e := readSpeechForm(r, &p, false); e != nil {
+			err = errors.Join(djs.ErrInvalid, e)
+		}
+	}
 	p.Photo = photo
 	if raw := r.PostForm.Get("conversation_speed"); raw != "" {
 		var speedErr error
@@ -261,7 +274,7 @@ func (s *Server) renderDJPhotoDraft(w http.ResponseWriter, r *http.Request, p dj
 	s.renderDJPage(w, r, http.StatusOK, v)
 }
 
-func (s *Server) djSpeechView(r *http.Request, v *djPageView) {
+func (s *Server) legacyDJSpeechView(r *http.Request, v *djPageView) {
 	if s.d.Voices == nil {
 		return
 	}

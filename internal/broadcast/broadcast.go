@@ -948,10 +948,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if levelErr != nil {
 			return
 		}
-		musicCtx := withMusicLevel(r.ctx, levels.Music)
+		musicCtx := withMusicNormalisation(withMusicLevel(r.ctx, levels.Music), levels.NormaliseMusic)
 		var audio io.ReadCloser
 		if ahead != nil {
-			if ahead.show == playing.Key && ahead.music == levels.Music && ahead.item.ID == current.ID {
+			if ahead.show == playing.Key && ahead.music == levels.Music && ahead.normalise == levels.NormaliseMusic && ahead.item.ID == current.ID {
 				select {
 				case audio = <-ahead.result:
 				default:

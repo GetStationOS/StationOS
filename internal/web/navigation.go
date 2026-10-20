@@ -3,8 +3,8 @@ package web
 import "fmt"
 
 type headingView struct {
-	Title, Metadata string
-	Actions         []headingAction
+	Title, Metadata, MetadataID string
+	Actions                     []headingAction
 }
 type headingAction struct {
 	Label, URL, Hint, Icon string
@@ -36,6 +36,7 @@ func playlistsHeading(v playlistPageView) headingView {
 }
 func playlistHeading(v playlistPageView) headingView {
 	out := heading(v.Title)
+	out.MetadataID = "playlist-summary"
 	if v.PlaylistTab == "delete" {
 		return out
 	}

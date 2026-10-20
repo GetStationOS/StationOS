@@ -21,6 +21,16 @@ func musicLevel(ctx context.Context) int {
 	return 100
 }
 
+type musicNormalisationKey struct{}
+
+func withMusicNormalisation(ctx context.Context, enabled bool) context.Context {
+	return context.WithValue(ctx, musicNormalisationKey{}, enabled)
+}
+func musicNormalisation(ctx context.Context) bool {
+	enabled, _ := ctx.Value(musicNormalisationKey{}).(bool)
+	return enabled
+}
+
 // PresenterEncoder applies station gain to already prepared speech at airtime.
 // Speech caches remain independent of station levels and are never mutated.
 type PresenterEncoder interface {
@@ -32,6 +42,18 @@ func (m *Manager) levels(ctx context.Context, id string) (mixer.Levels, error) {
 		return mixer.Default(), nil
 	}
 	return m.options.Mixer.Get(ctx, id)
+}
+
+// Single-pass loudnorm works on streamed source bytes without downloading or
+// scanning the complete recording first. Output remains 44.1 kHz stereo MP3;
+// the encoder's explicit sample rate downsamples loudnorm's true-peak analysis.
+// A wide LRA avoids imposing the speech chain's tight dynamics on music.
+func musicLoudnessFilter(percent int) string {
+	filter := "aformat=channel_layouts=stereo,loudnorm=I=-16:TP=-2:LRA=20:linear=false"
+	if percent != 100 {
+		filter += "," + gainFilter(percent)
+	}
+	return filter
 }
 
 // gainFilter scales decoded samples, then clamps peaks without undoing gain.

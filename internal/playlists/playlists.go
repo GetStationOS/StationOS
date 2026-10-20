@@ -121,6 +121,7 @@ type Repository interface {
 	SetIncluded(context.Context, string, []string, bool) error
 	Resolve(context.Context, string, int, int) (Result, error)
 	Review(context.Context, string, int, int) (ReviewResult, error)
+	SearchReview(context.Context, string, string, int, int) (ReviewResult, error)
 	Refresh(context.Context, string) (RefreshResult, error)
 }
 type StationLookup interface {

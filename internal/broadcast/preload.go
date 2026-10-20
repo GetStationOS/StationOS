@@ -49,16 +49,17 @@ func (f FFmpeg) Preload(ctx context.Context, item content.AudioItem) (io.ReadClo
 }
 
 type audioPreparation struct {
-	item   content.AudioItem
-	show   string
-	music  int
-	cancel context.CancelFunc
-	result chan io.ReadCloser
+	item      content.AudioItem
+	show      string
+	music     int
+	normalise bool
+	cancel    context.CancelFunc
+	result    chan io.ReadCloser
 }
 
 func startAudioPreparation(ctx context.Context, e PreloadingEncoder, item content.AudioItem, show string, workers *sync.WaitGroup) *audioPreparation {
 	ctx, cancel := context.WithCancel(ctx)
-	p := &audioPreparation{item: item, show: show, music: musicLevel(ctx), cancel: cancel, result: make(chan io.ReadCloser)}
+	p := &audioPreparation{item: item, show: show, music: musicLevel(ctx), normalise: musicNormalisation(ctx), cancel: cancel, result: make(chan io.ReadCloser)}
 	workers.Add(1)
 	go func() {
 		defer workers.Done()

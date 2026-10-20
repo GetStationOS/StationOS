@@ -13,7 +13,19 @@
     </div>
     <div class="mixer-channels">
       {{range .MixerChannels}}{{template "mixer-channel" .}}{{end}}
+      <fieldset class="mixer-channel mixer-processing">
+        <legend>Auto level</legend>
+        <p class="mixer-channel-source" id="music-normalisation-label">Automatic music loudness</p>
+        <div class="mixer-processing-control">
+          <label class="mixer-switch">
+            <input type="checkbox" role="switch" name="normalise_music" value="on" data-mixer-option{{if .NormaliseMusic}} checked{{end}} aria-labelledby="music-normalisation-label" aria-describedby="music-normalisation-help">
+            <span class="mixer-switch-lamp" aria-hidden="true"></span>
+            <span class="mixer-switch-face" aria-hidden="true"><span class="mixer-switch-on">On</span><span class="mixer-switch-off">Off</span></span>
+          </label>
+        </div>
+      </fieldset>
     </div>
+    <p class="mixer-processing-help" id="music-normalisation-help">Auto level evens out quieter and louder tracks before the music fader. It may change musical dynamics. Off preserves original levels.</p>
     <div class="mixer-console-note">Changes save automatically for every listener and start with the next track or announcement.</div>
     <div class="mixer-save-feedback">
       <span data-mixer-feedback role="status" aria-live="polite">

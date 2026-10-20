@@ -105,20 +105,25 @@ func TestMixerRealMusicAndCachedSpeechGain(t *testing.T) {
 	}
 }
 
-type liveMixer struct{ music, dj atomic.Int32 }
+type liveMixer struct {
+	music, dj atomic.Int32
+	normalise atomic.Bool
+}
 
 func (r *liveMixer) Get(context.Context, string) (mixer.Levels, error) {
-	return mixer.Levels{Music: int(r.music.Load()), DJ: int(r.dj.Load())}, nil
+	return mixer.Levels{Music: int(r.music.Load()), DJ: int(r.dj.Load()), NormaliseMusic: r.normalise.Load()}, nil
 }
 func (r *liveMixer) Save(_ context.Context, _ string, v mixer.Levels) error {
 	r.music.Store(int32(v.Music))
 	r.dj.Store(int32(v.DJ))
+	r.normalise.Store(v.NormaliseMusic)
 	return nil
 }
 
 type mixerOpening struct {
 	opening
-	level int
+	level     int
+	normalise bool
 }
 type mixerEncoder struct {
 	calls  chan mixerOpening
@@ -130,7 +135,7 @@ func (e *mixerEncoder) Open(ctx context.Context, item content.AudioItem) (io.Rea
 	reader, writer := io.Pipe()
 	context.AfterFunc(ctx, func() { reader.Close(); writer.Close() })
 	select {
-	case e.calls <- mixerOpening{opening{item, writer}, musicLevel(ctx)}:
+	case e.calls <- mixerOpening{opening{item, writer}, musicLevel(ctx), musicNormalisation(ctx)}:
 		return reader, nil
 	case <-ctx.Done():
 		reader.Close()
@@ -157,67 +162,75 @@ func (e *mixerEncoder) OpenPresenter(_ context.Context, data []byte, level int) 
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 func TestSavedMixerReplacesOldPreloadAndScalesReadyLink(t *testing.T) {
-	ctx := context.Background()
-	levels := &liveMixer{}
-	levels.Save(ctx, "radio", mixer.Default())
-	encoder := &mixerEncoder{calls: make(chan mixerOpening, 8), primed: make(chan struct{}, 8), speech: make(chan int, 8)}
-	now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
-	shows := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
-	links := readyLinks{called: make(chan production.LinkRequest, 8)}
-	repo := &memoryRepo{playlist: "pool", pool: []content.AudioItem{length("one", 180), length("two", 180)}}
-	m := New(repo, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Mixer: levels, Schedule: shows, Links: links, Now: func() time.Time { return now }})
-	defer m.Close()
-	sub, err := m.Subscribe(ctx, "radio")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer sub.Close()
-	open := func() mixerOpening {
-		select {
-		case v := <-encoder.calls:
-			return v
-		case <-time.After(3 * time.Second):
-			t.Fatal("encoder did not start")
-			return mixerOpening{}
-		}
-	}
-	a, b := open(), open()
-	// The ordinary Open is synchronous; Preload runs in the background.
-	current, queued := a, b
-	request := <-links.called
-	if current.item.ID != request.Current.ID {
-		current, queued = b, a
-	}
-	queued.write.Write([]byte("STALE MUSIC"))
-	<-encoder.primed
-	current.write.Write([]byte("CURRENT"))
-	receive(t, sub)
-	levels.Save(ctx, "radio", mixer.Levels{Music: 55, DJ: 200})
-	current.write.Close()
-	if string(receive(t, sub)) != "HANDOVER" {
-		t.Fatal("ready link missing")
-	}
-	select {
-	case gain := <-encoder.speech:
-		if gain != 200 {
-			t.Fatal("cached link used old DJ level", gain)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("DJ gain missing")
-	}
-	replacement := open()
-	if replacement.level != 55 {
-		t.Fatal("new gain missing", replacement.level)
-	}
-	// Another preload can race the current Open; both must carry the saved gain.
-	if replacement.item.ID != queued.item.ID {
-		replacement = open()
-	}
-	if replacement.level != 55 || replacement.item.ID != queued.item.ID {
-		t.Fatal("stale preload retained", replacement)
-	}
-	replacement.write.Write([]byte("UPDATED MUSIC"))
-	if string(receive(t, sub)) != "UPDATED MUSIC" {
-		t.Fatal("stale queued audio reached listeners")
+	for _, tc := range []struct {
+		name      string
+		music     int
+		normalise bool
+	}{{"music gain", 55, false}, {"normalisation only", 100, true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			levels := &liveMixer{}
+			levels.Save(ctx, "radio", mixer.Default())
+			encoder := &mixerEncoder{calls: make(chan mixerOpening, 8), primed: make(chan struct{}, 8), speech: make(chan int, 8)}
+			now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
+			shows := timedSchedule{shows: []schedule.Show{{ID: "show", StationID: "radio", Day: 0, Start: 540, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", HasKey: true}}}}
+			links := readyLinks{called: make(chan production.LinkRequest, 8)}
+			repo := &memoryRepo{playlist: "pool", pool: []content.AudioItem{length("one", 180), length("two", 180)}}
+			m := New(repo, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Mixer: levels, Schedule: shows, Links: links, Now: func() time.Time { return now }})
+			defer m.Close()
+			sub, err := m.Subscribe(ctx, "radio")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sub.Close()
+			open := func() mixerOpening {
+				select {
+				case v := <-encoder.calls:
+					return v
+				case <-time.After(3 * time.Second):
+					t.Fatal("encoder did not start")
+					return mixerOpening{}
+				}
+			}
+			a, b := open(), open()
+			// The ordinary Open is synchronous; Preload runs in the background.
+			current, queued := a, b
+			request := <-links.called
+			if current.item.ID != request.Current.ID {
+				current, queued = b, a
+			}
+			queued.write.Write([]byte("STALE MUSIC"))
+			<-encoder.primed
+			current.write.Write([]byte("CURRENT"))
+			receive(t, sub)
+			levels.Save(ctx, "radio", mixer.Levels{Music: tc.music, DJ: 200, NormaliseMusic: tc.normalise})
+			current.write.Close()
+			if string(receive(t, sub)) != "HANDOVER" {
+				t.Fatal("ready link missing")
+			}
+			select {
+			case gain := <-encoder.speech:
+				if gain != 200 {
+					t.Fatal("cached link used old DJ level", gain)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("DJ gain missing")
+			}
+			replacement := open()
+			if replacement.level != tc.music || replacement.normalise != tc.normalise {
+				t.Fatal("new gain missing", replacement.level)
+			}
+			// Another preload can race the current Open; both must carry the saved gain.
+			if replacement.item.ID != queued.item.ID {
+				replacement = open()
+			}
+			if replacement.level != tc.music || replacement.normalise != tc.normalise || replacement.item.ID != queued.item.ID {
+				t.Fatal("stale preload retained", replacement)
+			}
+			replacement.write.Write([]byte("UPDATED MUSIC"))
+			if string(receive(t, sub)) != "UPDATED MUSIC" {
+				t.Fatal("stale queued audio reached listeners")
+			}
+		})
 	}
 }

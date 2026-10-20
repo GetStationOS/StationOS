@@ -36,6 +36,7 @@ func (s *Server) mixerView(r *http.Request) (mixerPageView, error) {
 		err = e
 		v.MusicVolume = strconv.Itoa(levels.Music)
 		v.DJVolume = strconv.Itoa(levels.DJ)
+		v.NormaliseMusic = levels.NormaliseMusic
 	}
 	return v, err
 }
@@ -75,7 +76,8 @@ func (s *Server) saveMixer(w http.ResponseWriter, r *http.Request) {
 	v.DJVolume = r.PostForm.Get("dj_volume")
 	music, e1 := strconv.Atoi(v.MusicVolume)
 	dj, e2 := strconv.Atoi(v.DJVolume)
-	levels := mixer.Levels{Music: music, DJ: dj}
+	v.NormaliseMusic = r.PostForm.Get("normalise_music") == "on"
+	levels := mixer.Levels{Music: music, DJ: dj, NormaliseMusic: v.NormaliseMusic}
 	if e1 != nil || e2 != nil || levels.Validate() != nil {
 		v.MixerError = "Choose music and DJ volumes between 0% and 400%."
 		if autosave {

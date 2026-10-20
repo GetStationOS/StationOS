@@ -1,4 +1,5 @@
 const mixerSaves = new WeakMap();
+const formSaves = new WeakMap();
 const liveSubscriptions=new Map();
 let stationEvents=null;
 let stationEventOwner=null;
@@ -45,6 +46,8 @@ document.body.addEventListener('htmx:beforeRequest', event => {
   if (event.detail.elt?.closest('[data-results-navigation]')) resultsNavigation = true;
 });
 function initialise() {
+  initialiseSaveControls();
+  initialiseEventNotices();
   document.querySelectorAll('[data-history-filter-toggle]:not([data-ready])').forEach(button => {
     button.dataset.ready = 'true';
     const fields = document.getElementById(button.getAttribute('aria-controls'));
@@ -82,7 +85,7 @@ function initialise() {
     calendar.dataset.positioned = 'true';
   });
 }
-function mixerState(form) { return JSON.stringify(Array.from(form.querySelectorAll('[data-mixer-level]'), field => [field.name, field.value])); }
+function mixerState(form) { return JSON.stringify(Array.from(form.querySelectorAll('[data-mixer-level], [data-mixer-option]'), field => [field.name, field.type === 'checkbox' ? field.checked : field.value])); }
 function refreshMixer(form) {
  form.querySelectorAll('[data-volume-for]').forEach(slider => {
   const field = document.getElementById(slider.dataset.volumeFor);
@@ -121,6 +124,7 @@ document.body.addEventListener('htmx:afterSwap', event => {
     return;
   }
   if (target.id === 'source-discovery-results') return;
+  if (target.id === 'playlist-track-results' && resultsNavigation) {resultsNavigation=false; document.querySelector('#playlist-track-results #table-results-heading')?.focus({preventScroll:true});}
   const feedback = document.getElementById('feedback'); feedback.hidden = true;
   if (target.id === 'dialog-body') {
     document.querySelector('#confirm-dialog [data-modal-error]').hidden = true;
@@ -139,18 +143,31 @@ document.body.addEventListener('htmx:afterSwap', event => {
   }
   if (target.id === 'contribution-panel' || target.id.startsWith('contribution-')) target.focus({preventScroll:true});
 });
+document.body.addEventListener('htmx:afterSettle', event => {
+ const target=event.detail.target || event.detail.elt;
+ if (target?.id === 'playlist-track-results') {
+  const destination=document.querySelector('#playlist-page-heading input[name=return_to]');
+  if (destination) destination.value=window.location.pathname+window.location.search;
+ }
+ if (target?.tagName === 'TR' && target.id.startsWith('playlist-track-')) document.getElementById(target.id)?.querySelector('button')?.focus({preventScroll:true});
+});
 document.body.addEventListener('htmx:historyRestore', initialise);
 document.body.addEventListener('htmx:beforeRequest', event => { event.detail.target.setAttribute('aria-busy', 'true'); });
 document.body.addEventListener('htmx:afterRequest', event => { event.detail.target.removeAttribute('aria-busy'); });
 function showError(message) {
   const feedback = document.querySelector('dialog[open] [data-modal-error]') || document.getElementById('feedback');
-  feedback.textContent = message; feedback.hidden = false; feedback.focus({preventScroll:false});
+  const copy = feedback.querySelector('[data-feedback-message]');
+  if (copy) copy.textContent = message; else feedback.textContent = message;
+  feedback.hidden = false; feedback.focus({preventScroll:true});
 }
 document.body.addEventListener('htmx:responseError', event => {
   if (event.detail?.elt?.id === 'assistant-messages') return;
-  showError(event.detail.xhr.status === 401 ? 'Your session needs authentication. Reload to sign in.' : event.detail.xhr.responseText);
+  const response=event.detail.xhr;
+  const detail=(response.getResponseHeader('Content-Type')||'').includes('text/plain') && response.responseText.length<500 ? response.responseText.trim() : '';
+  const message = response.status === 401 ? 'Your session needs authentication. Reload to sign in.' : detail || 'Couldn’t save. Please check your entries and try again.';
+  if (!failSaveControl(event, message)) showError(event.detail.xhr.status === 401 ? message : event.detail.xhr.responseText);
 });
-document.body.addEventListener('htmx:sendError', event => { if (event.detail?.elt?.id !== 'assistant-messages') showError('Cannot reach StationOS. Your changes have not been saved. Check the connection and try again.'); });
+document.body.addEventListener('htmx:sendError', event => { if (event.detail?.elt?.id !== 'assistant-messages' && !failSaveControl(event, 'Cannot reach StationOS. Your changes have not been saved. Try again.')) showError('Cannot reach StationOS. Your changes have not been saved. Check the connection and try again.'); });
 document.body.addEventListener('change', event => {
   const form = event.target.closest('form');
   if (!form) return;
@@ -1054,4 +1071,100 @@ document.body.addEventListener('htmx:afterSettle', event => {
  if (event.detail.target?.id !== 'main' || location.hash !== '#episode-running-order') return;
  const section = document.getElementById('episode-running-order');
  if (section) { section.focus({preventScroll:true}); section.scrollIntoView({block:'start'}); }
+});
+
+// Success acknowledgements remain near the action when possible; information
+// without a visible result stays above the player. Errors are never timed out.
+function initialiseEventNotices() {
+ document.querySelectorAll('[data-event-notice]:not([data-notice-ready])').forEach(notice => {
+  notice.dataset.noticeReady = 'true';
+  const text = notice.querySelector('[data-notice-text]')?.textContent.trim() || '';
+  const button = document.querySelector('#main button[data-save-control]');
+  if (/\bsaved[.!]/i.test(text)) {
+   if (button) setSaveControl(button.closest('form'), 'saved');
+   notice.remove();
+  } else {
+   setTimeout(() => {if (!notice.matches(':hover') && !notice.contains(document.activeElement)) notice.hidden=true;},7000);
+  }
+ });
+ const player = document.getElementById('radio-player');
+ if (player && !player.dataset.noticeObserved) {
+  player.dataset.noticeObserved='true';
+  const update = () => document.documentElement.style.setProperty('--feedback-bottom', player.hidden ? '20px' : (player.getBoundingClientRect().height + 36) + 'px');
+  new ResizeObserver(update).observe(player);
+  new MutationObserver(update).observe(player,{attributes:true,attributeFilter:['hidden']});
+  update();
+ }
+}
+document.body.addEventListener('click', event => {
+ const dismiss=event.target.closest('[data-dismiss-notice]');
+ if (!dismiss) return;
+ const notice=dismiss.closest('[data-event-notice], #feedback');
+ if (notice) notice.hidden=true;
+});
+
+// Routine edit feedback belongs to the submit control, not a new banner or grid item.
+function editableFormState(form) {
+ return JSON.stringify(Array.from(new FormData(form), ([key,value]) => [key, value instanceof File ? (value.name ? [value.name,value.size,value.lastModified] : []) : value]));
+}
+function initialiseSaveControls() {
+ document.querySelectorAll('#main form').forEach(form => {
+  if (formSaves.has(form) || form.matches('[data-mixer-form]')) return;
+  const button=Array.from(form.querySelectorAll('.form-actions button, .selection-save button[type=submit]')).find(button => /^Save(?:\s|$)/.test(button.textContent.trim()));
+  if (!button) return;
+  const state={button,label:button.textContent.trim(),baseline:editableFormState(form),phase:'unchanged'};
+  formSaves.set(form,state);
+  form.querySelectorAll('[data-unsaved], [data-source-unsaved], [data-prompt-unsaved]').forEach(status=>{status.hidden=true;});
+  button.dataset.saveControl='true';
+  button.classList.add('save-state-button');
+  button.setAttribute('aria-live','polite');
+  const invalid=form.querySelector('[aria-invalid=true], [role=alert], .notice.error') || form.parentElement?.querySelector(':scope > [role=alert], :scope > .notice.error');
+  setSaveControl(form,invalid?'failed':'unchanged');
+ });
+}
+function setSaveControl(form,phase) {
+ const state=formSaves.get(form);if (!state) return;
+ state.phase=phase;
+ state.button.disabled=phase==='unchanged'||phase==='saving'||phase==='saved';
+ state.button.textContent=phase==='saved'?'✓ Saved':phase==='saving'?'Saving…':phase==='failed'?'Retry save':state.label;
+ state.button.dataset.saveState=phase;
+}
+function updateSaveControl(form) {
+ const state=formSaves.get(form);if (!state||state.phase==='saving') return;
+ const dirty=editableFormState(form)!==state.baseline;
+ form.querySelector('[data-save-error]')?.remove();
+ if (dirty) setSaveControl(form,'edited');
+ else setSaveControl(form,state.phase==='saved'?'saved':'unchanged');
+}
+function failSaveControl(event,message) {
+ const element=event.detail?.elt;
+ const form=element?.matches?.('form')?element:element?.closest?.('form');
+ if (!form||!formSaves.has(form)) return false;
+ setSaveControl(form,'failed');
+ let error=form.querySelector('[data-save-error]');
+ if (!error) {error=document.createElement('p');error.dataset.saveError='true';error.className='save-error';error.setAttribute('role','alert');(form.querySelector('.form-footer, .selection-save')||form).append(error);}
+ error.textContent=message;
+ return true;
+}
+for (const name of ['input','change']) document.body.addEventListener(name,event => {
+ const form=event.target.closest('form');if (form) updateSaveControl(form);
+});
+document.body.addEventListener('htmx:beforeRequest',event => {
+ const element=event.detail.elt;
+ const form=element?.matches?.('form')?element:element?.closest?.('form');
+ if (formSaves.has(form) && event.detail.requestConfig?.parameters?.action !== 'reset') setSaveControl(form,'saving');
+});
+
+// Also support successful HTMX saves that deliberately leave the form in place.
+document.body.addEventListener('htmx:afterRequest',event => {
+ const element=event.detail.elt;
+ const form=element?.matches?.('form')?element:element?.closest?.('form');
+ const state=formSaves.get(form);
+ if (state?.phase==='saving' && event.detail.successful && form.isConnected) {
+  state.baseline=editableFormState(form);
+  setSaveControl(form,'saved');
+ }
+});
+document.body.addEventListener('htmx:timeout',event => {
+ failSaveControl(event,'Saving timed out. Check your changes before trying again.');
 });

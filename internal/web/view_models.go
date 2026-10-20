@@ -104,6 +104,7 @@ type playlistPageView struct {
 	PlaylistResult                                             playlists.Result
 	ExcludedTracks                                             int
 	PlaylistRefreshNotice                                      string
+	TrackSearch                                                string
 	Sources                                                    []sources.Config
 	SavedRestrictions                                          []ruleRow
 	RuleGroups                                                 []ruleChoiceGroup
@@ -151,6 +152,7 @@ type djPageView struct {
 }
 type mixerPageView struct {
 	pageView
+	NormaliseMusic                    bool
 	MixerChannels                     []mixerChannel
 	MusicVolume, DJVolume, MixerError string
 }

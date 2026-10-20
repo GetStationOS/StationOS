@@ -96,6 +96,9 @@ func refreshPlaylistSnapshot(ctx context.Context, tx *sql.Tx, id string) (playli
 // Review adds excluded snapshots only to the editing view. Resolve, Availability
 // and broadcast pools never include these entries, totals or their durations.
 func (r Playlists) Review(ctx context.Context, id string, offset, limit int) (playlists.ReviewResult, error) {
+	return r.SearchReview(ctx, id, "", offset, limit)
+}
+func (r Playlists) SearchReview(ctx context.Context, id, query string, offset, limit int) (playlists.ReviewResult, error) {
 	var review playlists.ReviewResult
 	if offset < 0 || offset > 1000000 || limit < 1 || limit > 100 {
 		return review, playlists.ErrInvalid
@@ -143,6 +146,24 @@ func (r Playlists) Review(ctx context.Context, id string, offset, limit int) (pl
 		}
 		return left < right
 	})
+	if terms := strings.Fields(strings.ToLower(query)); len(terms) > 0 {
+		matches := make([]playlists.Entry, 0, len(review.Entries))
+		for _, entry := range review.Entries {
+			item := entry.Item
+			text := strings.ToLower(strings.Join([]string{item.Title, item.Artist, item.Album, item.Composer}, " "))
+			match := true
+			for _, term := range terms {
+				if !strings.Contains(text, term) {
+					match = false
+					break
+				}
+			}
+			if match {
+				matches = append(matches, entry)
+			}
+		}
+		review.Entries = matches
+	}
 	review.Rows = len(review.Entries)
 	start := min(offset, review.Rows)
 	end := min(start+limit, review.Rows)

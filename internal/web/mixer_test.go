@@ -100,3 +100,37 @@ func TestMixerAutosaveCommitsWithoutRedirectOrFormSwap(t *testing.T) {
 		t.Fatal("unprotected autosave committed", after)
 	}
 }
+
+func TestMixerNormalisationSwitchDefaultAndAutosave(t *testing.T) {
+	h, stations, _, _ := setupWeb(t, "")
+	ctx := context.Background()
+	if err := stations.Save(ctx, station.Station{ID: "normalise", Name: "Normalise", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
+	path := "/producer/stations/normalise/mixer"
+	token := csrf(t, h)
+	repo := persistence.Mixer{DB: stations.DB}
+	initial, err := repo.Get(ctx, "normalise")
+	if err != nil || initial.NormaliseMusic {
+		t.Fatal("new station enables normalisation", initial, err)
+	}
+	for _, enabled := range []bool{true, false} {
+		values := url.Values{"csrf": {token}, "music_volume": {"65"}, "dj_volume": {"80"}}
+		if enabled {
+			values.Set("normalise_music", "on")
+		}
+		w := request(h, "POST", path, values, map[string]string{"X-Mixer-Autosave": "true", "Accept": "application/json"})
+		if w.Code != 200 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		got, err := repo.Get(ctx, "normalise")
+		if err != nil || got.NormaliseMusic != enabled || got.Music != 65 || got.DJ != 80 {
+			t.Fatal(got, err)
+		}
+		page := request(h, "GET", path, nil, nil)
+		checked := strings.Contains(page.Body.String(), `data-mixer-option checked`)
+		if checked != enabled {
+			t.Fatal("switch does not reflect saved state", page.Body.String())
+		}
+	}
+}

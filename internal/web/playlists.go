@@ -110,7 +110,11 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			totalRows := 0
 			load := func(number int) error {
 				if v.PlaylistTab == "tracks" {
-					review, err := s.d.Playlists.Review(r.Context(), id, (number-1)*size, size)
+					v.TrackSearch = strings.TrimSpace(r.URL.Query().Get("q"))
+					if len(v.TrackSearch) > 300 {
+						return playlists.ErrInvalid
+					}
+					review, err := s.d.Playlists.SearchReview(r.Context(), id, v.TrackSearch, (number-1)*size, size)
 					v.PlaylistResult = review.Result
 					v.ExcludedTracks = review.Excluded
 					totalRows = review.Rows
@@ -128,6 +132,9 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 			}
 			v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, totalRows)
 			v.Pagination.ActionURL = "/producer/content?playlist=" + id
+			if v.PlaylistTab == "tracks" {
+				v.Pagination.Target = "#playlist-track-results"
+			}
 			if page != v.Pagination.Number {
 				err = load(v.Pagination.Number)
 				if err != nil {
@@ -136,7 +143,13 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			v.PlaylistDuration = duration(&v.PlaylistResult.Duration)
-			v.ReturnTo = r.URL.RequestURI()
+			returnURL := *r.URL
+			returnQuery := returnURL.Query()
+			for _, key := range []string{"row_item", "notice", "new_tracks", "new_albums", "selections_saved"} {
+				returnQuery.Del(key)
+			}
+			returnURL.RawQuery = returnQuery.Encode()
+			v.ReturnTo = returnURL.RequestURI()
 			if r.URL.Query().Get("notice") == "playlist-refreshed" {
 				tracks, tErr := strconv.Atoi(r.URL.Query().Get("new_tracks"))
 				albums, aErr := strconv.Atoi(r.URL.Query().Get("new_albums"))
@@ -213,6 +226,22 @@ func (s *Server) playlistPage(w http.ResponseWriter, r *http.Request) {
 		s.renderHTML(w, http.StatusOK, "delete-playlist", v)
 		return
 	}
+	if v.PlaylistTab == "tracks" && fragmentTarget(r, "playlist-track-row") {
+		selected := r.URL.Query().Get("row_item")
+		for _, row := range v.Rows {
+			if row.Item.ID == selected {
+				v.Rows = []trackRow{row}
+				s.renderHTML(w, http.StatusOK, "playlist-track-row-response", v)
+				return
+			}
+		}
+		http.Error(w, "Track no longer appears in these results. Refresh the search.", http.StatusConflict)
+		return
+	}
+	if v.PlaylistTab == "tracks" && fragmentTarget(r, "playlist-track-results") {
+		s.renderHTML(w, http.StatusOK, "playlist-tracks-results", v)
+		return
+	}
 	s.renderPage(w, r, http.StatusOK, name, v)
 }
 func (s *Server) savePlaylist(w http.ResponseWriter, r *http.Request) {
@@ -283,7 +312,7 @@ func (s *Server) removeItem(w http.ResponseWriter, r *http.Request) {
 		s.playlistError(w, err)
 		return
 	}
-	s.redirect(w, r, withNotice(playlistReturn(r.PostForm.Get("return_to"), id), "track-removed"))
+	s.playlistSelectionResponse(w, r, id)
 }
 func withNotice(destination, message string) string {
 	u, _ := url.Parse(destination)
@@ -498,7 +527,7 @@ func (s *Server) restoreItem(w http.ResponseWriter, r *http.Request) {
 		s.playlistError(w, err)
 		return
 	}
-	s.redirect(w, r, withNotice(playlistReturn(r.PostForm.Get("return_to"), id), "track-restored"))
+	s.playlistSelectionResponse(w, r, id)
 }
 func (s *Server) refreshPlaylist(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
@@ -521,4 +550,32 @@ func playlistRefreshReturn(raw string, report playlists.RefreshResult, saved boo
 	}
 	destination.RawQuery = query.Encode()
 	return destination.String()
+}
+
+// Row changes retain the exact search/page and update the independent heading
+// totals out of band. Ordinary form submissions retain their normal GET fallback.
+func (s *Server) playlistSelectionResponse(w http.ResponseWriter, r *http.Request, id string) {
+	destination := playlistReturn(r.PostForm.Get("return_to"), id)
+	if fragmentRequest(r) && strings.HasPrefix(r.Header.Get("HX-Target"), "playlist-track-") {
+		if s.d.Broadcast != nil {
+			s.d.Broadcast.Changed()
+		}
+		u, _ := url.Parse(destination)
+		if u.Path != "/producer/playlists/"+id+"/tracks" {
+			s.redirect(w, r, destination)
+			return
+		}
+		query := u.Query()
+		query.Del("notice")
+		query.Set("row_item", r.PostForm.Get("item"))
+		u.RawQuery = query.Encode()
+		next := r.Clone(r.Context())
+		next.Method = http.MethodGet
+		next.URL = u
+		next.Header = r.Header.Clone()
+		next.Header.Set("HX-Target", "playlist-track-row")
+		s.playlistPage(w, next)
+		return
+	}
+	s.redirect(w, r, destination)
 }

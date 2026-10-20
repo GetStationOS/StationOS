@@ -28,7 +28,7 @@ func TestMixerPersistsIndependentLevelsAndCascades(t *testing.T) {
 	if err != nil || v != mixer.Default() {
 		t.Fatal(v, err)
 	}
-	want := mixer.Levels{Music: 0, DJ: 275}
+	want := mixer.Levels{Music: 0, DJ: 275, NormaliseMusic: true}
 	if err = repo.Save(ctx, "one", want); err != nil {
 		t.Fatal(err)
 	}
@@ -56,6 +56,13 @@ func TestMixerPersistsIndependentLevelsAndCascades(t *testing.T) {
 	v, err = repo.Get(ctx, "one")
 	if err != nil || v != want {
 		t.Fatal("restart lost gains", v, err)
+	}
+	want.NormaliseMusic = false
+	if err = repo.Save(ctx, "one", want); err != nil {
+		t.Fatal(err)
+	}
+	if v, err = repo.Get(ctx, "one"); err != nil || v.NormaliseMusic {
+		t.Fatal("normalisation could not be disabled", v, err)
 	}
 	if err = (Stations{DB: db}).Delete(ctx, "one"); err != nil {
 		t.Fatal(err)

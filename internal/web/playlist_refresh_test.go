@@ -55,8 +55,27 @@ func TestPlaylistRefreshAndExclusionJourney(t *testing.T) {
 	}
 	restore := request(h, "POST", path+"/restore", url.Values{"csrf": {token}, "item": {a.ID}, "return_to": {path + "/tracks?per_page=50"}}, nil)
 	restored := request(h, "GET", restore.Header().Get("Location"), nil, nil).Body.String()
-	if strings.Contains(restored, `class="playlist-track-excluded"`) || !strings.Contains(restored, "re-included") {
+	if strings.Contains(restored, `class="playlist-track-excluded"`) || !strings.Contains(restored, "Exclude Alpha") {
 		t.Fatal(restored)
+	}
+	// Search retains excluded recordings, and mutations return one row plus
+	// independently updated totals without a main-content navigation or notice.
+	searched := request(h, "GET", path+"/tracks?q=Alpha&per_page=50", nil, map[string]string{"HX-Request": "true", "HX-Target": "playlist-track-results"})
+	if searched.Code != 200 || !strings.Contains(searched.Body.String(), "Exclude Alpha") || strings.Contains(searched.Body.String(), "<h1") {
+		t.Fatal(searched.Code, searched.Body.String())
+	}
+	for _, action := range []string{"remove", "restore"} {
+		changed := request(h, "POST", path+"/"+action, url.Values{"csrf": {token}, "item": {a.ID}, "return_to": {path + "/tracks?q=Alpha&per_page=50"}}, map[string]string{"HX-Request": "true", "HX-Target": "playlist-track-" + a.ID})
+		body := changed.Body.String()
+		if changed.Code != 200 || changed.Header().Get("HX-Location") != "" || !strings.Contains(body, `hx-swap-oob="innerHTML"`) || strings.Contains(body, `id="playlist-track-results"`) || strings.Contains(body, `data-event-notice`) {
+			t.Fatal(changed.Code, body)
+		}
+		if strings.Contains(body, `class="playlist-track-excluded"`) != (action == "remove") {
+			t.Fatal("row exclusion state did not update", body)
+		}
+		if !strings.Contains(body, "q=Alpha") {
+			t.Fatal("lost search", body)
+		}
 	}
 	b := a
 	b.ID = content.ID(source.ID, "b")
@@ -103,5 +122,17 @@ func TestPlaylistRefreshAndExclusionJourney(t *testing.T) {
 	}
 	if missing := request(h, "POST", "/producer/playlists/missing/refresh", url.Values{"csrf": {token}}, nil); missing.Code != 404 {
 		t.Fatal(missing.Code)
+	}
+}
+
+func TestActionNoticesUseDismissibleStatusWithoutTopBanner(t *testing.T) {
+	h, _, _, _ := setupWeb(t, "")
+	w := request(h, "GET", "/producer?notice=station-deleted", nil, nil)
+	body := w.Body.String()
+	if w.Code != 200 || !strings.Contains(body, `data-event-notice`) || !strings.Contains(body, `Dismiss notification`) || strings.Contains(body, `class="success notice"`) {
+		t.Fatal(w.Code, body)
+	}
+	if !strings.Contains(body, `data-feedback-message`) || !strings.Contains(body, `Dismiss error`) {
+		t.Fatal("global errors cannot be dismissed", body)
 	}
 }

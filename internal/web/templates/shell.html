@@ -33,8 +33,7 @@
       </nav>
     </aside>
     <div class="workspace">
-      <div id="feedback" class="app-feedback" role="alert" tabindex="-1" hidden>
-      </div>
+      <div id="feedback" class="app-feedback" role="alert" tabindex="-1" hidden><span data-feedback-message></span><button type="button" class="notice-dismiss" data-dismiss-notice aria-label="Dismiss error">×</button></div>
       <main id="main" tabindex="-1" hx-history-elt>
         {{template "content" .}}
       </main>
@@ -65,8 +64,7 @@
 {{define "content"}}
 <div class="screen" data-page="{{.Page}}" data-assistant-section="{{.AssistantSection}}">
   {{if .Notice}}
-  <div class="success notice" role="status">{{.Notice}}
-  </div>{{end}}
+  {{template "event-notice" .Notice}}{{end}}
   {{if .Station.ID}}{{template "station-context" .}}{{end}}
   {{.Content}}
 </div>
@@ -78,3 +76,5 @@
 {{end}}
 
 {{define "incident-menu-icon"}}{{if gt . 0}}<span role="img" aria-label="{{.}} active incident{{if ne . 1}}s{{end}}" title="{{.}} active incident{{if ne . 1}}s{{end}}">{{template "ui-icon" "warning"}}</span>{{end}}{{end}}
+
+{{define "event-notice"}}<div class="event-toast feedback-success" role="status" data-event-notice><span data-notice-text>{{.}}</span><button type="button" class="notice-dismiss" data-dismiss-notice aria-label="Dismiss notification">×</button></div>{{end}}

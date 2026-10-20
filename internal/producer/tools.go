@@ -832,14 +832,15 @@ func NewRegistry(d Dependencies) *Registry {
 		return read(map[string]any{"runtime": state, "default_playlist_id": id}, nil)
 	})
 	if d.Mixer != nil {
-		register(r, "get_mixer", "Read station music and DJ volume levels.", false, func(ctx context.Context, a stationID) (Result, error) {
+		register(r, "get_mixer", "Read station music and DJ volume levels and automatic music loudness setting.", false, func(ctx context.Context, a stationID) (Result, error) {
 			v, e := d.Mixer.Get(ctx, a.StationID)
 			return read(v, e)
 		})
-		register(r, "save_mixer", "Update supplied station music and DJ volume percentages, from 0 to 400.", true, func(ctx context.Context, a struct {
-			StationID string `json:"station_id"`
-			Music     *int   `json:"music"`
-			DJ        *int   `json:"dj"`
+		register(r, "save_mixer", "Update supplied station music and DJ volume percentages (0 to 400), or toggle automatic music loudness. Unspecified settings are preserved.", true, func(ctx context.Context, a struct {
+			StationID      string `json:"station_id"`
+			Music          *int   `json:"music"`
+			DJ             *int   `json:"dj"`
+			NormaliseMusic *bool  `json:"normalise_music"`
 		}) (Result, error) {
 			v, e := d.Mixer.Get(ctx, a.StationID)
 			if e != nil {
@@ -847,6 +848,7 @@ func NewRegistry(d Dependencies) *Registry {
 			}
 			set(&v.Music, a.Music)
 			set(&v.DJ, a.DJ)
+			set(&v.NormaliseMusic, a.NormaliseMusic)
 			if e = v.Validate(); e != nil {
 				return Result{}, e
 			}

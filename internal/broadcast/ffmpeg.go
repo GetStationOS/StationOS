@@ -121,7 +121,12 @@ func (f FFmpeg) Open(parent context.Context, item content.AudioItem) (io.ReadClo
 	stopSource := context.AfterFunc(decoderCtx, func() { originalSource.Close() })
 	source = &musicTail{ReadCloser: &startupReader{encoded: &encoded{ReadCloser: pcm, cancel: decoderCancel, source: originalSource, cmd: decoder}, stop: stopSource}}
 	args := []string{"-nostdin", "-hide_banner", "-loglevel", "error", "-protocol_whitelist", "pipe", "-f", "s16le", "-ar", "44100", "-ac", "2", "-i", "pipe:0", "-map", "0:a:0", "-vn", "-threads", "1", "-filter_threads", "1", "-c:a", "libmp3lame", "-b:a", "128k", "-ar", "44100", "-ac", "2", "-reservoir", "0", "-f", "mp3", "-write_xing", "0", "-id3v2_version", "0", "-flush_packets", "1", "pipe:1"}
-	if level := musicLevel(parent); level != 100 {
+	// Normalise source loudness before the station fader, so quieter masters
+	// are lifted without undoing deliberate mixer settings. The wide loudness
+	// range is intentionally gentler than the presenter processing.
+	if musicNormalisation(parent) {
+		args = append(args[:len(args)-1], "-af", musicLoudnessFilter(musicLevel(parent)), "pipe:1")
+	} else if level := musicLevel(parent); level != 100 {
 		args = append(args[:len(args)-1], "-af", "aformat=channel_layouts=stereo,"+gainFilter(level), "pipe:1")
 	}
 	cmd := exec.CommandContext(ctx, f.Path, args...)

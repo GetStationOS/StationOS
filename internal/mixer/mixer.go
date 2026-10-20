@@ -6,7 +6,10 @@ import (
 	"errors"
 )
 
-type Levels struct{ Music, DJ int }
+type Levels struct {
+	Music, DJ      int
+	NormaliseMusic bool
+}
 
 func Default() Levels { return Levels{Music: 100, DJ: 100} }
 func (v Levels) Validate() error {

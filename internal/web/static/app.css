@@ -1204,3 +1204,38 @@ textarea{font-weight:400;line-height:1.5}
 }
 
 .episode-selection-icon .dj-status-tooltip { top:auto; bottom:calc(100% + 8px); }
+
+/* A native switch presented as a two-position mix-desk rocker. */
+.mixer-processing{--channel:#8dceac;display:flex;flex-direction:column;align-items:center;text-align:center}
+.mixer-processing legend{margin-inline:auto;white-space:nowrap}
+.mixer-processing-control{display:flex;flex:1;align-items:center;justify-content:center;min-height:180px;padding:24px 0}
+.mixer-switch{position:relative;display:flex;flex-direction:column;align-items:center;width:70px;gap:14px;margin:0;cursor:pointer}
+.mixer-switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:2}
+.mixer-switch-lamp{width:8px;height:8px;border-radius:50%;background:#101b22;border:1px solid #597065;box-shadow:inset 0 1px 2px #0009}
+.mixer-switch-face{position:relative;display:grid;grid-template-rows:1fr 1fr;align-items:center;justify-items:center;width:64px;height:112px;border:4px solid #0b141c;border-radius:8px;background:#071119;box-shadow:0 0 0 1px #53616a,0 3px 5px #0007;isolation:isolate}
+.mixer-switch-face::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:4px;background:linear-gradient(#52606b 0%,#3b4853 46%,#1b2934 52%,#111d27 100%);box-shadow:inset 0 2px 1px #ffffff30,inset 0 -3px 4px #000a}
+.mixer-switch-on,.mixer-switch-off{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:11px;font-weight:750;letter-spacing:1px;text-transform:uppercase;line-height:1;color:#97a8b3}
+.mixer-switch-off{color:#fff}
+.mixer-switch input:checked~.mixer-switch-face::before{background:linear-gradient(#111d27 0%,#1b2934 46%,#3b4853 52%,#52606b 100%);box-shadow:inset 0 3px 4px #000a,inset 0 -2px 1px #ffffff30}
+.mixer-switch input:checked~.mixer-switch-lamp{background:#76e0a0;border-color:#90f2b6;box-shadow:0 0 8px #51d68a99}
+.mixer-switch input:checked~.mixer-switch-face .mixer-switch-on{color:#b4f7cd}
+.mixer-switch input:checked~.mixer-switch-face .mixer-switch-off{color:#97a8b3}
+.mixer-switch input:focus-visible~.mixer-switch-face{outline:3px solid var(--focus);outline-offset:5px}
+.mixer-processing-help{color:#a5b5bf;font-size:11px;line-height:1.6;margin:12px 0 0;text-align:center}
+@media(min-width:481px) and (max-width:600px){.mixer-processing{flex-basis:120px}}
+@media(max-width:480px){.mixer-processing{flex-basis:100%;flex-direction:row;flex-wrap:wrap;justify-content:center;gap:12px 20px}.mixer-processing>.mixer-channel-source{flex-basis:100%;min-height:0}.mixer-processing-control{flex:0 0 70px;min-height:0;padding:8px 0}}
+
+/* Action feedback remains visible without moving the producer's scroll position. */
+.event-toast,.app-feedback{position:fixed;z-index:60;right:24px;bottom:var(--feedback-bottom,20px);display:flex;align-items:center;gap:14px;width:max-content;max-width:min(480px,calc(100vw - 32px));margin:0;padding:12px 14px 12px 18px;border-radius:10px;box-shadow:0 8px 30px #10243a26;font-size:13px;overflow-wrap:anywhere}
+.event-toast{background:var(--tone-success-bg,#e8f5ed);color:var(--tone-success-text,#24563b);border:1px solid var(--tone-success-line,#b5d9c2)}
+.notice-dismiss{flex:0 0 36px;min-width:36px;min-height:36px;padding:0;border:0;background:transparent;color:inherit;font-size:23px;line-height:1}
+.notice-dismiss:hover{background:#10243a0c}
+@media(max-width:700px){.event-toast,.app-feedback{left:16px;right:16px;width:auto;max-width:none}}
+
+.event-toast,.app-feedback{max-height:45vh;overflow:auto}
+
+
+.save-state-button{min-width:125px}
+.save-state-button[data-save-state=saved]{opacity:1;background:var(--tone-success-bg,#e8f5ed);color:var(--tone-success-text,#24563b);border-color:var(--tone-success-line,#b5d9c2)}
+.save-error{flex-basis:100%;width:100%;margin:8px 0 0;color:var(--tone-error-text);font-size:13px;grid-column:1/-1}
+.form-footer:has(>.save-error){flex-wrap:wrap}

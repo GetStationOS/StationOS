@@ -36,7 +36,7 @@
 <header class="page-heading">
   <div class="heading-copy">
     <h1>{{.Title}}</h1>
-    {{if .Metadata}}<p class="heading-meta">{{.Metadata}}</p>{{end}}
+    {{if .Metadata}}<p class="heading-meta"{{if .MetadataID}} id="{{.MetadataID}}"{{end}}>{{.Metadata}}</p>{{end}}
   </div>
   {{if .Actions}}<div class="heading-actions">
     {{range .Actions}}

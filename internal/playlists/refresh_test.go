@@ -2,6 +2,7 @@ package playlists_test
 
 import (
 	"context"
+	"fmt"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/playlists"
@@ -179,5 +180,44 @@ func TestSaveSelectionsRefreshesAtomicallyWithoutRestoringExclusions(t *testing.
 	report, err = repo.Refresh(ctx, pool.ID)
 	if err != nil || report.NewTracks != 0 || report.NewAlbums != 0 {
 		t.Fatal("save did not advance refresh baseline", report, err)
+	}
+}
+
+func TestPlaylistSearchIncludesExcludedAndFiltersBeforePagination(t *testing.T) {
+	svc, repo, cat, source, stations := setup(t)
+	ctx := context.Background()
+	items := []content.AudioItem{}
+	for i := 0; i < 35; i++ {
+		a := audio(source, fmt.Sprint(i), fmt.Sprintf("Song %02d", i), "Jazz", "Time Out")
+		a.Artist = "Dave Brubeck Quartet"
+		a.Composer = "Paul Desmond"
+		items = append(items, a)
+	}
+	if err := cat.Replace(ctx, source, items); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := svc.Save(ctx, playlists.Playlist{StationID: stations[0].ID, Name: "Jazz"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.AddRule(ctx, pool.ID, playlists.Rule{Kind: "genre", Value: "Jazz"}); err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.Select(ctx, pool.ID, []string{items[34].ID}, false); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{"Song 34", "BRUBECK 34", "time out 34", "desmond 34"} {
+		found, err := repo.SearchReview(ctx, pool.ID, q, 0, 25)
+		if err != nil || found.Rows != 1 || len(found.Entries) != 1 || found.Entries[0].Item.ID != items[34].ID || !found.Entries[0].Excluded {
+			t.Fatal(q, found, err)
+		}
+	}
+	found, err := repo.SearchReview(ctx, pool.ID, "Time Out", 25, 25)
+	if err != nil || found.Rows != 35 || len(found.Entries) != 10 {
+		t.Fatal(found, err)
+	}
+	absent, err := repo.SearchReview(ctx, pool.ID, "missing", 0, 25)
+	if err != nil || absent.Rows != 0 || len(absent.Entries) != 0 {
+		t.Fatal(absent, err)
 	}
 }

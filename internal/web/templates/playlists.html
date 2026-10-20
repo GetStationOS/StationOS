@@ -230,7 +230,11 @@
 {{if .PlaylistResult.Unavailable}}
 <p class="notice">{{.PlaylistResult.Unavailable}} saved tracks unavailable. Refresh their source to restore them.</p>{{end}}
 
-<div class="results-panel table-results">
+{{template "playlist-tracks-results" .}}
+{{end}}
+
+{{define "playlist-tracks-results"}}
+<div id="playlist-track-results" class="results-panel table-results">
 {{template "results-toolbar" .Pagination}}
 {{if .Rows}}
 <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Playlist tracks">
@@ -245,32 +249,13 @@
       </tr>
     </thead>
     <tbody>
-      {{range .Rows}}
-      <tr{{if .Excluded}} class="playlist-track-excluded"{{end}}>
-        <td class="track-title">{{.Item.Title}}<span class="subline">{{.Item.Artist}}</span>
-          {{if .Excluded}}<span class="subline playlist-excluded-label">Excluded</span>{{end}}
-          {{if not .Available}}<span class="unavailable">Unavailable</span>{{end}}</td>
-        <td>{{.Item.Album}}<span class="subline">{{.Item.Genre}}{{if .Item.Year}} · <span title="Original release year when available; otherwise album release year">{{.Item.Year}}</span>{{end}}</span>
-        </td>
-        <td class="nowrap">{{.Duration}}</td>
-        <td>{{.Source}}</td>
-        <td>
-          <div class="row-actions">
-            <form method="post" action="/producer/playlists/{{$.Playlist.ID}}/{{if .Excluded}}restore{{else}}remove{{end}}" hx-disabled-elt="find button">
-              <input type="hidden" name="csrf" value="{{$.CSRF}}">
-              <input type="hidden" name="item" value="{{.Item.ID}}">
-              <input type="hidden" name="return_to" value="{{$.ReturnTo}}">
-              {{if .Excluded}}<button class="secondary" aria-label="Re-include {{.Item.Title}} in playlist">Re-include</button>{{else}}<button class="secondary" aria-label="Exclude {{.Item.Title}} from playlist">Exclude</button>{{end}}
-            </form>
-          </div>
-        </td>
-      </tr>{{end}}
+{{template "playlist-track-rows" .}}
     </tbody>
   </table>
 </div>
 {{else}}
 <section class="panel empty-state table-outline">
-  <p>No tracks yet. <a href="/producer/playlists/{{.Playlist.ID}}">Choose genres or albums</a>, or add tracks.</p>
+  <p>{{if .TrackSearch}}No tracks match your search.{{else}}No tracks yet. <a href="/producer/playlists/{{.Playlist.ID}}">Choose genres or albums</a>, or add tracks.{{end}}</p>
 </section>{{end}}
 
 {{template "pagination" .Pagination}}
@@ -287,8 +272,8 @@
 {{end}}
 
 {{define "playlist-heading"}}
-{{template "page-heading" (playlistHeading .)}}
-{{if .PlaylistRefreshNotice}}<p class="notice success" role="status">{{.PlaylistRefreshNotice}}</p>{{end}}
+<div id="playlist-page-heading">{{template "page-heading" (playlistHeading .)}}</div>
+{{if .PlaylistRefreshNotice}}{{template "event-notice" .PlaylistRefreshNotice}}{{end}}
 {{end}}
 
 {{define "playlist-details-page"}}
@@ -306,6 +291,11 @@
 {{define "playlist-tracks-page"}}
 {{template "playlist-heading" .}}
 {{template "playlist-navigation" .}}
+<form class="panel filters playlist-track-search" method="get" action="/producer/playlists/{{.Playlist.ID}}/tracks" hx-get="/producer/playlists/{{.Playlist.ID}}/tracks" hx-target="#playlist-track-results" hx-swap="outerHTML show:none" hx-push-url="true" data-results-navigation>
+ <label>Search tracks<input type="search" name="q" value="{{.TrackSearch}}" maxlength="300" placeholder="Title, performer, album or composer"></label>
+ <input type="hidden" name="per_page" value="{{.Pagination.Size}}">
+ <button>Search</button><a href="/producer/playlists/{{.Playlist.ID}}/tracks?per_page={{.Pagination.Size}}">Clear search</a>
+</form>
 {{template "playlist-tracks" .}}
 {{end}}
 
@@ -341,3 +331,27 @@
   </form>
 </section>
 {{end}}
+
+{{define "playlist-track-rows"}}
+      {{range .Rows}}
+      <tr id="playlist-track-{{.Item.ID}}"{{if .Excluded}} class="playlist-track-excluded"{{end}}>
+        <td class="track-title">{{.Item.Title}}<span class="subline">{{.Item.Artist}}</span>
+          {{if .Excluded}}<span class="subline playlist-excluded-label">Excluded</span>{{end}}
+          {{if not .Available}}<span class="unavailable">Unavailable</span>{{end}}</td>
+        <td>{{.Item.Album}}<span class="subline">{{.Item.Genre}}{{if .Item.Year}} · <span title="Original release year when available; otherwise album release year">{{.Item.Year}}</span>{{end}}</span>
+        </td>
+        <td class="nowrap">{{.Duration}}</td>
+        <td>{{.Source}}</td>
+        <td>
+          <div class="row-actions">
+            <form method="post" action="/producer/playlists/{{$.Playlist.ID}}/{{if .Excluded}}restore{{else}}remove{{end}}" hx-post="/producer/playlists/{{$.Playlist.ID}}/{{if .Excluded}}restore{{else}}remove{{end}}" hx-target="closest tr" hx-swap="outerHTML focus-scroll:false" hx-push-url="false" hx-disabled-elt="find button">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <input type="hidden" name="item" value="{{.Item.ID}}">
+              <input type="hidden" name="return_to" value="{{$.ReturnTo}}">
+              {{if .Excluded}}<button id="playlist-choice-{{.Item.ID}}" class="secondary" aria-label="Re-include {{.Item.Title}} in playlist">Re-include</button>{{else}}<button id="playlist-choice-{{.Item.ID}}" class="secondary" aria-label="Exclude {{.Item.Title}} from playlist">Exclude</button>{{end}}
+            </form>
+          </div>
+        </td>
+      </tr>{{end}}
+{{end}}
+{{define "playlist-track-row-response"}}{{template "playlist-track-rows" .}}<span id="playlist-summary" hx-swap-oob="innerHTML">{{with playlistHeading .}}{{.Metadata}}{{end}}</span>{{end}}

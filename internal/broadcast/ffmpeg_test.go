@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
+	"math"
 	"os/exec"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/production"
@@ -157,5 +159,99 @@ func TestTrimmedMusicPipelineCancelsBeforeSongEnd(t *testing.T) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatal("decoder/encoder cancellation stalled")
+	}
+}
+
+func TestRealMusicLoudnessMatchesQuietAndLoudMasters(t *testing.T) {
+	path, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	var levels []float64
+	for _, amplitude := range []float64{0.01, 0.1, 0.7} {
+		raw, err := exec.CommandContext(ctx, path, "-v", "error", "-f", "lavfi", "-i", fmt.Sprintf("aevalsrc=%.4f*sin(2*PI*440*t):d=6:s=44100", amplitude), "-f", "flac", "pipe:1").Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoder := FFmpeg{Path: path, Sources: sourceRepo{}, Factory: func(context.Context, sources.Config) (sources.AudioSource, error) { return toneProvider{raw}, nil }}
+		audio, err := encoder.Preload(withMusicNormalisation(ctx, true), content.AudioItem{SourceID: "music", SourceItemID: "different-master"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		mp3, err := io.ReadAll(audio)
+		closeErr := audio.Close()
+		if err != nil || closeErr != nil {
+			t.Fatal(err, closeErr)
+		}
+		rms, peak := decodedLevel(t, ctx, path, mp3)
+		if rms <= 0 || peak >= 1 {
+			t.Fatal("silent or clipped normalised master", amplitude, rms, peak)
+		}
+		levels = append(levels, 20*math.Log10(rms))
+	}
+	for _, db := range levels[1:] {
+		if math.Abs(db-levels[0]) > 0.75 {
+			t.Fatal("mastering level still changes broadcast loudness", levels)
+		}
+	}
+}
+
+func TestRealNormalisedMusicTransientPeaksRemainBelowClipping(t *testing.T) {
+	path, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	raw, err := exec.CommandContext(ctx, path, "-v", "error", "-f", "lavfi", "-i", "aevalsrc=(0.02+0.8*lt(mod(t\\,1)\\,0.02))*sin(2*PI*440*t):d=6:s=44100", "-f", "flac", "pipe:1").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoder := FFmpeg{Path: path, Sources: sourceRepo{}, Factory: func(context.Context, sources.Config) (sources.AudioSource, error) { return toneProvider{raw}, nil }}
+	audio, err := encoder.Preload(withMusicNormalisation(ctx, true), content.AudioItem{SourceID: "music", SourceItemID: "transients"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mp3, err := io.ReadAll(audio)
+	closeErr := audio.Close()
+	if err != nil || closeErr != nil {
+		t.Fatal(err, closeErr)
+	}
+	_, peak := decodedLevel(t, ctx, path, mp3)
+	if peak >= 1 {
+		t.Fatal("normalised transient clips after MP3 decoding", peak)
+	}
+}
+
+func TestMusicNormalisationOffPreservesOriginalMasteringDifference(t *testing.T) {
+	path, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("FFmpeg unavailable")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	var rms []float64
+	for _, amplitude := range []float64{0.01, 0.1} {
+		raw, err := exec.CommandContext(ctx, path, "-v", "error", "-f", "lavfi", "-i", fmt.Sprintf("aevalsrc=%.4f*sin(2*PI*440*t):d=2:s=44100", amplitude), "-f", "flac", "pipe:1").Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoder := FFmpeg{Path: path, Sources: sourceRepo{}, Factory: func(context.Context, sources.Config) (sources.AudioSource, error) { return toneProvider{raw}, nil }}
+		reader, err := encoder.Preload(ctx, content.AudioItem{SourceID: "music", SourceItemID: "master"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		audio, err := io.ReadAll(reader)
+		closeErr := reader.Close()
+		if err != nil || closeErr != nil {
+			t.Fatal(err, closeErr)
+		}
+		level, _ := decodedLevel(t, ctx, path, audio)
+		rms = append(rms, level)
+	}
+	if math.Abs(20*math.Log10(rms[1]/rms[0])-20) > 0.5 {
+		t.Fatal("off unexpectedly changes source loudness", rms)
 	}
 }

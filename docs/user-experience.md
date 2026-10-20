@@ -631,3 +631,24 @@ prompt editing; the live queue belongs on the default episode screen.
 Both upcoming and played episode tracks use the same selection-source icons and accessible help. Preserve selection provenance in the actual aired receipt; historical missing sources remain explicitly unknown.
 
 Timeline activity icons on the left identify the event and remain neutral: DJ microphone, music, automatic selection or handover arrows. Right-hand icons describe outcomes: green tick for success, red cross for failure, amber triangle for a delay/warning. Routine completed handovers use arrows on the left and a success tick on the right. Unrelated observations remain neutral. Keep accessible outcome labels specific; never replace an outcome icon with an activity icon.
+
+The Mixer places Auto level beside the music and DJ faders as a two-position rocker switch with an indicator lamp, visible On/Off labels and native keyboard/screen-reader switch semantics. It saves automatically, defaults off and applies at the next track. Keep explanatory copy below the channels rather than squeezing it into a narrow strip.
+
+
+### Action feedback and playlist track search
+
+Playlist Tracks searches the whole playlist by title, performing artist, album and
+composer before pagination; combine search words across those fields. Keep excluded
+recordings searchable. Preserve query and page size through paging, exclusions and
+re-inclusion. Exclusion/re-inclusion updates only the affected HTMX row, restores
+its action focus without scrolling, and updates independent playlist totals. The
+red row and Excluded label are the confirmation; omit redundant success notices.
+
+Routine form saves communicate through the Save control, as specified below.
+Other action outcomes use dismissible, fixed status notifications above the player,
+rather than top-of-page banners. Success notifications
+expire after seven seconds unless hovered or focused. Errors remain until dismissed
+or superseded, never force the producer to scroll, and form validation stays by its
+form. Preserve operational warnings in their relevant views.
+
+Routine edit forms communicate through their Save control: disabled unchanged, enabled when edited, Saving… during submission, disabled ✓ Saved after success, and enabled Retry save after failure. Re-editing restores the normal Save label. Do not insert Saved text into button grids or add routine success pop-ups. Keep error guidance persistently beside the fields/actions. Buttons retain their normal GET/form fallbacks without JavaScript.

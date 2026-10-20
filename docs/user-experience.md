@@ -565,7 +565,8 @@ Create station and Station Settings include a Music sources checkbox list, selec
 ## Episode readiness and running orders
 
 The schedule selects a dated week. Each occurrence has a text readiness label and
-pink (Unplanned), amber (Planning/For review) or green (Ready) background.
+neutral Scheduled, blue Preparing/Updating, green Ready, amber Delayed (retrying),
+or grey Cancelled background.
 Readiness is editorial preparation, independent of live broadcasting. Plans become
 ready automatically; producer review is optional. Clicking a show opens its running
 order and show details in the main content area through HTMX navigation, with a dated URL and a link back to the selected schedule week.
@@ -591,3 +592,21 @@ The DJ keeps a rolling two-track horizon: current music plays while the next is
 ready and the following is being chosen. This does not trigger full-show planning.
 A standard show handover is neutral activity, never a warning; editing the same
 dated episode's template must not produce a handover.
+
+
+### Accepted playback queue
+
+While a station has listeners, prepare the immediately following episode's first two
+accepted recordings during the current programme. Do not prepare later episodes.
+The background planner uses the same playlist, station rotation and performer/album
+spacing rules as playback and adds one recording per request behind the accepted queue.
+A delayed provider response cannot replace the listener's displayed current or next
+recording. Commit a usable next recording before publishing current music; reserve an
+automatic choice if DJ preparation is delayed. Speech uses that committed recording.
+On advancement, replenish the buffer behind the next recording. Old unaccepted plans
+must be replaced, rather than counting toward readiness indefinitely.
+If a scheduled playlist becomes empty, continue with an available default playlist or
+the last playable pool, identify it as continuous music and record the failure. With
+no alternative eligible recording, reserve the current playable recording again rather
+than publishing music with an empty next slot. This cannot recover inaccessible audio
+sources or a failed database; those failures remain visible.

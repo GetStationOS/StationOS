@@ -87,7 +87,7 @@ func TestAssistantEpisodeToolsAreReadOnlyUntilProducerIntervention(t *testing.T)
 	call(t, registry, "list_episodes", map[string]any{"station_id": owner.ID, "week": tomorrow.Format("2006-01-02"), "limit": 1})
 	result := call(t, registry, "get_episode", base)
 	data := result.Data.(map[string]any)
-	if data["status"] != "Unplanned" || data["version"] != 0 || !strings.Contains(result.URL, "/episode?start=") {
+	if data["status"] != "Scheduled" || data["version"] != 0 || !strings.Contains(result.URL, "/episode?start=") {
 		t.Fatal(result)
 	}
 	var count int

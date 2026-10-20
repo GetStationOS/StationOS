@@ -26,6 +26,7 @@ type Track struct {
 	ID, Title, Artist, Album string
 	Seconds                  int64
 	Locked                   bool
+	Approved                 bool
 	AiredAt                  time.Time
 }
 type Turn struct{ Kind, Text string }
@@ -34,6 +35,8 @@ type Episode struct {
 	ShowKey                          string
 	Start, End                       time.Time
 	PlanStartsAt                     time.Time
+	AcceptedNextID                   string
+	QueueCurrent                     Track
 	Status, Theme, Notes, Problem    string
 	RepetitionReason                 string
 	FailureCode                      string
@@ -60,6 +63,9 @@ func (e Episode) Label() string {
 	if e.Cancelled {
 		return "Cancelled"
 	}
+	if e.PlanningFailed && e.Status != "starting" && e.Status != "planning" {
+		return "Delayed"
+	}
 	switch e.Status {
 	case "ready":
 		return "Ready"
@@ -68,9 +74,9 @@ func (e Episode) Label() string {
 	case "planning":
 		return "Choosing next track"
 	case "attention":
-		return "For review"
+		return "Updating"
 	default:
-		return "Unplanned"
+		return "Scheduled"
 	}
 }
 func Snapshot(a content.AudioItem) Track {
@@ -112,6 +118,7 @@ type Service struct {
 	Pool           Pool
 	Text           ai.Text
 	Fallback       production.TrackSelector
+	Eligibility    production.TrackEligibility
 }
 
 // Context is the provider-independent session checkpoint, replayed for every
@@ -250,7 +257,12 @@ func (s *Service) SelectTrack(ctx context.Context, q production.SelectionRequest
 		eligible[a.ID] = a
 	}
 	pendingReason := ""
+	selectedID := ""
 	for _, a := range e.Plan {
+		if s.Eligibility != nil && !a.Approved {
+			pendingReason = "The saved choice has not completed background acceptance."
+			continue
+		}
 		if excluded[a.ID] {
 			pendingReason = "The saved DJ choice was excluded; a replacement is needed."
 			continue
@@ -264,21 +276,62 @@ func (s *Service) SelectTrack(ctx context.Context, q production.SelectionRequest
 				pendingReason = "The saved DJ choice does not fit the remaining show time."
 				continue
 			}
-			return a.ID, nil
+			selectedID = a.ID
+			break
 		}
 		if pendingReason == "" {
-			pendingReason = "The saved DJ choice is no longer eligible or available in the playlist."
+			pendingReason = "The saved DJ choice was removed from the eligible playlist or its source is unavailable."
+			if s.Pool != nil {
+				catalogue, readErr := s.Pool.Pool(ctx, q.Show.PlaylistID)
+				if readErr != nil {
+					return "", readErr
+				}
+				for _, item := range catalogue {
+					if item.ID == a.ID {
+						pendingReason = "The saved DJ choice was blocked by station repeat or performer/album spacing rules."
+						break
+					}
+				}
+			}
 		}
 	}
-	// Request replanning once, without changing a running job or resetting its
-	// persisted retry deadline. A pending plan is not a per-track curation failure.
-	if e.Status == "ready" {
+	// A rejected ready choice must not keep a two-track horizon falsely full.
+	rejected := map[string]bool{}
+	for _, a := range e.Plan {
+		if a.ID == selectedID {
+			break
+		}
+		if played[a.ID] || excluded[a.ID] {
+			continue
+		}
+		item, ok := eligible[a.ID]
+		if (s.Eligibility != nil && !a.Approved) || !ok || (q.RemainingSeconds > 0 && q.RemainingSeconds <= 1200 && fitting && (item.Duration == nil || int64(item.Duration.Seconds()) > q.RemainingSeconds)) {
+			rejected[a.ID] = true
+		}
+	}
+	if len(rejected) > 0 || (selectedID == "" && e.Status == "ready") {
 		err = s.Store.Update(ctx, q.Show, func(current *Episode) error {
-			if current.Status != "ready" {
-				return nil
+			kept := []Track{}
+			changed := false
+			for _, a := range current.Plan {
+				if rejected[a.ID] {
+					changed = true
+					continue
+				}
+				kept = append(kept, a)
 			}
-			current.Status = "attention"
-			current.RetryAt = time.Time{}
+			if changed {
+				current.Plan = kept
+				current.EditorialRevision++
+				current.Status = "attention"
+				current.PlanningFailed = false
+				current.FailureCode = ""
+				current.RetryAt = time.Time{}
+			}
+			if current.Status == "ready" {
+				current.Status = "attention"
+				current.RetryAt = time.Time{}
+			}
 			current.Problem = "Choosing a replacement track."
 			return nil
 		})
@@ -286,7 +339,11 @@ func (s *Service) SelectTrack(ctx context.Context, q production.SelectionRequest
 			return "", err
 		}
 	}
-	if e.PlanningFailed && e.Status != "planning" && e.Status != "starting" {
+
+	if selectedID != "" {
+		return selectedID, nil
+	}
+	if len(rejected) == 0 && e.PlanningFailed && e.Status != "planning" && e.Status != "starting" {
 		pendingReason = ai.FailureMessage(e.FailureCode)
 	}
 	if pendingReason == "" {
@@ -302,7 +359,7 @@ func (s *Service) SelectTrack(ctx context.Context, q production.SelectionRequest
 		}
 	}
 	retryAt := e.RetryAt
-	if e.Status == "planning" || e.Status == "starting" {
+	if !e.PlanningFailed || e.Status == "planning" || e.Status == "starting" {
 		retryAt = time.Time{}
 	}
 	return "", &production.PendingSelection{Reason: pendingReason, RetryAt: retryAt}
@@ -371,6 +428,7 @@ func queuedTracks(e Episode, byID map[string]content.AudioItem) []Track {
 	for _, a := range e.Aired {
 		blocked[a.ID] = true
 	}
+	blocked[e.QueueCurrent.ID] = true
 	for _, id := range e.Excluded {
 		blocked[id] = true
 	}
@@ -384,6 +442,20 @@ func queuedTracks(e Episode, byID map[string]content.AudioItem) []Track {
 		blocked[a.ID] = true
 	}
 	return out
+}
+
+func (s *Service) readyTracks(e Episode, byID map[string]content.AudioItem) []Track {
+	tracks := queuedTracks(e, byID)
+	if s.Eligibility == nil {
+		return tracks
+	}
+	approved := []Track{}
+	for _, track := range tracks {
+		if track.Approved {
+			approved = append(approved, track)
+		}
+	}
+	return approved
 }
 
 // Plan chooses one next recording through bounded search over the eligible playlist.
@@ -404,13 +476,13 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		return err
 	}
 	if len(pool) == 0 {
-		return errors.New("the episode playlist has no available recordings")
+		return ai.ErrEmptyPlaylist
 	}
 	byID := map[string]content.AudioItem{}
 	for _, a := range pool {
 		byID[a.ID] = a
 	}
-	base.Plan = queuedTracks(base, byID)
+	base.Plan = s.readyTracks(base, byID)
 	if len(base.Plan) >= 2 {
 		return s.Store.Update(ctx, o, func(e *Episode) error {
 			if e.Cancelled || e.EditorialRevision != base.EditorialRevision {
@@ -419,6 +491,33 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 			e.Status = "ready"
 			return nil
 		})
+	}
+	eligibleByID := byID
+	if s.Eligibility != nil {
+		prior := []production.SelectionPlay{}
+
+		for _, a := range base.Aired[max(0, len(base.Aired)-5):] {
+			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album}, Started: a.AiredAt})
+		}
+		if base.QueueCurrent.ID != "" {
+			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: base.QueueCurrent.ID, Title: base.QueueCurrent.Title, Artist: base.QueueCurrent.Artist, Album: base.QueueCurrent.Album}, Started: base.QueueCurrent.AiredAt})
+		}
+		start := queueStart(base, o, time.Now())
+		for _, a := range base.Plan {
+			prior = append(prior, production.SelectionPlay{Item: content.AudioItem{ID: a.ID, Title: a.Title, Artist: a.Artist, Album: a.Album}, Started: start})
+			start = start.Add(time.Duration(a.Seconds+15) * time.Second)
+		}
+		pool, err = s.Eligibility.EligibleTracks(ctx, o, planningStart(base, o, time.Now()), prior)
+		if err != nil {
+			return err
+		}
+		eligibleByID = map[string]content.AudioItem{}
+		for _, a := range pool {
+			eligibleByID[a.ID] = a
+		}
+		if len(pool) == 0 {
+			return ai.ErrNoEligibleTracks
+		}
 	}
 	// Strip all transport and artwork metadata before sharing any catalogue result.
 	input := map[string]any{"episode": modelCheckpoint(base), "show": o.Title, "musical_direction": o.MusicDirection, "dj": o.DJ.Name, "dj_prompt": o.DJ.Prompt, "playlist_count": len(pool), "seconds_available": int64(o.End.Sub(planningStart(base, o, time.Now())).Seconds())}
@@ -441,7 +540,7 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		})
 		if err == nil {
 			base = updated
-			base.Plan = queuedTracks(base, byID)
+			base.Plan = s.readyTracks(base, byID)
 			base.Version++
 		}
 		return err
@@ -457,6 +556,7 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 		for _, a := range base.Aired {
 			blocked[a.ID] = true
 		}
+		blocked[base.QueueCurrent.ID] = true
 		for _, id := range base.Excluded {
 			blocked[id] = true
 		}
@@ -543,7 +643,7 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 			format = "album"
 		}
 		target := int64(o.End.Sub(planningStart(base, o, time.Now())).Seconds())
-		plan, validationErr := validateNextTrack(cmd, base, byID, offered, target, format)
+		plan, validationErr := validateNextTrack(cmd, base, eligibleByID, offered, target, format)
 		if validationErr != nil {
 			message := validationErr.Error()
 			transcript = append(transcript, map[string]string{"validation_error": message})
@@ -560,7 +660,10 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 				return ErrStale
 			}
 			// Append behind the ready next track; never replace it while choosing later music.
-			e.Plan = append(queuedTracks(*e, byID), plan...)
+			for i := range plan {
+				plan[i].Approved = true
+			}
+			e.Plan = append(s.readyTracks(*e, byID), plan...)
 			e.PlanStartsAt = queueStart(base, o, time.Now())
 			e.Theme = cmd.Theme
 			e.RepetitionReason = cmd.RepetitionReason
@@ -598,7 +701,7 @@ func (s *Service) Available(ctx context.Context, o schedule.Occurrence, e Episod
 			return false, nil
 		}
 	}
-	pending := queuedTracks(e, byID)
+	pending := s.readyTracks(e, byID)
 	if len(pending) >= 2 {
 		return true, nil
 	}
@@ -639,6 +742,10 @@ func validateNextTrack(cmd command, base Episode, byID map[string]content.AudioI
 	}
 	for _, id := range base.Excluded {
 		played[id] = true
+	}
+	if base.QueueCurrent.ID != "" && !played[base.QueueCurrent.ID] {
+		base.Aired = append(base.Aired, base.QueueCurrent)
+		played[base.QueueCurrent.ID] = true
 	}
 	// Ready choices precede this addition for duplicate and variety validation.
 	for _, a := range base.Plan {
@@ -791,7 +898,7 @@ func modelCheckpoint(e Episode) map[string]any {
 	for _, a := range e.Aired {
 		played = append(played, a.ID)
 	}
-	return map[string]any{"Key": e.Key, "Theme": e.Theme, "RepetitionReason": e.RepetitionReason, "Notes": e.Notes, "Plan": e.Plan, "Excluded": e.Excluded, "Aired": recent, "AiredIDs": played, "recent_session_turns": turns}
+	return map[string]any{"Key": e.Key, "Theme": e.Theme, "RepetitionReason": e.RepetitionReason, "Notes": e.Notes, "Plan": e.Plan, "current_or_prepared_music": e.QueueCurrent, "Excluded": e.Excluded, "Aired": recent, "AiredIDs": played, "recent_session_turns": turns}
 }
 
 func queueStart(e Episode, o schedule.Occurrence, now time.Time) time.Time {
@@ -804,6 +911,14 @@ func queueStart(e Episode, o schedule.Occurrence, now time.Time) time.Time {
 		end := last.AiredAt.Add(time.Duration(last.Seconds) * time.Second)
 		if !last.AiredAt.IsZero() && end.After(start) {
 			start = end
+		}
+	}
+	if e.AcceptedNextID != "" {
+		for _, a := range e.Upcoming() {
+			if a.ID == e.AcceptedNextID && e.PlanStartsAt.After(start) {
+				start = e.PlanStartsAt
+				break
+			}
 		}
 	}
 	return start
@@ -882,4 +997,69 @@ func (e Episode) Upcoming() []RunningTrack {
 		}
 	}
 	return out
+}
+
+// QueueAccepted reserves the listener's next track. Planning may only append behind it.
+func (s *Service) QueueAccepted(ctx context.Context, o schedule.Occurrence, current, next content.AudioItem, at time.Time) error {
+	if o.ShowID == "" || next.ID == "" {
+		return nil
+	}
+	return s.Store.Update(ctx, o, func(e *Episode) error {
+		if e.Cancelled {
+			return ErrCancelled
+		}
+		prior := e.AcceptedNextID
+		preserve := prior == current.ID || prior == next.ID
+		if prior == "" {
+			for _, track := range e.Plan {
+				if track.ID == next.ID && track.Approved {
+					preserve = true
+					break
+				}
+			}
+		}
+		e.QueueCurrent = Snapshot(current)
+		e.QueueCurrent.AiredAt = time.Now()
+		e.AcceptedNextID = next.ID
+		reserved := Snapshot(next)
+		reserved.Approved = true
+		queued := []Track{reserved}
+		for _, track := range e.Upcoming() {
+			if track.ID != next.ID && track.ID != current.ID && preserve {
+				queued = append(queued, track.Track)
+			}
+		}
+		e.Plan = queued
+		e.PlanStartsAt = at
+		// A different committed predecessor invalidates work built for the old queue.
+		if prior != next.ID {
+			e.EditorialRevision++
+		}
+		if len(e.Plan) < 2 && !e.PlanningFailed {
+			e.Status = "attention"
+			e.RetryAt = time.Time{}
+		}
+		return nil
+	})
+}
+
+// ApprovedTracks exposes background-accepted choices without starting generation.
+func (s *Service) ApprovedTracks(ctx context.Context, o schedule.Occurrence) ([]string, error) {
+	if o.ShowID == "" {
+		return nil, nil
+	}
+	e, err := s.Store.Get(ctx, o.Key)
+	if errors.Is(err, ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := []string{}
+	for _, a := range e.Upcoming() {
+		if a.Approved {
+			out = append(out, a.ID)
+		}
+	}
+	return out, nil
 }

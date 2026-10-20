@@ -1099,8 +1099,9 @@ textarea{font-weight:400;line-height:1.5}
 [data-source-unsaved]:empty{display:none}
 
 /* Dated episode readiness always has a text label as well as colour. */
-.calendar-show.episode-unplanned { background: #fce7f0; border-color: #e8a7c1; color: #10243a; }
-.calendar-show.episode-attention { background: #fff2cd; border-color: #d5af45; color: #10243a; }
+.calendar-show.episode-scheduled { background:var(--surface); border-color:var(--line); color:var(--text); }
+.calendar-show.episode-preparing { background:var(--tone-info-bg); border-color:#aebfe7; color:var(--text); }
+.calendar-show.episode-delayed { background:var(--tone-warning-bg); border-color:#d5af45; color:var(--text); }
 .calendar-show.episode-ready { background: #e0f3e6; border-color: #8bbf9b; color: #10243a; }
 
 .calendar-show.selected { outline: 3px solid #10243a; outline-offset: -3px; }

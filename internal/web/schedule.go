@@ -100,14 +100,7 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 				return v, loadErr
 			}
 		}
-		class := "episode-unplanned"
-		if e.Cancelled {
-			class = "episode-cancelled"
-		} else if e.Status == "ready" {
-			class = "episode-ready"
-		} else if e.Status == "planning" || e.Status == "attention" {
-			class = "episode-attention"
-		}
+		class := episodeScheduleClass(e)
 		for i := range v.ScheduleCards {
 			if v.ScheduleCards[i].ID == o.ShowID {
 				v.ScheduleCards[i].EpisodeStart = o.Start.Format(time.RFC3339)
@@ -314,4 +307,21 @@ func (s *Server) renderSchedulePage(w http.ResponseWriter, r *http.Request, stat
 		name = "schedule-delete-page"
 	}
 	s.renderPage(w, r, status, name, v)
+}
+
+func episodeScheduleClass(e episodes.Episode) string {
+	switch {
+	case e.Cancelled:
+		return "episode-cancelled"
+	case e.Status == "starting" || e.Status == "planning":
+		return "episode-preparing"
+	case e.PlanningFailed:
+		return "episode-delayed"
+	case e.Status == "ready":
+		return "episode-ready"
+	case e.Status == "attention":
+		return "episode-preparing"
+	default:
+		return "episode-scheduled"
+	}
 }

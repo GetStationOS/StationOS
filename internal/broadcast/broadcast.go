@@ -505,8 +505,6 @@ func (m *Manager) playProgramme(id string, r *run) {
 						selectionStates[result.show] = "Preparing"
 					} else if result.err != nil {
 						selectionStates[result.show] = "Unavailable"
-					} else {
-						queued = result.item
 					}
 					m.recordSelection(id, result.programme, queued, result.requested, result.err)
 				}
@@ -793,15 +791,48 @@ func (m *Manager) playProgramme(id string, r *run) {
 		linkWorkers.Wait()
 		audioWorkers.Wait()
 	}()
+	var lastGoodPool []content.AudioItem
+	var lastGoodProgramme schedule.Occurrence
+	reportedUnavailable := ""
+	playable := func(at time.Time, notify bool) (schedule.Timeline, []content.AudioItem, error) {
+		timeline, err := m.timelineAt(r.ctx, id, at)
+		if err == nil && timeline.Current.PlaylistID != "" {
+			if pool, readErr := m.repo.Pool(r.ctx, timeline.Current.PlaylistID); readErr == nil && len(pool) > 0 {
+				if notify {
+					lastGoodPool = append([]content.AudioItem(nil), pool...)
+					lastGoodProgramme = timeline.Current
+				}
+				return timeline, pool, nil
+			}
+		}
+		fallback := lastGoodPool
+		playlist := lastGoodProgramme.PlaylistID
+		name := lastGoodProgramme.PlaylistName
+		if configured, readErr := m.repo.Assignment(r.ctx, id); readErr == nil && configured != "" {
+			if pool, poolErr := m.repo.Pool(r.ctx, configured); poolErr == nil && len(pool) > 0 {
+				fallback = pool
+				playlist = configured
+				if configured != lastGoodProgramme.PlaylistID {
+					name = "Default playlist"
+				}
+			}
+		}
+		if len(fallback) == 0 {
+			return timeline, nil, ErrUnavailable
+		}
+		failed := timeline.Current
+		timeline.Current = schedule.Occurrence{Key: "emergency:" + id + ":" + playlist, StationID: id, Title: "Continuous music", PlaylistID: playlist, PlaylistName: name, Start: failed.Start, End: failed.End}
+		if notify && reportedUnavailable != failed.Key {
+			reportedUnavailable = failed.Key
+			m.observe(id, "failure", "Scheduled music is unavailable; continuous music is playing from an available fallback playlist.", State{Programme: failed}, "programme", false)
+		}
+		return timeline, append([]content.AudioItem(nil), fallback...), nil
+	}
 	introPlayed := false
 	failures := 0
 	for r.ctx.Err() == nil {
-		timeline, err := m.timelineAt(r.ctx, id, playoutNow())
-		if err != nil || timeline.Current.PlaylistID == "" {
-			return
-		}
-		pool, err := m.repo.Pool(r.ctx, timeline.Current.PlaylistID)
-		if err != nil || len(pool) == 0 {
+		timeline, pool, err := playable(playoutNow(), true)
+		if err != nil {
 			return
 		}
 		drain()
@@ -843,12 +874,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 			}
 			// A long outgoing track may span more than one short show. Resolve again
 			// after speech instead of starting a show which has already ended.
-			timeline, err = m.timelineAt(r.ctx, id, playoutNow())
-			if err != nil || timeline.Current.PlaylistID == "" {
-				return
-			}
-			pool, err = m.repo.Pool(r.ctx, timeline.Current.PlaylistID)
-			if err != nil || len(pool) == 0 {
+			timeline, pool, err = playable(playoutNow(), true)
+			if err != nil {
 				return
 			}
 			key = production.CacheKey(timeline.Current, timeline.Next)
@@ -874,7 +901,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		candidates, repeatRelaxed := rotationPool(pool, rotation, playoutNow(), previous)
 		candidates = varietyPoolFormat(candidates, pool, rotation, previous, previousMusic, m.episodeMusicPolicy(r.ctx, timeline.Current))
-		if len(candidates) == 0 {
+		if len(candidates) == 0 && queued.ID == "" {
 			return
 		}
 		playing = timeline.Current
@@ -883,13 +910,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 		m.mu.Unlock()
 		request(playing, timeline.Next)
 		current := content.AudioItem{}
-		if queuedShow == playing.Key {
-			for _, a := range candidates {
-				if a.ID == queued.ID {
-					current = a
-					break
-				}
-			}
+		if queued.ID != "" {
+			current = queued
 		}
 		remaining := time.Duration(0)
 		if !playing.End.IsZero() {
@@ -899,6 +921,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 			} else if ready && !introPlayed {
 				remaining -= time.Duration(len(plan.Intro)) * time.Second / 16000
 			}
+		}
+		candidates, err = m.withApproved(r.ctx, playing, pool, candidates, previous)
+		if err != nil {
+			return
 		}
 		if current.ID == "" {
 			// Audience requests enter the prepared next-track link. A cold start
@@ -969,24 +995,16 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if current.Duration != nil {
 			predictedEnd = predictedEnd.Add(*current.Duration)
 		}
-		nextTimeline := timeline
-		if m.options.Schedule != nil && !playing.End.IsZero() && current.Duration != nil && !predictedEnd.Before(playing.End) {
-			if resolved, err := m.options.Schedule.Resolve(r.ctx, id, predictedEnd); err == nil {
-				nextTimeline = resolved
-			}
-		}
-		nextPool := pool
-		if nextTimeline.Current.Key != playing.Key {
-			if p, err := m.repo.Pool(r.ctx, nextTimeline.Current.PlaylistID); err == nil {
-				nextPool = p
-			}
+		nextTimeline, nextPool, err := playable(predictedEnd, false)
+		if err != nil {
+			return
 		}
 		nextRemaining := time.Duration(0)
 		if !nextTimeline.Current.End.IsZero() {
 			nextRemaining = nextTimeline.Current.End.Sub(predictedEnd)
 		}
 		// Reserve the current choice only for predictions; persistence records
-		// it when music actually starts. Revalidate the queue at the next boundary.
+		// it when music actually starts. The displayed queue is committed.
 		if rotation.LastPlayed == nil {
 			rotation.LastPlayed = map[string]time.Time{}
 		}
@@ -999,14 +1017,44 @@ func (m *Manager) playProgramme(id string, r *run) {
 		nextCatalogue := nextPool
 		nextPool, _ = rotationPool(nextPool, rotation, predictedEnd, current.ID)
 		nextPool = varietyPoolFormat(nextPool, nextCatalogue, rotation, current.ID, current, m.episodeMusicPolicy(r.ctx, nextTimeline.Current))
+		nextPool, err = m.withApproved(r.ctx, nextTimeline.Current, nextCatalogue, nextPool, current.ID)
+		if err != nil {
+			return
+		}
 		queued = requestTrack(m.approvedAudience(r.ctx, nextTimeline.Current, playoutNow()), nextPool, nextRemaining)
 		requestedTrack := queued.ID != ""
 		if queued.ID == "" {
 			queued = selectTrack(nextPool, current.ID, nextRemaining)
 		}
+		if queued.ID == "" {
+			queued = current
+			m.observe(id, "failure", "No eligible following recording is available; the current playable recording is reserved again to preserve audio continuity.", State{Programme: nextTimeline.Current}, "programme", false)
+		}
 		queuedShow = nextTimeline.Current.Key
 		queuedAfter = current.ID
 		clear(selectionStates)
+		// Episode selection reads previously prepared, validated choices; it never invokes AI here.
+		preparedSelection := false
+		if selector, ok := m.options.Selector.(interface{ FullPlaylist() bool }); ok && selector.FullPlaylist() && nextTimeline.Current.ShowID != "" {
+			preparedSelection = true
+			request := production.SelectionRequest{Show: nextTimeline.Current, Current: current, Candidates: nextPool, RemainingSeconds: int64(nextRemaining.Seconds())}
+			chosen, selectionErr := m.selectNextTrack(r.ctx, request, queued, requestedTrack)
+			queued = chosen
+			selectionStates[queuedShow] = "Ready"
+			if selectionErr != nil {
+				selectionStates[queuedShow] = "Preparing"
+			}
+			m.recordSelection(id, nextTimeline.Current, queued, requestedTrack, selectionErr)
+		}
+		if committer, ok := m.options.Selector.(interface {
+			QueueAccepted(context.Context, schedule.Occurrence, content.AudioItem, content.AudioItem, time.Time) error
+		}); ok {
+			ctx, release := context.WithTimeout(r.ctx, 2*time.Second)
+			if err := committer.QueueAccepted(ctx, nextTimeline.Current, current, queued, predictedEnd); err != nil {
+				m.logger.Warn("Next-track reservation could not be saved", "station_id", id, "error", err)
+			}
+			release()
+		}
 		// Prepare the next DJ in advance while the outgoing programme is playing.
 		if timeline.Next.DJ.ID != "" && !playing.End.IsZero() && playing.End.Sub(playoutNow()) <= 10*time.Minute {
 			after, err := m.options.Schedule.Resolve(r.ctx, id, timeline.Next.Start.Add(time.Second))
@@ -1026,7 +1074,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if (m.options.Links != nil || m.options.Selector != nil) && (playing.DJ.HasKey || playing.DJ.TextReady) {
 			select {
 			case linkSlots <- struct{}{}:
-				if m.options.Selector != nil {
+				if m.options.Selector != nil && !preparedSelection {
 					selectionStates[queuedShow] = "Preparing"
 				}
 				clear(linkStates)
@@ -1041,10 +1089,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 				go func() {
 					defer linkWorkers.Done()
 					defer func() { <-linkSlots }()
-					if m.options.Selector != nil {
+					if m.options.Selector != nil && !preparedSelection {
 						chosen := req.Next
 						var selectionErr error
 						chosen, selectionErr = m.selectNextTrack(linkCtx, selection, chosen, requestedTrack)
+						if chosen.ID != req.Next.ID {
+							chosen = req.Next
+							selectionErr = &production.PendingSelection{Reason: "The next track was already committed; a later choice cannot replace it."}
+						}
 						if selectionErr != nil && !errors.Is(selectionErr, context.Canceled) && !errors.Is(selectionErr, production.ErrPlanPending) {
 							m.logger.Warn("DJ music selection unavailable", "station_id", id, "error", selectionErr)
 							m.observe(id, "ai", "DJ curation failed; local music selection continues", State{Programme: req.Show}, "curation", false)

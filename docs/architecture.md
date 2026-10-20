@@ -736,8 +736,8 @@ both. Shared semicolon-separated performers match ignoring case/whitespace; comp
 are not performers. Producer exclusions filter local fallback and listener requests as
 well as AI choices. Late/failed planning leaves local music selection running.
 
-The dated schedule shows pink Unplanned, amber Planning/For review and green
-Ready, with text as well as colour. Green requires no human approval. Show clicks
+The dated schedule shows neutral Scheduled, blue Preparing/Updating, green Ready,
+amber Delayed (retrying), and grey Cancelled, with text as well as colour. Green requires no human approval. Show clicks
 open a dedicated episode detail page in the main HTMX region, including estimated starts and
 optional episode direction, Keep and Exclude controls. Recurring settings remain a
 separate link. Calendar readiness uses SSE; updates preserve scroll, focus and the
@@ -811,3 +811,21 @@ requires an unaired future occurrence and optimistic version, increments the
 editorial revision to reject in-flight generation, and publishes after commit.
 Restore retains the session and constraints. No template or transmission history
 is deleted. Producer confirmation uses the shared dialog with a full-page fallback.
+
+
+### Accepted playback queue
+
+While a station has listeners, prepare the immediately following episode's first two
+accepted recordings during the current programme. Do not prepare later episodes.
+The background planner uses the same playlist, station rotation and performer/album
+spacing rules as playback and adds one recording per request behind the accepted queue.
+A delayed provider response cannot replace the listener's displayed current or next
+recording. Commit a usable next recording before publishing current music; reserve an
+automatic choice if DJ preparation is delayed. Speech uses that committed recording.
+On advancement, replenish the buffer behind the next recording. Old unaccepted plans
+must be replaced, rather than counting toward readiness indefinitely.
+If a scheduled playlist becomes empty, continue with an available default playlist or
+the last playable pool, identify it as continuous music and record the failure. With
+no alternative eligible recording, reserve the current playable recording again rather
+than publishing music with an empty next slot. This cannot recover inaccessible audio
+sources or a failed database; those failures remain visible.

@@ -97,3 +97,76 @@ func (m *Manager) episodeMusicPolicy(ctx context.Context, o schedule.Occurrence)
 	}
 	return "varied"
 }
+
+// EligibleTracks applies the same station rotation and variety rules used at playback,
+// projected past the ready queue so background preparation cannot bypass those rules.
+func (m *Manager) EligibleTracks(ctx context.Context, o schedule.Occurrence, at time.Time, prior []production.SelectionPlay) ([]content.AudioItem, error) {
+	pool, err := m.repo.Pool(ctx, o.PlaylistID)
+	if err != nil {
+		return nil, err
+	}
+	pool, err = m.editorialPool(ctx, o, pool)
+	if err != nil {
+		return nil, err
+	}
+	rotation, err := m.rotation(ctx, o.StationID, at)
+	if err != nil {
+		return nil, err
+	}
+	copied := map[string]time.Time{}
+	for id, played := range rotation.LastPlayed {
+		copied[id] = played
+	}
+	rotation.LastPlayed = copied
+	catalogue := append([]content.AudioItem(nil), pool...)
+	previous := rotation.LastTrackID
+	current := content.AudioItem{}
+	for _, played := range prior {
+		if played.Item.ID == "" {
+			continue
+		}
+		if played.Started.After(rotation.LastPlayed[played.Item.ID]) {
+			rotation.LastPlayed[played.Item.ID] = played.Started
+		}
+		previous = played.Item.ID
+		current = played.Item
+		catalogue = append(catalogue, played.Item)
+	}
+	eligible, _ := rotationPool(pool, rotation, at, previous)
+	return varietyPoolFormat(eligible, catalogue, rotation, previous, current, m.episodeMusicPolicy(ctx, o)), nil
+}
+
+// Background acceptance owns soft rotation checks. Do not reject an approved queue
+// again at airtime; retain hard membership/source checks against the current pool.
+func (m *Manager) withApproved(ctx context.Context, o schedule.Occurrence, pool, candidates []content.AudioItem, current string) ([]content.AudioItem, error) {
+	selector, ok := m.options.Selector.(interface {
+		ApprovedTracks(context.Context, schedule.Occurrence) ([]string, error)
+	})
+	if !ok {
+		return candidates, nil
+	}
+	ids, err := selector.ApprovedTracks(ctx, o)
+	if err != nil {
+		return nil, err
+	}
+	approved := map[string]bool{}
+	for _, id := range ids {
+		approved[id] = true
+	}
+	seen := map[string]bool{}
+	for _, a := range candidates {
+		seen[a.ID] = true
+	}
+	out := append([]content.AudioItem(nil), candidates...)
+	for _, a := range pool {
+		if approved[a.ID] && !seen[a.ID] && a.ID != current {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func (m *Manager) CanPrepareEpisode(o schedule.Occurrence) bool {
+	state := m.State(o.StationID)
+	return state.Listeners > 0 && state.Status == "Broadcasting" && schedule.SameEpisode(state.Following, o)
+}

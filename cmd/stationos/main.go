@@ -21,6 +21,7 @@ import (
 	"time"
 	_ "time/tzdata"
 
+	agentai "stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/inference"
@@ -148,17 +149,18 @@ func run(args []string, logger *slog.Logger) error {
 	episodeService := &episodes.Service{Store: episodeStore, Pool: config, Text: textProviders, Fallback: presenter}
 	episodeService.ReportPlanning = func(o schedule.Occurrence, planningErr error) {
 		at := time.Now()
-		kind, reason := "ai", "Episode planning failed; automatic retry scheduled. Check the curation connection and server logs."
+		kind, reason := "ai", "DJ selection delayed. "+agentai.FailureMessage(agentai.FailureCode(planningErr))+" Automatic preparation will retry."
 		if planningErr == nil {
 			kind = "recovery"
-			reason = "Episode planning recovered; a validated running order is ready."
+			reason = "DJ selection recovered; an accepted track is ready."
 		}
 		recorder.Record(operations.Event{ID: operations.ID(), StationID: o.StationID, ShowID: o.ShowID, Show: o.Title, DJID: o.DJ.ID, DJ: o.DJ.Name, PlaylistID: o.PlaylistID, Playlist: o.PlaylistName, Started: at, Ended: at, Kind: kind, Outcome: "observed", Phase: "curation", Reason: reason, IncidentCode: "episode-plan:" + o.ShowID + ":" + o.Start.UTC().Format(time.RFC3339), Recover: planningErr == nil, Severity: "warning", Effect: "Local music continues", Action: "Review curation connection settings, episode details and server logs."})
 	}
 	presenter.Session = episodeService
+	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: episodeService, Session: episodeService, Audience: audienceRepo})
+	episodeService.Eligibility = broadcasts
 	stopEpisodes := episodeService.Start(ctx, stations, shows, changes, logger)
 	defer stopEpisodes()
-	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: episodeService, Session: episodeService, Audience: audienceRepo})
 	defer broadcasts.Close()
 	playlistsRepo := persistence.Playlists{DB: db}
 	images := producerAI.NewImages(sharedAI)

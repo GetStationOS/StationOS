@@ -123,7 +123,7 @@ func TestRotationRecordsDeliveryAndSurvivesReconnect(t *testing.T) {
 		t.Fatal("fallback not shown")
 	}
 }
-func TestRotationRevalidatesQueuedTrack(t *testing.T) {
+func TestRotationDoesNotReplaceCommittedTrack(t *testing.T) {
 	history := &memoryHistory{}
 	m, e, repo := fixture(t, Options{History: history})
 	repo.pool = append(repo.pool, content.AudioItem{ID: "three"})
@@ -144,8 +144,8 @@ func TestRotationRevalidatesQueuedTrack(t *testing.T) {
 	history.RecordPlay(context.Background(), "radio", queued, time.Now())
 	first.write.Close()
 	next := opened(t, e)
-	if next.item.ID == queued || next.item.ID == first.item.ID {
-		t.Fatal("queue bypassed current eligibility", next.item)
+	if next.item.ID != queued {
+		t.Fatal("committed queue changed", next.item)
 	}
 }
 func TestRotationWriteFailureStopsProduction(t *testing.T) {

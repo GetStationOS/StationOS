@@ -26,6 +26,15 @@ func (s *Service) Start(parent context.Context, stations station.Repository, sho
 		defer close(done)
 		changes, stop := bus.Watch("episodes")
 		defer stop()
+		var runtime <-chan struct{}
+		if watcher, ok := s.Eligibility.(interface {
+			WatchChanges() (<-chan struct{}, func())
+		}); ok {
+			var release func()
+			runtime, release = watcher.WatchChanges()
+			defer release()
+		}
+
 		timer := time.NewTicker(time.Minute)
 		defer timer.Stop()
 		for {
@@ -37,6 +46,7 @@ func (s *Service) Start(parent context.Context, stations station.Repository, sho
 				return
 			case <-timer.C:
 			case <-changes:
+			case <-runtime:
 			}
 		}
 	}()
@@ -82,11 +92,25 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 			if e == nil && episode.Cancelled {
 				continue
 			}
-			// Rolling curation begins with the live episode session, never a week of preplanning.
+			upcoming := false
+			if gate, ok := s.Eligibility.(interface {
+				CanPrepareEpisode(schedule.Occurrence) bool
+			}); ok && o.Start.After(now) {
+				upcoming = gate.CanPrepareEpisode(o)
+			}
+			if upcoming && (errors.Is(e, ErrNotFound) || !episodeSessionReady(episode)) {
+				if e = s.Begin(ctx, o); e != nil {
+					return e
+				}
+				if e = s.Remember(ctx, o, "scheduled preparation", "Prepare the first two approved tracks before this episode begins."); e != nil {
+					return e
+				}
+				episode, e = s.Store.Get(ctx, o.Key)
+			}
 			if errors.Is(e, ErrNotFound) || (e == nil && !episodeSessionReady(episode)) {
 				continue
 			}
-			if e == nil && o.Start.After(now) {
+			if e == nil && o.Start.After(now) && !upcoming {
 				continue
 			}
 			if e != nil {
@@ -155,7 +179,7 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 				_ = s.Store.Update(ctx, o, func(e *Episode) error {
 					if e.Status == "planning" {
 						e.Status = "attention"
-						e.RetryAt = time.Now().Add(time.Minute)
+						e.RetryAt = time.Time{}
 					}
 					return nil
 				})
@@ -206,7 +230,7 @@ func episodeSessionReady(e Episode) bool {
 		return true
 	}
 	for _, t := range e.Turns {
-		if t.Kind == "prepared presentation (not yet aired)" || t.Kind == "aired speech" {
+		if t.Kind == "scheduled preparation" || t.Kind == "prepared presentation (not yet aired)" || t.Kind == "aired speech" {
 			return true
 		}
 	}

@@ -131,6 +131,9 @@ func PinnedRoutes(ctx context.Context) (Routes, bool) {
 }
 
 // Provider categories are safe to persist; raw provider messages are not.
+var ErrEmptyPlaylist = errors.New("the episode playlist has no available recordings")
+var ErrNoEligibleTracks = errors.New("no recordings satisfy current station rotation and playlist rules")
+
 var ErrQuota = errors.New("API quota or spending limit reached")
 var ErrRateLimit = errors.New("provider rate limit reached")
 var ErrOutputLimit = errors.New("response output token limit reached")
@@ -142,7 +145,7 @@ func FailureCode(err error) string {
 	for _, v := range []struct {
 		err  error
 		code string
-	}{{ErrQuota, "quota"}, {ErrTokenRateLimit, "token_rate"}, {ErrRateLimit, "rate_limit"}, {ErrOutputLimit, "output_limit"}, {ErrContextLimit, "context_limit"}, {ErrRefused, "refused"}, {ErrInvalidStructuredResponse, "invalid_response"}, {context.DeadlineExceeded, "timeout"}} {
+	}{{ErrEmptyPlaylist, "empty_playlist"}, {ErrNoEligibleTracks, "no_eligible_tracks"}, {ErrQuota, "quota"}, {ErrTokenRateLimit, "token_rate"}, {ErrRateLimit, "rate_limit"}, {ErrOutputLimit, "output_limit"}, {ErrContextLimit, "context_limit"}, {ErrRefused, "refused"}, {ErrInvalidStructuredResponse, "invalid_response"}, {context.DeadlineExceeded, "timeout"}} {
 		if errors.Is(err, v.err) {
 			return v.code
 		}
@@ -151,6 +154,10 @@ func FailureCode(err error) string {
 }
 func FailureMessage(code string) string {
 	switch code {
+	case "empty_playlist":
+		return "This show’s playlist has no available recordings. Check its playlist and music sources. Available fallback music continues."
+	case "no_eligible_tracks":
+		return "No recording currently satisfies the playlist and station rotation rules. Automatic selection keeps music playing while preparation retries."
 	case "quota":
 		return "The provider reported an API quota, credits or spending limit. Check API billing and usage limits."
 	case "token_rate":

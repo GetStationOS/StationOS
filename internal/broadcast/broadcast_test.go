@@ -217,13 +217,14 @@ func TestPoolRefreshAndAssignmentStop(t *testing.T) {
 	o := opened(t, e)
 	o.write.Write([]byte("track"))
 	receive(t, s)
+	promised := m.State("radio").Next.ID
 	repo.mu.Lock()
 	repo.pool = []content.AudioItem{{ID: "new", Title: "New music"}}
 	repo.mu.Unlock()
 	o.write.Close()
 	second := opened(t, e)
-	if second.item.ID != "new" {
-		t.Fatal("stale pool", second.item)
+	if second.item.ID != promised {
+		t.Fatal("committed next changed", second.item)
 	}
 	second.write.Write([]byte("new"))
 	receive(t, s)

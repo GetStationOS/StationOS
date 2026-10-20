@@ -70,7 +70,7 @@ func TestNextTrackChoiceRunsDuringMusic(t *testing.T) {
 			if len(request.Candidates) != 2 || request.Current.ID != first.item.ID {
 				t.Fatal(request)
 			}
-			choice := request.Candidates[len(request.Candidates)-1].ID
+			choice := m.State("radio").Next.ID
 			if !valid {
 				choice = "invented"
 			}
@@ -135,7 +135,7 @@ func TestTrackShortlistBoundsAndTiming(t *testing.T) {
 	}
 }
 
-func TestChosenTrackMatchesSpeechAndIsRevalidated(t *testing.T) {
+func TestCommittedTrackMatchesSpeechAndSurvivesPoolEdits(t *testing.T) {
 	for _, remove := range []bool{false, true} {
 		t.Run(map[bool]string{false: "spoken-choice", true: "removed-before-playback"}[remove], func(t *testing.T) {
 			now := time.Date(2026, 10, 12, 9, 0, 0, 0, time.UTC)
@@ -156,7 +156,10 @@ func TestChosenTrackMatchesSpeechAndIsRevalidated(t *testing.T) {
 			case <-time.After(3 * time.Second):
 				t.Fatal("selection missing")
 			}
-			choice := q.Candidates[len(q.Candidates)-1].ID
+			_ = q
+			first.write.Write([]byte("MUSIC"))
+			receive(t, sub)
+			choice := m.State("radio").Next.ID
 			selector.answers <- choice
 			select {
 			case link := <-links.called:
@@ -190,22 +193,13 @@ func TestChosenTrackMatchesSpeechAndIsRevalidated(t *testing.T) {
 			}
 			first.write.Close()
 			next := opened(t, e)
-			if remove {
-				if next.item.ID == choice {
-					t.Fatal("removed track played")
-				}
-				next.write.Write([]byte("NEXT"))
-				if string(receive(t, sub)) != "NEXT" {
-					t.Fatal("stale speech was played")
-				}
-			} else {
-				if next.item.ID != choice {
-					t.Fatal("choice changed", next.item)
-				}
-				if string(receive(t, sub)) != "HANDOVER" {
-					t.Fatal("introduction missing")
-				}
+			if next.item.ID != choice {
+				t.Fatal("committed choice changed", next.item)
 			}
+			if string(receive(t, sub)) != "HANDOVER" {
+				t.Fatal("introduction missing")
+			}
+
 		})
 	}
 }

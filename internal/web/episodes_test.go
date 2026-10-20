@@ -150,7 +150,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 		t.Fatal("stale edit overwrote state", w.Code)
 	}
 	w = request(h, "GET", path, nil, nil)
-	if !strings.Contains(w.Body.String(), "episode-attention") {
+	if !strings.Contains(w.Body.String(), "episode-preparing") {
 		t.Fatal(w.Body.String())
 	}
 	// The live region replaces the manual refresh control and never starts generation.
@@ -347,5 +347,26 @@ func TestEpisodeQueueUsesBroadcastRatherThanProvisionalPlan(t *testing.T) {
 	queue, active = episodeQueue(episode, live)
 	if active || len(queue) != 1 || queue[0].ID != "proposal" {
 		t.Fatal("dormant proposal incorrectly claimed as live")
+	}
+}
+
+func TestEpisodeScheduleColoursDescribeAutomaticReadiness(t *testing.T) {
+	for _, tc := range []struct {
+		episode      episodes.Episode
+		class, label string
+	}{
+		{episodes.Episode{}, "episode-scheduled", "Scheduled"},
+		{episodes.Episode{Status: "planning"}, "episode-preparing", "Choosing next track"},
+		{episodes.Episode{Status: "ready"}, "episode-ready", "Ready"},
+		{episodes.Episode{Status: "attention"}, "episode-preparing", "Updating"},
+		{episodes.Episode{Status: "attention", PlanningFailed: true}, "episode-delayed", "Delayed"},
+		{episodes.Episode{Cancelled: true}, "episode-cancelled", "Cancelled"},
+	} {
+		if got := episodeScheduleClass(tc.episode); got != tc.class {
+			t.Fatal(got, tc.class)
+		}
+		if got := tc.episode.Label(); got != tc.label {
+			t.Fatal(got, tc.label)
+		}
 	}
 }

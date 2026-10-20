@@ -723,3 +723,95 @@ func TestReadyTrackAtBoundaryDoesNotTriggerAnotherChoice(t *testing.T) {
 		t.Fatal("worker would plan beyond the final ready track", available, err)
 	}
 }
+
+type upcomingGate struct {
+	pool poolStub
+	next string
+}
+
+func (g upcomingGate) EligibleTracks(context.Context, schedule.Occurrence, time.Time, []production.SelectionPlay) ([]content.AudioItem, error) {
+	return g.pool, nil
+}
+func (g upcomingGate) CanPrepareEpisode(o schedule.Occurrence) bool { return o.ShowID == g.next }
+func TestWorkerPreparesOnlyImmediateUpcomingShow(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
+	shows := scheduleStub{values: []schedule.Show{{ID: "current", StationID: "station", Day: 1, Start: 480, End: 600, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}, {ID: "next", StationID: "station", Day: 1, Start: 600, End: 660, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}, {ID: "later", StationID: "station", Day: 1, Start: 660, End: 720, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}}}
+	stations := stationStub{values: []station.Station{{ID: "station", Timezone: "UTC"}}}
+	store := &memoryStore{}
+	pool := poolStub{recording("a", 60), recording("b", 60), recording("c", 60)}
+	text := &textStub{generate: func(_ ai.TextRequest, n int) (string, error) {
+		return fmt.Sprintf(`{"Action":"plan","Tracks":[%q]}`, []string{"a", "b"}[n-1]), nil
+	}}
+	service := &Service{Store: store, Pool: pool, Text: text, Eligibility: upcomingGate{pool: pool, next: "next"}}
+	for i := 0; i < 4; i++ {
+		if err := service.sweepAt(ctx, stations, shows, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if text.calls != 2 {
+		t.Fatal("generated beyond two upcoming tracks", text.calls)
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.items) != 1 {
+		t.Fatal("prepared episodes beyond next show", store.items)
+	}
+	for _, e := range store.items {
+		if len(e.Plan) != 2 || !e.Plan[0].Approved || !e.Plan[1].Approved {
+			t.Fatal("upcoming show has no approved pair", e)
+		}
+	}
+}
+
+func TestReservationPreservesPreapprovedShowBuffer(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	a, b, c := recording("a", 60), recording("b", 60), recording("c", 60)
+	store.Update(ctx, o, func(e *Episode) error {
+		tb, tc := Snapshot(b), Snapshot(c)
+		tb.Approved = true
+		tc.Approved = true
+		e.Plan = []Track{tb, tc}
+		return nil
+	})
+	service := &Service{Store: store}
+	if err := service.QueueAccepted(ctx, o, a, b, time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if len(e.Plan) != 2 || e.Plan[0].ID != "b" || e.Plan[1].ID != "c" {
+		t.Fatal("reserving first track discarded pre-show buffer", e.Plan)
+	}
+}
+func TestRejectedChoiceDoesNotBlockReadyReplacement(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	a, b := recording("a", 60), recording("b", 60)
+	store.Update(ctx, o, func(e *Episode) error { e.Plan = []Track{Snapshot(a), Snapshot(b)}; e.Status = "ready"; return nil })
+	service := &Service{Store: store, Pool: poolStub{a, b}}
+	id, err := service.SelectTrack(ctx, production.SelectionRequest{Show: o, Candidates: []content.AudioItem{b}})
+	if err != nil || id != "b" {
+		t.Fatal(id, err)
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if len(e.Plan) != 1 || e.Plan[0].ID != "b" {
+		t.Fatal("rejected earlier choice left in horizon", e.Plan)
+	}
+}
+func TestUnacceptedLegacyChoicesDoNotCountAsReady(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	a, b := recording("a", 60), recording("b", 60)
+	pool := poolStub{a, b}
+	store.Update(ctx, o, func(e *Episode) error { e.Plan = []Track{Snapshot(a), Snapshot(b)}; e.Status = "ready"; return nil })
+	service := &Service{Store: store, Pool: pool, Eligibility: upcomingGate{pool: pool}}
+	e, _ := store.Get(ctx, o.Key)
+	ready, err := service.Available(ctx, o, e)
+	if err != nil || ready {
+		t.Fatal("unaccepted legacy queue counted as ready", ready, err)
+	}
+}

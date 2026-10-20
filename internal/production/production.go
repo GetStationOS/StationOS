@@ -142,3 +142,12 @@ type PendingSelection struct {
 
 func (e *PendingSelection) Error() string { return e.Reason }
 func (e *PendingSelection) Unwrap() error { return ErrPlanPending }
+
+// SelectionPlay projects actual and ready music for shared playback eligibility.
+type SelectionPlay struct {
+	Item    content.AudioItem
+	Started time.Time
+}
+type TrackEligibility interface {
+	EligibleTracks(context.Context, schedule.Occurrence, time.Time, []SelectionPlay) ([]content.AudioItem, error)
+}

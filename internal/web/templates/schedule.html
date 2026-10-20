@@ -1,7 +1,7 @@
 {{define "schedule-list"}}
 <div id="schedule-episodes" data-live-url="/producer/stations/{{.Station.ID}}/schedule/live?week={{.Week}}{{if .SelectedEpisodeID}}&amp;episode={{.SelectedEpisodeID}}&amp;start={{.EpisodeStart}}{{end}}">
 <nav class="schedule-week-navigation" aria-label="Schedule week"><a href="?week={{.PreviousWeek}}" aria-label="Previous week"><span class="week-link-wide">Previous week</span><span class="week-link-short">Previous</span></a><strong>{{.WeekLabel}}</strong><a href="?week={{.NextWeek}}" aria-label="Next week"><span class="week-link-wide">Next week</span><span class="week-link-short">Next</span></a></nav>
-<p class="hint">{{.Station.Timezone}} · Pink: unplanned · Amber: planning or for review · Green: ready to run automatically · Grey: cancelled</p>
+<p class="hint">{{.Station.Timezone}} · Neutral: scheduled · Blue: preparing · Green: ready · Amber: delayed, retrying · Grey: cancelled</p>
 {{if .Shows}}
 <div class="calendar-scroll" tabindex="0" aria-label="Weekly schedule">
   <div class="weekly-calendar">
@@ -150,9 +150,9 @@
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}">
 <label>DJ music prompt<textarea name="notes" rows="4" maxlength="4000" aria-describedby="episode-direction-help">{{.Episode.Notes}}</textarea></label>
 <p class="hint" id="episode-direction-help">Optional instructions for this episode only. The show template supplies the usual direction.</p>
-{{if .Episode.Plan}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Episode track choices"><table class="episode-order-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Choices</th></tr></thead><tbody>
+<div id="episode-choices">{{if .Episode.Plan}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Episode track choices"><table class="episode-order-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Choices</th></tr></thead><tbody>
 {{range .Episode.Upcoming}}<tr><td data-label="Expected start">{{.EstimatedStart.Format "15:04"}}</td><td data-label="Recording">{{.Title}}</td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Choices"><label class="choice"><input type="checkbox" name="locked" aria-label="Keep {{.Title}}" value="{{.ID}}" {{if .Locked}}checked{{end}}>Keep</label><label class="choice"><input type="checkbox" name="excluded" aria-label="Exclude {{.Title}}" value="{{.ID}}" {{if index $.EpisodeExclusions .ID}}checked{{end}}>Exclude</label></td></tr>{{end}}
-</tbody></table></div>{{end}}
+</tbody></table></div>{{end}}</div>
 <span data-unsaved class="hint" role="status"></span>
 {{template "form-actions" (formActions (printf "/producer/stations/%s/schedule/%s/episode?start=%s" .Station.ID .Show.ID (.EpisodeStart | urlquery)) "Save")}}
 </form>

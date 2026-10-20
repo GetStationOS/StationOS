@@ -1270,3 +1270,13 @@ textarea{font-weight:400;line-height:1.5}
 .search-input{display:block;min-width:0}.search-input>button.search-clear{display:flex;align-items:center;justify-content:center;min-width:0;min-height:0;margin:0;padding:0;background:transparent;color:var(--muted);border:0;box-shadow:none}.search-input>button.search-clear:hover{background:var(--tint);color:var(--text)}
 .catalogue-search-field{min-width:0}.catalogue-search-field label{margin:0 0 6px}.filters>.filter-actions{align-self:end}.filters>.filter-actions>button,.history-filters .operations-filter-actions>button,.audience-track-search>[data-track-search-submit]{width:auto;flex:0 0 auto;min-height:42px;padding:0 18px;align-self:end}
 @media(max-width:650px){.catalogue-search-field{grid-column:1/-1}}
+
+/* Row-only playlist updates must not recalculate column widths. */
+.playlist-tracks-table{table-layout:fixed;min-width:840px}
+.playlist-tracks-table th:nth-child(1){width:30%}.playlist-tracks-table th:nth-child(2){width:30%}.playlist-tracks-table th:nth-child(3){width:88px}.playlist-tracks-table th:nth-child(5){width:108px}
+.playlist-tracks-table td,.playlist-tracks-table .subline{overflow-wrap:normal;word-break:normal;hyphens:none}.playlist-tracks-table .row-actions button{width:76px;white-space:nowrap}
+
+/* Wrap table labels at spaces; keep metadata columns readable on narrow screens. */
+.table-scroll th{overflow-wrap:normal;word-break:normal;hyphens:none}
+.table-heading-secondary{display:block;font-weight:400;margin-top:2px}
+.playlist-tracks-table th:nth-child(4){width:140px}

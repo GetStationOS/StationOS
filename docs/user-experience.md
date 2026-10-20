@@ -670,3 +670,7 @@ Search fields place their clear action inside the text box as an accessible X ic
 never a separate Clear search text link. Search submit buttons stay compact beside
 the field at desktop, tablet and mobile widths. Preserve the page-size setting
 when clearing a query; use the same HTMX results region as the search submission.
+
+Table headings and ordinary metadata should wrap at spaces, without splitting
+words. Give metadata columns enough width and allow the table's own horizontal
+scroll on mobile. Keep fixed playlist column widths stable during row updates.

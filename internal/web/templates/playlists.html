@@ -238,11 +238,11 @@
 {{template "results-toolbar" .Pagination}}
 {{if .Rows}}
 <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Playlist tracks">
-  <table>
+  <table class="playlist-tracks-table">
     <thead>
       <tr>
         <th>Track / Artist</th>
-        <th>Album</th>
+        <th class="nowrap">Album / Genre</th>
         <th>Duration</th>
         <th>Source</th>
         <th>Selection</th>
@@ -354,7 +354,7 @@
               <input type="hidden" name="csrf" value="{{$.CSRF}}">
               <input type="hidden" name="item" value="{{.Item.ID}}">
               <input type="hidden" name="return_to" value="{{$.ReturnTo}}">
-              {{if .Excluded}}<button id="playlist-choice-{{.Item.ID}}" class="secondary" aria-label="Re-include {{.Item.Title}} in playlist">Re-include</button>{{else}}<button id="playlist-choice-{{.Item.ID}}" class="secondary" aria-label="Exclude {{.Item.Title}} from playlist">Exclude</button>{{end}}
+              {{if .Excluded}}<button id="playlist-choice-{{.Item.ID}}" class="secondary" aria-label="Include {{.Item.Title}} in playlist">Include</button>{{else}}<button id="playlist-choice-{{.Item.ID}}" class="secondary" aria-label="Exclude {{.Item.Title}} from playlist">Exclude</button>{{end}}
             </form>
           </div>
         </td>

@@ -50,7 +50,7 @@ func TestPlaylistRefreshAndExclusionJourney(t *testing.T) {
 		t.Fatal(removed.Code, removed.Body.String())
 	}
 	excluded := request(h, "GET", removed.Header().Get("Location"), nil, nil).Body.String()
-	if !strings.Contains(excluded, `class="playlist-track-excluded"`) || !strings.Contains(excluded, "Re-include Alpha") || !strings.Contains(excluded, "0 tracks") {
+	if !strings.Contains(excluded, `class="playlist-track-excluded"`) || !strings.Contains(excluded, "Include Alpha") || !strings.Contains(excluded, "0 tracks") {
 		t.Fatal(excluded)
 	}
 	restore := request(h, "POST", path+"/restore", url.Values{"csrf": {token}, "item": {a.ID}, "return_to": {path + "/tracks?per_page=50"}}, nil)

@@ -483,7 +483,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 						prepared[result.key] = result.prepared
 						preparedVoices[result.key] = result
 						delete(failed, result.key)
-						m.observe(id, "recovery", "DJ show preparation recovered", State{Programme: result.show}, "preparation", true)
+						m.observe(id, "recovery", "Show presentation preparation completed.", State{Programme: result.show}, "preparation", true)
 					}
 				} else {
 					if attempted[result.key] {
@@ -1035,26 +1035,40 @@ func (m *Manager) playProgramme(id string, r *run) {
 		clear(selectionStates)
 		// Episode selection reads previously prepared, validated choices; it never invokes AI here.
 		preparedSelection := false
+		selectionSource := "automatic"
+		if requestedTrack {
+			selectionSource = "listener"
+		}
 		if selector, ok := m.options.Selector.(interface{ FullPlaylist() bool }); ok && selector.FullPlaylist() && nextTimeline.Current.ShowID != "" {
 			preparedSelection = true
 			request := production.SelectionRequest{Show: nextTimeline.Current, Current: current, Candidates: nextPool, RemainingSeconds: int64(nextRemaining.Seconds())}
 			chosen, selectionErr := m.selectNextTrack(r.ctx, request, queued, requestedTrack)
 			queued = chosen
+			if selectionErr == nil && !requestedTrack {
+				selectionSource = "dj"
+			}
 			selectionStates[queuedShow] = "Ready"
 			if selectionErr != nil {
 				selectionStates[queuedShow] = "Preparing"
 			}
 			m.recordSelection(id, nextTimeline.Current, queued, requestedTrack, selectionErr)
 		}
+		ctx, release := context.WithTimeout(r.ctx, 2*time.Second)
+		var reservationErr error
 		if committer, ok := m.options.Selector.(interface {
+			QueueAcceptedSelection(context.Context, schedule.Occurrence, content.AudioItem, content.AudioItem, time.Time, string) error
+		}); ok {
+			reservationErr = committer.QueueAcceptedSelection(ctx, nextTimeline.Current, current, queued, predictedEnd, selectionSource)
+		} else if committer, ok := m.options.Selector.(interface {
 			QueueAccepted(context.Context, schedule.Occurrence, content.AudioItem, content.AudioItem, time.Time) error
 		}); ok {
-			ctx, release := context.WithTimeout(r.ctx, 2*time.Second)
-			if err := committer.QueueAccepted(ctx, nextTimeline.Current, current, queued, predictedEnd); err != nil {
-				m.logger.Warn("Next-track reservation could not be saved", "station_id", id, "error", err)
-			}
-			release()
+			reservationErr = committer.QueueAccepted(ctx, nextTimeline.Current, current, queued, predictedEnd)
 		}
+		release()
+		if reservationErr != nil {
+			m.logger.Warn("Next-track reservation could not be saved", "station_id", id, "error", reservationErr)
+		}
+
 		// Prepare the next DJ in advance while the outgoing programme is playing.
 		if timeline.Next.DJ.ID != "" && !playing.End.IsZero() && playing.End.Sub(playoutNow()) <= 10*time.Minute {
 			after, err := m.options.Schedule.Resolve(r.ctx, id, timeline.Next.Start.Add(time.Second))

@@ -112,22 +112,12 @@ func (s *Server) saveEpisode(w http.ResponseWriter, r *http.Request) {
 	}
 	version, err := strconv.Atoi(r.PostForm.Get("version"))
 	if err == nil {
-		err = s.d.Episodes.Edit(r.Context(), o, version, r.PostForm.Get("notes"), r.PostForm["locked"], r.PostForm["excluded"])
+		err = s.d.Episodes.Edit(r.Context(), o, version, r.PostForm.Get("notes"), nil, nil)
 	}
 	if err != nil {
 		v.EpisodeEditing = true
 		v.Episode.Notes = r.PostForm.Get("notes")
-		kept := map[string]bool{}
-		for _, id := range r.PostForm["locked"] {
-			kept[id] = true
-		}
-		for i := range v.Episode.Plan {
-			v.Episode.Plan[i].Locked = kept[v.Episode.Plan[i].ID]
-		}
-		v.EpisodeExclusions = map[string]bool{}
-		for _, id := range r.PostForm["excluded"] {
-			v.EpisodeExclusions[id] = true
-		}
+
 		v.EpisodeError = err.Error()
 		s.renderPage(w, r, 422, "episode-page", v)
 		return
@@ -231,5 +221,19 @@ func episodeQueue(e episodes.Episode, state broadcast.State) ([]episodes.Running
 		return nil, true
 	}
 	// Link duration and buffering are not a dependable wall-clock start estimate.
-	return []episodes.RunningTrack{{Track: episodes.Snapshot(state.Next)}}, true
+	next := episodes.RunningTrack{Track: episodes.Snapshot(state.Next), Committed: true}
+	next.Approved = true
+	for _, track := range e.Plan {
+		if track.ID == next.ID {
+			next.SelectionSource = track.SelectionSource
+			break
+		}
+	}
+	queue := []episodes.RunningTrack{next}
+	for _, track := range e.Upcoming() {
+		if track.Approved && track.ID != next.ID && track.ID != state.Current.ID {
+			queue = append(queue, track)
+		}
+	}
+	return queue, true
 }

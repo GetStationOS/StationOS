@@ -150,9 +150,7 @@
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}">
 <label>DJ music prompt<textarea name="notes" rows="4" maxlength="4000" aria-describedby="episode-direction-help">{{.Episode.Notes}}</textarea></label>
 <p class="hint" id="episode-direction-help">Optional instructions for this episode only. The show template supplies the usual direction.</p>
-<div id="episode-choices">{{if .Episode.Plan}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Episode track choices"><table class="episode-order-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Choices</th></tr></thead><tbody>
-{{range .Episode.Upcoming}}<tr><td data-label="Expected start">{{.EstimatedStart.Format "15:04"}}</td><td data-label="Recording">{{.Title}}</td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Choices"><label class="choice"><input type="checkbox" name="locked" aria-label="Keep {{.Title}}" value="{{.ID}}" {{if .Locked}}checked{{end}}>Keep</label><label class="choice"><input type="checkbox" name="excluded" aria-label="Exclude {{.Title}}" value="{{.ID}}" {{if index $.EpisodeExclusions .ID}}checked{{end}}>Exclude</label></td></tr>{{end}}
-</tbody></table></div>{{end}}</div>
+<div id="episode-choices">{{template "episode-queue" .}}</div>
 <span data-unsaved class="hint" role="status"></span>
 {{template "form-actions" (formActions (printf "/producer/stations/%s/schedule/%s/episode?start=%s" .Station.ID .Show.ID (.EpisodeStart | urlquery)) "Save")}}
 </form>
@@ -171,8 +169,11 @@
 </section>{{end}}</div>
 {{end}}
 {{define "episode-queue"}}
-{{if .EpisodeQueue}}<div class="episode-next-list">{{range .EpisodeQueue}}<div class="episode-next"><div><h3>{{.Title}}</h3><p>{{.Artist}}{{if .Album}} · {{.Album}}{{end}}</p>{{if not .EstimatedStart.IsZero}}<p class="hint">Expected {{.EstimatedStart.Format "15:04"}}</p>{{end}}</div><span class="episode-next-duration" aria-label="Duration {{.Duration}}">{{.Duration}}</span></div>{{end}}</div>{{else}}<p class="hint episode-empty">{{if .EpisodeQueueLive}}No track queued.{{else}}The next selection will appear here.{{end}}</p>{{end}}
+{{if .EpisodeQueue}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Upcoming tracks"><table class="episode-order-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Selection</th><th scope="col">Status</th></tr></thead><tbody>
+{{range .EpisodeQueue}}<tr><td data-label="Expected start">{{if .EstimatedStart.IsZero}}—{{else}}{{.EstimatedStart.Format "15:04"}}{{end}}</td><td data-label="Recording"><strong>{{.Title}}</strong></td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Selection">{{.SelectionLabel}}</td><td data-label="Status"><span class="badge{{if .Committed}} episode-state-preparing{{else if .Approved}} episode-state-ready{{end}}">{{.AcceptanceLabel}}</span></td></tr>{{end}}
+</tbody></table></div>{{else}}<p class="hint episode-empty">{{if .EpisodeQueueLive}}No track queued.{{else}}The next selection will appear here.{{end}}</p>{{end}}
 {{end}}
+
 {{define "episode-status"}}
 <div class="episode-panel-heading"><h2>{{if .EpisodeEditing}}Episode direction{{else if .EpisodeQueueLive}}Up next{{else}}DJ selection{{end}}</h2>
 <span class="badge episode-state{{if or (eq .Episode.Status "starting") (eq .Episode.Status "planning")}} episode-state-preparing{{else if .Episode.PlanningFailed}} episode-state-delayed{{else if eq .Episode.Status "ready"}} episode-state-ready{{end}}">{{if .Episode.Cancelled}}Cancelled{{else if or (eq .Episode.Status "starting") (eq .Episode.Status "planning")}}{{.Episode.Label}}{{else if .Episode.PlanningFailed}}DJ selection delayed{{else if eq .Episode.Status "attention"}}Updating{{else if eq .Episode.Status "unplanned"}}Waiting to start{{else}}{{.Episode.Label}}{{end}}</span></div>

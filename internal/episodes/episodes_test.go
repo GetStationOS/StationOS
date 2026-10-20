@@ -861,3 +861,29 @@ func TestExhaustedEpisodePoolSkipsProvider(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestQueueReservationRetainsActualSelectionOrigin(t *testing.T) {
+	for _, tc := range []struct{ original, source, want string }{{"dj", "dj", "dj"}, {"automatic", "dj", "automatic"}, {"dj", "automatic", "automatic"}, {"", "", ""}} {
+		t.Run(tc.original+"/"+tc.source, func(t *testing.T) {
+			ctx := context.Background()
+			o := futureEpisode()
+			store := &memoryStore{}
+			a, b := recording("a", 60), recording("b", 60)
+			store.Update(ctx, o, func(e *Episode) error {
+				track := Snapshot(b)
+				track.Approved = true
+				track.SelectionSource = tc.original
+				e.Plan = []Track{track}
+				return nil
+			})
+			service := &Service{Store: store}
+			if err := service.QueueAcceptedSelection(ctx, o, a, b, time.Now(), tc.source); err != nil {
+				t.Fatal(err)
+			}
+			saved, _ := store.Get(ctx, o.Key)
+			if saved.Plan[0].SelectionSource != tc.want || !saved.Plan[0].Approved {
+				t.Fatal(saved.Plan)
+			}
+		})
+	}
+}

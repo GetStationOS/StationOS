@@ -439,7 +439,7 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	v := operationalEvent{Event: e, StartLabel: operationalTime(e.Started, loc), EndLabel: operationalTime(e.Ended, loc), Duration: "—"}
 	v.StartDate = e.Started.In(loc).Format("02 Jan 2006")
 	v.StartTime = e.Started.In(loc).Format("15:04:05")
-	if !e.Ended.IsZero() {
+	if !e.Ended.IsZero() && (e.Kind == "music" || e.Kind == "speech") {
 		start, end := e.Started.In(loc), e.Ended.In(loc)
 		v.EndTime = end.Format("15:04:05")
 		if start.Format("2006-01-02") != end.Format("2006-01-02") {
@@ -456,6 +456,10 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	if (e.Recover || e.Kind == "recovery") && (e.Phase == "curation" || e.IncidentCode == "curation" || strings.HasPrefix(e.IncidentCode, "episode-plan:")) {
 		v.TypeLabel = "DJ selection succeeded"
 		v.Reason = "One track choice passed validation. Queue readiness is shown in the episode view."
+	}
+	if (e.Recover || e.Kind == "recovery") && e.IncidentCode == "preparation" {
+		v.TypeLabel = "DJ presentation prepared"
+		v.Reason = "Show presentation preparation completed."
 	}
 	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
 	v.OutcomeStyle, v.OutcomeIcon = e.Outcome, e.Outcome
@@ -489,6 +493,10 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	}
 	if v.TypeLabel == "DJ selection succeeded" {
 		v.OutcomeLabel = "Selection succeeded"
+		v.Notes = v.Reason
+	}
+	if v.TypeLabel == "DJ presentation prepared" {
+		v.OutcomeLabel = "Prepared"
 		v.Notes = v.Reason
 	}
 	return v

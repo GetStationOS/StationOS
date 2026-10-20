@@ -24,6 +24,7 @@ var ErrStale = errors.New("episode changed; reload and try again")
 
 type Track struct {
 	ID, Title, Artist, Album string
+	SelectionSource          string
 	Seconds                  int64
 	Locked                   bool
 	Approved                 bool
@@ -49,6 +50,28 @@ type Episode struct {
 	PlanningFailed                   bool
 	Cancelled                        bool
 	RetryAt                          time.Time
+}
+
+func (t Track) SelectionLabel() string {
+	switch t.SelectionSource {
+	case "dj":
+		return "DJ"
+	case "automatic":
+		return "Automatic"
+	case "listener":
+		return "Listener request"
+	default:
+		return "Not recorded"
+	}
+}
+func (t RunningTrack) AcceptanceLabel() string {
+	if t.Committed {
+		return "Committed next"
+	}
+	if t.Approved {
+		return "Accepted"
+	}
+	return "Awaiting acceptance"
 }
 
 func (t Track) Duration() string { return fmt.Sprintf("%d:%02d", t.Seconds/60, t.Seconds%60) }
@@ -683,6 +706,7 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 			// Append behind the ready next track; never replace it while choosing later music.
 			for i := range plan {
 				plan[i].Approved = true
+				plan[i].SelectionSource = "dj"
 			}
 			e.Plan = append(s.readyTracks(*e, byID), plan...)
 			e.PlanStartsAt = queueStart(base, o, time.Now())
@@ -957,6 +981,7 @@ type RunningTrack struct {
 	Track
 	Position       int
 	EstimatedStart time.Time
+	Committed      bool
 }
 
 func (e Episode) RunningOrder() []RunningTrack {
@@ -966,7 +991,7 @@ func (e Episode) RunningOrder() []RunningTrack {
 	}
 	out := []RunningTrack{}
 	for i, a := range e.Plan {
-		out = append(out, RunningTrack{a, i + 1, next})
+		out = append(out, RunningTrack{Track: a, Position: i + 1, EstimatedStart: next})
 		next = next.Add(time.Duration(a.Seconds+15) * time.Second)
 	}
 	return out
@@ -1025,9 +1050,22 @@ func (s *Service) QueueAccepted(ctx context.Context, o schedule.Occurrence, curr
 	if o.ShowID == "" || next.ID == "" {
 		return nil
 	}
+	return s.QueueAcceptedSelection(ctx, o, current, next, at, "")
+}
+
+func (s *Service) QueueAcceptedSelection(ctx context.Context, o schedule.Occurrence, current, next content.AudioItem, at time.Time, source string) error {
+	if o.ShowID == "" || next.ID == "" {
+		return nil
+	}
 	return s.Store.Update(ctx, o, func(e *Episode) error {
 		if e.Cancelled {
 			return ErrCancelled
+		}
+		for _, track := range e.Plan {
+			if track.ID == next.ID && (source == "" || source == "dj") && track.SelectionSource != "" {
+				source = track.SelectionSource
+				break
+			}
 		}
 		prior := e.AcceptedNextID
 		preserve := prior == current.ID || prior == next.ID
@@ -1044,6 +1082,7 @@ func (s *Service) QueueAccepted(ctx context.Context, o schedule.Occurrence, curr
 		e.AcceptedNextID = next.ID
 		reserved := Snapshot(next)
 		reserved.Approved = true
+		reserved.SelectionSource = source
 		queued := []Track{reserved}
 		for _, track := range e.Upcoming() {
 			if track.ID != next.ID && track.ID != current.ID && preserve {

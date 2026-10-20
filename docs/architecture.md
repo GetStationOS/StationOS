@@ -739,7 +739,7 @@ well as AI choices. Late/failed planning leaves local music selection running.
 The dated schedule shows neutral Scheduled, blue Preparing/Updating, green Ready,
 amber Delayed (retrying), and grey Cancelled, with text as well as colour. Green requires no human approval. Show clicks
 open a dedicated episode detail page in the main HTMX region, including estimated starts and
-optional episode direction, Keep and Exclude controls. Recurring settings remain a
+optional episode direction and a read-only accepted queue. Recurring settings remain a
 separate link. Calendar readiness uses SSE; updates preserve scroll, focus and the
 separate editing form. Refreshing the running order is explicit so unsaved edits are
 not replaced. Optimistic versions reject stale producer submissions.

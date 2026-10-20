@@ -57,7 +57,7 @@
   <tbody role="rowgroup">
   {{range .Events}}
   <tr id="event-{{.ID}}" role="row">
-    <td class="history-start" role="cell"><time datetime="{{.Started.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartLabel}}" aria-label="{{.StartLabel}}"><span class="history-date" aria-hidden="true">{{.StartDate}}</span></time><span class="history-time"><span class="visually-hidden">Started </span>{{.StartTime}}{{if .EndTime}}<span class="history-end"><span class="history-time-separator" aria-hidden="true"> → </span><span class="visually-hidden">; ended </span><time datetime="{{.Ended.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.EndLabel}}">{{.EndTime}}</time></span>{{end}}</span></td>
+    <td class="history-start" role="cell"><time datetime="{{.Started.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.StartLabel}}" aria-label="{{.StartLabel}}"><span class="history-date" aria-hidden="true">{{.StartDate}}</span></time><span class="history-time"><span class="visually-hidden">{{if or (eq .Kind "music") (eq .Kind "speech")}}Started{{else}}At{{end}} </span>{{.StartTime}}{{if .EndTime}}<span class="history-end"><span class="history-time-separator" aria-hidden="true"> → </span><span class="visually-hidden">; ended </span><time datetime="{{.Ended.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.EndLabel}}">{{.EndTime}}</time></span>{{end}}</span></td>
     <td class="history-recording" role="cell">
       <div class="history-recording-row">
         <span class="history-type" role="img" aria-label="{{.TypeLabel}}" title="{{.TypeLabel}}">{{template "ui-icon" .Kind}}</span>

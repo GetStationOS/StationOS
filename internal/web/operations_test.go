@@ -386,7 +386,7 @@ func TestProducerHistoryTimeRange(t *testing.T) {
 			if tc.end != "" {
 				end, _ = time.Parse(time.RFC3339, tc.end)
 			}
-			v := producerEvent(operations.Event{Started: start, Ended: end}, loc)
+			v := producerEvent(operations.Event{Kind: "music", Started: start, Ended: end}, loc)
 			if v.StartTime != tc.wantStart || v.EndTime != tc.wantEnd {
 				t.Fatalf("range %q → %q; want %q → %q", v.StartTime, v.EndTime, tc.wantStart, tc.wantEnd)
 			}
@@ -552,5 +552,30 @@ func TestCurationRecoveryNamesOneSuccessfulSelection(t *testing.T) {
 	row := producerEvent(operations.Event{Kind: "recovery", Recover: true, Outcome: "observed", IncidentCode: "audio", Reason: "Audio delivery resumed", Started: time.Now()}, time.UTC)
 	if row.TypeLabel != "Recovered" || row.Reason != "Audio delivery resumed" {
 		t.Fatal("unrelated recovery changed", row)
+	}
+}
+
+func TestShowPreparationSuccessDoesNotImplyRecoveryOrAirtime(t *testing.T) {
+	event := operations.Event{Kind: "recovery", Recover: true, Outcome: "observed", IncidentCode: "preparation", Reason: "DJ show preparation recovered", Started: time.Now()}
+	row := producerEvent(event, time.UTC)
+	if row.TypeLabel != "DJ presentation prepared" || row.OutcomeLabel != "Prepared" || row.Notes != "Show presentation preparation completed." {
+		t.Fatal(row)
+	}
+	if !row.Recover || row.IncidentCode != "preparation" {
+		t.Fatal("successful preparation must still clear its earlier incident", row)
+	}
+}
+
+func TestOnlyAudioTransmissionsShowEndTime(t *testing.T) {
+	start := time.Date(2026, 10, 20, 10, 43, 22, 0, time.UTC)
+	for _, kind := range []string{"music", "speech", "selection", "recovery", "ai", "started", "handover", "failure"} {
+		row := producerEvent(operations.Event{Kind: kind, Started: start, Ended: start.Add(time.Second)}, time.UTC)
+		audio := kind == "music" || kind == "speech"
+		if (row.EndTime != "") != audio {
+			t.Fatalf("%s end time %q", kind, row.EndTime)
+		}
+		if row.StartTime != "10:43:22" {
+			t.Fatal(row.StartTime)
+		}
 	}
 }

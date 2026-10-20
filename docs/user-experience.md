@@ -571,8 +571,12 @@ Readiness is editorial preparation, independent of live broadcasting. Plans beco
 ready automatically; producer review is optional. Clicking a show opens its running
 order and show details in the main content area through HTMX navigation, with a dated URL and a link back to the selected schedule week.
 Keep its show settings available as a separate link. Show estimated track starts,
-performers, albums and durations. Producer notes, Keep and Exclude controls belong
-to that dated episode, not playlist membership. Live readiness updates preserve
+performers, albums and durations. Producer notes belong to that dated episode, not playlist membership. Track choices
+are agent-driven: the default episode screen shows the upcoming queue in the same
+table style as Played tracks, with expected start, recording, performer, album,
+duration, selection source and acceptance status. Only live runtime can label a track
+Committed next; validated buffer tracks are Accepted. Legacy origins are Not recorded.
+Do not show Keep/Exclude controls. Live readiness updates preserve
 calendar scroll/focus and never overwrite the producer form. Offer an explicit
 running-order refresh, protect unsaved changes and retain input on validation.
 

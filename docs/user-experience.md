@@ -586,3 +586,8 @@ Overview incident notices use the same unreviewed active incident count as the
 menu indicator. Hide the review notice once all active incidents are reviewed;
 reviewing does not assert technical recovery or remove incident history. History
 recording health warnings remain independent.
+
+The DJ keeps a rolling two-track horizon: current music plays while the next is
+ready and the following is being chosen. This does not trigger full-show planning.
+A standard show handover is neutral activity, never a warning; editing the same
+dated episode's template must not produce a handover.

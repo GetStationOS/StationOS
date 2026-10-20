@@ -305,3 +305,11 @@ func EpisodeKey(key string) string {
 	}
 	return key[:i]
 }
+
+// SameEpisode excludes mutable template revisions from dated programme identity.
+func SameEpisode(a, b Occurrence) bool {
+	if a.ShowID != "" && b.ShowID != "" && !a.Start.IsZero() && !b.Start.IsZero() {
+		return a.StationID == b.StationID && a.ShowID == b.ShowID && a.Start.Equal(b.Start)
+	}
+	return a.Key == b.Key
+}

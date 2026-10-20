@@ -431,6 +431,11 @@ func operationOutcomeLabel(outcome string) string {
 	return label
 }
 func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
+	// Older routine observations were incorrectly recorded as warnings.
+	if e.Outcome == "observed" && e.IncidentCode == "" && e.Severity != "critical" && e.Severity != "error" && (e.Kind == "handover" || e.Kind == "started" || e.Kind == "stopped" || e.Kind == "intervention") {
+		e.Severity = "info"
+	}
+
 	v := operationalEvent{Event: e, StartLabel: operationalTime(e.Started, loc), EndLabel: operationalTime(e.Ended, loc), Duration: "—"}
 	v.StartDate = e.Started.In(loc).Format("02 Jan 2006")
 	v.StartTime = e.Started.In(loc).Format("15:04:05")

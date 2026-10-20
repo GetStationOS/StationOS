@@ -109,7 +109,7 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 				}
 				if e = s.Store.Update(ctx, o, func(ep *Episode) error {
 					ep.Status = "attention"
-					ep.Problem = "Playlist availability changed; updating the running order."
+					ep.Problem = "Preparing the next DJ choice."
 					ep.RetryAt = time.Time{}
 					return nil
 				}); e != nil {
@@ -134,7 +134,7 @@ func (s *Service) sweepAt(ctx context.Context, stations station.Repository, show
 		}
 		err = s.Store.Update(ctx, o, func(e *Episode) error {
 			e.Status = "planning"
-			e.Note("planning attempt", "Preparing this episode running order.")
+			e.Note("planning attempt", "Adding one recording behind the ready next track.")
 			e.Problem = ""
 			e.RetryAt = time.Now().Add(6 * time.Minute)
 			return nil

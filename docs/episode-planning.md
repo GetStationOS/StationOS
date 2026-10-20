@@ -1,7 +1,10 @@
 # Episode planning
 
 The default is a rolling episode session: prepare the DJ introduction using the
-DJ personality and show prompt, then choose one upcoming recording at a time.
+DJ personality and show prompt, then build a rolling horizon of two upcoming recordings, one DJ choice per request.
+While one track plays, the next remains ready and the DJ chooses the following
+track. New choices append behind ready music, never replace it. Replenish as
+playback consumes the queue, stopping at the show boundary or exhausted pool.
 The same dated episode retains the theme, producer notes, exclusions, kept tracks,
 actual played history and spoken links. Each new dated episode starts fresh.
 No full running order is generated automatically. Intro failure does not stop
@@ -31,3 +34,9 @@ quota/spend, temporary rate limit, oversized token-rate request, response output
 context limit, refused/invalid output, timeout, in-progress work or an unusable saved
 choice. An output limit is per response and is not evidence of exhausted credits.
 Unknown causes remain explicitly unknown. Do not include raw provider responses.
+
+Programme handover uses station, show and dated start identity; template revisions
+refresh preparation but do not restart an episode or create a mid-show handover.
+Routine handovers and station start/stop observations are neutral Timeline activity,
+including older records saved with a warning severity. Real incidents retain their
+warning/error state.

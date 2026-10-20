@@ -807,7 +807,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		drain()
 		key := production.CacheKey(timeline.Current, timeline.Next)
 		plan, ready := prepared[key]
-		changing := playing.Key != "" && playing.Key != timeline.Current.Key
+		changing := playing.Key != "" && !schedule.SameEpisode(playing, timeline.Current)
 		var link *linkResult
 		if pendingLink != nil {
 			select {
@@ -1036,7 +1036,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				out := make(chan linkResult, 1)
 				pendingLink = out
 				linkWorkers.Add(1)
-				req := production.LinkRequest{Show: playing, Following: nextTimeline.Current, Current: current, Next: queued, Handover: nextTimeline.Current.Key != playing.Key, RemainingSeconds: int64(remaining.Seconds())}
+				req := production.LinkRequest{Show: playing, Following: nextTimeline.Current, Current: current, Next: queued, Handover: !schedule.SameEpisode(nextTimeline.Current, playing), RemainingSeconds: int64(remaining.Seconds())}
 				selection := production.SelectionRequest{Show: nextTimeline.Current, Current: current, Candidates: m.selectionCandidates(nextPool, current.ID, rotation, nextRemaining), RemainingSeconds: int64(nextRemaining.Seconds())}
 				go func() {
 					defer linkWorkers.Done()

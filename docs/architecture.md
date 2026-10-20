@@ -712,8 +712,8 @@ commit. Show/station deletion cascades episode state; there is no catalogue FK.
 `internal/episodes` owns the provider-independent session, plan validation and a
 single cancellable preparation worker. Automatic curation waits for an opened active
 episode session, created by presentation preparation or actual playback. It never
-prepares future running orders or requires approval. Each job chooses one upcoming
-recording, retaining theme, prompts, producer constraints, actual aired history and
+prepares future running orders or requires approval. Each job adds one recording behind the ready next track, maintaining at most two
+autonomous upcoming choices, retaining theme, prompts, producer constraints, actual aired history and
 spoken links. Failed jobs retry after five minutes; abandoned leases expire after
 six. Intro/presentation and spoken-link generation share this provider-independent
 session; prepared speech remains distinct from actual airtime receipts.
@@ -786,14 +786,17 @@ response-body failures identify the endpoint and elapsed time without including
 provider payloads, addresses or credentials; timeouts retain their cancellation
 cause and follow the existing bounded transport retry policy.
 
-Default episode curation now selects exactly one upcoming recording per live
-episode session. Presentation preparation opens the dated session with its DJ and
+Default episode curation maintains two upcoming choices per live episode, selecting
+exactly one additional recording per agent request. Presentation preparation opens the dated session with its DJ and
 show prompts; prepared presentation or actual playback enables rolling choices.
 No default worker request is made for an unopened or future episode. The rolling
 protocol immediately offers up to 30 eligible metadata snapshots, has a six-step
 search/validation bound and a 512-token output cap, preserving theme, constraints,
 played history and speech while omitting duplicate technical turns. Playback
-receipts invalidate consumed choices and notify the single worker to replenish.
+receipts invalidate consumed choices and notify the single worker to replenish
+behind the still-ready next track. Validation includes queued music when checking
+duplicates, variety and remaining show time. Mutable template revisions never
+change dated episode identity for handover or repeat the introduction.
 The process has no full-show planning mode or producer approval gate. Provider options
 now reach the OpenAI Responses adapter; no-tool calls omit tool-only controls.
 Episode status uses the existing read-only SSE subscription contract independently

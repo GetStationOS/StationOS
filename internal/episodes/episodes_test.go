@@ -459,7 +459,7 @@ func TestRollingEpisodeChoosesOneTrackAndRetainsIntroAndPlaybackContext(t *testi
 		t.Fatal(e, text.calls)
 	}
 	ready, err := service.Available(ctx, o, e)
-	if err != nil || !ready {
+	if err != nil || ready {
 		t.Fatal(ready, err)
 	}
 	service.Aired(ctx, o, pool[0], "")
@@ -572,5 +572,154 @@ func TestPendingSelectionPreservesSpecificFailureAndLiveProgress(t *testing.T) {
 	var pending *production.PendingSelection
 	if !errors.As(err, &pending) || !strings.Contains(pending.Reason, "still choosing") || !pending.RetryAt.IsZero() {
 		t.Fatal("stale failure shown during active preparation", err)
+	}
+}
+
+func TestRollingHorizonKeepsReadyChoiceWhileChoosingThird(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	o.Start = time.Now().Add(-time.Minute)
+	o.End = time.Now().Add(time.Hour)
+	pool := poolStub{recording("a", 180), recording("b", 180), recording("c", 180), recording("d", 180), recording("e", 180)}
+	store := &memoryStore{}
+	service := &Service{Store: store, Pool: pool}
+	service.Begin(ctx, o)
+	service.Aired(ctx, o, pool[0], "")
+	choosing := make(chan struct{})
+	finish := make(chan struct{})
+	text := &textStub{generate: func(q ai.TextRequest, n int) (string, error) {
+		if n == 2 {
+			close(choosing)
+			<-finish
+		}
+		return fmt.Sprintf(`{"Action":"plan","Tracks":[%q],"Theme":"Varied jazz"}`, []string{"b", "c", "d"}[n-1]), nil
+	}}
+	service.Text = text
+	if err := service.Plan(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+	store.Update(ctx, o, func(e *Episode) error { e.Status = "planning"; return nil })
+	done := make(chan error, 1)
+	go func() { done <- service.Plan(ctx, o) }()
+	select {
+	case <-choosing:
+	case err := <-done:
+		t.Fatal("third-track preparation stopped early", err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("third-track preparation never started")
+	}
+	id, err := service.SelectTrack(ctx, production.SelectionRequest{Show: o, Current: pool[0], Candidates: pool})
+	if err != nil || id != "b" {
+		t.Fatal("ready next track lost during preparation", id, err)
+	}
+	close(finish)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if len(e.Plan) != 2 || e.Plan[0].ID != "b" || e.Plan[1].ID != "c" {
+		t.Fatal("third choice replaced the ready next track", e.Plan)
+	}
+	ready, err := service.Available(ctx, o, e)
+	if err != nil || !ready {
+		t.Fatal(ready, err)
+	}
+	// A full horizon must not spend more tokens.
+	if err := service.Plan(ctx, o); err != nil || text.calls != 2 {
+		t.Fatal("full horizon generated more choices", err, text.calls)
+	}
+	service.Aired(ctx, o, pool[1], "")
+	id, err = service.SelectTrack(ctx, production.SelectionRequest{Show: o, Current: pool[1], Candidates: pool})
+	if err != nil || id != "c" {
+		t.Fatal("second consecutive track fell back", id, err)
+	}
+	if err := service.Plan(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+	service.Aired(ctx, o, pool[2], "")
+	id, err = service.SelectTrack(ctx, production.SelectionRequest{Show: o, Current: pool[2], Candidates: pool})
+	if err != nil || id != "d" {
+		t.Fatal("third consecutive track fell back", id, err)
+	}
+	e, _ = store.Get(ctx, o.Key)
+	if len(e.Plan) != 2 || e.Plan[0].ID != "c" || e.Plan[1].ID != "d" {
+		t.Fatal(e.Plan)
+	}
+}
+func TestNextAdditionRespectsReadyQueueVarietyAndDuplicates(t *testing.T) {
+	b, c, d := recording("b", 60), recording("c", 60), recording("d", 60)
+	c.Artist = b.Artist
+	pool := map[string]content.AudioItem{"b": b, "c": c, "d": d}
+	offered := map[string]bool{"b": true, "c": true, "d": true}
+	base := Episode{Plan: []Track{Snapshot(b)}}
+	for _, id := range []string{"b", "c"} {
+		if _, err := validateNextTrack(command{Tracks: []string{id}}, base, pool, offered, 600, "varied"); err == nil {
+			t.Fatal("ready queue duplicate/conflict accepted", id)
+		}
+	}
+	if _, err := validateNextTrack(command{Tracks: []string{"d"}}, base, pool, offered, 600, "varied"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestWorkerFillsTwoChoicesAndRefillsOnlyAfterConsumption(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().UTC()
+	weekday := (int(now.Weekday()) + 6) % 7
+	shows := scheduleStub{values: []schedule.Show{{ID: "show", StationID: "station", Day: weekday, Start: 0, End: 0, PlaylistID: "pool", DJ: djs.Profile{ID: "dj", TextReady: true}}}}
+	stations := stationStub{values: []station.Station{{ID: "station", Timezone: "UTC"}}}
+	store := &memoryStore{}
+	pool := poolStub{recording("a", 60), recording("b", 60), recording("c", 60)}
+	var o schedule.Occurrence
+	for _, candidate := range preparationWindow(shows.values, now, time.UTC) {
+		if !candidate.Start.After(now) {
+			o = candidate
+			break
+		}
+	}
+	if o.Key == "" {
+		t.Fatal("active occurrence missing")
+	}
+	store.Update(ctx, o, func(e *Episode) error { e.Note("prepared presentation (not yet aired)", "Welcome"); return nil })
+	text := &textStub{generate: func(_ ai.TextRequest, n int) (string, error) {
+		if n > 3 {
+			t.Fatal("worker generated beyond horizon")
+		}
+		return fmt.Sprintf(`{"Action":"plan","Tracks":[%q]}`, []string{"a", "b", "c"}[n-1]), nil
+	}}
+	service := &Service{Store: store, Pool: pool, Text: text}
+	for i := 0; i < 3; i++ {
+		if err := service.sweep(ctx, stations, shows); err != nil {
+			t.Fatal(err)
+		}
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if text.calls != 2 || len(e.Plan) != 2 {
+		t.Fatal("worker failed to stop at two choices", text.calls, e.Plan)
+	}
+	service.Aired(ctx, o, pool[0], "")
+	if err := service.sweep(ctx, stations, shows); err != nil {
+		t.Fatal(err)
+	}
+	e, _ = store.Get(ctx, o.Key)
+	if text.calls != 3 || len(e.Plan) != 2 || e.Plan[0].ID != "b" || e.Plan[1].ID != "c" {
+		t.Fatal("worker did not refill behind next track", text.calls, e.Plan)
+	}
+}
+func TestReadyTrackAtBoundaryDoesNotTriggerAnotherChoice(t *testing.T) {
+	now := time.Now()
+	o := futureEpisode()
+	o.Start = now.Add(-time.Minute)
+	o.End = now.Add(90 * time.Second)
+	a, b, c := recording("a", 60), recording("b", 60), recording("c", 60)
+	aired := Snapshot(a)
+	aired.AiredAt = now
+	e := New(o)
+	e.Aired = []Track{aired}
+	e.Plan = []Track{Snapshot(b)}
+	service := &Service{Pool: poolStub{a, b, c}}
+	available, err := service.Available(context.Background(), o, e)
+	if err != nil || !available {
+		t.Fatal("worker would plan beyond the final ready track", available, err)
 	}
 }

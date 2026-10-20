@@ -27,6 +27,11 @@ func (m *Manager) observe(id, kind, message string, s State, code string, recove
 		return
 	}
 	severity, effect, action := "warning", "Music continues", "Review the affected component and related transmission history."
+	if code == "" && (kind == "handover" || kind == "started" || kind == "stopped" || kind == "intervention") {
+		severity = "info"
+		effect = ""
+		action = ""
+	}
 	if code == "output" {
 		severity = "critical"
 		effect = "Station unavailable"

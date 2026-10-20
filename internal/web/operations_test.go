@@ -518,3 +518,19 @@ func TestSelectionFeedbackIsVisibleRoutineActivity(t *testing.T) {
 		t.Fatal(event)
 	}
 }
+
+func TestRoutineHandoverIsNeutralIncludingOlderWarningRecords(t *testing.T) {
+	for _, kind := range []string{"handover", "started", "stopped"} {
+		row := producerEvent(operations.Event{Kind: kind, Outcome: "observed", Severity: "warning", Started: time.Now()}, time.UTC)
+		if row.OutcomeStyle == "warning" || row.OutcomeIcon == "warning" || row.Severity != "info" {
+			t.Fatal("routine activity presented as warning", row)
+		}
+	}
+}
+
+func TestActualHandoverErrorRetainsErrorState(t *testing.T) {
+	row := producerEvent(operations.Event{Kind: "handover", Outcome: "observed", Severity: "critical", Started: time.Now()}, time.UTC)
+	if row.OutcomeStyle != "error" {
+		t.Fatal("genuine error was hidden", row)
+	}
+}

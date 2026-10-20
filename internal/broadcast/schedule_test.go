@@ -2,6 +2,7 @@ package broadcast
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"stationos.local/stationos/internal/content"
@@ -121,6 +122,9 @@ func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
 			}
 		}
 		if e.Kind == "handover" {
+			if e.Severity != "info" || e.IncidentCode != "" {
+				t.Fatal("routine handover was flagged", e)
+			}
 			handover++
 		}
 	}
@@ -225,5 +229,47 @@ func TestSuccessfulLinkClearsFailedPreparationStatusDuringMusic(t *testing.T) {
 	}
 	if encoder.count.Load() != 1 {
 		t.Fatal("status recovery interrupted music")
+	}
+}
+
+type revisedEpisodeSchedule struct {
+	revision atomic.Int64
+	start    time.Time
+}
+
+func (s *revisedEpisodeSchedule) Resolve(_ context.Context, id string, _ time.Time) (schedule.Timeline, error) {
+	return schedule.Timeline{Current: schedule.Occurrence{Key: fmt.Sprintf("show:%s:%d", s.start.Format(time.RFC3339), s.revision.Load()), ShowID: "show", StationID: id, Title: "Jazz After Dark", PlaylistID: "pool", Start: s.start, End: s.start.Add(time.Hour)}}, nil
+}
+func TestTemplateRevisionDoesNotHandoverWithinSameEpisode(t *testing.T) {
+	store := &recordingStore{events: map[string]operations.Event{}}
+	rec, err := operations.New(context.Background(), store, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rec.Close()
+	now := time.Date(2026, 10, 19, 20, 0, 0, 0, time.UTC)
+	source := &revisedEpisodeSchedule{start: now}
+	source.revision.Store(1)
+	manager, encoder, _ := fixture(t, Options{Schedule: source, Operations: rec, Now: func() time.Time { return now.Add(10 * time.Minute) }})
+	sub, err := manager.Subscribe(context.Background(), "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	first := opened(t, encoder)
+	first.write.Write([]byte("FIRST"))
+	receive(t, sub)
+	source.revision.Store(2)
+	first.write.Close()
+	second := opened(t, encoder)
+	second.write.Write([]byte("SECOND"))
+	receive(t, sub)
+	sub.Close()
+	manager.Close()
+	rec.Close()
+	for _, event := range store.events {
+		if event.Kind == "handover" {
+			t.Fatal("settings save created a false show handover", event)
+		}
 	}
 }

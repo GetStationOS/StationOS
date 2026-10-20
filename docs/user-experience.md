@@ -652,3 +652,16 @@ or superseded, never force the producer to scroll, and form validation stays by 
 form. Preserve operational warnings in their relevant views.
 
 Routine edit forms communicate through their Save control: disabled unchanged, enabled when edited, Saving… during submission, disabled ✓ Saved after success, and enabled Retry save after failure. Re-editing restores the normal Save label. Do not insert Saved text into button grids or add routine success pop-ups. Keep error guidance persistently beside the fields/actions. Buttons retain their normal GET/form fallbacks without JavaScript.
+
+
+## Source album browser
+
+Source Overview groups measured library totals and a compact Refresh library action
+above one album results card. Show 12 albums per page in a responsive 1/2/3/4-column
+cover grid, with titles, supplied album-artist credits and track counts. Missing
+artwork uses a neutral placeholder. Open an album on its own page with a concise
+artwork/details card and a paginated tracks table card (25/50/100 rows). Keep source
+scope, album and return-page context in GET URLs. HTMX pagination replaces only
+the results card and focuses its results heading; browser history and ordinary
+GET navigation remain available. Artwork uses the same authenticated, bounded,
+source-validated proxy as broadcast artwork; never expose remote server URLs.

@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
+	"html"
 	"net/url"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
@@ -114,5 +116,55 @@ func TestRemoveSourceConfirmationAndCatalogueScope(t *testing.T) {
 	}
 	if w = request(h, "GET", path+"/delete", nil, nil); w.Code != 404 {
 		t.Fatal(w.Code)
+	}
+}
+
+func TestSourceAlbumBrowserAndTrackPagination(t *testing.T) {
+	h, _, src, cat := setupWeb(t, "")
+	ctx := context.Background()
+	c, err := (sources.Service{Repo: src}).Save(ctx, sources.Config{Name: "Library", Kind: "upnp", Endpoint: "http://server/desc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []content.AudioItem
+	for a := 0; a < 14; a++ {
+		for n := 0; n < 28; n++ {
+			id := fmt.Sprintf("%02d-%02d", a, n)
+			items = append(items, content.AudioItem{ID: content.ID(c.ID, id), SourceID: c.ID, SourceItemID: id, Title: "Recording " + id, Album: fmt.Sprintf("Album %02d", a), Artist: "Performer", Kind: content.Track, Origin: content.Original})
+		}
+	}
+	if err = cat.Replace(ctx, c, items); err != nil {
+		t.Fatal(err)
+	}
+	base := "/producer/sources/" + c.ID
+	w := request(h, "GET", base, nil, nil)
+	if w.Code != 200 || strings.Count(w.Body.String(), `class="album-cover-card"`) != 12 || !strings.Contains(w.Body.String(), "Showing 1–12 of 14") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	w = request(h, "GET", base+"?page=2", nil, map[string]string{"HX-Request": "true", "HX-Target": "source-album-results"})
+	if w.Code != 200 || strings.Count(w.Body.String(), `class="album-cover-card"`) != 2 || strings.Contains(w.Body.String(), "<!doctype") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	path := base + "/album?album=Album+13&browse_page=2"
+	w = request(h, "GET", path, nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "album-detail-card") || !strings.Contains(w.Body.String(), "Recording 13-24") || strings.Contains(w.Body.String(), "Recording 13-25") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	w = request(h, "GET", path+"&page=2", nil, map[string]string{"HX-Request": "true", "HX-Target": "source-album-tracks"})
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "Recording 13-25") || strings.Contains(w.Body.String(), "album-detail-card") || !strings.Contains(html.UnescapeString(w.Body.String()), "album=Album+13") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	w = request(h, "GET", base+"/album?album=missing", nil, nil)
+	if w.Code != 404 {
+		t.Fatal(w.Code)
+	}
+	w = request(h, "GET", base+"?page=999", nil, nil)
+	if w.Code != 200 || strings.Count(w.Body.String(), `class="album-cover-card"`) != 2 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	// Artwork identities cannot be used to escape the source scope.
+	result, err := cat.Search(ctx, catalogue.Query{SourceID: "another-source", ItemID: items[0].ID, Limit: 1})
+	if err != nil || result.Total != 0 {
+		t.Fatal(result, err)
 	}
 }

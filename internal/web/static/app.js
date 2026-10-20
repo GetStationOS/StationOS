@@ -145,6 +145,7 @@ document.body.addEventListener('htmx:afterSwap', event => {
 });
 document.body.addEventListener('htmx:afterSettle', event => {
  const target=event.detail.target || event.detail.elt;
+ if (target?.id === 'source-album-results' || target?.id === 'source-album-tracks') document.getElementById('table-results-heading')?.focus({preventScroll:true});
  if (target?.id === 'playlist-track-results') {
   const destination=document.querySelector('#playlist-page-heading input[name=return_to]');
   if (destination) destination.value=window.location.pathname+window.location.search;

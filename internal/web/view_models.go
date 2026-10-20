@@ -80,6 +80,11 @@ type sourcePageView struct {
 	SourceCards                       []sourceCard
 	Catalogue                         catalogue.Result
 	SourceAlbums                      int
+	AlbumCards                        []sourceAlbumCard
+	AlbumName, AlbumURL, AlbumBack    string
+	AlbumItem                         content.AudioItem
+	AlbumRows                         []trackRow
+	Pagination                        pagination
 	SourceDiscoveries                 []discoveredSource
 	SourceDiscoveryError, SourceError string
 	SourceDiscoveryAttempted          bool

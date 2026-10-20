@@ -28,7 +28,7 @@
 {{template "page-heading" (heading .Title)}}
 {{template "workspace-tabs" (sourceTabs .)}}
 {{if eq .SourceTab "overview"}}
-<div class="source-summary">
+<div class="source-summary source-library-summary">
   <div>
     <span>Imported tracks</span>
     <strong>{{.Catalogue.Total}}</strong>
@@ -42,21 +42,17 @@
     <strong class="source-host">{{.SourceHost}}</strong>
   </div>
 </div>
-<section class="panel form-panel">
-  <div class="section-heading">
-    <h2>Music library</h2>
-    <span class="badge">UPnP</span>
-  </div>
-  <p class="hint">Refresh to update the music available to every station.</p>
-  <form class="source-refresh" method="post" action="/producer/sources/{{.Source.ID}}/sync" hx-disabled-elt="find button">
+<div class="source-library-actions">
+  <h2>Albums</h2>
+  <form method="post" action="/producer/sources/{{.Source.ID}}/sync" hx-disabled-elt="find button">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <input type="hidden" name="return_to" value="/producer/sources/{{.Source.ID}}">
-    <button>Refresh library</button>
+    <button class="secondary">{{template "ui-icon" "refresh"}} Refresh library</button>
     <span class="htmx-indicator" role="status">Refreshing…</span>
   </form>
-  {{if eq .Catalogue.Total 0}}
-  <p class="hint">No music imported yet.</p>{{end}}
-</section>{{end}}
+</div>
+{{template "source-album-results" .}}
+{{end}}
 {{if eq .SourceTab "settings"}}
 <section class="panel form-panel">
   <form method="post" action="/producer/sources" hx-disabled-elt="find button">
@@ -161,4 +157,55 @@
 
 {{define "new-source-page"}}
 {{template "page-heading" (heading .Title)}}{{template "new-source" .}}
+{{end}}
+
+{{define "source-album-results"}}
+<section class="results-panel source-album-results" id="source-album-results" aria-label="Source albums">
+  {{template "results-toolbar" .Pagination}}
+  {{if .AlbumCards}}
+  <div class="album-cover-grid">
+    {{range .AlbumCards}}
+    <a class="album-cover-card" href="{{.URL}}" hx-target="#main">
+      <div class="album-cover-art">
+        {{if .Artwork}}<img src="{{.Artwork}}" alt="" loading="lazy" width="400" height="400">{{else}}<span class="album-cover-placeholder" aria-hidden="true">♫</span>{{end}}
+      </div>
+      <h3>{{.Name}}</h3>
+      {{if .Item.AlbumArtist}}<p>{{.Item.AlbumArtist}}</p>{{end}}
+      <span class="hint">{{.Tracks}} track{{if ne .Tracks 1}}s{{end}}</span>
+    </a>
+    {{end}}
+  </div>
+  {{else}}<div class="empty-state"><h3>No albums imported yet</h3><p>Refresh the library to import music from this server.</p></div>{{end}}
+  {{template "pagination" .Pagination}}
+</section>
+{{end}}
+
+{{define "source-album-page"}}
+<nav class="breadcrumbs" aria-label="Breadcrumb"><ol><li><a href="/producer/sources">Sources</a></li><li><a href="{{.AlbumBack}}">{{.Source.Name}}</a></li><li><span aria-current="page">{{.AlbumName}}</span></li></ol></nav>
+<div class="page-heading"><h1>{{.AlbumName}}</h1><a href="{{.AlbumBack}}">Back to albums</a></div>
+<section class="panel album-detail-card" aria-label="Album details">
+  <div class="album-cover-art">{{if .AlbumURL}}<img src="{{.AlbumURL}}" alt="" width="400" height="400">{{else}}<span class="album-cover-placeholder" aria-hidden="true">♫</span>{{end}}</div>
+  <div>
+    <h2>{{.AlbumName}}</h2>
+    {{if .AlbumItem.AlbumArtist}}<p class="album-detail-artist">{{.AlbumItem.AlbumArtist}}</p>{{end}}
+    <dl class="album-detail-facts"><div><dt>Tracks</dt><dd>{{.Catalogue.Total}}</dd></div><div><dt>Source</dt><dd>{{.Source.Name}}</dd></div></dl>
+  </div>
+</section>
+<h2 class="album-tracks-heading">Tracks</h2>
+{{template "source-album-tracks" .}}
+{{end}}
+
+{{define "source-album-tracks"}}
+<section class="results-panel table-results" id="source-album-tracks" aria-label="Album tracks">
+  {{template "results-toolbar" .Pagination}}
+  <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Album tracks">
+    <table>
+      <thead><tr><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Composer</th><th scope="col">Duration</th><th scope="col">Format</th></tr></thead>
+      <tbody>{{range .AlbumRows}}
+        <tr><td class="track-title">{{.Item.Title}}</td><td>{{if .Item.Artist}}{{.Item.Artist}}{{else}}—{{end}}</td><td>{{if .Item.Composer}}{{.Item.Composer}}{{else}}—{{end}}</td><td class="nowrap">{{.Duration}}</td><td>{{if .Formats}}{{.Formats}}{{else}}—{{end}}</td></tr>
+      {{end}}</tbody>
+    </table>
+  </div>
+  {{template "pagination" .Pagination}}
+</section>
 {{end}}

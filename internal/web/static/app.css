@@ -1239,3 +1239,21 @@ textarea{font-weight:400;line-height:1.5}
 .save-state-button[data-save-state=saved]{opacity:1;background:var(--tone-success-bg,#e8f5ed);color:var(--tone-success-text,#24563b);border-color:var(--tone-success-line,#b5d9c2)}
 .save-error{flex-basis:100%;width:100%;margin:8px 0 0;color:var(--tone-error-text);font-size:13px;grid-column:1/-1}
 .form-footer:has(>.save-error){flex-wrap:wrap}
+
+/* Source library: one results surface, responsive cover grid and dedicated album. */
+.source-library-actions{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:24px 0 16px}
+.source-library-actions h2{margin:0}.source-library-actions form{display:flex;align-items:center;gap:10px}.source-library-actions button{display:inline-flex;align-items:center;gap:8px}.source-library-actions svg{width:18px;height:18px}
+.album-cover-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px 24px;padding:8px 0 24px}
+.album-cover-card{display:block;min-width:0;color:inherit;text-decoration:none;border-radius:8px}
+.album-cover-card:hover h3{color:var(--link,#007895);text-decoration:underline}.album-cover-card:focus-visible{outline:3px solid var(--accent,#00b9e8);outline-offset:6px}
+.album-cover-art{aspect-ratio:1;background:#edf1f5;border-radius:8px;overflow:hidden;display:grid;place-items:center;border:1px solid var(--line,#dce3ea)}
+.album-cover-art img{display:block;width:100%;height:100%;object-fit:cover}.album-cover-placeholder{font-size:64px;color:#8c9daf}
+.album-cover-card h3{font-size:16px;line-height:1.35;margin:12px 0 4px;overflow-wrap:anywhere}.album-cover-card p{font-size:14px;line-height:1.4;margin:0 0 5px;color:var(--muted,#526476)}
+.album-detail-card{display:grid;grid-template-columns:minmax(140px,220px) minmax(0,1fr);gap:28px;align-items:center;margin:20px 0 28px}.album-detail-card h2{margin:0 0 8px;overflow-wrap:anywhere}.album-detail-artist{font-size:18px;margin:0 0 18px}.album-detail-facts{display:flex;flex-wrap:wrap;gap:16px 32px;margin:16px 0 0}.album-detail-facts dt{font-size:12px;color:var(--muted,#526476)}.album-detail-facts dd{margin:4px 0 0}.album-tracks-heading{margin:0 0 14px}
+@media(max-width:1100px){.album-cover-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:800px){.album-cover-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:24px 18px}.album-detail-card{grid-template-columns:140px minmax(0,1fr);gap:20px}}
+@media(max-width:440px){.album-cover-grid{grid-template-columns:minmax(0,1fr)}.album-detail-card{grid-template-columns:96px minmax(0,1fr);gap:16px}.album-detail-card h2{font-size:19px}.album-detail-artist{font-size:15px}.album-detail-facts{gap:12px}.source-library-actions{gap:10px}.source-library-actions button{font-size:13px}}
+
+.source-library-summary{grid-template-columns:1fr 1fr 2fr;gap:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px 22px}
+.source-library-summary>div{padding:0 20px;border:0;border-radius:0;background:transparent;min-width:0}.source-library-summary>div:first-child{padding-left:0}.source-library-summary>div+div{border-left:1px solid var(--line)}.source-library-summary strong{font-size:23px;margin-top:5px}.source-library-summary .source-host{font-size:16px}
+@media(max-width:650px){.source-library-summary{grid-template-columns:1fr 1fr;padding:16px}.source-library-summary>div{padding:0 16px}.source-library-summary>div:last-child{border-left:0;border-top:1px solid var(--line);padding:12px 0 0;margin-top:12px}.source-library-summary strong{font-size:21px}}

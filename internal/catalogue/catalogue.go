@@ -14,6 +14,7 @@ import (
 )
 
 type Query struct {
+	ItemID           string
 	StationID        string
 	Artist, Composer string
 	YearFrom, YearTo int
@@ -28,6 +29,9 @@ type Query struct {
 }
 
 func (q Query) Validate() error {
+	if len(q.ItemID) > 128 {
+		return errors.New("invalid catalogue item")
+	}
 	if len(q.Artist) > 4096 || len(q.Composer) > 4096 || q.YearFrom < 0 || q.YearFrom > 9999 || q.YearTo < 0 || q.YearTo > 9999 || (q.YearFrom > 0 && q.YearTo > 0 && q.YearFrom > q.YearTo) {
 		return errors.New("invalid catalogue credit or year filter")
 	}

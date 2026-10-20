@@ -80,6 +80,14 @@ func (s *Server) stationArtwork(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	s.serveItemArtwork(w, r, item)
+}
+
+func (s *Server) serveItemArtwork(w http.ResponseWriter, r *http.Request, item content.AudioItem) {
+	if s.d.ArtworkFactory == nil || item.Artwork == "" {
+		http.NotFound(w, r)
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
 	defer cancel()
 	select {

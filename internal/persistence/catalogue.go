@@ -103,7 +103,7 @@ func (r Catalogue) Clear(ctx context.Context, id string) error {
 }
 
 func catalogueFilter(q catalogue.Query) (string, []any) {
-	return ` FROM catalogue_items i JOIN sources s ON s.id=i.source_id WHERE
+	return ` FROM catalogue_items i JOIN sources s ON s.id=i.source_id WHERE (?='' OR i.id=?) AND
  (?='' OR EXISTS(SELECT 1 FROM station_sources ss WHERE ss.station_id=? AND ss.source_id=i.source_id)) AND
  (?='' OR i.source_id=?) AND (?='' OR EXISTS(SELECT 1 FROM catalogue_genres g WHERE g.content_id=i.id AND g.genre=?))
  AND (?='' OR i.album=?)
@@ -112,7 +112,7 @@ func catalogueFilter(q catalogue.Query) (string, []any) {
  AND (?=0 OR coalesce(json_extract(i.metadata,'$.year'),0)>=?)
  AND (?=0 OR (coalesce(json_extract(i.metadata,'$.year'),0)>0 AND json_extract(i.metadata,'$.year')<=?)) AND
  (instr(lower(i.title),lower(?))>0 OR instr(lower(i.artist),lower(?))>0 OR instr(lower(i.album),lower(?))>0 OR instr(lower(COALESCE(json_extract(i.metadata,'$.genre'),'')),lower(?))>0)`,
-		[]any{q.StationID, q.StationID, q.SourceID, q.SourceID, q.Genre, q.Genre, q.Album, q.Album, q.Artist, q.Artist, q.Composer, q.Composer, q.YearFrom, q.YearFrom, q.YearTo, q.YearTo, q.Text, q.Text, q.Text, q.Text}
+		[]any{q.ItemID, q.ItemID, q.StationID, q.StationID, q.SourceID, q.SourceID, q.Genre, q.Genre, q.Album, q.Album, q.Artist, q.Artist, q.Composer, q.Composer, q.YearFrom, q.YearFrom, q.YearTo, q.YearTo, q.Text, q.Text, q.Text, q.Text}
 }
 func catalogueOrder(q catalogue.Query) string {
 	column := "lower(i.title)"

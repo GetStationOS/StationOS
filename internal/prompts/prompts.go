@@ -20,15 +20,15 @@ type Definition struct{ ID, Name, Description string }
 
 var definitions = []Definition{
 	{ID: "assistant", Name: "Producer assistant", Description: "How the assistant manages stations, playlists, DJs and schedules."},
-	{ID: "show", Name: "Show introduction and sign-off", Description: "Introduces the show and hands over to the following presenter."},
-	{ID: "link", Name: "Between-track speech", Description: "Writes the spoken link between the current and next recording."},
-	{ID: "background", Name: "Fictional character guidance", Description: "How DJ backgrounds inform musical choices and on-air personality."},
-	{ID: "audience-link", Name: "Listener requests and shout-outs", Description: "Additional speech instructions when a listener contribution is included."},
-	{ID: "selection", Name: "Track selection", Description: "Chooses the next recording from eligible candidates."},
-	{ID: "audience-decisions", Name: "Audience moderation (decisions)", Description: "Reviews listener submissions through the decisions endpoint."},
-	{ID: "audience", Name: "Audience moderation", Description: "Reviews listener requests and shout-outs for suitability."},
-	{ID: "logo", Name: "Station logo", Description: "Visual direction for generated station logos."},
-	{ID: "portrait", Name: "DJ portrait", Description: "Visual direction for generated fictional presenter portraits."},
+	{ID: "show", Name: "DJ show introduction and sign-off", Description: "Opens the show and closes it with a handover; does not choose recordings."},
+	{ID: "link", Name: "DJ links between tracks", Description: "Introduces the committed next track, or signs off to the incoming presenter."},
+	{ID: "background", Name: "DJ character and personality", Description: "Uses the fictional background naturally without inventing personal history."},
+	{ID: "audience-link", Name: "Reading listener requests and shout-outs", Description: "Adds approved listener contributions to a spoken DJ link."},
+	{ID: "selection", Name: "DJ track selection", Description: "Chooses one eligible recording to add behind the accepted queue."},
+	{ID: "audience-decisions", Name: "Check one listener message", Description: "Checks whether one listener submission is suitable to read aloud."},
+	{ID: "audience", Name: "Review listener messages", Description: "Approves, dismisses or flags each supplied listener submission for review."},
+	{ID: "logo", Name: "Station logo design", Description: "Creates distinctive station artwork that remains legible at small sizes."},
+	{ID: "portrait", Name: "Fictional DJ portrait", Description: "Creates a studio portrait from the supplied fictional presenter profile."},
 }
 
 func Definitions() []Definition { return append([]Definition(nil), definitions...) }

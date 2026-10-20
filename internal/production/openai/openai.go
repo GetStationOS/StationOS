@@ -153,7 +153,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil {
 		return production.Prepared{}, err
 	}
-	instructions := basePrompt + "DJ prompt:\n" + show.DJ.Prompt + background + speechContinuityInstructions
+	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + show.DJ.Prompt, background, speechContinuityInstructions}, "\n\n")
 	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+instructions)
 	if p.Store != nil {
 		if prepared, err := p.Store.Get(ctx, cacheKey); err == nil && production.ValidatePresentation(prepared.Plan) == nil {
@@ -258,14 +258,14 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
-	instructions := basePrompt + "DJ prompt:\n" + link.Show.DJ.Prompt + background + speechContinuityInstructions + handoverPlaybackInstructions
+	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions}, "\n\n")
 	body := map[string]any{"model": link.Show.DJ.Model, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
 	if len(link.Audience) > 0 {
 		audiencePrompt, err := prompts.Load(ctx, p.Prompts, "audience-link")
 		if err != nil {
 			return nil, nil, err
 		}
-		body["instructions"] = instructions + audiencePrompt
+		body["instructions"] = instructions + "\n\n" + audiencePrompt
 		if len(link.Audience) > 1 {
 			body["instructions"] = strings.Replace(body["instructions"].(string), "maximum 45 words", "maximum 75 words", 1)
 		}

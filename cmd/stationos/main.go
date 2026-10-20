@@ -146,7 +146,7 @@ func run(args []string, logger *slog.Logger) error {
 	presenter.Models = sharedAI
 	presenter.Text = textProviders
 	episodeStore := persistence.Episodes{DB: db, Changes: changes}
-	episodeService := &episodes.Service{Store: episodeStore, Pool: config, Text: textProviders, Fallback: presenter}
+	episodeService := &episodes.Service{Store: episodeStore, Pool: config, Text: textProviders, Fallback: presenter, Prompts: promptStore}
 	episodeService.ReportPlanning = func(o schedule.Occurrence, planningErr error) {
 		at := time.Now()
 		kind, reason := "ai", "DJ selection delayed. "+agentai.FailureMessage(agentai.FailureCode(planningErr))+" Automatic preparation will retry."

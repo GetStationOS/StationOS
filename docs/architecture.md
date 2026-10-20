@@ -840,3 +840,24 @@ activity cannot erase recent wording/credit context. Prepared speech is distinct
 from aired speech; continuity instructions avoid repeating phrases and metadata
 credits without inventing new facts. Older checkpoints seed this memory from their
 existing aired-speech turns, and new dated episodes start with fresh speech memory.
+
+
+### Shipped prompt responsibilities
+
+The ten out-of-the-box prompts are UTF-8 text files in
+`internal/prompts/defaults/`, embedded by `internal/prompts`. SQL stores only
+explicit operator overrides; upgrades do not replace them, and Restore default
+removes an override so the current embedded version is used. Human-facing titles
+and descriptions live in `prompts.Definitions`; IDs stay stable across wording changes.
+
+Each default describes one task: producer configuration, show opening/closing,
+between-track speech, fictional personality, track selection, listener contributions,
+single-message screening, multi-message review, logos or portraits. Shared speech
+contracts contain metadata-credit rules, recent-airtime continuity and actual
+handover order. They accompany both defaults and overrides. Prompt sections are
+joined with explicit paragraph boundaries.
+
+The rolling episode planner loads the same shared `selection` prompt as the
+legacy selector. Its separate episode protocol describes search/schema fields and
+queue invariants; it does not duplicate editorial direction. Production wires the
+prompt store into both paths. No migration or bulk rewrite of custom prompts is needed.

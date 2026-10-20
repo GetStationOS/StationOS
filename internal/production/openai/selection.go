@@ -69,7 +69,7 @@ func (p Producer) SelectTrack(parent context.Context, request production.Selecti
 	if err != nil {
 		return "", err
 	}
-	instructions := basePrompt + "DJ prompt:\n" + request.Show.DJ.Prompt + background
+	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + request.Show.DJ.Prompt, background}, "\n\n")
 	var ref string
 	if kind == "openai" && model == "gpt-6-luna" {
 		ref, err = p.decideTrack(ctx, request.Show.DJ.ID, model, string(input), instructions, ids)

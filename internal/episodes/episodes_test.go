@@ -16,6 +16,7 @@ import (
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/prompts"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/station"
 )
@@ -1000,5 +1001,71 @@ func TestLegacySpeechMemoryIsPreservedWhenNewSpeechAirs(t *testing.T) {
 	e, _ := store.Get(ctx, o.Key)
 	if len(e.RecentSpeech) != 2 || e.RecentSpeech[0] != "Old heard link" || e.RecentSpeech[1] != "New heard link" {
 		t.Fatal(e.RecentSpeech)
+	}
+}
+
+type selectionPromptStore struct {
+	value   string
+	failure error
+}
+
+func (s *selectionPromptStore) Prompt(context.Context, string) (string, error) {
+	return s.value, s.failure
+}
+func (s *selectionPromptStore) SavePrompt(_ context.Context, _ string, value string) error {
+	s.value = value
+	return nil
+}
+func (s *selectionPromptStore) ResetPrompt(_ context.Context, id string) error {
+	value, err := prompts.Default(id)
+	s.value = value
+	return err
+}
+
+func TestRollingPlannerUsesSharedTrackSelectionPromptAndRestoredDefault(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	store.Update(ctx, o, func(*Episode) error { return nil })
+	settings := &selectionPromptStore{value: "CUSTOM TRACK DIRECTION"}
+	text := &textStub{generate: func(q ai.TextRequest, n int) (string, error) {
+		if n == 1 && !strings.HasPrefix(q.Instructions, "CUSTOM TRACK DIRECTION") {
+			t.Fatal("custom selection prompt ignored", q.Instructions)
+		}
+		if n == 2 && (strings.Contains(q.Instructions, "CUSTOM TRACK DIRECTION") || !strings.HasPrefix(q.Instructions, "Choose exactly one")) {
+			t.Fatal("restored selection default ignored", q.Instructions)
+		}
+		if !strings.Contains(q.Instructions, "Episode protocol") || !strings.Contains(q.Instructions, "Append exactly ONE recording behind Plan") {
+			t.Fatal("queue protocol lost", q.Instructions)
+		}
+		return fmt.Sprintf(`{"Action":"plan","Tracks":[%q]}`, []string{"a", "b"}[n-1]), nil
+	}}
+	service := &Service{Store: store, Pool: poolStub{recording("a", 60), recording("b", 60)}, Text: text, Prompts: settings}
+	if err := service.Plan(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+	if err := settings.ResetPrompt(ctx, "selection"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Plan(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+	if text.calls != 2 {
+		t.Fatal(text.calls)
+	}
+}
+func TestSelectionPromptReadFailureDoesNotInvokeProvider(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	store.Update(ctx, o, func(*Episode) error { return nil })
+	failure := errors.New("prompt store unavailable")
+	text := &textStub{generate: func(ai.TextRequest, int) (string, error) {
+		t.Fatal("provider called without loaded prompt")
+		return "", nil
+	}}
+	service := &Service{Store: store, Pool: poolStub{recording("a", 60)}, Text: text, Prompts: &selectionPromptStore{failure: failure}}
+	if err := service.Plan(ctx, o); !errors.Is(err, failure) {
+		t.Fatal(err)
 	}
 }

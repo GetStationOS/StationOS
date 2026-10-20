@@ -51,6 +51,7 @@ type operationalEvent struct {
 	StartLabel, EndLabel, Duration, TypeLabel, OutcomeLabel, Notes string
 	StartDate, StartTime, EndTime                                  string
 	OutcomeStyle, OutcomeIcon                                      string
+	TypeIcon                                                       string
 }
 type operationalIncident struct {
 	operations.Incident
@@ -453,6 +454,7 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 		}
 	}
 	v.TypeLabel = operationTypeLabel(e.Kind)
+	v.TypeIcon = e.Kind
 	if (e.Recover || e.Kind == "recovery") && (e.Phase == "curation" || e.IncidentCode == "curation" || strings.HasPrefix(e.IncidentCode, "episode-plan:")) {
 		v.TypeLabel = "DJ selection succeeded"
 		v.Reason = "One track choice passed validation. Queue readiness is shown in the episode view."
@@ -461,12 +463,16 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 		v.TypeLabel = "DJ presentation prepared"
 		v.Reason = "Show presentation preparation completed."
 	}
+	if (e.Recover || e.Kind == "recovery") && e.IncidentCode == "speech" {
+		v.TypeLabel = "DJ speech prepared"
+		v.Reason = "Preparation of the next spoken DJ link completed."
+	}
 	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
 	v.OutcomeStyle, v.OutcomeIcon = e.Outcome, e.Outcome
 	if e.Outcome == "observed" {
 		switch {
 		case e.Recover || e.Kind == "recovery":
-			v.OutcomeLabel, v.OutcomeStyle, v.OutcomeIcon = "Recovered", "recovered", "recovery"
+			v.OutcomeLabel, v.OutcomeStyle, v.OutcomeIcon = "Recovered", "recovered", "completed"
 		case e.Kind == "failure" || e.Kind == "unavailable" || e.Severity == "critical" || e.Severity == "error":
 			v.OutcomeLabel, v.OutcomeStyle, v.OutcomeIcon = "Error", "error", "error"
 		case e.Kind == "ai" || e.Kind == "stall" || e.Kind == "listener" || e.Severity == "warning":
@@ -495,10 +501,34 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 		v.OutcomeLabel = "Selection succeeded"
 		v.Notes = v.Reason
 	}
-	if v.TypeLabel == "DJ presentation prepared" {
+	if v.TypeLabel == "DJ presentation prepared" || v.TypeLabel == "DJ speech prepared" {
 		v.OutcomeLabel = "Prepared"
 		v.Notes = v.Reason
 	}
+	djRecovery := (e.Recover || e.Kind == "recovery") && (e.Phase == "curation" || e.IncidentCode == "curation" || e.IncidentCode == "preparation" || e.IncidentCode == "speech" || strings.HasPrefix(e.IncidentCode, "episode-plan:"))
+	switch {
+	case djRecovery:
+		v.TypeIcon = "speech"
+		v.OutcomeIcon, v.OutcomeStyle = "completed", "success"
+	case e.Kind == "selection" && strings.HasPrefix(e.Title, "DJ selected"):
+		v.TypeIcon = "speech"
+		v.OutcomeIcon, v.OutcomeStyle, v.OutcomeLabel = "completed", "success", "DJ selected"
+	case e.Kind == "selection" && strings.HasPrefix(e.Title, "Automatic selection"):
+		v.TypeIcon = "automatic"
+		v.OutcomeIcon, v.OutcomeStyle, v.OutcomeLabel = "completed", "success", "Automatic selection queued"
+	case e.Kind == "selection" && strings.HasPrefix(e.Title, "Listener request queued"):
+		v.TypeIcon = "listener"
+		v.OutcomeIcon, v.OutcomeStyle, v.OutcomeLabel = "completed", "success", "Listener request queued"
+	case e.Kind == "handover" && v.OutcomeStyle == "observed":
+		v.OutcomeIcon, v.OutcomeStyle, v.OutcomeLabel = "completed", "success", "Handover completed"
+	case e.Kind == "ai":
+		v.TypeIcon = "speech"
+		v.OutcomeIcon, v.OutcomeStyle, v.OutcomeLabel = "error", "error", "DJ preparation unavailable"
+		if strings.Contains(e.Reason, "was not ready at the track boundary") {
+			v.OutcomeIcon, v.OutcomeStyle, v.OutcomeLabel = "warning", "warning", "DJ speech delayed"
+		}
+	}
+
 	return v
 }
 func (s *Server) acknowledgeIncident(w http.ResponseWriter, r *http.Request) {

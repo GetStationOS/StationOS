@@ -401,13 +401,13 @@ func TestProducerObservedEventStatus(t *testing.T) {
 	}{
 		{"failure", "warning", "Error", "error", false},
 		{"unavailable", "critical", "Error", "error", false},
-		{"ai", "warning", "Warning", "warning", false},
+		{"ai", "warning", "DJ preparation unavailable", "error", false},
 		{"stall", "warning", "Warning", "warning", false},
 		{"recovery", "warning", "Recovered", "recovered", true},
 		{"started", "", "Station activity", "observed", false},
 	} {
 		v := producerEvent(operations.Event{Kind: tc.kind, Outcome: "observed", Severity: tc.severity, Recover: tc.recover}, time.UTC)
-		if v.OutcomeLabel != tc.label || v.OutcomeStyle != tc.style || (tc.label == "Recovered" && v.OutcomeIcon != "recovery") || (tc.label == "Error" && v.OutcomeIcon != "error") || (tc.label == "Warning" && v.OutcomeIcon != "warning") {
+		if v.OutcomeLabel != tc.label || v.OutcomeStyle != tc.style || (tc.label == "Recovered" && v.OutcomeIcon != "completed") || (tc.label == "Error" && v.OutcomeIcon != "error") || (tc.label == "Warning" && v.OutcomeIcon != "warning") {
 			t.Fatalf("%s: label %q style %q", tc.kind, v.OutcomeLabel, v.OutcomeStyle)
 		}
 	}
@@ -530,7 +530,7 @@ func TestRoutineHandoverIsNeutralIncludingOlderWarningRecords(t *testing.T) {
 
 func TestActualHandoverErrorRetainsErrorState(t *testing.T) {
 	row := producerEvent(operations.Event{Kind: "handover", Outcome: "observed", Severity: "critical", Started: time.Now()}, time.UTC)
-	if row.OutcomeStyle != "error" {
+	if row.OutcomeStyle != "error" || row.OutcomeIcon != "error" {
 		t.Fatal("genuine error was hidden", row)
 	}
 }
@@ -576,6 +576,29 @@ func TestOnlyAudioTransmissionsShowEndTime(t *testing.T) {
 		}
 		if row.StartTime != "10:43:22" {
 			t.Fatal(row.StartTime)
+		}
+	}
+}
+
+func TestTimelineSeparatesActivityIconsFromOutcomeIcons(t *testing.T) {
+	for _, tc := range []struct {
+		event                   operations.Event
+		activity, outcome, tone string
+	}{
+		{operations.Event{Kind: "selection", Title: "DJ selected · Song", Outcome: "observed"}, "speech", "completed", "success"},
+		{operations.Event{Kind: "recovery", IncidentCode: "curation", Recover: true, Outcome: "observed", Severity: "warning"}, "speech", "completed", "success"},
+		{operations.Event{Kind: "recovery", IncidentCode: "preparation", Recover: true, Outcome: "observed"}, "speech", "completed", "success"},
+		{operations.Event{Kind: "recovery", IncidentCode: "speech", Recover: true, Outcome: "observed"}, "speech", "completed", "success"},
+		{operations.Event{Kind: "ai", IncidentCode: "speech", Outcome: "observed"}, "speech", "error", "error"},
+		{operations.Event{Kind: "ai", IncidentCode: "speech", Outcome: "observed", Reason: "DJ speech was not ready at the track boundary; music continues"}, "speech", "warning", "warning"},
+		{operations.Event{Kind: "selection", Title: "Automatic selection · Song", Outcome: "observed"}, "automatic", "completed", "success"},
+		{operations.Event{Kind: "handover", Outcome: "observed"}, "handover", "completed", "success"},
+		{operations.Event{Kind: "handover", Outcome: "observed", Severity: "critical"}, "handover", "error", "error"},
+	} {
+		row := producerEvent(tc.event, time.UTC)
+		state := historyStateIcon(row)
+		if row.TypeIcon != tc.activity || state.Icon != tc.outcome || state.Tone != tc.tone {
+			t.Fatal(tc.event, row, state)
 		}
 	}
 }

@@ -629,3 +629,5 @@ lozenges. Desktop headings must not break words. Episode direction contains only
 prompt editing; the live queue belongs on the default episode screen.
 
 Both upcoming and played episode tracks use the same selection-source icons and accessible help. Preserve selection provenance in the actual aired receipt; historical missing sources remain explicitly unknown.
+
+Timeline activity icons on the left identify the event and remain neutral: DJ microphone, music, automatic selection or handover arrows. Right-hand icons describe outcomes: green tick for success, red cross for failure, amber triangle for a delay/warning. Routine completed handovers use arrows on the left and a success tick on the right. Unrelated observations remain neutral. Keep accessible outcome labels specific; never replace an outcome icon with an activity icon.

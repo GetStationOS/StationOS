@@ -887,3 +887,49 @@ func TestQueueReservationRetainsActualSelectionOrigin(t *testing.T) {
 		})
 	}
 }
+
+func TestAiredReceiptRetainsSelectionSourceThroughQueueAdvancement(t *testing.T) {
+	for _, origin := range []string{"dj", "automatic", "listener", ""} {
+		t.Run(origin, func(t *testing.T) {
+			ctx := context.Background()
+			o := futureEpisode()
+			store := &memoryStore{}
+			a, b := recording("a", 60), recording("b", 60)
+			store.Update(ctx, o, func(e *Episode) error {
+				track := Snapshot(a)
+				track.SelectionSource = origin
+				track.Approved = true
+				e.Plan = []Track{track}
+				return nil
+			})
+			service := &Service{Store: store}
+			if err := service.QueueAcceptedSelection(ctx, o, a, b, time.Now(), "automatic"); err != nil {
+				t.Fatal(err)
+			}
+			if err := service.Aired(ctx, o, a, ""); err != nil {
+				t.Fatal(err)
+			}
+			e, _ := store.Get(ctx, o.Key)
+			if len(e.Aired) != 1 || e.Aired[0].SelectionSource != origin {
+				t.Fatal("selection source lost or invented", e.Aired)
+			}
+		})
+	}
+}
+func TestColdStartReceiptIsAutomaticWhenNoSavedChoiceExists(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	service := &Service{Store: store}
+	a, b := recording("a", 60), recording("b", 60)
+	if err := service.QueueAcceptedSelection(ctx, o, a, b, time.Now(), "dj"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Aired(ctx, o, a, ""); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := store.Get(ctx, o.Key)
+	if e.Aired[0].SelectionSource != "automatic" {
+		t.Fatal(e.Aired)
+	}
+}

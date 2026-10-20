@@ -98,7 +98,7 @@
 </section>
 {{if .Show.ID}}
 <div class="entity-delete-action">
-  <a class="entity-delete-link" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete show template</a>
+  <a class="entity-delete-link" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-get="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete Show</a>
 </div>{{end}}
 {{end}}
 {{define "delete-show"}}
@@ -110,7 +110,7 @@
     <input type="hidden" name="confirm" value="yes">
     <div class="form-actions">
       <a class="button secondary" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}" data-close-dialog>Cancel</a>
-      <button class="danger">Delete show template</button>
+      <button class="danger">Delete Show</button>
     </div>
   </form>
 </section>{{end}}
@@ -163,13 +163,13 @@
 <section class="panel" aria-labelledby="episode-played-heading">
 <div class="episode-panel-heading"><h2 id="episode-played-heading">Played tracks</h2></div>
 {{template "results-toolbar" .EpisodePagination}}
-<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Played show tracks"><table class="episode-order-table"><thead><tr><th scope="col">Started</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th></tr></thead><tbody>{{range .EpisodePlayed}}<tr><td data-label="Started">{{if .AiredAt.IsZero}}—{{else}}<time datetime="{{.AiredAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.AiredAt.Format "15:04:05"}}</time>{{end}}</td><td data-label="Recording">{{.Title}}</td><td data-label="Performer">{{if .Artist}}{{.Artist}}{{else}}—{{end}}</td><td data-label="Album">{{if .Album}}{{.Album}}{{else}}—{{end}}</td><td data-label="Duration">{{if gt .Seconds 0}}{{.Duration}}{{else}}—{{end}}</td></tr>{{end}}</tbody></table></div>
+<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Played show tracks"><table class="episode-order-table"><thead><tr><th scope="col">Started</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Selection</th></tr></thead><tbody>{{range .EpisodePlayed}}<tr><td data-label="Started">{{if .AiredAt.IsZero}}—{{else}}<time datetime="{{.AiredAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.AiredAt.Format "15:04:05"}}</time>{{end}}</td><td data-label="Recording">{{.Title}}</td><td data-label="Performer">{{if .Artist}}{{.Artist}}{{else}}—{{end}}</td><td data-label="Album">{{if .Album}}{{.Album}}{{else}}—{{end}}</td><td data-label="Duration">{{if gt .Seconds 0}}{{.Duration}}{{else}}—{{end}}</td><td data-label="Selection">{{template "episode-selection-source" .}}</td></tr>{{end}}</tbody></table></div>
 {{template "pagination" .EpisodePagination}}
 </section>{{end}}</div>
 {{end}}
 {{define "episode-queue"}}
 {{if .EpisodeQueue}}<div class="table-scroll table-outline episode-order-scroll" tabindex="0" role="region" aria-label="Upcoming tracks"><table class="episode-order-table episode-queue-table"><thead><tr><th scope="col">Expected start</th><th scope="col">Recording</th><th scope="col">Performer</th><th scope="col">Album</th><th scope="col">Duration</th><th scope="col">Selection</th><th scope="col">Status</th></tr></thead><tbody>
-{{range .EpisodeQueue}}<tr><td data-label="Expected start">{{if .EstimatedStart.IsZero}}—{{else}}{{.EstimatedStart.Format "15:04"}}{{end}}</td><td data-label="Recording"><strong>{{.Title}}</strong></td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Selection">{{.SelectionLabel}}</td><td data-label="Status"><span title="{{.AcceptanceDescription}}" aria-label="{{.AcceptanceDescription}}" class="badge{{if .Committed}} episode-state-preparing{{else if .Approved}} episode-state-ready{{end}}">{{.AcceptanceLabel}}</span></td></tr>{{end}}
+{{range .EpisodeQueue}}<tr><td data-label="Expected start">{{if .EstimatedStart.IsZero}}—{{else}}{{.EstimatedStart.Format "15:04"}}{{end}}</td><td data-label="Recording"><strong>{{.Title}}</strong></td><td data-label="Performer">{{.Artist}}</td><td data-label="Album">{{.Album}}</td><td data-label="Duration">{{.Duration}}</td><td data-label="Selection">{{template "episode-selection-source" .}}</td><td data-label="Status"><span title="{{.AcceptanceDescription}}" aria-label="{{.AcceptanceDescription}}" class="badge{{if .Committed}} episode-state-preparing{{else if .Approved}} episode-state-ready{{end}}">{{.AcceptanceLabel}}</span></td></tr>{{end}}
 </tbody></table></div>{{else}}<p class="hint episode-empty">{{if .EpisodeQueueLive}}No track queued.{{else}}The next selection will appear here.{{end}}</p>{{end}}
 {{end}}
 
@@ -191,3 +191,5 @@
 <input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="version" value="{{.Episode.Version}}"><input type="hidden" name="confirm" value="yes">
 <div class="form-actions"><a class="button secondary" href="/producer/stations/{{.Station.ID}}/schedule/{{.Show.ID}}/episode?start={{.EpisodeStart}}" data-close-dialog>Keep episode</a><button class="danger">Cancel episode</button></div>
 </form></section>{{end}}
+
+{{define "episode-selection-source"}}<button type="button" class="dj-status-icon episode-selection-icon" aria-label="Selection: {{.SelectionLabel}}">{{if eq .SelectionSource "dj"}}{{template "ui-icon" "speech"}}{{else if eq .SelectionSource "automatic"}}{{template "ui-icon" "automatic"}}{{else if eq .SelectionSource "listener"}}{{template "ui-icon" "listener"}}{{else}}{{template "ui-icon" "unknown"}}{{end}}<span class="dj-status-tooltip" aria-hidden="true">{{if .SelectionSource}}{{.SelectionLabel}}{{else}}Selection source was not recorded for this saved choice.{{end}}</span></button>{{end}}

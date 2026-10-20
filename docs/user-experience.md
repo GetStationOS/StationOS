@@ -627,3 +627,5 @@ Keep all producer information available, allow long names to wrap at word bounda
 retain accessible table headings and use centred text inside short Next/Upcoming
 lozenges. Desktop headings must not break words. Episode direction contains only
 prompt editing; the live queue belongs on the default episode screen.
+
+Both upcoming and played episode tracks use the same selection-source icons and accessible help. Preserve selection provenance in the actual aired receipt; historical missing sources remain explicitly unknown.

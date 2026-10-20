@@ -51,7 +51,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	if err := store.Update(ctx, o, func(e *episodes.Episode) error {
 		e.Status = "ready"
 		e.Theme = "City lights"
-		e.Aired = []episodes.Track{{ID: "played", Title: "Previously played recording", Artist: "Played performer", Album: "Played album", Seconds: 245, AiredAt: o.Start.UTC().Add(15 * time.Minute)}}
+		e.Aired = []episodes.Track{{ID: "played", Title: "Previously played recording", SelectionSource: "dj", Artist: "Played performer", Album: "Played album", Seconds: 245, AiredAt: o.Start.UTC().Add(15 * time.Minute)}}
 		e.Plan = []episodes.Track{{ID: "a", Title: "First recording", Artist: "One", Seconds: 240, Approved: true, SelectionSource: "dj"}, {ID: "b", Title: "Second recording", Artist: "Two", Seconds: 240, Approved: true, SelectionSource: "automatic"}}
 		return nil
 	}); err != nil {
@@ -100,6 +100,10 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 			t.Fatal("missing", want, w.Body.String())
 		}
 	}
+	playedTable := strings.SplitN(w.Body.String(), `aria-label="Played show tracks"`, 2)
+	if len(playedTable) != 2 || !strings.Contains(playedTable[1], `aria-label="Selection: DJ"`) {
+		t.Fatal("played track selection source missing", w.Body.String())
+	}
 	if strings.Contains(w.Body.String(), "weekly-calendar") {
 		t.Fatal("episode details rendered beneath calendar")
 	}
@@ -114,7 +118,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 		t.Fatal("episode editing missing", direction.Body.String())
 	}
 	for _, body := range []string{w.Body.String()} {
-		for _, want := range []string{"Selection", "Status", "Upcoming", "Automatic", "data-label=\"Selection\">DJ"} {
+		for _, want := range []string{"Selection", "Status", "Upcoming", "Automatic", `aria-label="Selection: DJ"`} {
 			if !strings.Contains(body, want) {
 				t.Fatal("missing queue provenance", want, body)
 			}

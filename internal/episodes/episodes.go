@@ -211,6 +211,16 @@ func (s *Service) Aired(ctx context.Context, o schedule.Occurrence, a content.Au
 			return nil
 		}
 		aired := Snapshot(a)
+		if e.QueueCurrent.ID == a.ID {
+			aired.SelectionSource = e.QueueCurrent.SelectionSource
+		} else {
+			for _, track := range e.Plan {
+				if track.ID == a.ID {
+					aired.SelectionSource = track.SelectionSource
+					break
+				}
+			}
+		}
 		aired.AiredAt = time.Now()
 		e.Aired = append(e.Aired, aired)
 		e.AiredRevision++
@@ -1084,7 +1094,25 @@ func (s *Service) QueueAcceptedSelection(ctx context.Context, o schedule.Occurre
 				}
 			}
 		}
+		currentSource := ""
+		foundCurrent := e.AcceptedNextID == current.ID
+		if e.QueueCurrent.ID == current.ID {
+			currentSource = e.QueueCurrent.SelectionSource
+			foundCurrent = true
+		}
+		for _, track := range e.Plan {
+			if track.ID == current.ID {
+				currentSource = track.SelectionSource
+				foundCurrent = true
+				break
+			}
+		}
+		// A fresh cold-start track outside the saved plan is local automatic selection.
+		if !foundCurrent && source != "" {
+			currentSource = "automatic"
+		}
 		e.QueueCurrent = Snapshot(current)
+		e.QueueCurrent.SelectionSource = currentSource
 		e.QueueCurrent.AiredAt = time.Now()
 		e.AcceptedNextID = next.ID
 		reserved := Snapshot(next)

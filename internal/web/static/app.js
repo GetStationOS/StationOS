@@ -356,9 +356,15 @@ function syncStationEvents(){
  const showConnection=()=>{
   const note=owner.querySelector('[data-directory-connection]');
   const connected=connection.readyState===EventSource.OPEN;
-  if(note)note.hidden=connected;
-  const indicator=owner.querySelector('.network-live');
-  if(indicator){indicator.textContent=connected?'Live overview':'Updates disconnected';indicator.toggleAttribute('data-disconnected',!connected);}
+  if(note){
+   const detail=connected?'Live updates connected.':'Live updates disconnected. Displayed information may be out of date. Reconnecting…';
+   note.dataset.tone=connected?'success':'warning';
+   note.dataset.stateDetail=detail;
+   note.setAttribute('aria-label',connected?'Live updates connected':'Live updates disconnected; reconnecting');
+   note.setAttribute('title',detail);
+   note.querySelector('.directory-connected').hidden=!connected;
+   note.querySelector('.directory-disconnected').hidden=connected;
+  }
  };
  connection.addEventListener('open',showConnection);
  connection.addEventListener('error',showConnection);

@@ -12,6 +12,7 @@ import (
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
@@ -211,6 +212,8 @@ type dashboardSummary struct {
 }
 
 type stationCard struct {
+	FollowingTracks                                        []episodes.Track
+	FollowingTracksUnavailable                             bool
 	NeedsAttention                                         bool
 	Operations                                             operationSummary
 	DJIndicators                                           []djIndicator

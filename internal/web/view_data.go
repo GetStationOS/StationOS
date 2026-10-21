@@ -3,10 +3,13 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/episodes"
+	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
 )
@@ -126,6 +129,10 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 			}
 			card.FollowingTime = card.Broadcast.Following.Start.In(loc).Format("Mon 15:04")
 		}
+		if card.Broadcast.Following.ShowID != "" {
+			card.FollowingTracks, err = s.followingTracks(r.Context(), card.Broadcast.Following)
+			card.FollowingTracksUnavailable = err != nil
+		}
 		card.NextTrack = stationTrack(st.ID, "Up next", "Not queued", card.Broadcast.Next)
 		card.NeedsAttention = card.Broadcast.Error != "" || card.Broadcast.Status == "Retrying" || card.Broadcast.Status == "Unavailable" || card.Broadcast.PresenterStatus == "Unavailable" || card.Broadcast.CurationStatus == "Unavailable" || card.Operations.Active > 0 || (card.Operations.Available && !card.Operations.Healthy)
 		v.Dashboard.Listeners += card.Broadcast.Listeners
@@ -155,4 +162,34 @@ func stationSources(all []sources.Config, st station.Station) []sources.Config {
 		}
 	}
 	return out
+}
+
+// Read the dated episode checkpoint only; viewing the dashboard never plans music.
+func (s *Server) followingTracks(ctx context.Context, next schedule.Occurrence) ([]episodes.Track, error) {
+	if s.d.Episodes == nil || s.d.Episodes.Store == nil {
+		return nil, errors.New("episode choices unavailable")
+	}
+	e, err := s.d.Episodes.Store.Get(ctx, next.Key)
+	if errors.Is(err, episodes.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if e.Cancelled {
+		return nil, nil
+	}
+	var tracks []episodes.Track
+	seen := map[string]bool{}
+	for _, track := range e.Upcoming() {
+		if !track.Approved || track.ID == "" || seen[track.ID] {
+			continue
+		}
+		tracks = append(tracks, track.Track)
+		seen[track.ID] = true
+		if len(tracks) == 2 {
+			break
+		}
+	}
+	return tracks, nil
 }

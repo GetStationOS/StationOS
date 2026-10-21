@@ -37,6 +37,8 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 	defer stop()
 	operations, stopOperations := s.d.Changes.Watch("operations")
 	defer stopOperations()
+	episodes, stopEpisodes := s.d.Changes.Watch("episodes")
+	defer stopEpisodes()
 	var health <-chan struct{}
 	if s.d.Recording != nil {
 		var release func()
@@ -109,6 +111,10 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		case <-operations:
+			if !update() {
+				return
+			}
+		case <-episodes:
 			if !update() {
 				return
 			}

@@ -212,6 +212,7 @@ type dashboardSummary struct {
 }
 
 type stationCard struct {
+	ProgrammeURL, FollowingURL                             string
 	FollowingArtwork                                       []cardTrack
 	HealthTone, HealthLabel                                string
 	FollowingTracks                                        []episodes.Track

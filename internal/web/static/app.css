@@ -1365,3 +1365,31 @@ textarea{font-weight:400;line-height:1.5}
 @media(max-width:760px){.matrix-table .matrix-station-headers{display:none}}
 
 .matrix-heading{align-items:center;justify-content:flex-start}.matrix-heading>span{margin-left:auto}.matrix-heading .directory-connection-icon{flex:0 0 auto}
+
+/* Station identity anchors the full-width footer; runtime output links above. */
+.matrix-table .matrix-station-footer>th{position:relative;padding:14px 54px 14px 18px;background:#f7f9fb;width:auto;border-top:1px solid var(--line)}
+.matrix-station-footer .matrix-station-name{font-size:14px}
+.matrix-station-footer .station-health{right:14px;bottom:10px}
+.matrix-table .matrix-audience{padding-top:20px;padding-bottom:20px}
+.matrix-table .matrix-station-headers>th:last-child{text-align:center}
+.matrix-output-summary{display:flex;flex-direction:column;align-items:center;gap:3px;width:max-content;min-width:44px;margin:0 auto;text-align:center}
+.matrix-output-summary>strong{font-size:22px;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.matrix-listener-label{font-size:10px;line-height:1.4;color:var(--muted)}
+.matrix-broadcast-icon{display:flex;margin-bottom:5px;flex-shrink:0;align-items:center;justify-content:center;width:32px;height:32px;color:#7b8794;border-radius:50%;background:#eef1f4}
+.matrix-broadcast-icon svg{width:22px;height:22px}
+.matrix-broadcast-icon.matrix-on-air{color:#fff;background:#b42318;box-shadow:none}
+.matrix-broadcast-icon:focus-visible{outline:2px solid var(--accent-dark);outline-offset:2px}
+.matrix-programme strong a,.matrix-following-programme strong a{color:inherit}
+@media(max-width:760px){
+ .matrix-table .matrix-audience{padding:0}
+ .matrix-output-summary{margin:0 0 0 auto}
+ .matrix-broadcast-icon{width:44px;height:44px}
+ .station-matrix{background:transparent;border:0;border-radius:0;overflow:visible}
+ .matrix-heading{padding:0;margin:0 0 10px;min-height:44px;gap:8px}
+ .matrix-heading h2{line-height:1.25}
+ .matrix-table{background:transparent}
+ .matrix-table .matrix-station-group{margin:0 0 16px}
+ .matrix-table .matrix-station-footer{display:block}
+ .matrix-table .matrix-station-footer>th{padding:14px 54px 14px 18px;border-top:1px solid var(--line)}
+ .matrix-table .matrix-following-health{display:none}
+}

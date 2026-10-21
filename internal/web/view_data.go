@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -126,6 +127,15 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 		}
 		card.ProgrammeTime, _ = programmeDetails(card.Broadcast, st.Timezone, time.Now())
 		card.DJIndicators = djIndicators(card.Broadcast)
+		programmeURL := func(o schedule.Occurrence) string {
+			path := "/producer/stations/" + url.PathEscape(st.ID) + "/schedule/" + url.PathEscape(o.ShowID)
+			if s.d.Episodes != nil && !o.Start.IsZero() {
+				path += "/episode?start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
+			}
+			return path
+		}
+		card.ProgrammeURL = programmeURL(card.Broadcast.Programme)
+		card.FollowingURL = programmeURL(card.Broadcast.Following)
 		if !card.Broadcast.Following.Start.IsZero() {
 			loc, e := time.LoadLocation(st.Timezone)
 			if e != nil {

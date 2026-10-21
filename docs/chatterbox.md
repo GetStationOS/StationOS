@@ -7,11 +7,11 @@ their global text settings.
 
 ## Configure a DJ
 
-1. Add a shared connection under Assistant → Endpoints. Choose Chatterbox Nano
+1. Add a shared connection under Assistant → Endpoints. Choose Chatterbox
    (speech), enter its reachable base URL and leave the credential blank. Saving
    checks `/health`; the service must report ready `chatterbox-nano`.
 2. Open the DJ's create/edit screen. In Voice, choose that speech endpoint.
-   The form shows the fixed Nano model and voices discovered from `GET /voices`.
+   The form shows models discovered from `GET /models` and voices from `GET /voices`.
    Choose a named voice or Server default, then save the DJ.
 3. OpenAI endpoints instead show speech model, voice, conversation speed and vibe.
    Switching endpoints restores saved settings. Unsaved settings also survive
@@ -36,7 +36,7 @@ stable `id`/`name` pairs. StationOS limits discovery to ten seconds, 256 KiB and
 voices, validating IDs, names and default membership. Reference recordings and
 voice assets stay entirely on Chatterbox. Discovery never generates audio.
 
-Generation posts `{"text":"...","voice":"server-owned-id"}` to `/tts`.
+Generation posts `{"text":"...","voice":"server-owned-id","model":"original"}` to `/tts`.
 Server default omits `voice`, preserving the service's default behaviour. Missing
 saved voices remain selected and labelled unavailable. Failed discovery retains
 the saved choice and permits unrelated edits; new voice choices require successful
@@ -45,7 +45,7 @@ validation. Unknown voices during synthesis return an error, without substitutio
 The production adapter scopes routing, credentials, identity and deadlines to the
 DJ snapshot for each request. Concurrent DJs do not mutate a shared provider
 selection. OpenAI delegates to its existing speech transport and retry behaviour.
-Nano has the connection's configurable response deadline (180 seconds by default,
+Each Chatterbox model has the connection's configurable response deadline (180 seconds by default,
 15–600 seconds allowed), a five-second connection timeout and normal cancellation
 at playback boundaries. Voice/vibe/speed controls are shown only for OpenAI.
 
@@ -113,3 +113,19 @@ In an isolated browser instance, Alex used Chatterbox/Paul while the other DJs
 retained OpenAI. Switching restored tts-1/Marin preferences, previews left Save
 unsaved, and selected settings survived saving and reopening. The temporary
 instance was stopped without restarting or modifying the user's running server.
+
+
+## Multiple Chatterbox models
+
+`GET /models` returns `default_model` and a nonempty `models` array with unique
+`id` and readable `name` values. Each DJ selects its own model. Nano and Original
+appear when advertised; Turbo and future models appear automatically. Discovery
+does not load models or generate audio. The request uses the exact selected ID in
+`model`. There is no automatic model fallback on synthesis failure.
+
+Existing `chatterbox-nano` settings map to `nano` at the UI and request boundaries;
+saving writes the canonical ID. Cached audio and history are never relabelled.
+Model choices survive endpoint switching. Removed selections are retained and
+labelled unavailable; catalogue failure permits unrelated edits but blocks a new
+model choice until it can be validated. A legacy server returning 404 for `/models`
+can still advertise Nano through its ready `/health` response.

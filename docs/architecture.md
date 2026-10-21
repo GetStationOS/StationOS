@@ -973,3 +973,13 @@ Generation/failure and actual airing logs include speech_provider, speech_connec
 speech_model and speech_voice. A Chatterbox server-default selection is labelled
 as such: StationOS does not claim to know the server's underlying reference audio.
 Existing JSON snapshots retain the metadata without a schema migration.
+
+
+### Chatterbox model selection
+
+DJ speech settings discover server-owned Chatterbox model IDs and names through
+GET /models and show a model dropdown. Saving validates changed selections,
+preserves unavailable saved choices and retains per-endpoint drafts. Production
+sends the exact selected ID to /tts and records it in speech provenance. Legacy
+chatterbox-nano selections map to nano; no model is silently substituted after a
+generation failure. Turbo appears only when advertised by the server.

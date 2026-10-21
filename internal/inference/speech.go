@@ -19,7 +19,9 @@ func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) (au
 	}
 	meta := production.SpeechProvenance{Provider: conn.Type, ProviderName: conn.Name, Connection: conn.ID, Model: q.Model, Voice: q.Voice}
 	if conn.Type == "chatterbox" {
-		meta.Model = "chatterbox-nano"
+		if meta.Model == "" || meta.Model == "chatterbox-nano" || (q.Connection == "" && (meta.Model == djs.DefaultSpeechModel || meta.Model == "tts-1" || meta.Model == "tts-1-hd")) {
+			meta.Model = "nano"
+		}
 		if q.Connection == "" {
 			meta.Voice = q.SpeechVoices[conn.ID]
 		}
@@ -52,7 +54,7 @@ func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) (au
 		if voice == "(server default)" {
 			voice = ""
 		}
-		return r.Chatterbox.Synthesize(ctx, conn, q.Text, voice)
+		return r.Chatterbox.Synthesize(ctx, conn, q.Text, voice, meta.Model)
 	case "openai":
 		if r.OpenAISpeech != nil {
 			return r.OpenAISpeech.Synthesize(ctx, q)
@@ -115,4 +117,17 @@ func (r *Router) SpeechConnections(ctx context.Context) ([]djs.SpeechEndpoint, e
 		}
 	}
 	return out, nil
+}
+
+func (r *Router) SpeechModelChoices(parent context.Context, id string) ([]djs.SpeechModel, error) {
+	conn, err := r.Store.Connection(parent, id)
+	if err != nil {
+		return nil, err
+	}
+	if conn.Type != "chatterbox" {
+		return nil, errors.New("Model choices are unavailable for this provider")
+	}
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
+	defer cancel()
+	return r.Chatterbox.Models(ctx, conn)
 }

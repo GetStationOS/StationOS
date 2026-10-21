@@ -260,10 +260,10 @@ func TestOpenAIKeySaveShowsSafeDiscoveryFailuresAndPreservesStoredKey(t *testing
 
 func TestChatterboxEndpointAndSpeechOnlySelection(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "GET" || r.URL.Path != "/health" {
+		if r.Method != "GET" || r.URL.Path != "/models" {
 			t.Error("endpoint save generated speech", r.Method, r.URL.Path)
 		}
-		w.Write([]byte(`{"status":"ok","model":"chatterbox-nano","device":"cpu"}`))
+		w.Write([]byte(`{"default_model":"nano","models":[{"id":"nano","name":"Chatterbox Nano"},{"id":"original","name":"Chatterbox Original"}]}`))
 	}))
 	defer provider.Close()
 	h, _, _ := setupAssistant(t, "", &assistantModel{})

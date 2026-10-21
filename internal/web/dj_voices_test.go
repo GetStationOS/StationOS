@@ -30,6 +30,10 @@ func speechDraft(t *testing.T, body string) string {
 func TestDJChatterboxVoiceFormAndPreservation(t *testing.T) {
 	var mode atomic.Int32
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/models" {
+			w.Write([]byte(`{"default_model":"nano","models":[{"id":"nano","name":"Chatterbox Nano"},{"id":"original","name":"Chatterbox Original"},{"id":"turbo","name":"Chatterbox Turbo"}]}`))
+			return
+		}
 		if r.Method != "GET" || r.URL.Path != "/voices" {
 			t.Error("voice form generated audio", r.Method, r.URL.Path)
 		}
@@ -153,6 +157,25 @@ func TestDJChatterboxVoiceFormAndPreservation(t *testing.T) {
 	saved, _ = repo.Get(ctx, p.ID)
 	if saved.SpeechConnection != "nano" || saved.SpeechSettings["openai"].Model != "tts-1" || saved.SpeechSettings["openai"].Voice != "marin" || saved.ConversationSpeed != 1.4 {
 		t.Fatal("provider settings lost", saved)
+	}
+
+	form.Set("speech_model", "original")
+	w = request(h, "POST", "/producer/djs", form, nil)
+	if w.Code != 303 {
+		t.Fatal("Original selection failed", w.Code, w.Body.String())
+	}
+	saved, _ = repo.Get(ctx, p.ID)
+	if saved.SpeechModel != "original" || saved.ActiveSpeech().Voice != "warm" {
+		t.Fatal(saved)
+	}
+	w = request(h, "GET", path, nil, nil)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `value="original" selected`) || !strings.Contains(w.Body.String(), "Chatterbox Turbo") {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	form.Set("speech_model", "invented")
+	w = request(h, "POST", "/producer/djs", form, nil)
+	if w.Code != 422 {
+		t.Fatal("unknown model saved", w.Code)
 	}
 	if err = store.DeleteConnection(ctx, "nano"); err == nil {
 		t.Fatal("deleted endpoint in use by DJ")

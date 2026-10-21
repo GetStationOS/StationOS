@@ -123,10 +123,23 @@ func (s *Server) djSpeechView(r *http.Request, v *djPageView) {
 		}
 	}
 	if v.ChatterboxVoice {
-		for _, endpoint := range endpoints {
-			if endpoint.ID == id {
-				v.SpeechPreference.Model = endpoint.Model
+		if v.SpeechPreference.Model == "chatterbox-nano" || v.SpeechPreference.Model == "" {
+			v.SpeechPreference.Model = "nano"
+		}
+		if models, ok := source.(djs.SpeechModelSource); ok {
+			v.SpeechModelChoices, err = models.SpeechModelChoices(r.Context(), id)
+			if err != nil {
+				v.SpeechVoiceError = "Could not load Chatterbox models. The saved choice is retained; reopen this DJ to try again."
 			}
+		}
+		found := false
+		for _, m := range v.SpeechModelChoices {
+			if m.ID == v.SpeechPreference.Model {
+				found = true
+			}
+		}
+		if !found {
+			v.SpeechModelChoices = append(v.SpeechModelChoices, djs.SpeechModel{ID: v.SpeechPreference.Model, Name: v.SpeechPreference.Model + " (unavailable)"})
 		}
 	}
 	raw, _ := json.Marshal(v.DJ.SpeechDraft)

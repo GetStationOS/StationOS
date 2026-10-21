@@ -165,8 +165,9 @@
   <button type="submit" class="secondary" data-speech-preview formaction="/producer/djs/speech" formnovalidate hx-post="/producer/djs/speech" hx-target="#dj-speech-settings" hx-swap="outerHTML" hx-push-url="false">Update voice options</button>
   {{if .SpeechVoiceError}}<p class="notice warning" role="status">{{.SpeechVoiceError}}</p>{{end}}
   {{if .ChatterboxVoice}}
-  <input type="hidden" name="speech_model" value="{{.SpeechPreference.Model}}">
-  <p class="hint">Model: {{.SpeechPreference.Model}}</p>
+  <label>Chatterbox model<select name="speech_model" required>
+    {{range .SpeechModelChoices}}<option value="{{.ID}}" {{if eq .ID $.SpeechPreference.Model}}selected{{end}}>{{.Name}}</option>{{end}}
+  </select></label>
   <label>Chatterbox voice<select name="speech_voice">
     <option value="" {{if eq .SpeechVoice ""}}selected{{end}}>Server default</option>
     {{range .SpeechCatalog.Voices}}

@@ -747,3 +747,13 @@ Timeline speech details display the saved endpoint name exactly as entered,
 without endpoint IDs. New speech receipts snapshot that name; older receipts may
 resolve the name using their recorded endpoint ID. Technical IDs remain in logs
 and exports for diagnosis.
+
+
+### Chatterbox model selection
+
+DJ speech settings discover server-owned Chatterbox model IDs and names through
+GET /models and show a model dropdown. Saving validates changed selections,
+preserves unavailable saved choices and retains per-endpoint drafts. Production
+sends the exact selected ID to /tts and records it in speech provenance. Legacy
+chatterbox-nano selections map to nano; no model is silently substituted after a
+generation failure. Turbo appears only when advertised by the server.

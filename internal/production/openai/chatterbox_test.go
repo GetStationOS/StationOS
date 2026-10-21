@@ -69,7 +69,7 @@ func TestChatterboxDJLinkWithoutOpenAIKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		var body map[string]string
-		if r.URL.Path != "/tts" || json.NewDecoder(r.Body).Decode(&body) != nil || body["text"] != "A new StationOS link." || len(body) != 1 {
+		if r.URL.Path != "/tts" || json.NewDecoder(r.Body).Decode(&body) != nil || body["text"] != "A new StationOS link." || len(body) != 2 || body["model"] != "nano" {
 			t.Error(r.URL.Path, body)
 		}
 		w.Header().Set("Content-Type", "audio/wav")

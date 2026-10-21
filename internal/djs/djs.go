@@ -213,7 +213,7 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 		p.SpeechModel = DefaultSpeechModel
 	}
 	// Legacy OpenAI edits still update the active endpoint's stored preferences.
-	legacyOpenAI := p.SpeechModel != "chatterbox-nano"
+	legacyOpenAI := p.SpeechConnection == "openai"
 	if source, ok := s.Voices.(SpeechSource); ok && p.SpeechChange == nil {
 		endpoints, err := source.SpeechConnections(ctx)
 		if err != nil {
@@ -231,7 +231,7 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 		}
 		p.SpeechSettings[p.SpeechConnection] = SpeechPreference{Model: p.SpeechModel, Voice: p.Voice, Speed: p.ConversationSpeed, Vibe: p.Vibe}
 	}
-	if p.SpeechVoiceChange != nil && p.SpeechConnection == p.SpeechVoiceChange.Connection && p.SpeechModel == "chatterbox-nano" {
+	if p.SpeechVoiceChange != nil && p.SpeechConnection == p.SpeechVoiceChange.Connection {
 		if p.SpeechSettings == nil {
 			p.SpeechSettings = map[string]SpeechPreference{}
 		}

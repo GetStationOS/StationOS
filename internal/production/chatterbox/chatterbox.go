@@ -31,11 +31,21 @@ type Provider struct {
 	Logger *slog.Logger
 }
 
-func (p Provider) Synthesize(ctx context.Context, conn ai.Connection, text, voice string) ([]byte, error) {
+func (p Provider) Synthesize(ctx context.Context, conn ai.Connection, text, voice string, models ...string) ([]byte, error) {
 	if strings.TrimSpace(text) == "" {
 		return nil, errors.New("Chatterbox speech text is empty")
 	}
 	body := map[string]string{"text": text}
+	if len(models) > 0 && models[0] != "" {
+		model := models[0]
+		if model == Model {
+			model = "nano"
+		}
+		if !ai.ValidModel(model) {
+			return nil, errors.New("Invalid Chatterbox model")
+		}
+		body["model"] = model
+	}
 	if voice != "" {
 		body["voice"] = voice
 	}

@@ -38,16 +38,23 @@ func (c *Client) Check(parent context.Context, conn ai.Connection, key, model st
 		return out, err
 	}
 	if conn.Type == "chatterbox" {
-		raw, err := c.request(ctx, conn, "", "GET", "/health", nil)
+		catalog, err := (chatterbox.Provider{HTTP: c.HTTP}).Models(ctx, conn)
 		if err != nil {
 			return out, err
 		}
-		var health struct{ Status, Model string }
-		if json.Unmarshal(raw, &health) != nil || health.Status != "ok" || health.Model != chatterbox.Model {
-			return out, errors.New("Chatterbox health did not report a ready Nano model")
+		out = Check{Reachable: true, Message: "Chatterbox speech models retrieved; no speech was generated."}
+		if model == "chatterbox-nano" {
+			model = "nano"
 		}
-		return Check{Reachable: true, ModelAvailable: model == "" || model == chatterbox.Model, Models: []string{chatterbox.Model}, Message: "Chatterbox Nano is ready. One default voice; no text or tool capabilities."}, nil
+		for _, m := range catalog {
+			out.Models = append(out.Models, m.ID)
+			if model == "" || model == m.ID {
+				out.ModelAvailable = true
+			}
+		}
+		return out, nil
 	}
+
 	path := "/models"
 	if conn.Type == "gemini" {
 		path = "/models?pageSize=200"

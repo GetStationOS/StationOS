@@ -20,6 +20,14 @@ type SpeechSelection struct {
 	Connection string           `json:"connection"`
 	Settings   SpeechPreference `json:"settings"`
 }
+type SpeechModel struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+type SpeechModelSource interface {
+	SpeechModelChoices(context.Context, string) ([]SpeechModel, error)
+}
+
 type SpeechEndpoint struct{ ID, Name, Provider, Model string }
 type SpeechSource interface {
 	VoiceSource
@@ -131,7 +139,32 @@ func (s Service) applySpeech(ctx context.Context, p *Profile) error {
 			}
 		}
 		if endpoint.Provider == "chatterbox" {
-			pref.Model = endpoint.Model
+			if pref.Model == "chatterbox-nano" || pref.Model == "" {
+				pref.Model = "nano"
+			}
+			previousModel := previous.Model
+			if previousModel == "chatterbox-nano" {
+				previousModel = "nano"
+			}
+			if pref.Model != previousModel {
+				models, ok := source.(SpeechModelSource)
+				if !ok {
+					return errors.New("Chatterbox model discovery is unavailable")
+				}
+				choices, err := models.SpeechModelChoices(ctx, id)
+				if err != nil {
+					return errors.New("Could not discover Chatterbox models; keep the saved model or try again")
+				}
+				found := false
+				for _, m := range choices {
+					if m.ID == pref.Model {
+						found = true
+					}
+				}
+				if !found {
+					return errors.New("Choose an available Chatterbox model")
+				}
+			}
 			pref.Speed = 1
 			pref.Vibe = ""
 		}

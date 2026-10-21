@@ -140,7 +140,7 @@
         <a href="/producer/assistant/endpoints?connection={{.ID}}">{{.Name}}</a>
       </h2>
       <span>
-        {{if eq .Type "elevenlabs"}}ElevenLabs{{else if eq .Type "chatterbox"}}Chatterbox Nano{{else if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span>
+        {{if eq .Type "elevenlabs"}}ElevenLabs{{else if eq .Type "chatterbox"}}Chatterbox{{else if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span>
     </div>
     <a class="button secondary" href="/producer/assistant/endpoints?connection={{.ID}}">Manage endpoint</a>
   </article>{{end}}
@@ -165,7 +165,7 @@
   <label data-model-manual="{{.Name}}">Model ID<input name="{{.ModelField}}" data-feature-model="{{.Name}}" list="models-{{.Name}}" value="{{.Model}}" required maxlength="128">
     <span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} This provider and model plan episodes, select tracks and write DJ links for all shows and DJs. Each DJ chooses their own speech endpoint, model and voice.{{else if eq .Name "speech"}} OpenAI or Chatterbox.{{else if eq .Name "image"}} Requires an OpenAI endpoint.{{end}}</span>
   </label>
-  {{if eq .Name "speech"}}<p class="hint">Chatterbox uses chatterbox-nano. Choose its voice on each DJ’s profile; conversation speed and vibe apply to OpenAI only.</p>{{end}}
+  {{if eq .Name "speech"}}<p class="hint">Choose the Chatterbox model and voice on each DJ’s profile; conversation speed and vibe apply to OpenAI only.</p>{{end}}
   <datalist id="models-{{.Name}}">
   </datalist>
   <p class="hint" role="status" data-feature-model-status="{{.Name}}">
@@ -184,7 +184,7 @@
   </label>
   <label>Provider<select name="provider_type" data-provider-type>
       <option value="elevenlabs" {{if eq .AIConnection.Type "elevenlabs"}}selected{{end}}>ElevenLabs (speech)</option>
-      <option value="chatterbox" {{if eq .AIConnection.Type "chatterbox"}}selected{{end}}>Chatterbox Nano (speech)</option>
+      <option value="chatterbox" {{if eq .AIConnection.Type "chatterbox"}}selected{{end}}>Chatterbox (speech)</option>
       <option value="ollama" {{if eq .AIConnection.Type "ollama"}}selected{{end}}>Ollama</option>
       <option value="compatible" {{if eq .AIConnection.Type "compatible"}}selected{{end}}>OpenAI-compatible chat completions</option>
       <option value="anthropic" {{if eq .AIConnection.Type "anthropic"}}selected{{end}}>Anthropic</option>

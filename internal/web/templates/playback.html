@@ -1,96 +1,81 @@
 {{define "station-cards"}}
-
 <div id="station-cards" {{if .BroadcastEnabled}}data-station-events="/producer/stations/events" hx-indicator="this"{{end}}>
   <p class="dashboard-connection hint" role="status" data-directory-connection hidden>Live updates disconnected. Displayed information may be out of date. Reconnecting…</p>
   {{if .StationCards}}
-  <div class="dashboard-summary" aria-label="Across all stations">
+  <div class="network-strip" aria-label="Across all stations">
     <div><strong>{{.Dashboard.Listeners}}</strong><span>Listeners now</span></div>
     <div><strong>{{.Dashboard.Broadcasting}}</strong><span>Stations broadcasting</span></div>
     <div {{if .Dashboard.Attention}}class="dashboard-attention"{{end}}><strong>{{.Dashboard.Attention}}</strong><span>Stations needing attention</span></div>
+    <span class="network-live">{{if .BroadcastEnabled}}Live overview{{else}}Broadcast unavailable{{end}}</span>
   </div>
-  <div class="station-grid">
-    {{range .StationCards}}
-    <article class="station-card producer-card" hx-target="#main" hx-swap="innerHTML show:window:top" data-station-card="{{.Station.ID}}">
-      <div class="producer-heading">
-        <div class="station-heading">
-          <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="48" height="48">
-          <h2>
-            <a href="/producer/stations/{{.Station.ID}}">{{.Station.Name}}</a>
-          </h2>
-        </div>
-        <div class="card-top">
-          <span class="status {{if eq .Broadcast.Status "Broadcasting"}}live{{else if or (eq .Broadcast.Status "Retrying") (eq .Broadcast.Status "Unavailable")}}dashboard-status-warning{{else}}muted{{end}}">
-            <span class="status-dot">
-            </span>{{.Broadcast.Status}}</span>
-          <span class="card-listeners">{{.Broadcast.Listeners}} {{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}</span>
-        </div>
-      </div>
-      {{if .NeedsAttention}}
-      <div class="dashboard-issue" role="status">
-        <strong>Needs attention</strong>
-        {{if .Broadcast.Error}}<p>{{.Broadcast.Error}}</p>{{end}}
-        {{if eq .Broadcast.PresenterStatus "Unavailable"}}<p>DJ speech unavailable · music continues.</p>{{end}}
-        {{if eq .Broadcast.CurationStatus "Unavailable"}}<p>DJ music selection unavailable · automatic selection continues.</p>{{end}}
+  <div class="control-room">
+    <section class="station-matrix" aria-label="Station output">
+      <div class="matrix-heading"><h2>Live stations</h2><span>Programme &amp; playback</span></div>
+      <table class="matrix-table">
+        <thead><tr><th scope="col">Station / output</th><th scope="col">Programme</th><th scope="col">Now playing</th><th scope="col">Up next</th><th scope="col">Audience</th></tr></thead>
+        <tbody>
+          {{range .StationCards}}
+          <tr class="matrix-row{{if eq .Broadcast.Status "Dormant"}} matrix-dormant{{end}}" data-station-card="{{.Station.ID}}" hx-target="#main" hx-swap="innerHTML show:window:top">
+            <th scope="row" class="matrix-identity">
+              <div class="matrix-station-name">
+                <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="36" height="36">
+                <a href="/producer/stations/{{.Station.ID}}">{{.Station.Name}}</a>
+              </div>
+              <span class="matrix-output {{if eq .Broadcast.Status "Broadcasting"}}matrix-on-air{{end}}"><span class="status-dot" aria-hidden="true"></span>{{.Broadcast.Status}}</span>
+              {{if .NeedsAttention}}<a class="matrix-warning" href="#attention-{{.Station.ID}}">Needs attention</a>{{end}}
+              {{if .Broadcast.RepeatRelaxed}}<span class="matrix-secondary">Repeat interval relaxed</span>{{end}}
+            </th>
+            <td class="matrix-programme" data-label="Programme">
+              {{if and .Broadcast.Programme.ShowID .Broadcast.Current.ID}}
+              <strong>{{.Broadcast.Programme.Title}}</strong>
+              <div class="matrix-presenter"><div class="dj-name-row"><a href="/producer/djs/{{.Broadcast.Programme.DJ.ID}}">{{.Broadcast.Programme.DJ.Name}}</a>{{template "dj-status-icons" .DJIndicators}}</div></div>
+              {{if .ProgrammeTime}}<span class="matrix-secondary">{{.ProgrammeTime}}</span>{{end}}
+              {{else if .Broadcast.Current.ID}}<strong>Continuous music</strong>
+              {{else}}<span class="matrix-secondary">No programme playing</span>{{end}}
+              {{if .PlaylistName}}<a class="matrix-secondary" href="/producer/playlists/{{.PlaylistID}}">{{if not .Broadcast.Current.ID}}Default: {{end}}{{.PlaylistName}}</a>{{else if not .Broadcast.Current.ID}}<span class="matrix-secondary">No default playlist</span>{{end}}
+              {{if .Broadcast.Following.ShowID}}<div class="matrix-handover"><span>Next{{if .FollowingTime}} · {{.FollowingTime}}{{end}}</span><strong>{{.Broadcast.Following.Title}}</strong>{{if .Broadcast.Following.DJ.Name}}<span>{{.Broadcast.Following.DJ.Name}}</span>{{end}}<span>{{.Station.Timezone}}</span></div>{{end}}
+            </td>
+            <td class="matrix-current" data-label="Now playing">{{template "matrix-track" (currentBroadcastTrack .Station.ID .Broadcast)}}</td>
+            <td class="matrix-next" data-label="Up next">{{template "matrix-track" .NextTrack}}</td>
+            <td class="matrix-audience" data-label="Audience">
+              <strong aria-label="{{.Broadcast.Listeners}} {{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}">{{.Broadcast.Listeners}}</strong><span class="matrix-secondary">{{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}</span>
+              {{if $.BroadcastEnabled}}<button type="button" class="secondary" data-listen-radio="/producer/streams/{{.Station.StreamSlug}}" data-station-name="{{.Station.Name}}" data-station-id="{{.Station.ID}}" data-station-logo="{{producerLogo .Station}}" aria-label="Listen to {{.Station.Name}}">Listen</button>{{end}}
+            </td>
+          </tr>{{end}}
+        </tbody>
+      </table>
+    </section>
+    <aside class="attention-rail" aria-labelledby="attention-title">
+      <div class="attention-heading"><h2 id="attention-title">Attention</h2><span>{{.Dashboard.Attention}}</span></div>
+      {{if .Dashboard.Attention}}
+      {{range .StationCards}}{{if .NeedsAttention}}
+      <section class="attention-item" id="attention-{{.Station.ID}}" aria-label="{{.Station.Name}} issues">
+        <h3><a href="/producer/stations/{{.Station.ID}}">{{.Station.Name}}</a></h3>
+        {{if .Broadcast.Error}}<p>{{.Broadcast.Error}}</p>{{else if or (eq .Broadcast.Status "Retrying") (eq .Broadcast.Status "Unavailable")}}<p>Output {{.Broadcast.Status}}</p>{{end}}
+        {{if eq .Broadcast.PresenterStatus "Unavailable"}}<p>DJ speech unavailable{{if .Broadcast.Current.ID}} · music continues{{end}}.</p>{{end}}
+        {{if eq .Broadcast.CurationStatus "Unavailable"}}<p>DJ music selection unavailable.</p>{{end}}
         {{if gt .Operations.Active 0}}<p>{{.Operations.Active}} active incident{{if ne .Operations.Active 1}}s{{end}}.</p>{{end}}
         {{if and .Operations.Available (not .Operations.Healthy)}}<p>Transmission history is incomplete or unavailable.</p>{{end}}
-        <a href="/producer/stations/{{.Station.ID}}/incidents">Review incidents →</a>
-      </div>{{end}}
-      <div class="producer-body">
-        <div class="producer-programming">
-          <div class="card-programme">
-            {{if and .Broadcast.Programme.ShowID .Broadcast.Current.ID}}
-            <div class="card-programme-caption">
-              <span class="eyebrow">ON AIR</span>
-              {{if .ProgrammeTime}}<span class="card-programme-time">{{.ProgrammeTime}}</span>{{end}}
-            </div>
-            <strong>{{.Broadcast.Programme.Title}}</strong>
-            <div class="card-presenter">
-              {{if .Broadcast.Programme.DJ.PortraitURL}}<img class="dj-avatar small" src="{{.Broadcast.Programme.DJ.PortraitURL}}" alt="" referrerpolicy="no-referrer">{{end}}
-              <div class="card-presenter-details">
-                <div class="dj-name-row">
-                  <a href="/producer/djs/{{.Broadcast.Programme.DJ.ID}}">{{.Broadcast.Programme.DJ.Name}}</a>
-                  {{template "dj-status-icons" .DJIndicators}}
-                </div>
-                {{if .PlaylistName}}<a class="card-pool" href="/producer/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a>{{end}}
-              </div>
-            </div>
-            {{else}}<span class="eyebrow">{{if .Broadcast.Current.ID}}CONTINUOUS MUSIC{{else}}DEFAULT PLAYLIST{{end}}</span>
-            {{if .PlaylistName}}<strong>
-              <a href="/producer/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a>
-            </strong>
-            {{else}}<strong class="card-unassigned">No default playlist</strong>{{end}}{{end}}
-          </div>
-        </div>
-        <div class="card-tracks">
-          {{template "card-track" (currentBroadcastTrack .Station.ID .Broadcast)}}{{template "card-track" .NextTrack}}
-        </div>
-      </div>
-      {{if .Broadcast.Following.ShowID}}
-      <div class="producer-context">
-        <div class="card-handover">
-          <span class="eyebrow">NEXT SHOW{{if .FollowingTime}} · {{.FollowingTime}}{{end}}</span>
-          <strong>{{.Broadcast.Following.Title}}</strong>
-          {{if .Broadcast.Following.DJ.Name}}<span>{{.Broadcast.Following.DJ.Name}}</span>{{end}}
-        </div>
-      </div>{{end}}
-      {{if .Broadcast.RepeatRelaxed}}
-      <p class="hint" role="status">Repeat interval relaxed to keep music playing.</p>{{end}}
-      <div class="card-footer">
-        <span>{{.Station.Timezone}}</span>
-        <div class="card-actions">
-          {{if $.BroadcastEnabled}}
-          <button type="button" class="secondary" data-listen-radio="/producer/streams/{{.Station.StreamSlug}}" data-station-name="{{.Station.Name}}" data-station-id="{{.Station.ID}}" data-station-logo="{{producerLogo .Station}}" aria-label="Listen to {{.Station.Name}}">Listen</button>{{end}}<a href="/producer/stations/{{.Station.ID}}">Open station →</a>
-        </div>
-      </div>
-    </article>{{end}}
+        <a class="attention-action" href="/producer/stations/{{.Station.ID}}/incidents">View incidents →</a>
+      </section>{{end}}{{end}}
+      {{else}}<div class="attention-clear"><span aria-hidden="true">✓</span><strong>No current issues</strong><p>Stations requiring attention will appear here.</p></div>{{end}}
+    </aside>
   </div>
   {{else}}
-  <section class="panel empty-state">
-    <div class="empty-icon" aria-hidden="true">◉</div>
-    <h2>Your first station starts here</h2>
-    <p>Create a station, connect your music library, then build its playlists.</p>
-    <a class="button" href="/producer/stations/new">Create your first station</a>
-  </section>{{end}}
+  <section class="panel empty-state"><h2>Your first station starts here</h2><p>Create a station, connect your music library, then build its playlists.</p><a class="button" href="/producer/stations/new">Create your first station</a></section>
+  {{end}}
+</div>
+{{end}}
+
+{{define "matrix-track"}}
+<div class="matrix-track">
+  {{if .Item.ID}}{{template "track-art" .}}{{end}}
+  <div class="matrix-track-info">
+    {{if eq .Label "DJ ON AIR"}}<span class="matrix-speech">DJ ON AIR</span>{{end}}
+    <strong>{{if .Item.ID}}{{.Item.Title}}{{else}}{{.Empty}}{{end}}</strong>
+    {{if .Item.Artist}}<span>{{.Item.Artist}}</span>{{end}}
+    {{if .Item.ID}}<small>{{if .Item.Album}}{{.Item.Album}}{{end}}{{if .Item.Duration}}{{if .Item.Album}} · {{end}}{{.Duration}}{{end}}</small>{{end}}
+  </div>
 </div>
 {{end}}
 

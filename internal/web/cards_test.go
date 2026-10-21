@@ -92,7 +92,7 @@ func TestProducerCardsDormantScheduledAndDefaultMusic(t *testing.T) {
 	for _, path := range []string{"/producer", "/producer/stations/live"} {
 		w = request(h, "GET", path, nil, nil)
 		html := w.Body.String()
-		for _, want := range []string{"Evening sessions", "Miles Mercer", "Show Pool", "First &lt;song&gt;", "Second song", "The Quartet", "Night music", "3:00", "1 listener", "/artwork/", "hx-indicator=\"this\"", `class="station-card producer-card" hx-target="#main"`} {
+		for _, want := range []string{"Evening sessions", "Miles Mercer", "Show Pool", "First &lt;song&gt;", "Second song", "The Quartet", "Night music", "3:00", "1 listener", "/artwork/", "hx-indicator=\"this\"", `class="matrix-table"`} {
 			if !strings.Contains(html, want) {
 				t.Fatal("card missing", want, html)
 			}

@@ -355,7 +355,10 @@ function syncStationEvents(){
  const connection=new EventSource(owner.dataset.stationEvents);stationEvents=connection;
  const showConnection=()=>{
   const note=owner.querySelector('[data-directory-connection]');
-  if(note)note.hidden=connection.readyState===EventSource.OPEN;
+  const connected=connection.readyState===EventSource.OPEN;
+  if(note)note.hidden=connected;
+  const indicator=owner.querySelector('.network-live');
+  if(indicator){indicator.textContent=connected?'Live overview':'Updates disconnected';indicator.toggleAttribute('data-disconnected',!connected);}
  };
  connection.addEventListener('open',showConnection);
  connection.addEventListener('error',showConnection);
@@ -368,7 +371,7 @@ function syncStationEvents(){
   const activeCard=active?.closest('[data-station-card]')?.dataset.stationCard;
   patchStationNode(owner,incoming,active);showConnection();htmx.process(owner);
   if(activeCard&&!active.isConnected){
-   Array.from(owner.querySelectorAll('[data-station-card]')).find(card=>card.dataset.stationCard===activeCard)?.querySelector('.card-actions a')?.focus({preventScroll:true});
+   Array.from(owner.querySelectorAll('[data-station-card]')).find(card=>card.dataset.stationCard===activeCard)?.querySelector('.matrix-station-name a, .card-actions a')?.focus({preventScroll:true});
   }
  });
 }

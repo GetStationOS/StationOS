@@ -4,7 +4,7 @@ Status: adopted, 9 October 2026. Apply these rules to every new operator-facing 
 
 ## Product hierarchy
 
-Stations are the top-level domain. `/producer` is the station overview, with one card per station and a clear Create station action. Opening a card leads to that station's workspace. All station screens retain station identity. Overview and deeper station screens retain the Stations / station-name breadcrumb above the tabs for returning to their parent. New scheduling, presenters, output and reporting screens must join this station workspace instead of becoming unrelated global pages.
+Stations are the top-level domain. `/producer` is the station overview, with one aligned output row per station and a clear Create station action. Opening a card leads to that station's workspace. All station screens retain station identity. Overview and deeper station screens retain the Stations / station-name breadcrumb above the tabs for returning to their parent. New scheduling, presenters, output and reporting screens must join this station workspace instead of becoming unrelated global pages.
 
 Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. The shared API-key field in Assistant settings is write-only: leave blank to retain, enter a replacement or explicitly remove. DJ forms contain no credential fields. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
 
@@ -17,8 +17,8 @@ Show a small number of useful, current facts on station cards. Playlist counts a
 Station Overview separates current playback, upcoming programme, listeners and stream health. On phones and tablets, place the logo beside the live listener/status badges and give the description a full-width, fixed-height scrollable region below; retain the desktop layout and keep stream controls below programme/track information. Playback is listener-driven; weekly schedules select the active programme at track boundaries. Show current/next only from the actual producer, with Dormant, Starting, Broadcasting, Retrying and Unavailable states. When those systems exist, render their actual state through their own service contracts. Use server event subscriptions for the status region only; do not repeatedly replace an editing form or reset its scroll/focus. Distinguish offline, loading, stale, failed and unknown states with text as well as colour.
 
 The station directory is the producer dashboard. Show aggregate current listeners,
-broadcasting stations and stations needing attention above stable station cards.
-Each card prioritises measured output status, audience, programme/DJ, current and
+broadcasting stations and stations needing attention above a stable station matrix. A separate attention rail links exceptions to incidents; on small screens it precedes compact station rows.
+Each row prioritises measured output status, audience, programme/DJ, current and
 committed next recordings, and the next known programme in station-local time.
 Continuous music is identified explicitly. Active incidents, unavailable DJ
 capabilities and output failures surface a concise warning linked to Incidents;

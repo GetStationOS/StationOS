@@ -158,7 +158,7 @@ func TestPlayerArtworkFollowsSpeakingPresenter(t *testing.T) {
 			if err := templates.ExecuteTemplate(&cards, "station-cards", stationDirectoryView{StationCards: []stationCard{{Station: station.Station{ID: "radio", Name: "Radio"}, Broadcast: current, NextTrack: stationTrack("radio", "Up next", "Not queued", next)}}}); err != nil {
 				t.Fatal(err)
 			}
-			cardHTML := strings.SplitN(cards.String(), `<div class="card-tracks">`, 2)[1]
+			cardHTML := strings.SplitN(cards.String(), `<td class="matrix-current" data-label="Now playing">`, 2)[1]
 			var directory bytes.Buffer
 			publicStation := station.Station{ID: "radio", StreamSlug: "radio", Name: "Radio"}
 			directoryState := current

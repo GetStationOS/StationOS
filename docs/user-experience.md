@@ -19,7 +19,7 @@ Station Overview separates current playback, upcoming programme, listeners and s
 The station directory is the producer dashboard. Show aggregate current listeners,
 broadcasting stations and stations needing attention above a stable station matrix. A separate attention rail links exceptions to incidents; on small screens it precedes compact station rows.
 Each row prioritises measured output status, audience, programme/DJ, current and
-committed next recordings, and the next known programme in station-local time. Beneath the next programme, show its first two accepted, unaired track choices in order, with artists. Read the dated episode without starting preparation; label missing choices and unavailable reads honestly. Episode commits update this preview through the existing event subscription.
+committed next recordings, and the next known programme in station-local time. Show the next programme in a secondary row, with its first two accepted, unaired track choices and artists aligned beneath the Now playing and Up next columns. Read the dated episode without starting preparation; label missing choices and unavailable reads honestly. Episode commits update this preview through the existing event subscription.
 Continuous music is identified explicitly. Active incidents, unavailable DJ
 capabilities and output failures surface a concise warning linked to Incidents;
 dormancy is normal. Keep Open station and Listen available and historical reporting

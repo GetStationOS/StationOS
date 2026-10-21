@@ -94,6 +94,13 @@ func TestDashboardOpeningTracksAndHonestEmptyStates(t *testing.T) {
 				t.Fatal(err)
 			}
 			result := html.String()
+			if test.name == "ready" {
+				first := strings.SplitN(strings.SplitN(result, `class="matrix-opening-first"`, 2)[1], "</td>", 2)[0]
+				second := strings.SplitN(strings.SplitN(result, `class="matrix-opening-second"`, 2)[1], "</td>", 2)[0]
+				if !strings.Contains(first, "First &lt;track&gt;") || !strings.Contains(second, "Second track") {
+					t.Fatal("opening tracks are not in their respective playback columns")
+				}
+			}
 			if !strings.Contains(result, "Opening tracks") || !strings.Contains(result, test.want) {
 				t.Fatal("missing opening tracks state", result)
 			}

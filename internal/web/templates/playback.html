@@ -18,7 +18,7 @@
           <tr class="matrix-row{{if eq .Broadcast.Status "Dormant"}} matrix-dormant{{end}}" data-station-card="{{.Station.ID}}" hx-target="#main" hx-swap="innerHTML show:window:top">
             <th scope="row" class="matrix-identity">
               <div class="matrix-station-name">
-                <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="36" height="36">
+                <img class="station-logo" src="{{producerLogo .Station}}" alt="" width="80" height="80">
                 <a href="/producer/stations/{{.Station.ID}}">{{.Station.Name}}</a>
               </div>
               <span class="matrix-output {{if eq .Broadcast.Status "Broadcasting"}}matrix-on-air{{end}}"><span class="status-dot" aria-hidden="true"></span>{{.Broadcast.Status}}</span>
@@ -33,15 +33,7 @@
               {{else if .Broadcast.Current.ID}}<strong>Continuous music</strong>
               {{else}}<span class="matrix-secondary">No programme playing</span>{{end}}
               {{if .PlaylistName}}<a class="matrix-secondary" href="/producer/playlists/{{.PlaylistID}}">{{if not .Broadcast.Current.ID}}Default: {{end}}{{.PlaylistName}}</a>{{else if not .Broadcast.Current.ID}}<span class="matrix-secondary">No default playlist</span>{{end}}
-              {{if .Broadcast.Following.ShowID}}<div class="matrix-handover"><span>Next{{if .FollowingTime}} · {{.FollowingTime}}{{end}}</span><strong>{{.Broadcast.Following.Title}}</strong>{{if .Broadcast.Following.DJ.Name}}<span>{{.Broadcast.Following.DJ.Name}}</span>{{end}}<span>{{.Station.Timezone}}</span>
-                <div class="matrix-opening">
-                  <span class="matrix-opening-label">Opening tracks</span>
-                  {{if .FollowingTracksUnavailable}}<span>Track choices unavailable</span>
-                  {{else if .FollowingTracks}}<ol>{{range .FollowingTracks}}<li><strong>{{.Title}}</strong>{{if .Artist}}<span>{{.Artist}}</span>{{end}}</li>{{end}}</ol>
-                  {{if eq (len .FollowingTracks) 1}}<span>Second track not chosen yet</span>{{end}}
-                  {{else}}<span>Tracks not chosen yet</span>{{end}}
-                </div>
-              </div>{{end}}
+
             </td>
             <td class="matrix-current" data-label="Now playing">{{template "matrix-track" (currentBroadcastTrack .Station.ID .Broadcast)}}</td>
             <td class="matrix-next" data-label="Up next">{{template "matrix-track" .NextTrack}}</td>
@@ -49,7 +41,23 @@
               <strong aria-label="{{.Broadcast.Listeners}} {{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}">{{.Broadcast.Listeners}}</strong><span class="matrix-secondary">{{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}</span>
               {{if $.BroadcastEnabled}}<button type="button" class="secondary" data-listen-radio="/producer/streams/{{.Station.StreamSlug}}" data-station-name="{{.Station.Name}}" data-station-id="{{.Station.ID}}" data-station-logo="{{producerLogo .Station}}" aria-label="Listen to {{.Station.Name}}">Listen</button>{{end}}
             </td>
-          </tr>{{end}}
+          </tr>
+          {{if .Broadcast.Following.ShowID}}
+          <tr class="matrix-following" id="following-{{.Station.ID}}">
+            <th scope="row"><span class="matrix-opening-label">Next show</span>{{if .FollowingTime}}<span class="matrix-secondary">{{.FollowingTime}}</span>{{end}}<span class="matrix-secondary">{{.Station.Timezone}}</span></th>
+            <td class="matrix-following-programme"><strong>{{.Broadcast.Following.Title}}</strong>{{if .Broadcast.Following.DJ.Name}}<span class="matrix-secondary">{{.Broadcast.Following.DJ.Name}}</span>{{end}}<span class="matrix-opening-label">Opening tracks</span></td>
+            <td class="matrix-opening-first" data-label="First opening track">
+              {{if .FollowingTracksUnavailable}}<span class="matrix-secondary">Track choices unavailable</span>
+              {{else if .FollowingTracks}}{{with index .FollowingTracks 0}}<strong>{{.Title}}</strong>{{if .Artist}}<span class="matrix-secondary">{{.Artist}}</span>{{end}}{{end}}
+              {{else}}<span class="matrix-secondary">Tracks not chosen yet</span>{{end}}
+            </td>
+            <td class="matrix-opening-second" data-label="Second opening track">
+              {{if .FollowingTracksUnavailable}}<span class="matrix-secondary">Track choices unavailable</span>
+              {{else if gt (len .FollowingTracks) 1}}{{with index .FollowingTracks 1}}<strong>{{.Title}}</strong>{{if .Artist}}<span class="matrix-secondary">{{.Artist}}</span>{{end}}{{end}}
+              {{else}}<span class="matrix-secondary">Second track not chosen yet</span>{{end}}
+            </td>
+            <td class="matrix-following-spacer"></td>
+          </tr>{{end}}{{end}}
         </tbody>
       </table>
     </section>

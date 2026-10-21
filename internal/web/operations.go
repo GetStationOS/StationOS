@@ -15,6 +15,7 @@ import (
 
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/operations"
+	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/station"
 )
 
@@ -38,7 +39,7 @@ func (s *Server) operationalSummary(r *http.Request, id string) operationSummary
 		return v
 	}
 	// Match the Incidents page exactly; recovered history is never current health.
-	incidents = reviewIncidents(incidents, "")
+	incidents = s.currentIncidents(r, id, incidents)
 	v.Active = len(incidents)
 	for _, i := range incidents {
 		if i.Acknowledged.IsZero() {
@@ -206,13 +207,22 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
+	activeIDs := map[string]bool{}
+	for _, incident := range s.currentIncidents(r, st.ID, incidents) {
+		activeIDs[incident.ID] = true
+	}
 	if v.Section == "incidents" {
 		v.IncidentReview = r.URL.Query().Get("review")
 		if v.IncidentReview != "" && v.IncidentReview != "needed" && v.IncidentReview != "all" {
 			http.Error(w, "Invalid review filter", 400)
 			return
 		}
-		incidents = reviewIncidents(incidents, v.IncidentReview)
+		if v.IncidentReview == "needed" {
+			v.IncidentReview = ""
+		}
+		if v.IncidentReview == "" {
+			incidents = s.currentIncidents(r, st.ID, incidents)
+		}
 		choices := r.URL.Query()
 		choices.Del("page")
 		choices.Del("review")
@@ -227,6 +237,11 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		row.ShowEffect = i.Effect != "" && !strings.Contains(strings.ToLower(i.Message), strings.ToLower(strings.TrimSpace(i.Effect)))
 		if i.Severity == "critical" || i.Severity == "error" {
 			row.Icon, row.Tone = "error", "error"
+		}
+		if i.Recovered.IsZero() && !activeIDs[i.ID] {
+			row.StatusLabel, row.Icon, row.Tone = "Historical", "history", "observed"
+			row.ShowEffect = false
+			row.Action = ""
 		}
 		if !i.Recovered.IsZero() {
 			row.StatusLabel, row.Icon, row.Tone = "Recovered", "recovery", "recovered"
@@ -639,4 +654,41 @@ func incidentReturnURL(r *http.Request, station string) string {
 		return base
 	}
 	return base + "?" + clean.Encode()
+}
+
+// A saved incident is history, not evidence that its fault is still happening.
+// Without a runtime connection retain the storage view rather than invent recovery.
+func (s *Server) currentIncidents(r *http.Request, id string, rows []operations.Incident) []operations.Incident {
+	rows = reviewIncidents(rows, "")
+	if s.d.Broadcast == nil {
+		return rows
+	}
+	state := s.d.Broadcast.State(id)
+	var out []operations.Incident
+	for _, row := range rows {
+		active := false
+		switch row.Code {
+		case "output", "audio", "supply":
+			active = state.Status == "Retrying" || state.Status == "Unavailable" || state.Error != ""
+		case "speech", "preparation":
+			active = state.Status != "Dormant" && state.Current.ID != "" && state.PresenterStatus == "Unavailable"
+		case "curation":
+			active = state.Status != "Dormant" && state.Current.ID != "" && state.CurationStatus == "Unavailable"
+		case "programme":
+			active = strings.HasPrefix(state.Programme.Key, "emergency:") || (state.Current.ID != "" && state.Current.ID == state.Next.ID)
+		default:
+			if strings.HasPrefix(row.Code, "episode-plan:") && s.d.Episodes != nil {
+				for _, show := range []schedule.Occurrence{state.Programme, state.Following} {
+					if show.ShowID != "" && row.Code == "episode-plan:"+show.ShowID+":"+show.Start.UTC().Format(time.RFC3339) {
+						episode, err := s.d.Episodes.Store.Get(r.Context(), show.Key)
+						active = err == nil && episode.PlanningFailed && !episode.Cancelled
+					}
+				}
+			}
+		}
+		if active {
+			out = append(out, row)
+		}
+	}
+	return out
 }

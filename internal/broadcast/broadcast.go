@@ -799,6 +799,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if err == nil && timeline.Current.PlaylistID != "" {
 			if pool, readErr := m.repo.Pool(r.ctx, timeline.Current.PlaylistID); readErr == nil && len(pool) > 0 {
 				if notify {
+					if reportedUnavailable != "" {
+						m.observe(id, "recovery", "Scheduled music is available again.", State{Programme: timeline.Current}, "programme", true)
+						reportedUnavailable = ""
+					}
 					lastGoodPool = append([]content.AudioItem(nil), pool...)
 					lastGoodProgramme = timeline.Current
 				}

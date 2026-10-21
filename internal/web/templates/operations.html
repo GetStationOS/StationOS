@@ -1,10 +1,5 @@
 {{define "operational-summary"}}
-{{if and .Available (or (not .Healthy) (gt .NeedsReview 0))}}
-<div class="operational-summary">
-  {{if not .Healthy}}<p class="notice" role="alert">Transmission history is incomplete or unavailable. Audio can continue; check server logs and database health.</p>{{end}}
-  {{if gt .NeedsReview 0}}<p class="notice" role="status">{{.NeedsReview}} incident{{if ne .NeedsReview 1}}s{{end}} need{{if eq .NeedsReview 1}}s{{end}} review. Review the Incidents tab.</p>{{end}}
-</div>
-{{end}}
+{{if and .Available (not .Healthy)}}<div class="operational-summary"><p class="notice" role="alert">Transmission history is incomplete or unavailable. Audio can continue.</p></div>{{end}}
 {{end}}
 
 {{define "operations-page"}}
@@ -85,10 +80,10 @@
 
 {{define "incident-results"}}
 <section class="panel results-panel history-card" id="incident-results" aria-label="Incident results" data-operations-label="Incidents" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
-<nav class="incident-filters" aria-label="Incident review filter">
+<nav class="incident-filters" aria-label="Incident status filter">
 <button type="button" class="secondary icon-button history-refresh" data-operations-refresh disabled aria-label="Incidents up to date" title="Incidents up to date" hx-get="{{.RefreshURL}}" hx-target="#incident-results" hx-swap="outerHTML show:none" hx-push-url="false" hx-disabled-elt="this">{{template "ui-icon" "refresh"}}</button>
 <a href="{{.IncidentActiveURL}}" {{if not .IncidentReview}}aria-current="page"{{end}}>Active</a>
-<a href="{{.IncidentNeedsReviewURL}}" {{if eq .IncidentReview "needed"}}aria-current="page"{{end}}>Needs review</a>
+
 <a href="{{.IncidentAllURL}}" {{if eq .IncidentReview "all"}}aria-current="page"{{end}}>All incidents</a>
 </nav>
 <p class="visually-hidden" role="status" data-operations-announcement></p>
@@ -101,20 +96,17 @@
 <tbody role="rowgroup">{{range .Incidents}}
 <tr id="incident-{{.ID}}" role="row">
 <td class="incident-time" role="cell"><time title="{{.LatestLabel}}" datetime="{{.Latest.Format "2006-01-02T15:04:05Z07:00"}}">{{.LatestDate}}<span>{{.LatestTime}}</span></time>{{if gt .Count 1}}<span class="incident-occurrences" title="First occurred {{.FirstLabel}}">{{.Count}} occurrences</span>{{end}}</td>
-<td class="incident-description" role="cell"><strong>{{.Message}}</strong>{{if .ShowEffect}}<p>{{.Effect}}</p>{{end}}{{if and .Recovered.IsZero .Action}}<p class="incident-guidance">{{.Action}}</p>{{end}}
+<td class="incident-description" role="cell"><strong>{{.Message}}</strong>{{if .ShowEffect}}<p>{{.Effect}}</p>{{end}}
 <div class="incident-footer"><a href="/producer/stations/{{$.Station.ID}}/timeline?q={{.EventID}}#event-{{.EventID}}">View transmission</a></div></td>
 <td class="incident-state table-state-cell" role="cell">
   <div class="incident-actions">
     {{template "state-icon" (incidentStateIcon .)}}
-    {{if .Acknowledged.IsZero}}<form method="post" action="/producer/stations/{{$.Station.ID}}/incidents/{{.ID}}/acknowledge" hx-disabled-elt="find button">
-      <input type="hidden" name="csrf" value="{{$.CSRF}}"><input type="hidden" name="return_to" value="{{$.RefreshURL}}">
-      <button class="secondary incident-review-button" aria-label="Mark incident as reviewed: {{.Message}}" title="Mark as reviewed">{{template "ui-icon" "review"}}<span>Mark reviewed</span></button>
-    </form>{{else}}<span class="incident-reviewed" title="Reviewed">{{template "ui-icon" "review"}}<span>Reviewed</span></span>{{end}}
+
   </div>
 </td>
 
 </tr>{{end}}</tbody></table></div>
-{{else}}<div class="empty-state table-outline"><h2>{{if eq .IncidentReview "needed"}}No incidents need review{{else if not .IncidentReview}}No active incidents{{else}}No incidents recorded{{end}}</h2><p>{{if eq .IncidentReview "needed"}}All incidents in this history have been reviewed.{{else if not .IncidentReview}}Recovered incidents remain in All incidents.{{else}}Production failures and recoveries will appear here.{{end}}</p></div>{{end}}
+{{else}}<div class="empty-state table-outline"><h2>{{if not .IncidentReview}}No active incidents{{else}}No incidents recorded{{end}}</h2><p>Recovery is automatic. Past events remain in All incidents.</p></div>{{end}}
 {{template "pagination" .Pagination}}
 </section>
 {{end}}

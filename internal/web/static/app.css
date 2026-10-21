@@ -1357,3 +1357,9 @@ textarea{font-weight:400;line-height:1.5}
  .matrix-table .matrix-station-group>.matrix-row{background:var(--surface)}
  .matrix-table .matrix-station-group>tr:last-child{border-bottom:0}
 }
+
+/* Each station owns its column headers inside the grouped panel. */
+.matrix-table .matrix-station-headers>th{background:#edf2f6;color:var(--muted);font-size:10px;letter-spacing:.8px;text-transform:uppercase;padding:11px 14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.matrix-station-headers>:first-child{border-top-left-radius:10px}.matrix-station-headers>:last-child{border-top-right-radius:10px}
+.matrix-table .matrix-station-group>.matrix-row>th,.matrix-table .matrix-station-group>.matrix-row>td{border-top:0;border-top-left-radius:0;border-top-right-radius:0}
+@media(max-width:760px){.matrix-table .matrix-station-headers{display:none}}

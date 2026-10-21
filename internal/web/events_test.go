@@ -99,14 +99,20 @@ func TestStationEventsOnlySendChangedViewsAndKeepAuthentication(t *testing.T) {
 		t.Fatal("episode commit did not refresh dashboard")
 	}
 	event := operations.Event{ID: "dashboard-failure", StationID: "radio", Kind: "failure", Outcome: "observed", Started: time.Now(), IncidentCode: "speech", Severity: "warning", Reason: "Speech failed"}
+	if err := st.Save(ctx, station.Station{ID: "radio", Name: "Incident history updated", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Save(ctx, event); err != nil {
 		t.Fatal(err)
 	}
-	if html := receive(); !strings.Contains(html, "1 active incident") || !strings.Contains(html, `class="dashboard-attention"`) {
-		t.Fatal("dashboard missed committed incident", html)
+	if html := receive(); !strings.Contains(html, "Incident history updated") || strings.Contains(html, `class="dashboard-attention"`) {
+		t.Fatal("historical incident incorrectly changed current health", html)
 	}
 	event.ID = "dashboard-recovery"
 	event.Recover = true
+	if err := st.Save(ctx, station.Station{ID: "radio", Name: "Incident history recovered", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := store.Save(ctx, event); err != nil {
 		t.Fatal(err)
 	}

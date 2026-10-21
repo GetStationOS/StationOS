@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http/httptest"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/content"
@@ -63,7 +64,7 @@ func TestRecoveredIncidentsAgreeWithDashboardAndCurrentHealth(t *testing.T) {
 	}
 	summary = s.operationalSummary(httptest.NewRequest("GET", "/producer", nil), "radio")
 	tone, label := stationHealth(broadcast.State{Status: "Dormant"}, summary)
-	if summary.Active != 1 || tone != "warning" || !strings.Contains(label, "1 active incident") {
+	if summary.Active != 1 || tone != "neutral" || strings.Contains(label, "active incident") {
 		t.Fatal(summary, tone, label)
 	}
 	if tone, _ := stationHealth(broadcast.State{Status: "Broadcasting"}, operationSummary{}); tone != "unknown" {
@@ -93,5 +94,51 @@ func TestUpcomingArtworkUsesCheckedCatalogueRoute(t *testing.T) {
 	}
 	if w := request(h, "GET", tracks[0].Artwork, nil, nil); w.Code != 200 {
 		t.Fatal("opening artwork route failed", w.Code)
+	}
+}
+
+func TestCurrentHealthDoesNotInferFaultsFromReviewedHistoricalIncidents(t *testing.T) {
+	summary := operationSummary{Available: true, Healthy: true, Active: 4}
+	state := broadcast.State{Status: "Broadcasting", Current: content.AudioItem{ID: "now"}, PresenterStatus: "Ready", CurationStatus: "Preparing"}
+	tone, label := stationHealth(state, summary)
+	if tone != "healthy" || strings.Contains(label, "active incident") {
+		t.Fatal("historical backlog is not current health", tone, label)
+	}
+	for _, bad := range []broadcast.State{{Status: "Retrying"}, {Status: "Unavailable"}, {Status: "Broadcasting", Current: content.AudioItem{ID: "now"}, PresenterStatus: "Unavailable"}, {Status: "Broadcasting", Current: content.AudioItem{ID: "now"}, CurationStatus: "Unavailable"}} {
+		if tone, _ := stationHealth(bad, summary); tone != "warning" {
+			t.Fatal("current runtime failure was hidden", bad)
+		}
+	}
+}
+
+func TestLiveIncidentViewIsObservationalAndIgnoresOldProgrammeFaults(t *testing.T) {
+	_, stations, src, cat := setupWeb(t, "")
+	ctx := context.Background()
+	if err := stations.Save(ctx, station.Station{ID: "radio", Name: "Radio", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
+	store := persistence.Operations{DB: stations.DB}
+	for i, code := range []string{"programme", "episode-plan:old:2026-10-19T18:00:00Z", "episode-plan:older:2026-10-19T19:00:00Z", "episode-plan:ended:2026-10-19T20:00:00Z"} {
+		if err := store.Save(ctx, operations.Event{ID: fmt.Sprint("old", i), StationID: "radio", Kind: "failure", Outcome: "observed", Started: time.Now().Add(-24 * time.Hour), IncidentCode: code, Severity: "warning", Reason: "Historical planning or fallback fault"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manager := broadcast.New(persistence.Broadcast{DB: stations.DB}, tickingEncoder{}, slog.Default(), broadcast.Options{})
+	defer manager.Close()
+	h, err := New(Dependencies{Stations: stations, Sources: src, Catalogue: cat, Operations: store, Broadcast: manager})
+	if err != nil {
+		t.Fatal(err)
+	}
+	active := request(h, "GET", "/producer/stations/radio/incidents", nil, nil).Body.String()
+	if !strings.Contains(active, "No active incidents") || strings.Contains(active, "Mark reviewed") || strings.Contains(active, ">Needs review</a>") {
+		t.Fatal("incident UI imposed historical faults or manual review", active)
+	}
+	all := request(h, "GET", "/producer/stations/radio/incidents?review=all", nil, nil).Body.String()
+	if strings.Count(all, `<tr id="incident-`) != 4 || !strings.Contains(all, "Historical") {
+		t.Fatal("lost historical observations", all)
+	}
+	home := request(h, "GET", "/producer", nil, nil).Body.String()
+	if strings.Contains(home, `class="dashboard-attention"`) {
+		t.Fatal("historical records caused false station attention", home)
 	}
 }

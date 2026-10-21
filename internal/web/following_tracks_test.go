@@ -113,3 +113,17 @@ func TestDashboardOpeningTracksAndHonestEmptyStates(t *testing.T) {
 		})
 	}
 }
+
+func TestDashboardRepeatsHeadersForEveryStation(t *testing.T) {
+	tm, err := template.New("test").Funcs(templateFunctions()).ParseFS(assets, "templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var html bytes.Buffer
+	if err := tm.ExecuteTemplate(&html, "station-cards", stationDirectoryView{StationCards: []stationCard{{}, {}}}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(html.String(), `class="matrix-station-headers"`) != 2 || strings.Count(html.String(), `scope="col">Now playing</th>`) != 2 {
+		t.Fatal("missing per-station table headers", html.String())
+	}
+}

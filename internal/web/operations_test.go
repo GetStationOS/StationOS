@@ -78,8 +78,8 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 			t.Fatal("redundant overview shortcuts", overview)
 		}
 	}
-	if !strings.Contains(overview, "1 incident needs review. Review the Incidents tab.") || !strings.Contains(overview, `class="overview-live-content" hx-target="#main" hx-swap="innerHTML show:window:top"`) {
-		t.Fatal("missing actionable notice or safe navigation target", overview)
+	if strings.Contains(overview, "needs review") || !strings.Contains(overview, `class="overview-live-content" hx-target="#main" hx-swap="innerHTML show:window:top"`) {
+		t.Fatal("manual review prompt or missing safe navigation target", overview)
 	}
 	w := request(h, "GET", base+"/timeline?kind=music&from=2026-10-25&until=2026-10-25", nil, auth)
 	if !strings.Contains(html.UnescapeString(w.Body.String()), "GMT +00:00") || !strings.Contains(w.Body.String(), "Breakfast") {
@@ -118,7 +118,7 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 	if partial.Code != 200 || !strings.Contains(partial.Body.String(), `id="incident-results"`) || strings.Contains(partial.Body.String(), `aria-label="Station navigation"`) {
 		t.Fatal("incident refresh replaced workspace", partial.Code, partial.Body.String())
 	}
-	token := regexp.MustCompile(`name="csrf" value="([a-f0-9]+)"`).FindStringSubmatch(w.Body.String())[1]
+	token := regexp.MustCompile(`name="csrf" value="([a-f0-9]+)"`).FindStringSubmatch(request(h, "GET", base+"/settings", nil, auth).Body.String())[1]
 	w = request(h, "POST", base+"/incidents/failure/acknowledge", url.Values{"csrf": {token}}, auth)
 	if w.Code != 303 {
 		t.Fatalf("ack failed %d %s", w.Code, w.Body.String())
@@ -442,13 +442,13 @@ func TestIncidentTablePagination(t *testing.T) {
 	}{{"", "Showing 1–25 of 32", 25}, {"?page=2", "Showing 26–32 of 32", 7}} {
 		w := request(h, "GET", "/producer/stations/"+st.ID+"/incidents"+tc.query, nil, nil)
 		body := html.UnescapeString(w.Body.String())
-		if w.Code != 200 || !strings.Contains(body, tc.summary) || strings.Count(body, `<tr id="incident-`) != tc.rows || strings.Count(body, `class="pagination-bar"`) != 1 || !strings.Contains(body, `title="Mark as reviewed"`) {
+		if w.Code != 200 || !strings.Contains(body, tc.summary) || strings.Count(body, `<tr id="incident-`) != tc.rows || strings.Count(body, `class="pagination-bar"`) != 1 || strings.Contains(body, `title="Mark as reviewed"`) {
 			t.Fatalf("incident pagination: %d %s", w.Code, body)
 		}
 	}
 }
 
-func TestIncidentViewsAndReviewPreserveHistory(t *testing.T) {
+func TestIncidentObservationPreservesHistory(t *testing.T) {
 	ctx := context.Background()
 	db, err := persistence.Open(ctx, ":memory:")
 	if err != nil {
@@ -479,15 +479,13 @@ func TestIncidentViewsAndReviewPreserveHistory(t *testing.T) {
 	if !strings.Contains(body, "active source unavailable") || strings.Contains(body, "old source unavailable") || strings.Contains(body, "/delete") {
 		t.Fatal("default must show only active incidents", body)
 	}
-	token := regexp.MustCompile(`name="csrf" value="([a-f0-9]+)"`).FindStringSubmatch(body)[1]
-	w = request(h, "POST", base+"/active/acknowledge", url.Values{"csrf": {token}, "return_to": {base + "?review=needed&per_page=50"}}, nil)
-	if w.Code != 303 || !strings.Contains(w.Header().Get("Location"), "review=needed") {
-		t.Fatal("lost review filter", w.Code, w.Header())
+	if strings.Contains(body, "Mark reviewed") || strings.Contains(body, ">Needs review</a>") {
+		t.Fatal("incident history requires manual review", body)
 	}
 	for _, tc := range []struct {
 		query       string
 		active, old bool
-	}{{"", true, false}, {"?review=needed", false, true}, {"?review=all", true, true}} {
+	}{{"", true, false}, {"?review=needed", true, false}, {"?review=all", true, true}} {
 		w = request(h, "GET", base+tc.query, nil, nil)
 		body = w.Body.String()
 		if w.Code != 200 || strings.Contains(body, "active source unavailable") != tc.active || strings.Contains(body, "old source unavailable") != tc.old {
@@ -495,8 +493,8 @@ func TestIncidentViewsAndReviewPreserveHistory(t *testing.T) {
 		}
 	}
 	indicator := request(h, "GET", "/producer/stations/"+st.ID+"/operations/indicator", nil, nil)
-	if strings.TrimSpace(indicator.Body.String()) != "" {
-		t.Fatal("reviewed incident still warns in menu", indicator.Body.String())
+	if !strings.Contains(indicator.Body.String(), "1 active incident") {
+		t.Fatal("active incident missing from menu", indicator.Body.String())
 	}
 	rows, err := store.Incidents(ctx, st.ID, false)
 	if err != nil || len(rows) != 2 {

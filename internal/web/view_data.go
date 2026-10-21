@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -203,9 +202,6 @@ func (s *Server) followingTracks(ctx context.Context, next schedule.Occurrence) 
 // Live capability flags only describe an active producer, never an old show.
 func stationHealth(state broadcast.State, summary operationSummary) (string, string) {
 	var reasons []string
-	if summary.Active > 0 {
-		reasons = append(reasons, fmt.Sprintf("%d active incident%s", summary.Active, map[bool]string{true: "", false: "s"}[summary.Active == 1]))
-	}
 	if state.Status == "Retrying" || state.Status == "Unavailable" {
 		reasons = append(reasons, "Output "+strings.ToLower(state.Status))
 	}
@@ -230,15 +226,15 @@ func stationHealth(state broadcast.State, summary operationSummary) (string, str
 		return "unknown", "Health monitoring unavailable"
 	}
 	if state.Status == "Dormant" {
-		return "neutral", "Dormant · no active incidents"
+		return "neutral", "Dormant · no current runtime faults"
 	}
 	if state.Status == "Starting" {
-		return "neutral", "Starting · no active incidents"
+		return "neutral", "Starting · no current runtime faults"
 	}
 	if state.Status != "Broadcasting" {
 		return "unknown", "Output health unknown"
 	}
-	return "healthy", "Broadcasting · no active incidents"
+	return "healthy", "Broadcasting · no current runtime faults"
 }
 
 func (s *Server) followingArtwork(ctx context.Context, stationID string, tracks []episodes.Track) []cardTrack {

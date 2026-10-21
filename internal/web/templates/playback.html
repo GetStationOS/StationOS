@@ -12,10 +12,11 @@
     <section class="station-matrix" aria-label="Station output">
       <div class="matrix-heading"><h2>Live stations</h2><span>Programme &amp; playback</span></div>
       <table class="matrix-table">
-        <thead><tr><th scope="col">Station / output</th><th scope="col">Programme</th><th scope="col">Now playing</th><th scope="col">Up next</th><th scope="col">Audience</th></tr></thead>
+
         {{range .StationCards}}
         <tbody class="matrix-station-group" id="station-group-{{.Station.ID}}" aria-label="{{.Station.Name}}">
           <tr class="matrix-group-gap" aria-hidden="true"><td colspan="5"></td></tr>
+          <tr class="matrix-station-headers"><th scope="col">Station / output</th><th scope="col">Programme</th><th scope="col">Now playing</th><th scope="col">Up next</th><th scope="col">Audience</th></tr>
           <tr class="matrix-row{{if eq .Broadcast.Status "Dormant"}} matrix-dormant{{end}}" data-station-card="{{.Station.ID}}" hx-target="#main" hx-swap="innerHTML show:window:top">
             <th scope="row" class="matrix-identity">
               <div class="matrix-station-name">

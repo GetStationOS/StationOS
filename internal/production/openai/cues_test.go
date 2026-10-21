@@ -131,7 +131,7 @@ func TestCapabilityChangesInvalidatePreparedSpeech(t *testing.T) {
 	}
 }
 
-func TestRequiredCueFallbackReachesSpeechAndTranscript(t *testing.T) {
+func TestMissingGeneratorCueRemainsAbsentInSpeechAndTranscript(t *testing.T) {
 	for _, kind := range []string{"normal", "handover", "audience", "presentation"} {
 		t.Run(kind, func(t *testing.T) {
 			speech := &cueSpeech{capabilities: cueCatalogue()}
@@ -162,16 +162,16 @@ func TestRequiredCueFallbackReachesSpeechAndTranscript(t *testing.T) {
 				}
 			}
 			for _, q := range speech.requests {
-				if strings.Count(q.Text, "[") != 1 || !strings.Contains(q.Text, "[chuckle]") {
-					t.Fatal("missing required cue", q.Text)
+				if strings.ContainsAny(q.Text, "[]") {
+					t.Fatal("cue was inserted despite generator omission", q.Text)
 				}
 			}
 		})
 	}
 }
-func TestRequiredCueUsesAdvertisedFallbackAndPreservesValidChoice(t *testing.T) {
+func TestCueCleaningNeverInsertsAndPreservesGeneratorPlacement(t *testing.T) {
 	caps := djs.SpeechCapabilities{InlineCues: []djs.InlineCue{{Tag: "[sigh]", Name: "Sigh"}, {Tag: "[laugh]", Name: "Laugh"}}}
-	for _, tc := range []struct{ input, want string }{{"Welcome.", "[sigh] Welcome."}, {"[laugh] Welcome.", "[laugh] Welcome."}, {"[laugh] Welcome. [sigh]", "[laugh] Welcome."}, {"[unsupported] Welcome.", "[sigh] Welcome."}} {
+	for _, tc := range []struct{ input, want string }{{"Welcome.", "Welcome."}, {"[laugh] Welcome.", "[laugh] Welcome."}, {"[laugh] Welcome. [sigh]", "[laugh] Welcome."}, {"[unsupported] Welcome.", "Welcome."}, {"Welcome. [sigh] What a night.", "Welcome. [sigh] What a night."}} {
 		got, err := cleanSpeechCues(tc.input, caps)
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)

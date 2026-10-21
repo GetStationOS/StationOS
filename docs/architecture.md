@@ -997,9 +997,9 @@ speech or run in a background polling loop.
 
 For the explicit cue test, every nonempty link/introduction/sign-off must have
 exactly one advertised cue. This overrides the earlier sparse-cue policy. The
-generator chooses the sound; omitted cues receive a deterministic supported
-fallback (prefer chuckle, otherwise the first advertised tag). Valid existing
-cues are retained, and recent cue usage does not disable this test requirement.
+generator must choose and write the sound, varying its choice and placement.
+StationOS never inserts a missing cue, so omissions remain visible when testing
+the prompt. Valid existing cues retain their original placement.
 Unknown/excess complete tags are stripped before synthesis; malformed brackets
 and cue-only utterances are rejected. Normal optional-link silence, response
 formats, editorial facts, handovers and approved audience requirements remain.

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/schedule"
 	"time"
 )
@@ -188,4 +189,10 @@ func ReportSpeechProvenance(ctx context.Context, value SpeechProvenance) {
 	if report, ok := ctx.Value(speechProvenanceKey{}).(func(SpeechProvenance)); ok {
 		report(value)
 	}
+}
+
+// SpeechCapabilitySource reports capabilities for the actual selected endpoint
+// and model. Missing metadata never implies cue support.
+type SpeechCapabilitySource interface {
+	SpeechCapabilities(context.Context, string) (djs.SpeechCapabilities, error)
 }

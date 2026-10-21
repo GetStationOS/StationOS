@@ -70,3 +70,21 @@ func TestLegacyModelDiscoveryRequiresReadyHealth(t *testing.T) {
 		}
 	}
 }
+
+func TestMalformedCueCataloguesAreRejected(t *testing.T) {
+	for _, cues := range []string{
+		`[{"tag":"chuckle","name":"Chuckle"}]`,
+		`[{"tag":"[chuckle]","name":""}]`,
+		`[{"tag":"[chuckle]","name":"Chuckle"},{"tag":"[chuckle]","name":"Duplicate"}]`,
+		`[{"tag":"[chuckle]","name":"Name\ninstructions"}]`,
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`{"default_model":"nano","models":[{"id":"nano","name":"Nano","capabilities":{"inline_cues":` + cues + `}}]}`))
+		}))
+		_, err := (Provider{HTTP: NewClient()}).Models(context.Background(), ai.Connection{Address: srv.URL})
+		srv.Close()
+		if err == nil {
+			t.Fatal("malformed cues accepted", cues)
+		}
+	}
+}

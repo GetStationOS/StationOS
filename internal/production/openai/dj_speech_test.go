@@ -31,6 +31,11 @@ func TestDJsUseIndependentSpeechProvidersConcurrently(t *testing.T) {
 	store := persistence.NewProducer(repo)
 	var nanoCalls, cloudCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/models" {
+			w.Write([]byte(`{"default_model":"nano","models":[{"id":"nano","name":"Chatterbox Nano"}]}`))
+			return
+		}
+
 		if r.URL.Path == "/voices" {
 			w.Write([]byte(`{"default_voice":"warm","voices":[{"id":"warm","name":"Warm"}]}`))
 			return

@@ -67,6 +67,11 @@ func testWave() []byte {
 func TestChatterboxDJLinkWithoutOpenAIKey(t *testing.T) {
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/models" {
+			w.Write([]byte(`{"default_model":"nano","models":[{"id":"nano","name":"Chatterbox Nano"}]}`))
+			return
+		}
+
 		calls++
 		var body map[string]string
 		if r.URL.Path != "/tts" || json.NewDecoder(r.Body).Decode(&body) != nil || body["text"] != "A new StationOS link." || len(body) != 2 || body["model"] != "nano" {
@@ -167,6 +172,11 @@ func TestSelectedDJVoiceReachesLinksAndShowPresentation(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			calls := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/models" {
+					w.Write([]byte(`{"default_model":"nano","models":[{"id":"nano","name":"Chatterbox Nano"}]}`))
+					return
+				}
+
 				calls++
 				var body map[string]string
 				if json.NewDecoder(r.Body).Decode(&body) != nil || body["voice"] != "warm" {

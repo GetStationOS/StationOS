@@ -19,9 +19,7 @@ func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) (au
 	}
 	meta := production.SpeechProvenance{Provider: conn.Type, ProviderName: conn.Name, Connection: conn.ID, Model: q.Model, Voice: q.Voice}
 	if conn.Type == "chatterbox" {
-		if meta.Model == "" || meta.Model == "chatterbox-nano" || (q.Connection == "" && (meta.Model == djs.DefaultSpeechModel || meta.Model == "tts-1" || meta.Model == "tts-1-hd")) {
-			meta.Model = "nano"
-		}
+		meta.Model = chatterboxModel(q.Connection, meta.Model)
 		if q.Connection == "" {
 			meta.Voice = q.SpeechVoices[conn.ID]
 		}
@@ -130,4 +128,36 @@ func (r *Router) SpeechModelChoices(parent context.Context, id string) ([]djs.Sp
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
 	defer cancel()
 	return r.Chatterbox.Models(ctx, conn)
+}
+
+func chatterboxModel(connection, model string) string {
+	if model == "" || model == "chatterbox-nano" || (connection == "" && (model == djs.DefaultSpeechModel || model == "tts-1" || model == "tts-1-hd")) {
+		return "nano"
+	}
+	return model
+}
+func (r *Router) SpeechCapabilities(ctx context.Context, model string) (djs.SpeechCapabilities, error) {
+	_, conn, _, err := r.selection(ctx, "speech")
+	if err != nil {
+		return djs.SpeechCapabilities{}, err
+	}
+	if conn.Type != "chatterbox" {
+		return djs.SpeechCapabilities{}, nil
+	}
+	model = chatterboxModel(djs.SpeechConnection(ctx), model)
+	choices, err := r.SpeechModelChoices(ctx, conn.ID)
+	if err == nil {
+		for _, m := range choices {
+			if m.ID == model {
+				return m.Capabilities, nil
+			}
+		}
+		err = errors.New("The selected Chatterbox model was not found in its capability catalogue")
+	}
+	logger := r.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.WarnContext(ctx, "Speech capabilities unavailable; inline cues disabled", "speech_connection", conn.ID, "speech_model", model, "error", err)
+	return djs.SpeechCapabilities{}, err
 }

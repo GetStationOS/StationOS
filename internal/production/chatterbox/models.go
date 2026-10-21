@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/production"
@@ -69,6 +70,16 @@ func (p Provider) Models(ctx context.Context, conn ai.Connection) ([]djs.SpeechM
 		if !ai.ValidModel(m.ID) || strings.TrimSpace(m.Name) == "" || len(m.Name) > 200 || seen[m.ID] {
 			return nil, errors.New("Invalid Chatterbox model catalogue")
 		}
+		if len(m.Capabilities.InlineCues) > 32 {
+			return nil, errors.New("Chatterbox inline cue catalogue exceeds limits")
+		}
+		tags := map[string]bool{}
+		for _, cue := range m.Capabilities.InlineCues {
+			if len(cue.Tag) > 48 || !inlineCueTag.MatchString(cue.Tag) || strings.TrimSpace(cue.Name) == "" || len(cue.Name) > 80 || strings.ContainsFunc(cue.Name, func(r rune) bool { return r < 32 || r == 127 }) || tags[cue.Tag] {
+				return nil, errors.New("Invalid Chatterbox inline cue catalogue")
+			}
+			tags[cue.Tag] = true
+		}
 		seen[m.ID] = true
 	}
 	if !seen[out.Default] {
@@ -76,3 +87,5 @@ func (p Provider) Models(ctx context.Context, conn ai.Connection) ([]djs.SpeechM
 	}
 	return out.Models, nil
 }
+
+var inlineCueTag = regexp.MustCompile(`^\[[a-z]+(?: [a-z]+)*\]$`)

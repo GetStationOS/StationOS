@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/production"
 	"testing"
 
@@ -81,4 +83,56 @@ func routingWave() []byte {
 	copy(b[36:], "data")
 	binary.LittleEndian.PutUint32(b[40:], 2)
 	return b
+}
+
+func TestCueCapabilitiesFollowDJEndpointAndExactModel(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method != "GET" || r.URL.Path != "/models" {
+			t.Error("capability discovery generated audio", r.Method, r.URL)
+		}
+		w.Write([]byte(`{"default_model":"nano","models":[{"id":"nano","name":"Nano","capabilities":{"inline_cues":[{"tag":"[chuckle]","name":"Chuckle"}]}},{"id":"turbo","name":"Turbo","capabilities":{"inline_cues":[{"tag":"[clear throat]","name":"Clear throat"}]}},{"id":"original","name":"Original","capabilities":{"inline_cues":[]}}]}`))
+	}))
+	defer srv.Close()
+	store := &testStore{connections: map[string]ai.Connection{"dj": {ID: "dj", Type: "chatterbox", Address: srv.URL}, "cloud": {ID: "cloud", Type: "openai"}}, keys: map[string]string{"cloud": "cloud-key"}, routes: ai.Routes{Speech: ai.Selection{Connection: "cloud"}}}
+	r := New(store, nil)
+	ctx := djs.WithSpeechConnection(context.Background(), "dj")
+	for _, tc := range []struct{ model, tag string }{{"nano", "[chuckle]"}, {"chatterbox-nano", "[chuckle]"}, {"turbo", "[clear throat]"}, {"original", ""}} {
+		caps, err := r.SpeechCapabilities(ctx, tc.model)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tc.tag == "" {
+			if len(caps.InlineCues) != 0 {
+				t.Fatal(caps)
+			}
+		} else if len(caps.InlineCues) != 1 || caps.InlineCues[0].Tag != tc.tag || caps.InlineCues[0].Name == "" {
+			t.Fatal(caps)
+		}
+	}
+	before := calls
+	caps, err := r.SpeechCapabilities(context.Background(), "gpt-4o-mini-tts")
+	if err != nil || len(caps.InlineCues) != 0 || calls != before {
+		t.Fatal("Chatterbox capabilities leaked to OpenAI", caps, err)
+	}
+}
+
+func TestLiveChatterboxCueCapabilities(t *testing.T) {
+	address := os.Getenv("STATIONOS_CHATTERBOX_TEST_URL")
+	if address == "" {
+		t.Skip("set STATIONOS_CHATTERBOX_TEST_URL for metadata-only live test")
+	}
+	store := &testStore{connections: map[string]ai.Connection{"live": {ID: "live", Type: "chatterbox", Address: address}}, routes: ai.Routes{Speech: ai.Selection{Connection: "live"}}}
+	router := New(store, nil)
+	for _, tc := range []struct {
+		model string
+		count int
+	}{{"nano", 9}, {"turbo", 9}, {"original", 0}} {
+		caps, err := router.SpeechCapabilities(context.Background(), tc.model)
+		if err != nil || len(caps.InlineCues) != tc.count {
+			t.Fatal(tc.model, caps, err)
+		}
+		t.Logf("%s: %d advertised cues", tc.model, len(caps.InlineCues))
+	}
 }

@@ -983,3 +983,24 @@ preserves unavailable saved choices and retains per-endpoint drafts. Production
 sends the exact selected ID to /tts and records it in speech provenance. Legacy
 chatterbox-nano selections map to nano; no model is silently substituted after a
 generation failure. Turbo appears only when advertised by the server.
+
+
+### Model-advertised inline speech cues
+
+Chatterbox GET /models may supply capabilities.inline_cues as tag/name pairs.
+StationOS validates bounded unique tags and names, then passes only the selected
+DJ endpoint/model's list to the speech-writing generator alongside the shared
+producer prompts and DJ personality. No model-name allowlist is used. Missing,
+empty or unavailable capability data disables cues; normal speech can continue.
+OpenAI and ElevenLabs do not inherit Chatterbox cues. Discovery does not generate
+speech or run in a background polling loop.
+
+The delivery rules favour natural language: most links have no cue, at most one
+per link/introduction/sign-off, only when context and personality justify it,
+with no cue-only speech or repeated cues from the most recent aired speech.
+Unknown/excess complete tags are stripped before synthesis; malformed brackets
+and cue-only utterances are rejected. Normal optional-link silence, response
+formats, editorial facts, handovers and approved audience requirements remain.
+The final synthesized text, including accepted tags, is the timeline transcript.
+Capability-dependent delivery instructions participate in prepared-audio identity
+so changed capabilities invalidate prior prepared speech.

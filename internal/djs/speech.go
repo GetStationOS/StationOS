@@ -20,9 +20,17 @@ type SpeechSelection struct {
 	Connection string           `json:"connection"`
 	Settings   SpeechPreference `json:"settings"`
 }
-type SpeechModel struct {
-	ID   string `json:"id"`
+type InlineCue struct {
+	Tag  string `json:"tag"`
 	Name string `json:"name"`
+}
+type SpeechCapabilities struct {
+	InlineCues []InlineCue `json:"inline_cues"`
+}
+type SpeechModel struct {
+	Capabilities SpeechCapabilities `json:"capabilities"`
+	ID           string             `json:"id"`
+	Name         string             `json:"name"`
 }
 type SpeechModelSource interface {
 	SpeechModelChoices(context.Context, string) ([]SpeechModel, error)

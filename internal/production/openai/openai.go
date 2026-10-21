@@ -157,7 +157,8 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil {
 		return production.Prepared{}, err
 	}
-	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + show.DJ.Prompt, background, speechContinuityInstructions}, "\n\n")
+	capabilities := p.speechCapabilities(ctx, speechModel)
+	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + show.DJ.Prompt, background, speechContinuityInstructions, speechCueInstructions(capabilities)}, "\n\n")
 	speechIdentity := ""
 	if p.Speech != nil {
 		speechIdentity, err = p.Speech.Identity(ctx, "speech")
@@ -185,6 +186,14 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	}
 	plan.NextKey = next.Key
 	if err = production.ValidatePresentation(plan); err != nil {
+		return production.Prepared{}, err
+	}
+	plan.IntroText, err = cleanSpeechCues(plan.IntroText, capabilities)
+	if err != nil {
+		return production.Prepared{}, err
+	}
+	plan.OutroText, err = cleanSpeechCues(plan.OutroText, capabilities)
+	if err != nil {
 		return production.Prepared{}, err
 	}
 	prepared := production.Prepared{Plan: plan}
@@ -270,7 +279,8 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if err != nil {
 		return nil, nil, err
 	}
-	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions}, "\n\n")
+	capabilities := p.speechCapabilities(ctx, speechModel)
+	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions, speechCueInstructions(capabilities)}, "\n\n")
 	body := map[string]any{"model": link.Show.DJ.Model, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
 	// An explicit JSON field makes silence distinguishable from an empty or
 	// incomplete provider response across every supported inference adapter.
@@ -376,6 +386,10 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	}
 	if len(spoken) == 0 || len(spoken) > maxSpeechBytes {
 		return nil, nil, errors.New("presenter link exceeds limits")
+	}
+	spoken, err = cleanSpeechCues(spoken, capabilities)
+	if err != nil {
+		return nil, nil, err
 	}
 	raw, err = p.synthesize(ctx, speechRequest(link.Show.DJ, spoken, speechModel))
 	if err != nil {

@@ -3,7 +3,7 @@
 <div class="source-list">
   {{range .SourceCards}}
   <article class="source-row">
-    <span class="station-avatar" aria-hidden="true">↗</span>
+    <span class="station-avatar" aria-hidden="true">{{template "ui-icon" "music"}}</span>
     <div class="source-identity">
       <h2>
         <a href="/producer/sources/{{.Source.ID}}">{{.Source.Name}}</a>

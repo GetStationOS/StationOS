@@ -35,6 +35,7 @@ type Encoder interface {
 }
 type State struct {
 	SpeechText             string
+	SpeechProvenance       production.SpeechProvenance
 	AINotice               string
 	CurationStatus         string
 	RepeatRelaxed          bool
@@ -415,6 +416,7 @@ type selectionResult struct {
 }
 
 type linkResult struct {
+	provenance       production.SpeechProvenance
 	text             string
 	audienceIDs      []string
 	audienceValidIDs []string
@@ -727,6 +729,9 @@ func (m *Manager) playProgramme(id string, r *run) {
 					checkpoint = bytes
 				}
 				if !started {
+					if event.Kind == "speech" {
+						m.logger.Info("DJ speech aired", "station_id", id, "event_id", event.ID, "dj_id", event.DJID, "phase", event.Phase, "speech_provider", event.SpeechProvider, "speech_connection", event.SpeechConnection, "speech_model", event.SpeechModel, "speech_voice", event.SpeechVoice)
+					}
 					started = true
 					if len(audienceIDs) > 0 && m.options.Audience != nil {
 						ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 2*time.Second)
@@ -864,9 +869,11 @@ func (m *Manager) playProgramme(id string, r *run) {
 			outro := []byte(nil)
 			var outroVoice *preparedSpeech
 			outroText := oldPrepared.Plan.OutroText
+			outroProvenance := oldPrepared.OutroSpeech
 			if link != nil && link.request.Handover && link.request.Following.Key == timeline.Current.Key {
 				outro = link.audio
 				outroText = link.text
+				outroProvenance = link.provenance
 				outroVoice = link.speech
 			} else if oldPrepared.Plan.NextKey == timeline.Current.Key {
 				outro = oldPrepared.Outro
@@ -874,7 +881,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 			}
 			if len(outro) > 0 {
 				cue := content.AudioItem{ID: "handover:" + playing.Key, Title: "Handover", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
-				stream(speechAudio(outro, outroVoice), State{Status: "Broadcasting", Programme: playing, Following: timeline.Current, Current: cue, SpeechText: outroText, Phase: "handover", PresenterStatus: "Speaking"})
+				stream(speechAudio(outro, outroVoice), State{Status: "Broadcasting", Programme: playing, Following: timeline.Current, Current: cue, SpeechText: outroText, SpeechProvenance: outroProvenance, Phase: "handover", PresenterStatus: "Speaking"})
 			}
 			// A long outgoing track may span more than one short show. Resolve again
 			// after speech instead of starting a show which has already ended.
@@ -977,7 +984,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		if musicErr == nil && linkUsable && !changing && link != nil && !link.request.Handover && link.request.Show.Key == playing.Key && link.request.Next.ID == current.ID && len(link.audio) > 0 {
 			cue := content.AudioItem{ID: "link:" + playing.Key + ":" + current.ID, Title: "DJ link", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
-			spoke, speechErr := stream(speechAudio(link.audio, link.speech), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, SpeechText: link.text, Phase: "chatter", PresenterStatus: "Speaking"}, link.audienceIDs...)
+			spoke, speechErr := stream(speechAudio(link.audio, link.speech), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, SpeechText: link.text, SpeechProvenance: link.provenance, Phase: "chatter", PresenterStatus: "Speaking"}, link.audienceIDs...)
 			if spoke && speechErr == nil {
 				for _, requestID := range requestIDs(m.approvedAudience(r.ctx, playing, playoutNow()), current.ID) {
 					for _, announcedID := range link.audienceValidIDs {
@@ -990,7 +997,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 			introPlayed = true
 		} else if musicErr == nil && ready && !introPlayed && len(plan.Intro) > 0 {
 			cue := content.AudioItem{ID: "intro:" + playing.Key, Title: "Show introduction", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
-			stream(speechAudio(plan.Intro, preparedVoices[key].intro), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, SpeechText: plan.Plan.IntroText, Phase: "chatter", PresenterStatus: "Speaking"})
+			stream(speechAudio(plan.Intro, preparedVoices[key].intro), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, SpeechText: plan.Plan.IntroText, SpeechProvenance: plan.IntroSpeech, Phase: "chatter", PresenterStatus: "Speaking"})
 			introPlayed = true
 		}
 		oldPrepared = plan
@@ -1133,7 +1140,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 						return
 					}
 					var transcript string
-					transcriptCtx := production.WithSpeechTranscript(linkCtx, func(text string) { transcript = text })
+					var provenance production.SpeechProvenance
+					transcriptCtx := production.WithSpeechTranscript(production.WithSpeechProvenance(linkCtx, func(value production.SpeechProvenance) { provenance = value }), func(text string) { transcript = text })
 					audio, audienceIDs, audienceValidIDs, err := m.audienceLink(production.WithInferenceNotice(transcriptCtx, func(message string) {
 						select {
 						case inferenceNotices <- inferenceNotice{req.Show.Key, message}:
@@ -1145,7 +1153,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 						speech, err = m.prepareSpeech(linkCtx, id, audio)
 					}
 					if err != nil && !errors.Is(err, context.Canceled) {
-						m.logger.Warn("DJ link unavailable", "station_id", id, "error", err)
+						m.logger.Warn("DJ link unavailable", "station_id", id, "speech_provider", provenance.Provider, "speech_connection", provenance.Connection, "speech_model", provenance.Model, "speech_voice", provenance.Voice, "error", err)
 						m.observe(id, "ai", "DJ speech preparation failed; music continues", State{Programme: req.Show}, "speech", false)
 					}
 					if err == nil && len(audio) > 0 {
@@ -1162,7 +1170,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 						}
 					}
 					select {
-					case out <- linkResult{text: transcript, request: req, audio: audio, speech: speech, err: err, audienceIDs: audienceIDs, audienceValidIDs: audienceValidIDs}:
+					case out <- linkResult{provenance: provenance, text: transcript, request: req, audio: audio, speech: speech, err: err, audienceIDs: audienceIDs, audienceValidIDs: audienceValidIDs}:
 					case <-linkCtx.Done():
 					}
 				}()

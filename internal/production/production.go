@@ -24,8 +24,9 @@ type Plan struct {
 	NextKey   string `json:"next_key"`
 }
 type Prepared struct {
-	Plan         Plan
-	Intro, Outro []byte
+	IntroSpeech, OutroSpeech SpeechProvenance
+	Plan                     Plan
+	Intro, Outro             []byte
 }
 type Producer interface {
 	Prepare(context.Context, schedule.Occurrence, schedule.Occurrence) (Prepared, error)
@@ -170,4 +171,20 @@ type Speech interface {
 	SpeechGenerator
 	Identity(context.Context, string) (string, error)
 	Budget(context.Context, string) (time.Duration, error)
+}
+
+// SpeechProvenance is captured by the adapter that sends the synthesis request.
+// Empty fields mean unknown, never inferred from a later DJ profile.
+type SpeechProvenance struct {
+	Provider, Connection, Model, Voice string
+}
+type speechProvenanceKey struct{}
+
+func WithSpeechProvenance(ctx context.Context, report func(SpeechProvenance)) context.Context {
+	return context.WithValue(ctx, speechProvenanceKey{}, report)
+}
+func ReportSpeechProvenance(ctx context.Context, value SpeechProvenance) {
+	if report, ok := ctx.Value(speechProvenanceKey{}).(func(SpeechProvenance)); ok {
+		report(value)
+	}
 }

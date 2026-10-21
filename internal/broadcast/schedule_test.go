@@ -37,6 +37,7 @@ type readyLinks struct{ called chan production.LinkRequest }
 func (p readyLinks) Link(ctx context.Context, r production.LinkRequest) ([]byte, error) {
 	p.called <- r
 	production.ReportSpeechTranscript(ctx, "Handing over to the next presenter.")
+	production.ReportSpeechProvenance(ctx, production.SpeechProvenance{Provider: "chatterbox", Connection: "nano", Model: "chatterbox-nano", Voice: "alex"})
 	return []byte("HANDOVER"), nil
 }
 func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
@@ -117,7 +118,7 @@ func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
 		}
 		if e.Kind == "speech" {
 			speech++
-			if e.Speech != "Handing over to the next presenter." || e.DJ != "Alex" {
+			if e.Speech != "Handing over to the next presenter." || e.DJ != "Alex" || e.SpeechProvider != "chatterbox" || e.SpeechConnection != "nano" || e.SpeechModel != "chatterbox-nano" || e.SpeechVoice != "alex" {
 				t.Fatalf("speech attribution: %+v", e)
 			}
 		}

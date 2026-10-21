@@ -13,6 +13,7 @@ import (
 )
 
 type Event struct {
+	SpeechProvider, SpeechConnection, SpeechModel, SpeechVoice      string
 	ID, StationID, Kind, Outcome                                    string
 	Started, Ended                                                  time.Time
 	AudioBytes                                                      int64

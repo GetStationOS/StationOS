@@ -93,7 +93,12 @@ func TestDJsUseIndependentSpeechProvidersConcurrently(t *testing.T) {
 			p := base
 			p.Text = &localText{reply: tc.text}
 			p.Speech = router
-			out, err := p.Link(ctx, production.LinkRequest{Show: schedule.Occurrence{DJ: tc.dj}})
+			var meta production.SpeechProvenance
+			linkCtx := production.WithSpeechProvenance(ctx, func(value production.SpeechProvenance) { meta = value })
+			out, err := p.Link(linkCtx, production.LinkRequest{Show: schedule.Occurrence{DJ: tc.dj}})
+			if meta.Connection != tc.dj.SpeechConnection || meta.Model != tc.dj.SpeechModel || meta.Voice != tc.dj.ActiveSpeech().Voice {
+				t.Error("speech receipt crossed DJs", meta, tc.dj.Name)
+			}
 			if err != nil || !strings.HasPrefix(string(out), tc.prefix) {
 				t.Error("wrong DJ speech output", tc.dj.Name, string(out), err)
 			}

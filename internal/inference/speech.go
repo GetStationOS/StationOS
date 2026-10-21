@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/production"
 	"time"
@@ -10,19 +11,45 @@ import (
 
 // Synthesize routes only explicitly selected speech providers. OpenAI retains its
 // original production adapter, including voices, direction, speed and retries.
-func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) ([]byte, error) {
+func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) (audio []byte, resultErr error) {
 	ctx = djs.WithSpeechConnection(ctx, q.Connection)
 	_, conn, key, err := r.selection(ctx, "speech")
 	if err != nil {
 		return nil, err
 	}
+	meta := production.SpeechProvenance{Provider: conn.Type, Connection: conn.ID, Model: q.Model, Voice: q.Voice}
+	if conn.Type == "chatterbox" {
+		meta.Model = "chatterbox-nano"
+		if q.Connection == "" {
+			meta.Voice = q.SpeechVoices[conn.ID]
+		}
+		if meta.Voice == "" {
+			meta.Voice = "(server default)"
+		}
+	}
+	production.ReportSpeechProvenance(ctx, meta)
+	logger := r.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	started := time.Now()
+	defer func() {
+		attrs := []any{"speech_provider", meta.Provider, "speech_connection", meta.Connection, "speech_model", meta.Model, "speech_voice", meta.Voice, "elapsed", time.Since(started)}
+		if resultErr != nil {
+			attrs = append(attrs, "error", resultErr)
+			logger.WarnContext(ctx, "DJ speech synthesis failed", attrs...)
+		} else {
+			logger.InfoContext(ctx, "DJ speech generated", attrs...)
+		}
+	}()
+	q.Connection = conn.ID
 	switch conn.Type {
 	case "elevenlabs":
 		return r.Local.elevenSpeech(ctx, conn, key, q)
 	case "chatterbox":
-		voice := q.SpeechVoices[conn.ID]
-		if q.Connection != "" {
-			voice = q.Voice
+		voice := meta.Voice
+		if voice == "(server default)" {
+			voice = ""
 		}
 		return r.Chatterbox.Synthesize(ctx, conn, q.Text, voice)
 	case "openai":

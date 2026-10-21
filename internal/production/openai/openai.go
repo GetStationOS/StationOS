@@ -188,20 +188,20 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		return production.Prepared{}, err
 	}
 	prepared := production.Prepared{Plan: plan}
-	speech := func(text string) ([]byte, error) {
+	speech := func(text string, meta *production.SpeechProvenance) ([]byte, error) {
 		if strings.TrimSpace(text) == "" {
 			return nil, nil
 		}
-		raw, err := p.synthesize(ctx, speechRequest(show.DJ, text, speechModel))
+		raw, err := p.synthesize(production.WithSpeechProvenance(ctx, func(value production.SpeechProvenance) { *meta = value }), speechRequest(show.DJ, text, speechModel))
 		if err != nil {
 			return nil, err
 		}
 		return p.Audio.MP3(ctx, raw)
 	}
-	if prepared.Intro, err = speech(plan.IntroText); err != nil {
+	if prepared.Intro, err = speech(plan.IntroText, &prepared.IntroSpeech); err != nil {
 		return production.Prepared{}, err
 	}
-	if prepared.Outro, err = speech(plan.OutroText); err != nil {
+	if prepared.Outro, err = speech(plan.OutroText, &prepared.OutroSpeech); err != nil {
 		return production.Prepared{}, err
 	}
 	if p.Store != nil {
@@ -514,6 +514,7 @@ func (p Producer) synthesize(ctx context.Context, q production.SpeechRequest) ([
 
 // Synthesize retains the existing OpenAI transport and retry behaviour.
 func (p Producer) Synthesize(ctx context.Context, q production.SpeechRequest) ([]byte, error) {
+	production.ReportSpeechProvenance(ctx, production.SpeechProvenance{Provider: "openai", Connection: q.Connection, Model: q.Model, Voice: q.Voice})
 	key, err := p.Keys.APIKey(ctx, "")
 	if err != nil {
 		return nil, err

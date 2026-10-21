@@ -961,3 +961,15 @@ settings, so hide OpenAI speed and direction controls while preserving them.
 Model and voice discovery never generate speech. Keep credentials encrypted on
 the shared endpoint and retain saved unavailable choices during discovery failure.
 See [elevenlabs.md](elevenlabs.md) for setup and API boundaries.
+
+
+### Aired DJ speech provenance
+
+DJ links on the Timeline show the provider, endpoint ID, model and voice ID
+captured at synthesis, alongside the transcript. These immutable receipts travel
+with prepared audio through caching, playback and handover. Current DJ settings
+never backfill older recordings; missing metadata is explicitly Not recorded.
+Generation/failure and actual airing logs include speech_provider, speech_connection,
+speech_model and speech_voice. A Chatterbox server-default selection is labelled
+as such: StationOS does not claim to know the server's underlying reference audio.
+Existing JSON snapshots retain the metadata without a schema migration.

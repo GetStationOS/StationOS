@@ -591,10 +591,10 @@ func (s *Server) exportOperations(w http.ResponseWriter, r *http.Request, f oper
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="station-transmissions.csv"`)
 	writer := csv.NewWriter(w)
-	_ = writer.Write([]string{"Started", "Ended", "Type", "Title", "Artist", "Album", "Composer", "Show", "DJ", "Playlist", "Duration", "Outcome", "Notes", "Spoken text"})
+	_ = writer.Write([]string{"Started", "Ended", "Type", "Title", "Artist", "Album", "Composer", "Show", "DJ", "Playlist", "Duration", "Outcome", "Notes", "Spoken text", "Speech provider", "Speech endpoint", "Speech model", "Speech voice"})
 	for _, e := range s.historyDisplayEvents(r, f.StationID, events) {
 		v := producerEvent(e, loc)
-		row := []string{v.StartLabel, v.EndLabel, v.TypeLabel, e.Title, e.Artist, e.Album, e.Composer, e.Show, e.DJ, e.Playlist, v.Duration, v.OutcomeLabel, v.Notes, e.Speech}
+		row := []string{v.StartLabel, v.EndLabel, v.TypeLabel, e.Title, e.Artist, e.Album, e.Composer, e.Show, e.DJ, e.Playlist, v.Duration, v.OutcomeLabel, v.Notes, e.Speech, e.SpeechProvider, e.SpeechConnection, e.SpeechModel, e.SpeechVoice}
 		for j := range row {
 			row[j] = csvText(row[j])
 		}

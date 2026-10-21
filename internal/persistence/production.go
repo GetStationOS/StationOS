@@ -10,13 +10,22 @@ import (
 )
 
 type PresenterAssets struct{ DB *sql.DB }
+type presenterSnapshot struct {
+	production.Plan
+	IntroSpeech production.SpeechProvenance `json:"intro_speech"`
+	OutroSpeech production.SpeechProvenance `json:"outro_speech"`
+}
 
 func (r PresenterAssets) Get(ctx context.Context, key string) (production.Prepared, error) {
 	var p production.Prepared
 	var raw string
 	err := r.DB.QueryRowContext(ctx, `SELECT plan,intro,outro FROM presenter_assets WHERE cache_key=?`, key).Scan(&raw, &p.Intro, &p.Outro)
 	if err == nil {
-		err = json.Unmarshal([]byte(raw), &p.Plan)
+		var snapshot presenterSnapshot
+		err = json.Unmarshal([]byte(raw), &snapshot)
+		p.Plan = snapshot.Plan
+		p.IntroSpeech = snapshot.IntroSpeech
+		p.OutroSpeech = snapshot.OutroSpeech
 	}
 	return p, err
 }
@@ -30,7 +39,7 @@ func (r PresenterAssets) Put(ctx context.Context, key, stationID string, p produ
 	if p.Outro == nil {
 		p.Outro = []byte{}
 	}
-	raw, err := json.Marshal(p.Plan)
+	raw, err := json.Marshal(presenterSnapshot{Plan: p.Plan, IntroSpeech: p.IntroSpeech, OutroSpeech: p.OutroSpeech})
 	if err != nil {
 		return err
 	}

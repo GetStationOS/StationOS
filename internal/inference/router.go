@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 )
 
 type Router struct {
+	Logger        *slog.Logger
 	Chatterbox    chatterbox.Provider
 	Conversations ai.ConversationStore
 	sessionMu     sync.Mutex

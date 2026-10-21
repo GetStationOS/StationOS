@@ -68,7 +68,7 @@ func TestShowPresentationAndSpeechUseConfiguredProfile(t *testing.T) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("mp3"))}, nil
 	})}
 	prepared, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{Key: "next"})
-	if err != nil || count != 3 || string(prepared.Intro) != "normal:mp3" || prepared.Plan.NextKey != "next" {
+	if err != nil || count != 3 || string(prepared.Intro) != "normal:mp3" || prepared.Plan.NextKey != "next" || prepared.IntroSpeech.Provider != "openai" || prepared.IntroSpeech.Voice != "onyx" || prepared.IntroSpeech.Model != "gpt-4o-mini-tts" || prepared.OutroSpeech != prepared.IntroSpeech {
 		t.Fatal(prepared, count, err)
 	}
 }

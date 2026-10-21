@@ -21,6 +21,7 @@ var connectionID = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
 type Profile struct {
 	SpeechConnection, SpeechModel string
+	SpeechPreviewConnection       string                      `json:"-"`
 	SpeechSettings                map[string]SpeechPreference `json:",omitempty"`
 	SpeechChange                  *SpeechSelection            `json:"-"`
 	SpeechDraft                   map[string]SpeechPreference `json:"-"`
@@ -212,7 +213,19 @@ func (s Service) Save(ctx context.Context, p Profile, k KeyChange) (Profile, err
 		p.SpeechModel = DefaultSpeechModel
 	}
 	// Legacy OpenAI edits still update the active endpoint's stored preferences.
-	if p.SpeechChange == nil && p.SpeechModel != "chatterbox-nano" {
+	legacyOpenAI := p.SpeechModel != "chatterbox-nano"
+	if source, ok := s.Voices.(SpeechSource); ok && p.SpeechChange == nil {
+		endpoints, err := source.SpeechConnections(ctx)
+		if err != nil {
+			return Profile{}, err
+		}
+		for _, endpoint := range endpoints {
+			if endpoint.ID == p.SpeechConnection {
+				legacyOpenAI = endpoint.Provider == "openai"
+			}
+		}
+	}
+	if p.SpeechChange == nil && legacyOpenAI {
 		if p.SpeechSettings == nil {
 			p.SpeechSettings = map[string]SpeechPreference{}
 		}

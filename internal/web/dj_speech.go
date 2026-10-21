@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -24,7 +25,7 @@ func readSpeechForm(r *http.Request, p *djs.Profile, preview bool) error {
 	fieldsID := r.PostForm.Get("speech_fields_connection")
 	if fieldsID != "" {
 		pref := djs.SpeechPreference{Model: r.PostForm.Get("speech_model"), Voice: r.PostForm.Get("voice"), Vibe: r.PostForm.Get("vibe"), Speed: 1}
-		if r.PostForm.Get("speech_kind") == "chatterbox" {
+		if r.PostForm.Get("speech_kind") == "chatterbox" || r.PostForm.Get("speech_kind") == "elevenlabs" {
 			pref.Voice = r.PostForm.Get("speech_voice")
 			pref.Vibe = ""
 		} else {
@@ -38,9 +39,8 @@ func readSpeechForm(r *http.Request, p *djs.Profile, preview bool) error {
 	}
 	id := r.PostForm.Get("speech_connection")
 	p.SpeechDraft = draft
-	p.SpeechConnection = id
 	if preview {
-		p.SpeechConnection = id
+		p.SpeechPreviewConnection = id
 		return nil
 	}
 	pref, ok := draft[id]
@@ -67,10 +67,12 @@ func (s *Server) djSpeechView(r *http.Request, v *djPageView) {
 	if id == "" {
 		id = "openai"
 	}
+	if v.DJ.SpeechPreviewConnection != "" {
+		id = v.DJ.SpeechPreviewConnection
+	}
 	if v.DJ.SpeechChange != nil {
 		id = v.DJ.SpeechChange.Connection
 	}
-	v.DJ.SpeechConnection = id
 	provider := "openai"
 	found := false
 	for _, endpoint := range endpoints {
@@ -84,7 +86,19 @@ func (s *Server) djSpeechView(r *http.Request, v *djPageView) {
 		v.SpeechVoiceError = "The saved speech endpoint is unavailable. Choose another endpoint."
 	}
 	v.ChatterboxVoice = provider == "chatterbox"
+	v.ElevenLabsVoice = provider == "elevenlabs"
+	if v.ElevenLabsVoice {
+		if models, ok := source.(interface {
+			SpeechModels(context.Context, string) ([]string, error)
+		}); ok {
+			v.SpeechModels, err = models.SpeechModels(r.Context(), id)
+			if err != nil {
+				v.SpeechVoiceError = "Could not load speech models; the saved model is retained."
+			}
+		}
+	}
 	v.SpeechPreference = v.DJ.Preference(id, provider)
+	v.DJ.SpeechConnection = id
 	if pref, ok := v.DJ.SpeechDraft[id]; ok {
 		v.SpeechPreference = pref
 	}

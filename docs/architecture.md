@@ -950,3 +950,14 @@ endpoint and edited preferences together. Global Models omits speech. Assistant
 tools expose speech endpoints and DJ-aware voice discovery/editing through the
 same application service. Active DJ connection references protect endpoint removal
 and provider-type changes; retained inactive preferences do not block removal.
+
+
+### ElevenLabs DJ speech
+
+ElevenLabs is a shared speech-only endpoint, alongside OpenAI and Chatterbox.
+Each DJ selects its own endpoint, speech model and account voice; designed voices
+appear after they are saved in ElevenLabs. The provider applies its stored voice
+settings, so hide OpenAI speed and direction controls while preserving them.
+Model and voice discovery never generate speech. Keep credentials encrypted on
+the shared endpoint and retain saved unavailable choices during discovery failure.
+See [elevenlabs.md](elevenlabs.md) for setup and API boundaries.

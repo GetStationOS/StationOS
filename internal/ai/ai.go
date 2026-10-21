@@ -117,7 +117,7 @@ func (c Connection) Validate() error {
 	if !regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`).MatchString(c.ID) || strings.TrimSpace(c.Name) == "" || len(c.Name) > 120 {
 		return errors.New("Enter a connection name")
 	}
-	if c.Type != "openai" && c.Type != "ollama" && c.Type != "compatible" && c.Type != "anthropic" && c.Type != "gemini" && c.Type != "chatterbox" {
+	if c.Type != "openai" && c.Type != "ollama" && c.Type != "compatible" && c.Type != "anthropic" && c.Type != "gemini" && c.Type != "chatterbox" && c.Type != "elevenlabs" {
 		return errors.New("Choose a supported provider type")
 	}
 	u, err := url.Parse(c.Address)
@@ -126,6 +126,9 @@ func (c Connection) Validate() error {
 	}
 	if c.Type == "openai" && c.Address != "https://api.openai.com/v1" {
 		return errors.New("Use the official OpenAI address; choose compatible for a private server")
+	}
+	if c.Type == "elevenlabs" && c.Address != "https://api.elevenlabs.io" {
+		return errors.New("Use the official ElevenLabs address: https://api.elevenlabs.io")
 	}
 	if c.ContextTokens < 2048 || c.ContextTokens > 32768 || c.OutputTokens < 256 || c.OutputTokens > 8192 || c.OutputTokens >= c.ContextTokens {
 		return errors.New("Use 2048–32768 context tokens and 256–8192 output tokens, below context size")

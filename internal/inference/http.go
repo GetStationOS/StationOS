@@ -52,6 +52,8 @@ func (c *Client) request(ctx context.Context, conn ai.Connection, key, method, p
 	req.Header.Set("Content-Type", "application/json")
 	if key != "" {
 		switch conn.Type {
+		case "elevenlabs":
+			req.Header.Set("xi-api-key", key)
 		case "anthropic":
 			req.Header.Set("x-api-key", key)
 			req.Header.Set("anthropic-version", "2023-06-01")

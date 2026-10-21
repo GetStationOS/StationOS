@@ -165,11 +165,11 @@ func (p Producer) validateRoutes(ctx context.Context, r ai.Routes) error {
 		if err != nil {
 			return err
 		}
-		if role == "speech" && c.Type != "openai" && c.Type != "chatterbox" {
-			return errors.New("Speech requires an OpenAI or Chatterbox connection")
+		if role == "speech" && c.Type != "openai" && c.Type != "chatterbox" && c.Type != "elevenlabs" {
+			return errors.New("Speech requires an OpenAI, Chatterbox or ElevenLabs connection")
 		}
-		if (role != "speech" && c.Type == "chatterbox") || (role == "image" && c.Type != "openai") {
-			return errors.New("Chatterbox supports speech only; artwork requires OpenAI")
+		if (role != "speech" && (c.Type == "chatterbox" || c.Type == "elevenlabs")) || (role == "image" && c.Type != "openai") {
+			return errors.New("Chatterbox and ElevenLabs support speech only; artwork requires OpenAI")
 		}
 
 	}

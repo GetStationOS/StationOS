@@ -154,6 +154,8 @@ type djPageView struct {
 	SpeechCatalog                 djs.VoiceCatalog
 	SpeechVoice, SpeechVoiceError string
 	ChatterboxVoice               bool
+	ElevenLabsVoice               bool
+	SpeechModels                  []string
 	SpeechFields                  bool
 	SpeechEndpoints               []djs.SpeechEndpoint
 	SpeechPreference              djs.SpeechPreference

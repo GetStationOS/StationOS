@@ -12,11 +12,13 @@ import (
 // original production adapter, including voices, direction, speed and retries.
 func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) ([]byte, error) {
 	ctx = djs.WithSpeechConnection(ctx, q.Connection)
-	_, conn, _, err := r.selection(ctx, "speech")
+	_, conn, key, err := r.selection(ctx, "speech")
 	if err != nil {
 		return nil, err
 	}
 	switch conn.Type {
+	case "elevenlabs":
+		return r.Local.elevenSpeech(ctx, conn, key, q)
 	case "chatterbox":
 		voice := q.SpeechVoices[conn.ID]
 		if q.Connection != "" {
@@ -51,6 +53,13 @@ func (r *Router) Voices(parent context.Context) (djs.VoiceCatalog, error) {
 		out.Voices = djs.Voices()
 		return out, nil
 	}
+	if conn.Type == "elevenlabs" {
+		key, err := r.Store.Credential(parent, conn.ID)
+		if err != nil {
+			return out, err
+		}
+		return r.Local.elevenVoices(parent, conn, key)
+	}
 	if conn.Type != "chatterbox" {
 		return out, errors.New("The selected provider does not support speech voices")
 	}
@@ -69,7 +78,7 @@ func (r *Router) SpeechConnections(ctx context.Context) ([]djs.SpeechEndpoint, e
 	}
 	out := []djs.SpeechEndpoint{}
 	for _, conn := range connections {
-		if conn.Type == "openai" || conn.Type == "chatterbox" {
+		if conn.Type == "openai" || conn.Type == "chatterbox" || conn.Type == "elevenlabs" {
 			endpoint := djs.SpeechEndpoint{ID: conn.ID, Name: conn.Name, Provider: conn.Type}
 			if conn.Type == "chatterbox" {
 				endpoint.Model = "chatterbox-nano"

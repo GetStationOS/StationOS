@@ -164,7 +164,7 @@ func (r DJs) Save(ctx context.Context, p djs.Profile, k djs.KeyChange) error {
 		if err := tx.QueryRowContext(ctx, `SELECT provider_type FROM ai_connections WHERE id=?`, p.SpeechConnection).Scan(&kind); err != nil {
 			return errors.Join(djs.ErrInvalid, errors.New("The speech endpoint was removed; choose another endpoint"))
 		}
-		if (kind != "openai" && kind != "chatterbox") || (kind == "chatterbox" && p.SpeechModel != "chatterbox-nano") {
+		if (kind != "openai" && kind != "chatterbox" && kind != "elevenlabs") || (kind == "chatterbox" && p.SpeechModel != "chatterbox-nano") {
 			return errors.Join(djs.ErrInvalid, errors.New("The speech provider changed; reopen this DJ before saving"))
 		}
 	}

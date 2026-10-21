@@ -157,7 +157,7 @@
   <input type="hidden" name="speech_config" value="yes">
   <input type="hidden" name="speech_draft" value="{{.SpeechDraftJSON}}">
   <input type="hidden" name="speech_fields_connection" value="{{.DJ.SpeechConnection}}">
-  <input type="hidden" name="speech_kind" value="{{if .ChatterboxVoice}}chatterbox{{else}}openai{{end}}">
+  <input type="hidden" name="speech_kind" value="{{if .ChatterboxVoice}}chatterbox{{else if .ElevenLabsVoice}}elevenlabs{{else}}openai{{end}}">
   <label>Speech endpoint<select name="speech_connection" data-dj-speech-endpoint hx-disabled-elt="this" hx-sync="closest form:replace" hx-post="/producer/djs/speech" hx-trigger="change" hx-include="closest form" hx-target="#dj-speech-settings" hx-swap="outerHTML" hx-push-url="false">
     {{range .SpeechEndpoints}}
     <option value="{{.ID}}" {{if eq .ID $.DJ.SpeechConnection}}selected{{end}}>{{.Name}}</option>{{end}}</select>
@@ -172,6 +172,14 @@
     {{range .SpeechCatalog.Voices}}
     <option value="{{.ID}}" {{if eq .ID $.SpeechVoice}}selected{{end}}>{{.Name}}</option>{{end}}</select>
   </label>
+  {{else if .ElevenLabsVoice}}
+  <label>Speech model<input name="speech_model" value="{{.SpeechPreference.Model}}" required maxlength="128" list="dj-speech-models"></label>
+  <datalist id="dj-speech-models">{{range .SpeechModels}}<option value="{{.}}"></option>{{end}}</datalist>
+  <label>ElevenLabs voice<select name="speech_voice" required>
+    <option value="">Choose a voice</option>
+    {{range .SpeechCatalog.Voices}}<option value="{{.ID}}" {{if eq .ID $.SpeechVoice}}selected{{end}}>{{.Name}}</option>{{end}}
+  </select></label>
+  <p class="hint">Voices saved to your ElevenLabs account, including designed voices. Uses the voice’s settings in ElevenLabs.</p>
   {{else}}
   <label>Speech model<input name="speech_model" value="{{.SpeechPreference.Model}}" required maxlength="128" list="dj-speech-models"></label>
   <datalist id="dj-speech-models">

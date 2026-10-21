@@ -44,8 +44,8 @@ func (r *Router) selection(ctx context.Context, role string) (ai.Selection, ai.C
 		return s, c, "", err
 	}
 	key, err := r.Store.Credential(ctx, c.ID)
-	if err == nil && c.Type == "openai" && key == "" {
-		err = errors.New("The selected OpenAI connection has no saved key")
+	if err == nil && (c.Type == "openai" || c.Type == "elevenlabs") && key == "" {
+		err = errors.New("The selected provider connection has no saved key")
 	}
 	return s, c, key, err
 }
@@ -178,7 +178,7 @@ func (r *Router) Budget(ctx context.Context, role string) (time.Duration, error)
 	if err != nil {
 		return 0, err
 	}
-	if role == "speech" && c.Type == "chatterbox" {
+	if role == "speech" && (c.Type == "chatterbox" || c.Type == "elevenlabs") {
 		return c.RequestTimeout(), nil
 	}
 	if c.Type == "openai" || role == "assistant" {

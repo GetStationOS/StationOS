@@ -24,6 +24,19 @@ func (c *Client) Check(parent context.Context, conn ai.Connection, key, model st
 	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()
 	var out Check
+	if conn.Type == "elevenlabs" {
+		if key == "" {
+			return out, errors.New("Enter an ElevenLabs API key with Models, Voices and Text to Speech access")
+		}
+		models, err := c.elevenModels(ctx, conn, key)
+		out = Check{Reachable: err == nil, Models: models, Message: "ElevenLabs speech models retrieved; no speech was generated."}
+		for _, id := range models {
+			if model == "" || id == model {
+				out.ModelAvailable = true
+			}
+		}
+		return out, err
+	}
 	if conn.Type == "chatterbox" {
 		raw, err := c.request(ctx, conn, "", "GET", "/health", nil)
 		if err != nil {

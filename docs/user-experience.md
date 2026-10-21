@@ -718,3 +718,14 @@ selected endpoint, not the legacy global speech route. Protect endpoints in use
 by DJs from deletion or changing provider type.
 
 Incident monitoring is observational and automatic: show current runtime faults and historical events, with no review queue or acknowledgement buttons. Historical faults must not imply a current failure or require producer approval. Existing autonomous retries and recoveries continue without manual gates.
+
+
+### ElevenLabs DJ speech
+
+ElevenLabs is a shared speech-only endpoint, alongside OpenAI and Chatterbox.
+Each DJ selects its own endpoint, speech model and account voice; designed voices
+appear after they are saved in ElevenLabs. The provider applies its stored voice
+settings, so hide OpenAI speed and direction controls while preserving them.
+Model and voice discovery never generate speech. Keep credentials encrypted on
+the shared endpoint and retain saved unavailable choices during discovery failure.
+See [elevenlabs.md](elevenlabs.md) for setup and API boundaries.

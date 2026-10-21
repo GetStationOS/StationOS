@@ -43,6 +43,9 @@ func (p Profile) Preference(id, provider string) SpeechPreference {
 	if pref, ok := p.SpeechSettings[id]; ok {
 		return pref
 	}
+	if provider == "elevenlabs" {
+		return SpeechPreference{Model: "eleven_multilingual_v2", Speed: 1}
+	}
 	if provider == "chatterbox" {
 		return SpeechPreference{Model: "chatterbox-nano", Voice: p.SpeechVoices[id], Speed: 1}
 	}
@@ -145,12 +148,19 @@ func (s Service) applySpeech(ctx context.Context, p *Profile) error {
 			if !found {
 				return errors.New("Choose a supported OpenAI voice")
 			}
-		} else if endpoint.Provider == "chatterbox" {
+		} else if endpoint.Provider == "chatterbox" || endpoint.Provider == "elevenlabs" {
+			if endpoint.Provider == "elevenlabs" {
+				if pref.Voice == "" {
+					return errors.New("Choose an ElevenLabs voice")
+				}
+				pref.Speed = 1
+				pref.Vibe = ""
+			}
 			previous := p.Preference(id, endpoint.Provider)
 			if pref.Voice != "" && pref.Voice != previous.Voice {
 				catalog, err := source.Voices(WithSpeechConnection(ctx, id))
 				if err != nil {
-					return errors.New("Could not discover Chatterbox voices; keep the saved voice or try again")
+					return errors.New("Could not discover speech voices; keep the saved voice or try again")
 				}
 				found := false
 				for _, voice := range catalog.Voices {
@@ -159,7 +169,7 @@ func (s Service) applySpeech(ctx context.Context, p *Profile) error {
 					}
 				}
 				if !found {
-					return errors.New("Choose an available Chatterbox voice")
+					return errors.New("Choose an available speech voice")
 				}
 			}
 			if p.SpeechVoices == nil {

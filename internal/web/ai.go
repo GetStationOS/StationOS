@@ -202,7 +202,7 @@ func (s *Server) discoverModels(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) availableModels(parent context.Context, c ai.Connection, key string) ([]string, error) {
-	if key == "" && (c.Type == "openai" || c.Type == "anthropic" || c.Type == "gemini") {
+	if key == "" && (c.Type == "openai" || c.Type == "anthropic" || c.Type == "gemini" || c.Type == "elevenlabs") {
 		return nil, errors.New("Enter a credential for this endpoint to discover its models.")
 	}
 	ctx, cancel := context.WithTimeout(parent, 10*time.Second)

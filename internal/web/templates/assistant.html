@@ -140,7 +140,7 @@
         <a href="/producer/assistant/endpoints?connection={{.ID}}">{{.Name}}</a>
       </h2>
       <span>
-        {{if eq .Type "chatterbox"}}Chatterbox Nano{{else if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span>
+        {{if eq .Type "elevenlabs"}}ElevenLabs{{else if eq .Type "chatterbox"}}Chatterbox Nano{{else if eq .Type "ollama"}}Ollama{{else if eq .Type "compatible"}}OpenAI-compatible{{else if eq .Type "anthropic"}}Anthropic{{else if eq .Type "gemini"}}Gemini{{else}}OpenAI{{end}} · {{.Address}}</span>
     </div>
     <a class="button secondary" href="/producer/assistant/endpoints?connection={{.ID}}">Manage endpoint</a>
   </article>{{end}}
@@ -156,7 +156,7 @@
 <fieldset class="dj-form-group">
   <legend>{{.Label}}</legend>
   <label>{{.Label}} provider<select name="{{.Name}}_connection" data-feature-provider="{{.Name}}">
-      {{range $.AIConnections}}{{if or (and $role.Text (ne .Type "chatterbox")) (eq .Type "openai") (and (eq $role.Name "speech") (eq .Type "chatterbox"))}}
+      {{range $.AIConnections}}{{if or (and $role.Text (and (ne .Type "chatterbox") (ne .Type "elevenlabs"))) (eq .Type "openai") (and (eq $role.Name "speech") (or (eq .Type "chatterbox") (eq .Type "elevenlabs")))}}
       <option value="{{.ID}}" data-provider-kind="{{.Type}}" {{if or (eq .ID $role.Connection) (and (eq .ID "openai") (eq $role.Connection ""))}}selected{{end}}>{{.Name}}</option>{{end}}{{end}}</select>
   </label>
   <label data-model-picker="{{.Name}}" hidden>Model<select data-model-choice="{{.Name}}">
@@ -183,6 +183,7 @@
   <label>Name<input name="connection_name" required maxlength="120" value="{{.AIConnection.Name}}">
   </label>
   <label>Provider<select name="provider_type" data-provider-type>
+      <option value="elevenlabs" {{if eq .AIConnection.Type "elevenlabs"}}selected{{end}}>ElevenLabs (speech)</option>
       <option value="chatterbox" {{if eq .AIConnection.Type "chatterbox"}}selected{{end}}>Chatterbox Nano (speech)</option>
       <option value="ollama" {{if eq .AIConnection.Type "ollama"}}selected{{end}}>Ollama</option>
       <option value="compatible" {{if eq .AIConnection.Type "compatible"}}selected{{end}}>OpenAI-compatible chat completions</option>
@@ -191,10 +192,10 @@
       <option value="openai" {{if eq .AIConnection.Type "openai"}}selected{{end}}>OpenAI</option>
     </select>
   </label>
-  <label>Server address<input name="address" type="url" required maxlength="2048" value="{{.AIConnection.Address}}" placeholder="{{if eq .AIConnection.Type "chatterbox"}}http://127.0.0.1:8000{{else if eq .AIConnection.Type "anthropic"}}https://api.anthropic.com/v1{{else if eq .AIConnection.Type "gemini"}}https://generativelanguage.googleapis.com/v1beta{{else if eq .AIConnection.Type "openai"}}https://api.openai.com/v1{{else if eq .AIConnection.Type "compatible"}}https://your-provider/v1{{else}}http://your-server:11434{{end}}">
+  <label>Server address<input name="address" type="url" required maxlength="2048" value="{{.AIConnection.Address}}" placeholder="{{if eq .AIConnection.Type "elevenlabs"}}https://api.elevenlabs.io{{else if eq .AIConnection.Type "chatterbox"}}http://127.0.0.1:8000{{else if eq .AIConnection.Type "anthropic"}}https://api.anthropic.com/v1{{else if eq .AIConnection.Type "gemini"}}https://generativelanguage.googleapis.com/v1beta{{else if eq .AIConnection.Type "openai"}}https://api.openai.com/v1{{else if eq .AIConnection.Type "compatible"}}https://your-provider/v1{{else}}http://your-server:11434{{end}}">
     <span class="hint" data-provider-address-help>Enter an address reachable from the computer running StationOS. For Ollama, use the server address without /api; for compatible services, use the API base (usually ending /v1). Localhost refers to StationOS's computer or container.</span>
   </label>
-  <label>Optional credential<input name="credential" type="password" maxlength="4096" autocomplete="new-password">
+  <label><span data-provider-credential-label>{{if eq .AIConnection.Type "elevenlabs"}}ElevenLabs API key{{else}}Optional credential{{end}}</span><input name="credential" type="password" maxlength="4096" autocomplete="new-password">
     <span class="hint">
       {{if .AIConnection.HasKey}}A credential is saved.{{end}} Blank preserves it. Never copied from the OpenAI connection.</span>
   </label>
@@ -203,13 +204,13 @@
     <input type="checkbox" name="clear_credential" value="yes">Remove saved credential</label>{{end}}
   <details class="endpoint-advanced" {{if .AssistantError}}open{{end}}>
     <summary>Advanced settings</summary>
-    <label>Context token budget<input name="context_tokens" type="number" min="2048" max="32768" required value="{{.AIConnection.ContextTokens}}">
+    <label data-provider-text-budget>Context token budget<input name="context_tokens" type="number" min="2048" max="32768" required value="{{.AIConnection.ContextTokens}}">
       <span class="hint">Start at 16384 for producer tools, reduce if memory requires it. Includes tool definitions, complete requirements and output. Input is estimated conservatively; overflow pauses without discarding requirements.</span>
     </label>
     <label>Response deadline (seconds)<input name="request_timeout_seconds" type="number" min="15" max="600" required value="{{.AIConnection.RequestTimeoutSeconds}}">
       <span class="hint">Starts when inference begins. Live DJ work can wait up to this deadline for the inference slot; producer conversations wait at most 30 seconds. Stale links are cancelled at song boundaries. Longer deadlines allow model loading and slow responses while music keeps playing.</span>
     </label>
-    <label>Maximum output tokens<input name="output_tokens" type="number" min="256" max="8192" required value="{{.AIConnection.OutputTokens}}">
+    <label data-provider-text-budget>Maximum output tokens<input name="output_tokens" type="number" min="256" max="8192" required value="{{.AIConnection.OutputTokens}}">
     </label>
   </details>
   {{template "form-actions" (formActions "/producer/assistant/endpoints" "Save endpoint")}}

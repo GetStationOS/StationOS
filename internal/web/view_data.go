@@ -127,6 +127,14 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 			card.FollowingTime = card.Broadcast.Following.Start.In(loc).Format("Mon 15:04")
 		}
 		card.NextTrack = stationTrack(st.ID, "Up next", "Not queued", card.Broadcast.Next)
+		card.NeedsAttention = card.Broadcast.Error != "" || card.Broadcast.Status == "Retrying" || card.Broadcast.Status == "Unavailable" || card.Broadcast.PresenterStatus == "Unavailable" || card.Broadcast.CurationStatus == "Unavailable" || card.Operations.Active > 0 || (card.Operations.Available && !card.Operations.Healthy)
+		v.Dashboard.Listeners += card.Broadcast.Listeners
+		if card.Broadcast.Status == "Broadcasting" {
+			v.Dashboard.Broadcasting++
+		}
+		if card.NeedsAttention {
+			v.Dashboard.Attention++
+		}
 		v.StationCards = append(v.StationCards, card)
 	}
 	return nil

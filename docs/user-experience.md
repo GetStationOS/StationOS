@@ -16,6 +16,16 @@ Show a small number of useful, current facts on station cards. Playlist counts a
 
 Station Overview separates current playback, upcoming programme, listeners and stream health. On phones and tablets, place the logo beside the live listener/status badges and give the description a full-width, fixed-height scrollable region below; retain the desktop layout and keep stream controls below programme/track information. Playback is listener-driven; weekly schedules select the active programme at track boundaries. Show current/next only from the actual producer, with Dormant, Starting, Broadcasting, Retrying and Unavailable states. When those systems exist, render their actual state through their own service contracts. Use server event subscriptions for the status region only; do not repeatedly replace an editing form or reset its scroll/focus. Distinguish offline, loading, stale, failed and unknown states with text as well as colour.
 
+The station directory is the producer dashboard. Show aggregate current listeners,
+broadcasting stations and stations needing attention above stable station cards.
+Each card prioritises measured output status, audience, programme/DJ, current and
+committed next recordings, and the next known programme in station-local time.
+Continuous music is identified explicitly. Active incidents, unavailable DJ
+capabilities and output failures surface a concise warning linked to Incidents;
+dormancy is normal. Keep Open station and Listen available and historical reporting
+inside station workspaces. Live disconnection feedback stays local and warns that
+displayed information may be stale while reconnecting.
+
 ## Navigation and HTMX
 
 Keep the application shell stable. Use ordinary links/forms enhanced by HTMX to replace `#main`, retaining real URLs, page titles, browser back/forward and keyboard navigation. Full requests render a complete document; HTMX requests render a titled fragment. History restoration must recover the complete shell when necessary. Use `HX-Location` for successful writes, avoiding full-page redirects. Use `HX-Redirect` only when a full browser navigation is genuinely required.

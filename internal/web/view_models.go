@@ -50,6 +50,7 @@ type stationDirectoryView struct {
 	pageView
 	playlistChoices
 	StationCards []stationCard
+	Dashboard    dashboardSummary
 }
 type stationSourceOption struct {
 	ID, Name, Host string

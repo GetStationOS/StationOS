@@ -35,6 +35,14 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	changes, stop := s.d.Broadcast.WatchChanges()
 	defer stop()
+	operations, stopOperations := s.d.Changes.Watch("operations")
+	defer stopOperations()
+	var health <-chan struct{}
+	if s.d.Recording != nil {
+		var release func()
+		health, release = s.d.Recording.WatchChanges()
+		defer release()
+	}
 	rc := http.NewResponseController(w)
 	defer rc.SetWriteDeadline(time.Time{})
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -97,6 +105,14 @@ func (s *Server) stationEvents(w http.ResponseWriter, r *http.Request) {
 			if !open {
 				return
 			}
+			if !update() {
+				return
+			}
+		case <-operations:
+			if !update() {
+				return
+			}
+		case <-health:
 			if !update() {
 				return
 			}

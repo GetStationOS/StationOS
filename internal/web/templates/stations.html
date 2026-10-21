@@ -92,7 +92,7 @@
   </section>
   <section id="upcoming" class="panel overview-audio overview-upcoming" aria-label="Upcoming tracks">
     {{template "overview-track" (stationTrack .Station.ID "UP NEXT" "No track selected yet" .Broadcast.Next)}}
-    <p class="overview-queue-note">{{if .Broadcast.Next.ID}}Selected · checked again before playback{{else if .Broadcast.Current.ID}}Selecting the next track…{{else}}Tracks are selected when listeners connect.{{end}}</p>
+    {{if not .Broadcast.Next.ID}}<p class="overview-queue-note">{{if .Broadcast.Current.ID}}Selecting the next track…{{else}}Tracks are selected when listeners connect.{{end}}</p>{{end}}
   </section>
 </div>
 {{if .Broadcast.RepeatRelaxed}}

@@ -1,7 +1,13 @@
 {{define "station-cards"}}
 
 <div id="station-cards" {{if .BroadcastEnabled}}data-station-events="/producer/stations/events" hx-indicator="this"{{end}}>
+  <p class="dashboard-connection hint" role="status" data-directory-connection hidden>Live updates disconnected. Displayed information may be out of date. Reconnecting…</p>
   {{if .StationCards}}
+  <div class="dashboard-summary" aria-label="Across all stations">
+    <div><strong>{{.Dashboard.Listeners}}</strong><span>Listeners now</span></div>
+    <div><strong>{{.Dashboard.Broadcasting}}</strong><span>Stations broadcasting</span></div>
+    <div {{if .Dashboard.Attention}}class="dashboard-attention"{{end}}><strong>{{.Dashboard.Attention}}</strong><span>Stations needing attention</span></div>
+  </div>
   <div class="station-grid">
     {{range .StationCards}}
     <article class="station-card producer-card" hx-target="#main" hx-swap="innerHTML show:window:top" data-station-card="{{.Station.ID}}">
@@ -13,13 +19,22 @@
           </h2>
         </div>
         <div class="card-top">
-          <span class="status {{if eq .Broadcast.Status "Broadcasting"}}live{{else}}muted{{end}}">
+          <span class="status {{if eq .Broadcast.Status "Broadcasting"}}live{{else if or (eq .Broadcast.Status "Retrying") (eq .Broadcast.Status "Unavailable")}}dashboard-status-warning{{else}}muted{{end}}">
             <span class="status-dot">
             </span>{{.Broadcast.Status}}</span>
           <span class="card-listeners">{{.Broadcast.Listeners}} {{if eq .Broadcast.Listeners 1}}listener{{else}}listeners{{end}}</span>
         </div>
       </div>
-      {{template "operational-summary" .Operations}}
+      {{if .NeedsAttention}}
+      <div class="dashboard-issue" role="status">
+        <strong>Needs attention</strong>
+        {{if .Broadcast.Error}}<p>{{.Broadcast.Error}}</p>{{end}}
+        {{if eq .Broadcast.PresenterStatus "Unavailable"}}<p>DJ speech unavailable · music continues.</p>{{end}}
+        {{if eq .Broadcast.CurationStatus "Unavailable"}}<p>DJ music selection unavailable · automatic selection continues.</p>{{end}}
+        {{if gt .Operations.Active 0}}<p>{{.Operations.Active}} active incident{{if ne .Operations.Active 1}}s{{end}}.</p>{{end}}
+        {{if and .Operations.Available (not .Operations.Healthy)}}<p>Transmission history is incomplete or unavailable.</p>{{end}}
+        <a href="/producer/stations/{{.Station.ID}}/incidents">Review incidents →</a>
+      </div>{{end}}
       <div class="producer-body">
         <div class="producer-programming">
           <div class="card-programme">
@@ -39,7 +54,7 @@
                 {{if .PlaylistName}}<a class="card-pool" href="/producer/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a>{{end}}
               </div>
             </div>
-            {{else}}<span class="eyebrow">DEFAULT PLAYLIST</span>
+            {{else}}<span class="eyebrow">{{if .Broadcast.Current.ID}}CONTINUOUS MUSIC{{else}}DEFAULT PLAYLIST{{end}}</span>
             {{if .PlaylistName}}<strong>
               <a href="/producer/playlists/{{.PlaylistID}}">{{.PlaylistName}}</a>
             </strong>
@@ -50,7 +65,7 @@
           {{template "card-track" (currentBroadcastTrack .Station.ID .Broadcast)}}{{template "card-track" .NextTrack}}
         </div>
       </div>
-      {{if and .Broadcast.Current.ID .Broadcast.Following.ShowID}}
+      {{if .Broadcast.Following.ShowID}}
       <div class="producer-context">
         <div class="card-handover">
           <span class="eyebrow">NEXT SHOW{{if .FollowingTime}} · {{.FollowingTime}}{{end}}</span>
@@ -58,8 +73,6 @@
           {{if .Broadcast.Following.DJ.Name}}<span>{{.Broadcast.Following.DJ.Name}}</span>{{end}}
         </div>
       </div>{{end}}
-      {{if .Broadcast.Error}}
-      <p class="card-error" role="status">{{.Broadcast.Error}}</p>{{end}}
       {{if .Broadcast.RepeatRelaxed}}
       <p class="hint" role="status">Repeat interval relaxed to keep music playing.</p>{{end}}
       <div class="card-footer">

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/changefeed"
+	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/station"
 	"strings"
@@ -24,7 +26,9 @@ func TestStationEventsOnlySendChangedViewsAndKeepAuthentication(t *testing.T) {
 	}
 	m := broadcast.New(persistence.Broadcast{DB: st.DB}, tickingEncoder{}, slog.New(slog.NewTextHandler(io.Discard, nil)), broadcast.Options{})
 	defer m.Close()
-	deps := Dependencies{Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: st.DB}, Broadcast: m, BroadcastConfig: persistence.Broadcast{DB: st.DB}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	changes := &changefeed.Bus{}
+	store := persistence.Operations{DB: st.DB, Changes: changes}
+	deps := Dependencies{Changes: changes, Operations: store, Stations: st, Sources: src, Catalogue: cat, Playlists: persistence.Playlists{DB: st.DB}, Broadcast: m, BroadcastConfig: persistence.Broadcast{DB: st.DB}, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	h, err := New(deps)
 	if err != nil {
 		t.Fatal(err)
@@ -86,6 +90,21 @@ func TestStationEventsOnlySendChangedViewsAndKeepAuthentication(t *testing.T) {
 	m.Changed()
 	if !strings.Contains(receive(), "After") {
 		t.Fatal("changed station not sent")
+	}
+	event := operations.Event{ID: "dashboard-failure", StationID: "radio", Kind: "failure", Outcome: "observed", Started: time.Now(), IncidentCode: "speech", Severity: "warning", Reason: "Speech failed"}
+	if err := store.Save(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	if html := receive(); !strings.Contains(html, "1 active incident") || !strings.Contains(html, `class="dashboard-attention"`) {
+		t.Fatal("dashboard missed committed incident", html)
+	}
+	event.ID = "dashboard-recovery"
+	event.Recover = true
+	if err := store.Save(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	if html := receive(); strings.Contains(html, `class="dashboard-attention"`) {
+		t.Fatal("dashboard missed recovery", html)
 	}
 	cancel()
 	response.Body.Close()

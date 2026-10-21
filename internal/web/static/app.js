@@ -353,6 +353,12 @@ function syncStationEvents(){
  stationEvents?.close();stationEvents=null;stationEventOwner=owner;
  if(!owner||!window.EventSource)return;
  const connection=new EventSource(owner.dataset.stationEvents);stationEvents=connection;
+ const showConnection=()=>{
+  const note=owner.querySelector('[data-directory-connection]');
+  if(note)note.hidden=connection.readyState===EventSource.OPEN;
+ };
+ connection.addEventListener('open',showConnection);
+ connection.addEventListener('error',showConnection);
  connection.addEventListener('stations',event=>{
   if(stationEventOwner!==owner||!owner.isConnected)return;
   const template=document.createElement('template');
@@ -360,7 +366,7 @@ function syncStationEvents(){
   const incoming=template.content.querySelector('#station-cards');if(!incoming)return;
   const active=document.activeElement;
   const activeCard=active?.closest('[data-station-card]')?.dataset.stationCard;
-  patchStationNode(owner,incoming);htmx.process(owner);
+  patchStationNode(owner,incoming,active);showConnection();htmx.process(owner);
   if(activeCard&&!active.isConnected){
    Array.from(owner.querySelectorAll('[data-station-card]')).find(card=>card.dataset.stationCard===activeCard)?.querySelector('.card-actions a')?.focus({preventScroll:true});
   }

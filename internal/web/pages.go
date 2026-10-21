@@ -206,7 +206,12 @@ type genreOption struct {
 	Name              string
 	Selected, Missing bool
 }
+type dashboardSummary struct {
+	Listeners, Broadcasting, Attention int
+}
+
 type stationCard struct {
+	NeedsAttention                                         bool
 	Operations                                             operationSummary
 	DJIndicators                                           []djIndicator
 	Broadcast                                              broadcast.State

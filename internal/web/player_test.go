@@ -49,8 +49,11 @@ func TestPersistentPlayerLiveMetadataDoesNotStartAudio(t *testing.T) {
 		t.Fatal(err)
 	}
 	home := request(h, "GET", "/producer", nil, nil).Body.String()
-	if !strings.Contains(home, `id="player-tracks"`) || !strings.Contains(home, `data-station-id="radio"`) {
+	if !strings.Contains(home, `id="player-tracks"`) || !strings.Contains(home, `data-station-card="radio"`) {
 		t.Fatal("missing persistent player metadata", home)
+	}
+	if strings.Contains(home, `data-listen-radio=`) || strings.Contains(home, `class="attention-rail"`) {
+		t.Fatal("dashboard retained Listen buttons or empty attention panel")
 	}
 	if request(h, "GET", "/producer/stations/missing/player", nil, nil).Code != 404 {
 		t.Fatal("unknown station accepted")

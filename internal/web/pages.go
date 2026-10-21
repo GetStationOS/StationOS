@@ -212,6 +212,8 @@ type dashboardSummary struct {
 }
 
 type stationCard struct {
+	FollowingArtwork                                       []cardTrack
+	HealthTone, HealthLabel                                string
 	FollowingTracks                                        []episodes.Track
 	FollowingTracksUnavailable                             bool
 	NeedsAttention                                         bool

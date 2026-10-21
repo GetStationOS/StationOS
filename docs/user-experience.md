@@ -17,12 +17,12 @@ Show a small number of useful, current facts on station cards. Playlist counts a
 Station Overview separates current playback, upcoming programme, listeners and stream health. On phones and tablets, place the logo beside the live listener/status badges and give the description a full-width, fixed-height scrollable region below; retain the desktop layout and keep stream controls below programme/track information. Playback is listener-driven; weekly schedules select the active programme at track boundaries. Show current/next only from the actual producer, with Dormant, Starting, Broadcasting, Retrying and Unavailable states. When those systems exist, render their actual state through their own service contracts. Use server event subscriptions for the status region only; do not repeatedly replace an editing form or reset its scroll/focus. Distinguish offline, loading, stale, failed and unknown states with text as well as colour.
 
 The station directory is the producer dashboard. Show aggregate current listeners,
-broadcasting stations and stations needing attention above a stable station matrix. A separate attention rail links exceptions to incidents; on small screens it precedes compact station rows.
+broadcasting stations and stations needing attention above a stable station matrix. Group each station’s current and next-show rows within one bordered section, separated by a visible gap; retain aligned columns across stations. Each station has a compact health icon at its bottom right linking to Incidents; omit the separate attention panel and directory Listen buttons.
 Each row prioritises measured output status, audience, programme/DJ, current and
-committed next recordings, and the next known programme in station-local time. Show the next programme in a secondary row, with its first two accepted, unaired track choices and artists aligned beneath the Now playing and Up next columns. Read the dated episode without starting preparation; label missing choices and unavailable reads honestly. Episode commits update this preview through the existing event subscription.
+committed next recordings, and the next known programme in station-local time. Show the next programme in a secondary row, with its first two accepted, unaired track choices, album artwork and artists aligned beneath the Now playing and Up next columns. Read the dated episode without starting preparation; label missing choices and unavailable reads honestly. Episode commits update this preview through the existing event subscription.
 Continuous music is identified explicitly. Active incidents, unavailable DJ
 capabilities and output failures surface a concise warning linked to Incidents;
-dormancy is normal. Keep Open station and Listen available and historical reporting
+dormancy is normal. Keep station navigation available and historical reporting
 inside station workspaces. Live disconnection feedback stays local and warns that
 displayed information may be stale while reconnecting.
 

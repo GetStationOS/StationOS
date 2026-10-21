@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"stationos.local/stationos/internal/broadcast"
+	"stationos.local/stationos/internal/catalogue"
+	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/episodes"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
@@ -132,9 +136,11 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 		if card.Broadcast.Following.ShowID != "" {
 			card.FollowingTracks, err = s.followingTracks(r.Context(), card.Broadcast.Following)
 			card.FollowingTracksUnavailable = err != nil
+			card.FollowingArtwork = s.followingArtwork(r.Context(), st.ID, card.FollowingTracks)
 		}
 		card.NextTrack = stationTrack(st.ID, "Up next", "Not queued", card.Broadcast.Next)
-		card.NeedsAttention = card.Broadcast.Error != "" || card.Broadcast.Status == "Retrying" || card.Broadcast.Status == "Unavailable" || card.Broadcast.PresenterStatus == "Unavailable" || card.Broadcast.CurationStatus == "Unavailable" || card.Operations.Active > 0 || (card.Operations.Available && !card.Operations.Healthy)
+		card.HealthTone, card.HealthLabel = stationHealth(card.Broadcast, card.Operations)
+		card.NeedsAttention = card.HealthTone == "warning"
 		v.Dashboard.Listeners += card.Broadcast.Listeners
 		if card.Broadcast.Status == "Broadcasting" {
 			v.Dashboard.Broadcasting++
@@ -192,4 +198,64 @@ func (s *Server) followingTracks(ctx context.Context, next schedule.Occurrence) 
 		}
 	}
 	return tracks, nil
+}
+
+// Live capability flags only describe an active producer, never an old show.
+func stationHealth(state broadcast.State, summary operationSummary) (string, string) {
+	var reasons []string
+	if summary.Active > 0 {
+		reasons = append(reasons, fmt.Sprintf("%d active incident%s", summary.Active, map[bool]string{true: "", false: "s"}[summary.Active == 1]))
+	}
+	if state.Status == "Retrying" || state.Status == "Unavailable" {
+		reasons = append(reasons, "Output "+strings.ToLower(state.Status))
+	}
+	if state.Error != "" && state.Status != "Dormant" {
+		reasons = append(reasons, state.Error)
+	}
+	if state.Current.ID != "" && state.Status != "Dormant" {
+		if state.PresenterStatus == "Unavailable" {
+			reasons = append(reasons, "DJ speech unavailable; music continues")
+		}
+		if state.CurationStatus == "Unavailable" {
+			reasons = append(reasons, "DJ music selection unavailable")
+		}
+	}
+	if summary.Available && !summary.Healthy {
+		reasons = append(reasons, "Transmission history unavailable")
+	}
+	if len(reasons) > 0 {
+		return "warning", strings.Join(reasons, " · ")
+	}
+	if !summary.Available {
+		return "unknown", "Health monitoring unavailable"
+	}
+	if state.Status == "Dormant" {
+		return "neutral", "Dormant · no active incidents"
+	}
+	if state.Status == "Starting" {
+		return "neutral", "Starting · no active incidents"
+	}
+	if state.Status != "Broadcasting" {
+		return "unknown", "Output health unknown"
+	}
+	return "healthy", "Broadcasting · no active incidents"
+}
+
+func (s *Server) followingArtwork(ctx context.Context, stationID string, tracks []episodes.Track) []cardTrack {
+	var out []cardTrack
+	for _, track := range tracks {
+		item := content.AudioItem{ID: track.ID, Title: track.Title, Artist: track.Artist, Album: track.Album}
+		if s.d.Catalogue != nil {
+			result, lookupErr := s.d.Catalogue.Search(ctx, catalogue.Query{ItemID: track.ID, Limit: 1})
+			if lookupErr == nil && len(result.Items) > 0 {
+				item = result.Items[0]
+			}
+		}
+		view := stationTrack(stationID, "", "", item)
+		if item.Artwork != "" && item.SourceID != "" {
+			view.Artwork = sourceCoverURL(item.SourceID, item)
+		}
+		out = append(out, view)
+	}
+	return out
 }

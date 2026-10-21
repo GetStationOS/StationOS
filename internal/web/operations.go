@@ -32,11 +32,13 @@ func (s *Server) operationalSummary(r *http.Request, id string) operationSummary
 	if s.d.Recording != nil {
 		v.Healthy = s.d.Recording.Healthy()
 	}
-	incidents, err := s.d.Operations.Incidents(r.Context(), id, true)
+	incidents, err := s.d.Operations.Incidents(r.Context(), id, false)
 	if err != nil {
 		v.Healthy = false
 		return v
 	}
+	// Match the Incidents page exactly; recovered history is never current health.
+	incidents = reviewIncidents(incidents, "")
 	v.Active = len(incidents)
 	for _, i := range incidents {
 		if i.Acknowledged.IsZero() {

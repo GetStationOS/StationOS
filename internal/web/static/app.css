@@ -1328,3 +1328,32 @@ textarea{font-weight:400;line-height:1.5}
  .matrix-opening-first::before,.matrix-opening-second::before{content:attr(data-label);display:block;font-size:10px;color:var(--muted);margin-bottom:8px}
  .matrix-following-spacer{display:none!important}
 }
+
+/* Health belongs to its station, rather than a separate empty attention panel. */
+.control-room{grid-template-columns:minmax(0,1fr)}
+.matrix-table .matrix-audience,.matrix-table .matrix-following-health{position:relative;padding-bottom:48px}
+.station-health{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:16px;font-weight:700;position:absolute;right:14px;bottom:14px;line-height:1}
+.station-health:hover{text-decoration:none;background:var(--bg)}.station-health.healthy{color:#23745b;background:#edf7f2;border-color:#b6dacb}.station-health.warning{color:var(--tone-error-text);background:var(--tone-warning-bg);border-color:#d8b88b}.station-health.unknown,.station-health.neutral{color:var(--muted)}
+.matrix-following .matrix-track-info strong{font-size:12px}.matrix-following .matrix-track-info>span{font-size:11px}
+@media(max-width:760px){.matrix-table .matrix-following-health{grid-column:1/-1;min-height:34px;padding:0}.matrix-following-health .station-health{right:0;bottom:0}.matrix-audience .station-health{right:0;bottom:0}.matrix-table .matrix-audience{padding-bottom:40px}}
+
+/* Keep current playback and the next show together in a distinct station group. */
+.matrix-table{border-collapse:separate;border-spacing:0;padding:0 16px 16px;background:var(--bg)}
+.matrix-table thead th{border-top:0;background:var(--bg)}
+.matrix-table .matrix-group-gap>td{height:16px;padding:0;border:0;background:var(--bg)}
+.matrix-station-group>.matrix-row>th,.matrix-station-group>.matrix-row>td{background:var(--surface);border-top:1px solid var(--line)}
+.matrix-station-group>tr:not(.matrix-group-gap)>:first-child{border-left:1px solid var(--line)}
+.matrix-station-group>tr:not(.matrix-group-gap)>:last-child{border-right:1px solid var(--line)}
+.matrix-station-group>.matrix-row>:first-child{border-top-left-radius:10px}
+.matrix-station-group>.matrix-row>:last-child{border-top-right-radius:10px}
+.matrix-table .matrix-station-group>tr:last-child>th,.matrix-table .matrix-station-group>tr:last-child>td{border-bottom:1px solid var(--line)}
+.matrix-station-group>tr:last-child>:first-child{border-bottom-left-radius:10px}
+.matrix-station-group>tr:last-child>:last-child{border-bottom-right-radius:10px}
+@media(max-width:760px){
+ .matrix-table{padding:0;background:var(--bg)}
+ .matrix-table .matrix-station-group{display:block;margin:16px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+ .matrix-table .matrix-group-gap{display:none}
+ .matrix-table .matrix-station-group>tr:not(.matrix-group-gap)>th,.matrix-table .matrix-station-group>tr:not(.matrix-group-gap)>td{border:0;border-radius:0}
+ .matrix-table .matrix-station-group>.matrix-row{background:var(--surface)}
+ .matrix-table .matrix-station-group>tr:last-child{border-bottom:0}
+}

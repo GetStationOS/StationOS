@@ -196,6 +196,9 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil {
 		return production.Prepared{}, err
 	}
+	if err = production.ValidatePresentation(plan); err != nil {
+		return production.Prepared{}, err
+	}
 	prepared := production.Prepared{Plan: plan}
 	speech := func(text string, meta *production.SpeechProvenance) ([]byte, error) {
 		if strings.TrimSpace(text) == "" {
@@ -390,6 +393,9 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	spoken, err = cleanSpeechCues(spoken, capabilities)
 	if err != nil {
 		return nil, nil, err
+	}
+	if len(spoken) > maxSpeechBytes {
+		return nil, nil, errors.New("presenter link exceeds limits including sound cue")
 	}
 	raw, err = p.synthesize(ctx, speechRequest(link.Show.DJ, spoken, speechModel))
 	if err != nil {

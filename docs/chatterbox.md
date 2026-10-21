@@ -141,9 +141,11 @@ empty or unavailable capability data disables cues; normal speech can continue.
 OpenAI and ElevenLabs do not inherit Chatterbox cues. Discovery does not generate
 speech or run in a background polling loop.
 
-The delivery rules favour natural language: most links have no cue, at most one
-per link/introduction/sign-off, only when context and personality justify it,
-with no cue-only speech or repeated cues from the most recent aired speech.
+For the explicit cue test, every nonempty link/introduction/sign-off must have
+exactly one advertised cue. This overrides the earlier sparse-cue policy. The
+generator chooses the sound; omitted cues receive a deterministic supported
+fallback (prefer chuckle, otherwise the first advertised tag). Valid existing
+cues are retained, and recent cue usage does not disable this test requirement.
 Unknown/excess complete tags are stripped before synthesis; malformed brackets
 and cue-only utterances are rejected. Normal optional-link silence, response
 formats, editorial facts, handovers and approved audience requirements remain.

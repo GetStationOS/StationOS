@@ -78,7 +78,7 @@ func TestSpeechWriterReceivesCapabilitiesAndKeepsActualTranscript(t *testing.T) 
 			instructions := local.requests[0].Instructions
 			enabled := kind != "disabled" && kind != "discovery failure"
 			if enabled {
-				for _, want := range []string{`"tag":"[clear throat]"`, `"name":"Clear throat"`, "Most links should have none", "at most one cue", "DJ prompt:"} {
+				for _, want := range []string{`"tag":"[clear throat]"`, `"name":"Clear throat"`, "EXACTLY ONE advertised sound cue", "Zero cues is incorrect", "DJ prompt:"} {
 					if !strings.Contains(instructions, want) {
 						t.Fatalf("missing %q in prompt", want)
 					}
@@ -87,7 +87,7 @@ func TestSpeechWriterReceivesCapabilitiesAndKeepsActualTranscript(t *testing.T) 
 				t.Fatal(instructions)
 			}
 			for _, q := range speech.requests {
-				if strings.Contains(q.Text, "[whisper]") || strings.Count(q.Text, "[") > 1 {
+				if strings.Contains(q.Text, "[whisper]") || strings.Count(q.Text, "[") > 1 || (enabled && strings.Count(q.Text, "[") != 1) {
 					t.Fatal(q.Text)
 				}
 				if !enabled && strings.Contains(q.Text, "[") {
@@ -128,5 +128,53 @@ func TestCapabilityChangesInvalidatePreparedSpeech(t *testing.T) {
 	prepared, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{})
 	if err != nil || len(local.requests) != 2 || len(speech.requests) != 4 || strings.Contains(prepared.Plan.IntroText, "[") {
 		t.Fatal("stale cue-bearing speech reused", prepared, err)
+	}
+}
+
+func TestRequiredCueFallbackReachesSpeechAndTranscript(t *testing.T) {
+	for _, kind := range []string{"normal", "handover", "audience", "presentation"} {
+		t.Run(kind, func(t *testing.T) {
+			speech := &cueSpeech{capabilities: cueCatalogue()}
+			local := &localText{reply: `{"speech":"Toyah brought the mystery; Kim Wilde follows with “You Came,” a bright, melodic pop rush."}`}
+			p := New(noKey{}, nil, testAudio{})
+			p.Speech = speech
+			p.Text = local
+			if kind == "presentation" {
+				local.reply = `{"intro":"Welcome to the show.","outro":"Goodbye for now."}`
+				prepared, err := p.Prepare(context.Background(), profile(), schedule.Occurrence{})
+				if err != nil || len(speech.requests) != 2 || prepared.Plan.IntroText != speech.requests[0].Text || prepared.Plan.OutroText != speech.requests[1].Text {
+					t.Fatal(prepared, speech.requests, err)
+				}
+			} else {
+				var transcript string
+				ctx := production.WithSpeechTranscript(context.Background(), func(value string) { transcript = value })
+				request := production.LinkRequest{Show: profile(), Handover: kind == "handover", Following: schedule.Occurrence{DJ: djs.Profile{Name: "Next"}}}
+				var err error
+				if kind == "audience" {
+					local.reply = `{"speech":"Hello Sam. Here is the next record.","used_ids":["approved"]}`
+					request.Audience = []production.AudienceItem{{ID: "approved", Kind: audience.Shoutout, Text: "Hello"}}
+					_, _, err = p.AudienceLink(ctx, request)
+				} else {
+					_, err = p.Link(ctx, request)
+				}
+				if err != nil || len(speech.requests) != 1 || transcript != speech.requests[0].Text {
+					t.Fatal(transcript, speech.requests, err)
+				}
+			}
+			for _, q := range speech.requests {
+				if strings.Count(q.Text, "[") != 1 || !strings.Contains(q.Text, "[chuckle]") {
+					t.Fatal("missing required cue", q.Text)
+				}
+			}
+		})
+	}
+}
+func TestRequiredCueUsesAdvertisedFallbackAndPreservesValidChoice(t *testing.T) {
+	caps := djs.SpeechCapabilities{InlineCues: []djs.InlineCue{{Tag: "[sigh]", Name: "Sigh"}, {Tag: "[laugh]", Name: "Laugh"}}}
+	for _, tc := range []struct{ input, want string }{{"Welcome.", "[sigh] Welcome."}, {"[laugh] Welcome.", "[laugh] Welcome."}, {"[laugh] Welcome. [sigh]", "[laugh] Welcome."}, {"[unsupported] Welcome.", "[sigh] Welcome."}} {
+		got, err := cleanSpeechCues(tc.input, caps)
+		if err != nil || got != tc.want {
+			t.Fatal(tc, got, err)
+		}
 	}
 }

@@ -35,7 +35,7 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, status int, 
 	}
 	frame := pageFrame{pageView: data.common(), Content: template.HTML(content), Player: data.player()}
 	if frame.Station.ID != "" {
-		frame.ActiveIncidents = s.operationalSummary(r, frame.Station.ID).NeedsReview
+		frame.ActiveIncidents = s.operationalSummary(r, frame.Station.ID).Active
 	}
 	shell := "layout"
 	if fragmentRequest(r) {

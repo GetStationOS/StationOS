@@ -128,8 +128,8 @@ func TestOperationalPagesAndAcknowledgement(t *testing.T) {
 		t.Fatal("ack incorrectly resolved incident")
 	}
 	indicator := request(h, "GET", base+"/operations/indicator", nil, auth)
-	if strings.TrimSpace(indicator.Body.String()) != "" {
-		t.Fatal("reviewed incident still flagged", indicator.Body.String())
+	if !strings.Contains(indicator.Body.String(), "1 active incident") {
+		t.Fatal("legacy acknowledgement must not hide an active fault", indicator.Body.String())
 	}
 	for _, suffix := range []string{"", "/live"} {
 		reviewed := request(h, "GET", base+suffix, nil, auth)

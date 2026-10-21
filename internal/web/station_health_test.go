@@ -2,9 +2,11 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http/httptest"
+	"regexp"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/episodes"
@@ -132,6 +134,17 @@ func TestLiveIncidentViewIsObservationalAndIgnoresOldProgrammeFaults(t *testing.
 	active := request(h, "GET", "/producer/stations/radio/incidents", nil, nil).Body.String()
 	if !strings.Contains(active, "No active incidents") || strings.Contains(active, "Mark reviewed") || strings.Contains(active, ">Needs review</a>") {
 		t.Fatal("incident UI imposed historical faults or manual review", active)
+	}
+	versionResponse := request(h, "GET", "/producer/stations/radio/operations/version?section=incidents", nil, nil)
+	var versionPayload struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(versionResponse.Body.Bytes(), &versionPayload); err != nil {
+		t.Fatal(err)
+	}
+	match := regexp.MustCompile(`data-operations-version="([^"]+)"`).FindStringSubmatch(active)
+	if len(match) != 2 || match[1] != versionPayload.Version {
+		t.Fatal("initial active view falsely advertises updates", match, versionPayload.Version)
 	}
 	all := request(h, "GET", "/producer/stations/radio/incidents?review=all", nil, nil).Body.String()
 	if strings.Count(all, `<tr id="incident-`) != 4 || !strings.Contains(all, "Historical") {

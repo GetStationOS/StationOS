@@ -304,7 +304,7 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 	}
 	if v.Section == "incidents" {
 		q.Set("section", "incidents")
-		v.Version = incidentFingerprint(incidents)
+		v.Version = s.incidentViewFingerprint(r, st.ID, incidents, v.IncidentReview)
 		v.Pagination = paging(r.URL.Path, r.URL.Query(), page, size, len(v.Incidents))
 		v.Pagination.SizeLabel = "Incidents per page"
 		v.Pagination.RefreshURL, v.Pagination.RefreshTarget, v.Pagination.RefreshLabel = v.RefreshURL, "#incident-results", "Incidents"
@@ -374,7 +374,7 @@ func (s *Server) operationsVersion(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid review filter", 400)
 			return
 		}
-		version = incidentFingerprint(reviewIncidents(incidents, review))
+		version = s.incidentViewFingerprint(r, st.ID, incidents, review)
 	} else {
 		loc, err := time.LoadLocation(st.Timezone)
 		if err != nil {
@@ -615,7 +615,7 @@ func (s *Server) incidentIndicator(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	s.renderHTML(w, http.StatusOK, "incident-menu-icon", s.operationalSummary(r, id).NeedsReview)
+	s.renderHTML(w, http.StatusOK, "incident-menu-icon", s.operationalSummary(r, id).Active)
 }
 
 func reviewIncidents(rows []operations.Incident, review string) []operations.Incident {
@@ -691,4 +691,13 @@ func (s *Server) currentIncidents(r *http.Request, id string, rows []operations.
 		}
 	}
 	return out
+}
+
+func (s *Server) incidentViewFingerprint(r *http.Request, id string, rows []operations.Incident, view string) string {
+	active := s.currentIncidents(r, id, rows)
+	if view != "all" {
+		return incidentFingerprint(active)
+	}
+	hash := sha256.Sum256([]byte(incidentFingerprint(rows) + incidentFingerprint(active)))
+	return fmt.Sprintf("%x:%d", hash, len(rows))
 }

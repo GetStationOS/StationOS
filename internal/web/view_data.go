@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -149,6 +150,7 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 		}
 		v.StationCards = append(v.StationCards, card)
 	}
+	sortStationCards(v.StationCards)
 	return nil
 }
 
@@ -254,4 +256,38 @@ func (s *Server) followingArtwork(ctx context.Context, stationID string, tracks 
 		out = append(out, view)
 	}
 	return out
+}
+
+// The directory and its event snapshots share the same operational ordering.
+func sortStationCards(cards []stationCard) {
+	rank := func(status string) int {
+		switch status {
+		case "Broadcasting":
+			return 0
+		case "Starting":
+			return 1
+		case "Retrying":
+			return 2
+		case "Unavailable":
+			return 3
+		case "Dormant":
+			return 4
+		default:
+			return 5
+		}
+	}
+	sort.SliceStable(cards, func(i, j int) bool {
+		a, b := cards[i], cards[j]
+		if rank(a.Broadcast.Status) != rank(b.Broadcast.Status) {
+			return rank(a.Broadcast.Status) < rank(b.Broadcast.Status)
+		}
+		if a.Broadcast.Listeners != b.Broadcast.Listeners {
+			return a.Broadcast.Listeners > b.Broadcast.Listeners
+		}
+		an, bn := strings.ToLower(a.Station.Name), strings.ToLower(b.Station.Name)
+		if an != bn {
+			return an < bn
+		}
+		return a.Station.ID < b.Station.ID
+	})
 }

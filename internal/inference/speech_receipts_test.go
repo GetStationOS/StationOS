@@ -21,7 +21,7 @@ func (s receiptSpeech) Synthesize(context.Context, production.SpeechRequest) ([]
 }
 func TestSpeechReceiptsAndLogsUseSelectedRequest(t *testing.T) {
 	for _, fail := range []bool{false, true} {
-		store := &testStore{connections: map[string]ai.Connection{"cloud": {ID: "cloud", Type: "openai"}}, keys: map[string]string{"cloud": "private-key"}, routes: ai.Routes{Speech: ai.Selection{Connection: "cloud"}}}
+		store := &testStore{connections: map[string]ai.Connection{"cloud": {ID: "cloud", Name: "My OpenAI", Type: "openai"}}, keys: map[string]string{"cloud": "private-key"}, routes: ai.Routes{Speech: ai.Selection{Connection: "cloud"}}}
 		r := New(store, nil)
 		r.OpenAISpeech = receiptSpeech{fail: fail}
 		var logs bytes.Buffer
@@ -29,7 +29,7 @@ func TestSpeechReceiptsAndLogsUseSelectedRequest(t *testing.T) {
 		var meta production.SpeechProvenance
 		ctx := production.WithSpeechProvenance(context.Background(), func(value production.SpeechProvenance) { meta = value })
 		_, err := r.Synthesize(ctx, production.SpeechRequest{Text: "private spoken text", Model: "tts-1", Voice: "marin"})
-		if (err != nil) != fail || meta != (production.SpeechProvenance{Provider: "openai", Connection: "cloud", Model: "tts-1", Voice: "marin"}) {
+		if (err != nil) != fail || meta != (production.SpeechProvenance{Provider: "openai", ProviderName: "My OpenAI", Connection: "cloud", Model: "tts-1", Voice: "marin"}) {
 			t.Fatal(meta, err)
 		}
 		for _, wanted := range []string{`"speech_provider":"openai"`, `"speech_model":"tts-1"`, `"speech_voice":"marin"`} {

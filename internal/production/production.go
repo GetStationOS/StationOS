@@ -159,6 +159,7 @@ type TrackEligibility interface {
 // Speech returns source audio for the existing presenter normalizer.
 // Voice, direction and speed are provider capabilities; Nano uses its default voice.
 type SpeechRequest struct {
+	ProviderName                  string
 	Connection                    string
 	SpeechVoices                  map[string]string
 	Text, Model, Voice, Direction string
@@ -176,7 +177,7 @@ type Speech interface {
 // SpeechProvenance is captured by the adapter that sends the synthesis request.
 // Empty fields mean unknown, never inferred from a later DJ profile.
 type SpeechProvenance struct {
-	Provider, Connection, Model, Voice string
+	Provider, ProviderName, Connection, Model, Voice string
 }
 type speechProvenanceKey struct{}
 

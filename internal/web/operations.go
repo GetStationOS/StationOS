@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/schedule"
@@ -404,6 +405,32 @@ func (s *Server) operationsVersion(w http.ResponseWriter, r *http.Request) {
 // Prefer the immutable name captured at transmission. Older records can show
 // an explicitly labelled current playlist name without rewriting their snapshot.
 func (s *Server) historyDisplayEvents(r *http.Request, stationID string, events []operations.Event) []operations.Event {
+	// Resolve display names for older receipts by their recorded endpoint ID only.
+	// The provider, model and voice used are never taken from current DJ settings.
+	needsProviderNames := false
+	for _, e := range events {
+		if e.Kind == "speech" && e.SpeechProviderName == "" && e.SpeechConnection != "" {
+			needsProviderNames = true
+			break
+		}
+	}
+	if needsProviderNames && s.d.Assistant != nil {
+		if store, ok := s.d.Assistant.Store.(ai.Store); ok {
+			if connections, err := store.Connections(r.Context()); err == nil {
+				names := map[string]string{}
+				for _, c := range connections {
+					names[c.ID] = c.Name
+				}
+				events = append([]operations.Event(nil), events...)
+				for i := range events {
+					if events[i].SpeechProviderName == "" {
+						events[i].SpeechProviderName = names[events[i].SpeechConnection]
+					}
+				}
+			}
+		}
+	}
+
 	if s.d.Playlists == nil {
 		return events
 	}
@@ -455,6 +482,12 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	}
 
 	v := operationalEvent{Event: e, StartLabel: operationalTime(e.Started, loc), EndLabel: operationalTime(e.Ended, loc), Duration: "—"}
+	if v.SpeechProviderName == "" {
+		v.SpeechProviderName = map[string]string{"chatterbox": "Chatterbox", "elevenlabs": "ElevenLabs", "openai": "OpenAI"}[e.SpeechProvider]
+	}
+	if v.SpeechProviderName == "" {
+		v.SpeechProviderName = "Not recorded"
+	}
 	v.StartDate = e.Started.In(loc).Format("02 Jan 2006")
 	v.StartTime = e.Started.In(loc).Format("15:04:05")
 	if !e.Ended.IsZero() && (e.Kind == "music" || e.Kind == "speech") {

@@ -17,7 +17,7 @@ func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) (au
 	if err != nil {
 		return nil, err
 	}
-	meta := production.SpeechProvenance{Provider: conn.Type, Connection: conn.ID, Model: q.Model, Voice: q.Voice}
+	meta := production.SpeechProvenance{Provider: conn.Type, ProviderName: conn.Name, Connection: conn.ID, Model: q.Model, Voice: q.Voice}
 	if conn.Type == "chatterbox" {
 		meta.Model = "chatterbox-nano"
 		if q.Connection == "" {
@@ -43,6 +43,7 @@ func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) (au
 		}
 	}()
 	q.Connection = conn.ID
+	q.ProviderName = conn.Name
 	switch conn.Type {
 	case "elevenlabs":
 		return r.Local.elevenSpeech(ctx, conn, key, q)

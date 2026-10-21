@@ -741,3 +741,9 @@ Generation/failure and actual airing logs include speech_provider, speech_connec
 speech_model and speech_voice. A Chatterbox server-default selection is labelled
 as such: StationOS does not claim to know the server's underlying reference audio.
 Existing JSON snapshots retain the metadata without a schema migration.
+
+
+Timeline speech details display the saved endpoint name exactly as entered,
+without endpoint IDs. New speech receipts snapshot that name; older receipts may
+resolve the name using their recorded endpoint ID. Technical IDs remain in logs
+and exports for diagnosis.

@@ -514,7 +514,7 @@ func (p Producer) synthesize(ctx context.Context, q production.SpeechRequest) ([
 
 // Synthesize retains the existing OpenAI transport and retry behaviour.
 func (p Producer) Synthesize(ctx context.Context, q production.SpeechRequest) ([]byte, error) {
-	production.ReportSpeechProvenance(ctx, production.SpeechProvenance{Provider: "openai", Connection: q.Connection, Model: q.Model, Voice: q.Voice})
+	production.ReportSpeechProvenance(ctx, production.SpeechProvenance{Provider: "openai", ProviderName: q.ProviderName, Connection: q.Connection, Model: q.Model, Voice: q.Voice})
 	key, err := p.Keys.APIKey(ctx, "")
 	if err != nil {
 		return nil, err

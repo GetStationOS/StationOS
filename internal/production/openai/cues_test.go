@@ -33,7 +33,7 @@ func (s *cueSpeech) Synthesize(_ context.Context, q production.SpeechRequest) ([
 func cueCatalogue() djs.SpeechCapabilities {
 	return djs.SpeechCapabilities{InlineCues: []djs.InlineCue{{Tag: "[chuckle]", Name: "Chuckle"}, {Tag: "[clear throat]", Name: "Clear throat"}}}
 }
-func TestSpeechWriterReceivesCapabilitiesAndKeepsActualTranscript(t *testing.T) {
+func TestSpeechWriterUsesDJPromptWithoutInjectedCueInstructions(t *testing.T) {
 	for _, kind := range []string{"normal", "handover", "presentation", "audience", "disabled", "discovery failure"} {
 		t.Run(kind, func(t *testing.T) {
 			speech := &cueSpeech{capabilities: cueCatalogue()}
@@ -48,6 +48,7 @@ func TestSpeechWriterReceivesCapabilitiesAndKeepsActualTranscript(t *testing.T) 
 			p.Speech = speech
 			p.Text = local
 			show := profile()
+			show.DJ.Prompt = "Include [chuckle] naturally in your spoken links."
 			show.DJ.SpeechConnection = "selected"
 			show.DJ.SpeechModel = "server-selected-model"
 			if kind == "presentation" {
@@ -77,17 +78,11 @@ func TestSpeechWriterReceivesCapabilitiesAndKeepsActualTranscript(t *testing.T) 
 			}
 			instructions := local.requests[0].Instructions
 			enabled := kind != "disabled" && kind != "discovery failure"
-			if enabled {
-				for _, want := range []string{`"tag":"[clear throat]"`, `"name":"Clear throat"`, "EXACTLY ONE advertised sound cue", "Zero cues is incorrect", "DJ prompt:"} {
-					if !strings.Contains(instructions, want) {
-						t.Fatalf("missing %q in prompt", want)
-					}
-				}
-			} else if !strings.Contains(instructions, "advertises no inline sound cues") || strings.Contains(instructions, `"tag":"[chuckle]"`) {
-				t.Fatal(instructions)
+			if !strings.Contains(instructions, show.DJ.Prompt) || strings.Contains(instructions, "Speech delivery capabilities") || strings.Contains(instructions, "INLINE CUE TEST") || strings.Contains(instructions, `"inline_cues"`) {
+				t.Fatal("DJ prompt missing or server cue instructions injected", instructions)
 			}
 			for _, q := range speech.requests {
-				if strings.Contains(q.Text, "[whisper]") || strings.Count(q.Text, "[") > 1 || (enabled && strings.Count(q.Text, "[") != 1) {
+				if strings.Contains(q.Text, "[whisper]") || (enabled && strings.Count(q.Text, "[") == 0) {
 					t.Fatal(q.Text)
 				}
 				if !enabled && strings.Contains(q.Text, "[") {
@@ -171,7 +166,7 @@ func TestMissingGeneratorCueRemainsAbsentInSpeechAndTranscript(t *testing.T) {
 }
 func TestCueCleaningNeverInsertsAndPreservesGeneratorPlacement(t *testing.T) {
 	caps := djs.SpeechCapabilities{InlineCues: []djs.InlineCue{{Tag: "[sigh]", Name: "Sigh"}, {Tag: "[laugh]", Name: "Laugh"}}}
-	for _, tc := range []struct{ input, want string }{{"Welcome.", "Welcome."}, {"[laugh] Welcome.", "[laugh] Welcome."}, {"[laugh] Welcome. [sigh]", "[laugh] Welcome."}, {"[unsupported] Welcome.", "Welcome."}, {"Welcome. [sigh] What a night.", "Welcome. [sigh] What a night."}} {
+	for _, tc := range []struct{ input, want string }{{"Welcome.", "Welcome."}, {"[laugh] Welcome.", "[laugh] Welcome."}, {"[laugh] Welcome. [sigh]", "[laugh] Welcome. [sigh]"}, {"[unsupported] Welcome.", "Welcome."}, {"Welcome. [sigh] What a night.", "Welcome. [sigh] What a night."}} {
 		got, err := cleanSpeechCues(tc.input, caps)
 		if err != nil || got != tc.want {
 			t.Fatal(tc, got, err)

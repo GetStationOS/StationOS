@@ -158,7 +158,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		return production.Prepared{}, err
 	}
 	capabilities := p.speechCapabilities(ctx, speechModel)
-	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + show.DJ.Prompt, background, speechContinuityInstructions, speechCueInstructions(capabilities)}, "\n\n")
+	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + show.DJ.Prompt, background, speechContinuityInstructions}, "\n\n")
 	speechIdentity := ""
 	if p.Speech != nil {
 		speechIdentity, err = p.Speech.Identity(ctx, "speech")
@@ -166,7 +166,8 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 			return production.Prepared{}, err
 		}
 	}
-	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+speechIdentity+instructions)
+	capabilityIdentity, _ := json.Marshal(capabilities)
+	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+speechIdentity+instructions+string(capabilityIdentity))
 	if p.Store != nil {
 		if prepared, err := p.Store.Get(ctx, cacheKey); err == nil && production.ValidatePresentation(prepared.Plan) == nil {
 			if p.Session != nil {
@@ -283,7 +284,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		return nil, nil, err
 	}
 	capabilities := p.speechCapabilities(ctx, speechModel)
-	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions, speechCueInstructions(capabilities)}, "\n\n")
+	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions}, "\n\n")
 	body := map[string]any{"model": link.Show.DJ.Model, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
 	// An explicit JSON field makes silence distinguishable from an empty or
 	// incomplete provider response across every supported inference adapter.

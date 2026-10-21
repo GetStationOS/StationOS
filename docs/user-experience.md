@@ -762,21 +762,13 @@ generation failure. Turbo appears only when advertised by the server.
 ### Model-advertised inline speech cues
 
 Chatterbox GET /models may supply capabilities.inline_cues as tag/name pairs.
-StationOS validates bounded unique tags and names, then passes only the selected
-DJ endpoint/model's list to the speech-writing generator alongside the shared
-producer prompts and DJ personality. No model-name allowlist is used. Missing,
-empty or unavailable capability data disables cues; normal speech can continue.
-OpenAI and ElevenLabs do not inherit Chatterbox cues. Discovery does not generate
-speech or run in a background polling loop.
-
-For the explicit cue test, every nonempty link/introduction/sign-off must have
-exactly one advertised cue. This overrides the earlier sparse-cue policy. The
-generator must choose and write the sound, varying its choice and placement.
-StationOS never inserts a missing cue, so omissions remain visible when testing
-the prompt. Valid existing cues retain their original placement.
-Unknown/excess complete tags are stripped before synthesis; malformed brackets
-and cue-only utterances are rejected. Normal optional-link silence, response
-formats, editorial facts, handovers and approved audience requirements remain.
-The final synthesized text, including accepted tags, is the timeline transcript.
-Capability-dependent delivery instructions participate in prepared-audio identity
-so changed capabilities invalidate prior prepared speech.
+StationOS validates bounded unique tags and names and uses the selected model's
+capabilities to retain supported cues before synthesis. Missing, empty or
+unavailable capability data disables cues; normal speech can continue.
+Cue wording, choice, frequency and placement belong to the editable DJ prompt.
+StationOS adds no cue instructions or capability JSON to the speech-writing
+prompt and never inserts missing cues or limits supported cues to one per section.
+Unsupported complete tags are stripped; malformed brackets and cue-only
+utterances are rejected. The final synthesized text is the timeline transcript.
+Capabilities remain part of prepared-audio identity so changes invalidate stale
+prepared speech. Discovery does not generate speech or run in a polling loop.

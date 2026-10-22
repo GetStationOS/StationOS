@@ -178,7 +178,7 @@ type Speech interface {
 // SpeechProvenance is captured by the adapter that sends the synthesis request.
 // Empty fields mean unknown, never inferred from a later DJ profile.
 type SpeechProvenance struct {
-	Provider, ProviderName, Connection, Model, Voice string
+	Provider, ProviderName, Connection, Model, Voice, VoiceName string
 }
 type speechProvenanceKey struct{}
 

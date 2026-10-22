@@ -106,6 +106,10 @@ func TestElevenLabsFailuresAreBoundedAndRedacted(t *testing.T) {
 func TestElevenLabsRouterUsesDJConnectionAndKey(t *testing.T) {
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/voices" {
+			w.Write([]byte(`{"voices":[{"voice_id":"designed","name":"Elena Vance"}],"has_more":false}`))
+			return
+		}
 		calls++
 		if r.Header.Get("xi-api-key") != "eleven-secret" || r.Header.Get("Authorization") != "" {
 			t.Error("credential crossed providers")
@@ -116,8 +120,10 @@ func TestElevenLabsRouterUsesDJConnectionAndKey(t *testing.T) {
 	defer srv.Close()
 	store := &testStore{connections: map[string]ai.Connection{"openai": {ID: "openai", Type: "openai"}, "eleven": {ID: "eleven", Type: "elevenlabs", Address: srv.URL}}, keys: map[string]string{"openai": "openai-secret", "eleven": "eleven-secret"}, routes: ai.Routes{Speech: ai.Selection{Connection: "openai"}}}
 	r := New(store, nil)
-	audio, err := r.Synthesize(context.Background(), production.SpeechRequest{Connection: "eleven", Text: "Hello", Voice: "designed", Model: "eleven_multilingual_v2"})
-	if err != nil || string(audio) != "ID3audio" || calls != 1 {
+	var meta production.SpeechProvenance
+	ctx := production.WithSpeechProvenance(context.Background(), func(value production.SpeechProvenance) { meta = value })
+	audio, err := r.Synthesize(ctx, production.SpeechRequest{Connection: "eleven", Text: "Hello", Voice: "designed", Model: "eleven_multilingual_v2"})
+	if err != nil || string(audio) != "ID3audio" || calls != 1 || meta.Voice != "designed" || meta.VoiceName != "Elena Vance" {
 		t.Fatal(err, calls)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -125,5 +131,29 @@ func TestElevenLabsRouterUsesDJConnectionAndKey(t *testing.T) {
 	_, err = r.Synthesize(ctx, production.SpeechRequest{Connection: "eleven", Text: "Hello", Voice: "designed", Model: "eleven_multilingual_v2"})
 	if !errors.Is(err, context.Canceled) || calls != 1 {
 		t.Fatal(err, calls)
+	}
+}
+
+func TestElevenLabsVoiceNameFailureDoesNotBlockSpeech(t *testing.T) {
+	posts := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v2/voices" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		if r.URL.Path != "/v1/text-to-speech/designed" {
+			t.Error(r.URL.Path)
+		}
+		posts++
+		w.Header().Set("Content-Type", "audio/mpeg")
+		w.Write([]byte("ID3audio"))
+	}))
+	defer srv.Close()
+	store := &testStore{connections: map[string]ai.Connection{"eleven": {ID: "eleven", Type: "elevenlabs", Address: srv.URL}}, keys: map[string]string{"eleven": "secret"}}
+	var meta production.SpeechProvenance
+	ctx := production.WithSpeechProvenance(context.Background(), func(value production.SpeechProvenance) { meta = value })
+	audio, err := New(store, nil).Synthesize(ctx, production.SpeechRequest{Connection: "eleven", Text: "Hello", Voice: "designed", Model: "eleven_multilingual_v2"})
+	if err != nil || string(audio) != "ID3audio" || posts != 1 || meta.Voice != "designed" || meta.VoiceName != "" {
+		t.Fatal(meta, posts, err)
 	}
 }

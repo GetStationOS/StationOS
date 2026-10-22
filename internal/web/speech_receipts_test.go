@@ -29,6 +29,7 @@ func TestTimelineShowsImmutableSpeechReceiptsAndUnknownHistory(t *testing.T) {
 	now := time.Now().Add(-time.Minute)
 	for _, event := range []operations.Event{
 		{ID: "new", StationID: st.ID, Kind: "speech", Outcome: "completed", Started: now, Ended: now.Add(time.Second), Title: "DJ link", DJ: "Elena", Speech: "Good evening", SpeechProvider: "chatterbox", SpeechConnection: "08487a14774a0ef09e4b3cca55a28388", SpeechModel: "chatterbox-nano", SpeechVoice: "Elena <British>"},
+		{ID: "eleven", StationID: st.ID, Kind: "speech", Outcome: "completed", Started: now.Add(-time.Second), SpeechProvider: "elevenlabs", SpeechVoice: "jKCAjEfHkR2aEl8KQM96", SpeechVoiceName: "Elena <Vance>"},
 		{ID: "old", StationID: st.ID, Kind: "speech", Outcome: "completed", Started: now.Add(-time.Minute), Title: "Legacy speech"},
 	} {
 		if err = store.Save(ctx, event); err != nil {
@@ -43,13 +44,13 @@ func TestTimelineShowsImmutableSpeechReceiptsAndUnknownHistory(t *testing.T) {
 	for _, headers := range []map[string]string{nil, {"HX-Request": "true"}} {
 		w := request(h, "GET", path, nil, headers)
 		body := w.Body.String()
-		if w.Code != 200 || !strings.Contains(body, "Model: chatterbox-nano") || !strings.Contains(body, "Voice: Elena &lt;British&gt;") || !strings.Contains(body, "Speech model and voice: Not recorded") || strings.Contains(body, "Elena <British>") || !strings.Contains(body, "Provider: Chatterbox ·") || strings.Contains(body, "08487a14774a0ef09e4b3cca55a28388") {
+		if !strings.Contains(body, "Voice: Elena &lt;Vance&gt;") || strings.Contains(body, "jKCAjEfHkR2aEl8KQM96") || w.Code != 200 || !strings.Contains(body, "Model: chatterbox-nano") || !strings.Contains(body, "Voice: Elena &lt;British&gt;") || !strings.Contains(body, "Speech model and voice: Not recorded") || strings.Contains(body, "Elena <British>") || !strings.Contains(body, "Provider: Chatterbox ·") || strings.Contains(body, "08487a14774a0ef09e4b3cca55a28388") {
 			t.Fatal(w.Code, body)
 		}
 	}
 	w := request(h, "GET", "/producer/stations/"+st.ID+"/history.csv", nil, nil)
 	rows, err := csv.NewReader(strings.NewReader(w.Body.String())).ReadAll()
-	if err != nil || len(rows) != 3 || rows[0][16] != "Speech model" || rows[1][16] != "chatterbox-nano" || rows[1][17] != "Elena <British>" {
+	if err != nil || len(rows) != 4 || rows[0][16] != "Speech model" || rows[1][16] != "chatterbox-nano" || rows[1][17] != "Elena <British>" {
 		t.Fatal(rows, err)
 	}
 }

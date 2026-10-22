@@ -14,6 +14,7 @@ import (
 
 type Event struct {
 	SpeechProviderName                                              string
+	SpeechVoiceName                                                 string
 	SpeechProvider, SpeechConnection, SpeechModel, SpeechVoice      string
 	ID, StationID, Kind, Outcome                                    string
 	Started, Ended                                                  time.Time

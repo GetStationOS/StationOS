@@ -15,7 +15,7 @@ func transmissionEvent(id string, s State) operations.Event {
 		kind = "speech"
 		reason = "Prepared presenter speech"
 	}
-	return operations.Event{ID: operations.ID(), StationID: id, Kind: kind, Speech: s.SpeechText, SpeechProvider: s.SpeechProvenance.Provider, SpeechProviderName: s.SpeechProvenance.ProviderName, SpeechConnection: s.SpeechProvenance.Connection, SpeechModel: s.SpeechProvenance.Model, SpeechVoice: s.SpeechProvenance.Voice, Title: s.Current.Title, Artist: s.Current.Artist, Composer: s.Current.Composer, Album: s.Current.Album, TrackID: s.Current.ID, SourceID: s.Current.SourceID, SourceItemID: s.Current.SourceItemID, ShowID: s.Programme.ShowID, Show: s.Programme.Title, DJID: s.Programme.DJ.ID, DJ: s.Programme.DJ.Name, PlaylistID: s.Programme.PlaylistID, Playlist: s.Programme.PlaylistName, Phase: s.Phase, Reason: reason}
+	return operations.Event{ID: operations.ID(), StationID: id, Kind: kind, Speech: s.SpeechText, SpeechProvider: s.SpeechProvenance.Provider, SpeechProviderName: s.SpeechProvenance.ProviderName, SpeechConnection: s.SpeechProvenance.Connection, SpeechModel: s.SpeechProvenance.Model, SpeechVoice: s.SpeechProvenance.Voice, SpeechVoiceName: s.SpeechProvenance.VoiceName, Title: s.Current.Title, Artist: s.Current.Artist, Composer: s.Current.Composer, Album: s.Current.Album, TrackID: s.Current.ID, SourceID: s.Current.SourceID, SourceItemID: s.Current.SourceItemID, ShowID: s.Programme.ShowID, Show: s.Programme.Title, DJID: s.Programme.DJ.ID, DJ: s.Programme.DJ.Name, PlaylistID: s.Programme.PlaylistID, Playlist: s.Programme.PlaylistName, Phase: s.Phase, Reason: reason}
 }
 func (m *Manager) record(e operations.Event) {
 	if m.options.Operations != nil {

@@ -61,7 +61,7 @@
           {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint history-album">{{.Album}}</span>{{end}}
           {{if and (eq .Kind "speech") .Speech}}<p class="history-speech">{{.Speech}}</p>{{end}}
           {{if eq .Kind "speech"}}
-          <p class="hint history-speech-source">{{if .SpeechProvider}}Provider: {{.SpeechProviderName}} · Model: {{if .SpeechModel}}{{.SpeechModel}}{{else}}Not recorded{{end}} · Voice: {{if .SpeechVoice}}{{.SpeechVoice}}{{else}}Not recorded{{end}}{{else}}Speech model and voice: Not recorded{{end}}</p>
+          <p class="hint history-speech-source">{{if .SpeechProvider}}Provider: {{.SpeechProviderName}} · Model: {{if .SpeechModel}}{{.SpeechModel}}{{else}}Not recorded{{end}} · Voice: {{if .SpeechVoiceName}}{{.SpeechVoiceName}}{{else if .SpeechVoice}}{{.SpeechVoice}}{{else}}Not recorded{{end}}{{else}}Speech model and voice: Not recorded{{end}}</p>
           {{end}}
           {{if .Notes}}<p class="history-note">{{.Notes}}</p>{{end}}
         </div>

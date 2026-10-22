@@ -775,3 +775,8 @@ Capabilities remain part of prepared-audio identity so changes invalidate stale
 prepared speech. Discovery does not generate speech or run in a polling loop.
 
 The latest unfiltered Timeline first page updates through its event subscription. Anchored snapshots, later pages and filtered results remain stable with an explicit refresh indicator. Live row patches preserve reading position and open details, and wait while a result control has focus or text is selected.
+
+ElevenLabs speech receipts capture the voice display name when generated. Timeline
+shows that saved name, retaining the voice ID in diagnostic exports. Older records
+or unavailable voice discovery retain their recorded ID; do not infer historical
+voices from a DJ's current settings. Name discovery is best effort and bounded.

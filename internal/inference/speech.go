@@ -27,6 +27,20 @@ func (r *Router) Synthesize(ctx context.Context, q production.SpeechRequest) (au
 			meta.Voice = "(server default)"
 		}
 	}
+	if conn.Type == "elevenlabs" {
+		// Name discovery is best effort and must not prevent speech generation.
+		nameCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		catalog, lookupErr := r.Local.elevenVoices(nameCtx, conn, key)
+		cancel()
+		if lookupErr == nil {
+			for _, voice := range catalog.Voices {
+				if voice.ID == meta.Voice {
+					meta.VoiceName = voice.Name
+					break
+				}
+			}
+		}
+	}
 	production.ReportSpeechProvenance(ctx, meta)
 	logger := r.Logger
 	if logger == nil {

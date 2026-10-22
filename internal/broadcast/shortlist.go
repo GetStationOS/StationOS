@@ -37,8 +37,7 @@ func trackShortlist(pool []content.AudioItem, previous string, history Rotation,
 			return []content.AudioItem{selectTrack(candidates, previous, remaining)}
 		}
 	}
-	rankByLastPlayed(candidates, history, previous)
-	return candidates[:min(10, len(candidates))]
+	return balancedShortlist(candidates, history, previous)
 }
 
 // rankByLastPlayed puts never-played recordings first, then oldest actual plays.

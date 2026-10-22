@@ -2,6 +2,7 @@ package episodes
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"stationos.local/stationos/internal/ai"
@@ -21,10 +22,11 @@ func (s *Service) planDecision(ctx context.Context, o schedule.Occurrence, base 
 	offered := map[string]bool{}
 	candidates := []content.AudioItem{}
 	// Eligibility supplies oldest-played-first order with varied ties. Keep that
-	// order while skipping candidates that fail the episode-specific checks.
+	// order while skipping candidates that fail the episode-specific checks, then
+	// balance the validated pool before limiting the shortlist.
 	for _, a := range pool {
-		if len(candidates) == 10 {
-			break
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		cmd := command{Tracks: []string{a.ID}, Theme: base.Theme, RepetitionReason: base.RepetitionReason}
 		if _, err := validateNextTrack(cmd, base, eligible, map[string]bool{a.ID: true}, remaining, format); err != nil {
@@ -35,6 +37,36 @@ func (s *Service) planDecision(ctx context.Context, o schedule.Occurrence, base 
 		}
 		offered[a.ID] = true
 		candidates = append(candidates, a)
+	}
+	if shortlister, ok := s.Eligibility.(production.TrackShortlist); ok {
+		seed := fmt.Sprintf("%s:%d:%d", base.Key, len(base.Aired), len(base.Plan))
+		shortlist, err := shortlister.ShortlistTracks(ctx, o, candidates, seed)
+		if err != nil {
+			return err
+		}
+		if len(shortlist) > 10 {
+			return ai.ErrInvalidStructuredResponse
+		}
+		valid := map[string]content.AudioItem{}
+		for _, a := range candidates {
+			valid[a.ID] = a
+		}
+		candidates = nil
+		offered = map[string]bool{}
+		for _, a := range shortlist {
+			item, ok := valid[a.ID]
+			if !ok || offered[a.ID] {
+				return ai.ErrInvalidStructuredResponse
+			}
+			offered[a.ID] = true
+			candidates = append(candidates, item)
+		}
+	} else {
+		candidates = candidates[:min(10, len(candidates))]
+		offered = map[string]bool{}
+		for _, a := range candidates {
+			offered[a.ID] = true
+		}
 	}
 	if len(candidates) == 0 {
 		return ai.ErrNoEligibleTracks

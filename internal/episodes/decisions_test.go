@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/schedule"
 	"testing"
 )
 
@@ -96,6 +98,50 @@ func TestDecisionShortlistKeepsRecencyOrderWhileSkippingIneligibleTracks(t *test
 			if a.ID != pool[i+2].ID {
 				t.Fatal("lost oldest-first order or admitted an ineligible track", i, a.ID)
 			}
+		}
+		return q.Candidates[0].ID, nil
+	})
+	if err := svc.Plan(ctx, o); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type balancedGate struct {
+	upcomingGate
+	shortlist func([]content.AudioItem) ([]content.AudioItem, error)
+}
+
+func (g balancedGate) ShortlistTracks(_ context.Context, _ schedule.Occurrence, pool []content.AudioItem, _ string) ([]content.AudioItem, error) {
+	return g.shortlist(pool)
+}
+
+func TestBalancingReceivesValidatedTracksAndConstrainsProviderChoice(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	o.DJ.Model = "gpt-6-luna"
+	store := &memoryStore{}
+	store.Update(ctx, o, func(e *Episode) error { e.Excluded = []string{"excluded"}; return nil })
+	pool := poolStub{recording("excluded", 40), recording("too-long", 900)}
+	for i := 0; i < 15; i++ {
+		pool = append(pool, recording(fmt.Sprintf("eligible-%02d", i), 40))
+	}
+	balanced := false
+	gate := balancedGate{upcomingGate: upcomingGate{pool: pool}, shortlist: func(eligible []content.AudioItem) ([]content.AudioItem, error) {
+		balanced = true
+		if len(eligible) != 15 {
+			t.Fatal("balance must happen after local validation", len(eligible))
+		}
+		for _, a := range eligible {
+			if a.ID == "excluded" || a.ID == "too-long" {
+				t.Fatal("invalid balance input", a.ID)
+			}
+		}
+		return eligible[12:15], nil
+	}}
+	svc := &Service{Store: store, Pool: pool, Text: &decisionText{}, Eligibility: gate}
+	svc.Fallback = selectionFunc(func(_ context.Context, q production.SelectionRequest) (string, error) {
+		if !balanced || len(q.Candidates) != 3 || q.Candidates[0].ID != "eligible-12" {
+			t.Fatal("balanced pool ignored", q.Candidates)
 		}
 		return q.Candidates[0].ID, nil
 	})

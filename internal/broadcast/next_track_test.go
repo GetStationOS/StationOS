@@ -125,13 +125,20 @@ func TestTrackShortlistBoundsAndTiming(t *testing.T) {
 	}
 	history := Rotation{LastPlayed: map[string]time.Time{"a": time.Now()}}
 	got = trackShortlist(pool, "b", history, 0)
-	if len(got) != 10 {
-		t.Fatal(len(got))
+	if len(got) != 4 {
+		t.Fatal("expected three new tracks and one previously played track", len(got))
 	}
+	newCount := 0
 	for _, item := range got {
-		if item.ID == "b" || item.ID == "a" {
-			t.Fatal("current/recent track shortlisted ahead of unplayed music", got)
+		if item.ID == "b" {
+			t.Fatal("current track shortlisted", got)
 		}
+		if history.LastPlayed[item.ID].IsZero() {
+			newCount++
+		}
+	}
+	if newCount != 3 {
+		t.Fatal("new music allowance exceeded", newCount)
 	}
 }
 

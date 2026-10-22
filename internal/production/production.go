@@ -160,6 +160,12 @@ type TrackEligibility interface {
 	EligibleTracks(context.Context, schedule.Occurrence, time.Time, []SelectionPlay) ([]content.AudioItem, error)
 }
 
+// TrackShortlist balances already validated candidates before provider selection.
+// The seed varies equal timestamps with episode progress, remaining stable on retries.
+type TrackShortlist interface {
+	ShortlistTracks(context.Context, schedule.Occurrence, []content.AudioItem, string) ([]content.AudioItem, error)
+}
+
 // Speech returns source audio for the existing presenter normalizer.
 // Voice, direction and speed are provider capabilities; Nano uses its default voice.
 type SpeechRequest struct {

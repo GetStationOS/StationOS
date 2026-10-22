@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"strings"
 	"testing"
@@ -37,8 +38,19 @@ func TestDJFormsCredentialsAndDeletion(t *testing.T) {
 	form.Set("model", "custom")
 	form.Set("custom_model", "my-model-v2")
 	w = request(h, "POST", "/producer/djs", form, map[string]string{"HX-Request": "true"})
-	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "dj-saved") {
-		t.Fatal(w.Code, w.Header())
+	var destination struct{ Path, Target, Swap string }
+	if err := json.Unmarshal([]byte(w.Header().Get("HX-Location")), &destination); err != nil {
+		t.Fatal(err)
+	}
+	editURL := "/producer/djs/" + id + "?notice=dj-saved"
+	if w.Code != 204 || destination.Path != editURL || destination.Target != "#main" || destination.Swap != "innerHTML show:none" {
+		t.Fatal("DJ edit must return to its settings without scrolling", w.Code, w.Header())
+	}
+	if ordinary := request(h, "POST", "/producer/djs", form, nil); ordinary.Code != 303 || ordinary.Header().Get("Location") != editURL {
+		t.Fatal("ordinary edit left DJ settings", ordinary.Code, ordinary.Header())
+	}
+	if html := request(h, "GET", editURL, nil, map[string]string{"HX-Request": "true"}).Body.String(); !strings.Contains(html, "DJ saved.") || !strings.Contains(html, "data-dj-form") {
+		t.Fatal("saved DJ response lacks its edit form or success signal")
 	}
 	var speed float64
 	st.DB.QueryRow(`SELECT conversation_speed FROM djs WHERE id=?`, id).Scan(&speed)

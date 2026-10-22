@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"net/url"
 	"stationos.local/stationos/internal/producer"
 	"strconv"
 	"strings"
@@ -202,7 +203,11 @@ func (s *Server) saveDJ(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	s.redirect(w, r, "/producer/djs?notice=dj-saved")
+	destination := "/producer/djs"
+	if p.ID != "" {
+		destination += "/" + url.PathEscape(p.ID)
+	}
+	s.redirect(w, r, destination+"?notice=dj-saved")
 }
 func (s *Server) deleteDJ(w http.ResponseWriter, r *http.Request) {
 	if s.d.DJs == nil {

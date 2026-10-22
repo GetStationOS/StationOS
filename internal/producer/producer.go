@@ -181,11 +181,11 @@ func (s *Service) activity(id, stage string, finished bool) {
 }
 
 type Settings struct {
-	Model                                                 string
-	CurationModel, SpeechModel, AudienceModel, ImageModel string
-	HasKey                                                bool
-	Routes                                                ai.Routes
-	TextReady                                             bool
+	Model                                                               string
+	CurationModel, WritingModel, SpeechModel, AudienceModel, ImageModel string
+	HasKey                                                              bool
+	Routes                                                              ai.Routes
+	TextReady                                                           bool
 }
 type KeyChange struct {
 	Value string

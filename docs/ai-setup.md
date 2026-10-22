@@ -12,7 +12,9 @@ The endpoint must be reachable from StationOS. Inside Docker, `localhost` means 
 
 ## Choose models for text and artwork
 
-Under **Models for features**, choose the endpoint and model for the production assistant, DJ writing/curation and audience review. All DJs share the selected text service; their individual editorial briefs give them different personalities.
+Under **Models for features**, choose the endpoint and model for the production assistant, show planning, DJ writing and audience review. DJs share the selected services; their individual editorial briefs give them different personalities.
+
+Show planning and DJ writing have separate endpoint and model choices. Show planning selects music; OpenAI `gpt-6-luna` uses the Decisions API to choose one eligible recording from a shortlist. DJ writing generates introductions, spoken links and sign-offs. DJ writing inherits the previous combined setting on upgrade. OpenAI Show planning switches to `gpt-6-luna`; other planning providers retain their model. Changing either role leaves the other unchanged. Other planning models/providers retain structured text selection.
 
 Text connections support OpenAI, native Ollama, OpenAI-compatible chat services, native Anthropic and native Gemini. Compatibility depends on the model’s ability to follow the required tool and structured-response contracts. A successful connection check alone does not establish programme quality.
 

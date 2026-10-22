@@ -3,6 +3,7 @@ package broadcast
 import (
 	"context"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"sort"
 	"stationos.local/stationos/internal/production"
@@ -36,9 +37,16 @@ func trackShortlist(pool []content.AudioItem, previous string, history Rotation,
 			return []content.AudioItem{selectTrack(candidates, previous, remaining)}
 		}
 	}
+	rankByLastPlayed(candidates, history, previous)
+	return candidates[:min(10, len(candidates))]
+}
+
+// rankByLastPlayed puts never-played recordings first, then oldest actual plays.
+// A seeded tie-break varies equal timestamps without changing recency priority.
+func rankByLastPlayed(candidates []content.AudioItem, history Rotation, seed string) {
 	rank := func(id string) uint64 {
 		h := fnv.New64a()
-		_, _ = h.Write([]byte(previous + "\x00" + id))
+		_, _ = h.Write([]byte(seed + "\x00" + id))
 		return h.Sum64()
 	}
 	sort.Slice(candidates, func(i, j int) bool {
@@ -52,7 +60,6 @@ func trackShortlist(pool []content.AudioItem, previous string, history Rotation,
 		}
 		return x < y
 	})
-	return candidates[:min(10, len(candidates))]
 }
 
 // Listener requests have priority. Every AI choice must belong to the shortlist;
@@ -133,7 +140,12 @@ func (m *Manager) EligibleTracks(ctx context.Context, o schedule.Occurrence, at 
 		catalogue = append(catalogue, played.Item)
 	}
 	eligible, _ := rotationPool(pool, rotation, at, previous)
-	return varietyPoolFormat(eligible, catalogue, rotation, previous, current, m.episodeMusicPolicy(ctx, o)), nil
+	eligible = varietyPoolFormat(eligible, catalogue, rotation, previous, current, m.episodeMusicPolicy(ctx, o))
+	// Repeated preparation sees the same order; progress through the episode
+	// varies ties without letting recently played recordings leapfrog older ones.
+	seed := fmt.Sprintf("%s:%s:%d", o.Key, previous, len(prior))
+	rankByLastPlayed(eligible, rotation, seed)
+	return eligible, nil
 }
 
 // Background acceptance owns soft rotation checks. Do not reject an approved queue

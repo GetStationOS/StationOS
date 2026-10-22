@@ -28,7 +28,7 @@ var _ producer.Store = Producer{}
 
 func (p Producer) Settings(ctx context.Context) (producer.Settings, error) {
 	var s producer.Settings
-	e := p.DB.QueryRowContext(ctx, `SELECT model,curation_model,speech_model,audience_model,image_model,length(api_key_cipher)>0 FROM producer_settings WHERE id=1`).Scan(&s.Model, &s.CurationModel, &s.SpeechModel, &s.AudienceModel, &s.ImageModel, &s.HasKey)
+	e := p.DB.QueryRowContext(ctx, `SELECT model,curation_model,writing_model,speech_model,audience_model,image_model,length(api_key_cipher)>0 FROM producer_settings WHERE id=1`).Scan(&s.Model, &s.CurationModel, &s.WritingModel, &s.SpeechModel, &s.AudienceModel, &s.ImageModel, &s.HasKey)
 	if e == nil {
 		s.Routes, e = p.Routes(ctx)
 		if e == nil {
@@ -51,6 +51,13 @@ func (p Producer) SaveSettings(ctx context.Context, model string, k producer.Key
 }
 func (p Producer) Configure(ctx context.Context, settings producer.Settings, k producer.KeyChange) error {
 	k = producer.NormalizeKey(k)
+	if settings.WritingModel == "" {
+		current, err := p.Settings(ctx)
+		if err != nil {
+			return err
+		}
+		settings.WritingModel = current.WritingModel
+	}
 	if settings.ImageModel == "" {
 		current, err := p.Settings(ctx)
 		if err != nil {
@@ -58,7 +65,7 @@ func (p Producer) Configure(ctx context.Context, settings producer.Settings, k p
 		}
 		settings.ImageModel = current.ImageModel
 	}
-	for _, model := range []string{settings.Model, settings.CurationModel, settings.SpeechModel, settings.AudienceModel, settings.ImageModel} {
+	for _, model := range []string{settings.Model, settings.CurationModel, settings.WritingModel, settings.SpeechModel, settings.AudienceModel, settings.ImageModel} {
 		if e := producer.ValidateSettings(model, k); e != nil {
 			return e
 		}
@@ -80,7 +87,7 @@ func (p Producer) Configure(ctx context.Context, settings producer.Settings, k p
 		return e
 	}
 	defer tx.Rollback()
-	if _, e = tx.ExecContext(ctx, `UPDATE producer_settings SET model=?,curation_model=?,speech_model=?,audience_model=?,image_model=?,provider_routes=?,ai_revision=ai_revision+1,api_key_cipher=CASE WHEN ? THEN ? ELSE api_key_cipher END WHERE id=1`, settings.Model, settings.CurationModel, settings.SpeechModel, settings.AudienceModel, settings.ImageModel, string(routesJSON), k.Clear || k.Value != "", encrypted); e != nil {
+	if _, e = tx.ExecContext(ctx, `UPDATE producer_settings SET model=?,curation_model=?,writing_model=?,speech_model=?,audience_model=?,image_model=?,provider_routes=?,ai_revision=ai_revision+1,api_key_cipher=CASE WHEN ? THEN ? ELSE api_key_cipher END WHERE id=1`, settings.Model, settings.CurationModel, settings.WritingModel, settings.SpeechModel, settings.AudienceModel, settings.ImageModel, string(routesJSON), k.Clear || k.Value != "", encrypted); e != nil {
 		return e
 	}
 	if k.Clear || k.Value != "" {
@@ -112,6 +119,8 @@ func (p Producer) Model(ctx context.Context, role string) (string, error) {
 	switch role {
 	case "curation":
 		return settings.CurationModel, nil
+	case "writing":
+		return settings.WritingModel, nil
 	case "speech":
 		return settings.SpeechModel, nil
 	case "image":

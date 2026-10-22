@@ -24,7 +24,7 @@ type Connection struct {
 type Selection struct {
 	Connection string
 }
-type Routes struct{ Assistant, Curation, Audience, Speech, Image Selection }
+type Routes struct{ Assistant, Curation, Writing, Audience, Speech, Image Selection }
 type KeyChange struct {
 	Value string
 	Clear bool
@@ -77,6 +77,8 @@ func (r Routes) For(role string) Selection {
 	switch role {
 	case "curation":
 		return r.Curation
+	case "writing":
+		return r.Writing
 	case "audience":
 		return r.Audience
 	case "speech":

@@ -55,9 +55,9 @@ func TestRotationPersistsThroughRestartAndCatalogueClear(t *testing.T) {
 	if err != nil || rotation.Interval != 4*time.Hour || len(rotation.LastPlayed) != 1 {
 		t.Fatal("changed interval forgot history", rotation, err)
 	}
-	rotation, err = history.Rotation(ctx, "a", now.Add(5*time.Hour))
-	if err != nil || len(rotation.LastPlayed) != 0 || rotation.LastTrackID != "exact-track" {
-		t.Fatal("old history not bounded or last track lost", rotation, err)
+	rotation, err = history.Rotation(ctx, "a", now.Add(7*24*time.Hour))
+	if err != nil || len(rotation.LastPlayed) != 1 || !rotation.LastPlayed["exact-track"].Equal(now) || rotation.LastTrackID != "exact-track" {
+		t.Fatal("last-played timestamp outside the repeat window was lost", rotation, err)
 	}
 	if err = stations.Delete(ctx, "a"); err != nil {
 		t.Fatal(err)

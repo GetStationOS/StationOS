@@ -44,6 +44,13 @@ func (p Producer) SelectTrack(parent context.Context, request production.Selecti
 	if len(candidates) == 1 {
 		return request.Candidates[0].ID, nil
 	}
+	if store, ok := p.Models.(ai.Store); ok {
+		routes, err := store.Routes(parent)
+		if err != nil {
+			return "", err
+		}
+		parent = ai.PinRoutes(parent, routes)
+	}
 	budget, err := p.textBudget(parent, "curation", 0)
 	if err != nil {
 		return "", err
@@ -72,7 +79,7 @@ func (p Producer) SelectTrack(parent context.Context, request production.Selecti
 	}
 	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + request.Show.DJ.Prompt, background}, "\n\n")
 	var ref string
-	if p.Text == nil && kind == "openai" && model == "gpt-6-luna" {
+	if kind == "openai" && model == "gpt-6-luna" {
 		ref, err = p.decideTrack(ctx, request.Show.DJ.ID, model, string(input), instructions, ids)
 	} else {
 		schema, _ := json.Marshal(map[string]any{"type": "object", "additionalProperties": false, "required": []string{"track_id"}, "properties": map[string]any{"track_id": map[string]any{"type": "string", "enum": ids}}})
@@ -117,9 +124,20 @@ func (p Producer) decideTrack(ctx context.Context, djID, model, input, instructi
 	key, err := p.Keys.APIKey(ctx, djID)
 	// Selection uses the curation connection, independently of speech credentials.
 	if store, ok := p.Models.(ai.Store); ok {
-		routes, e := store.Routes(ctx)
+		routes, pinned := ai.PinnedRoutes(ctx)
+		if !pinned {
+			var e error
+			routes, e = store.Routes(ctx)
+			if e != nil {
+				return "", e
+			}
+		}
+		connection, e := store.Connection(ctx, routes.Curation.Connection)
 		if e != nil {
 			return "", e
+		}
+		if connection.Type != "openai" {
+			return "", production.ErrUnavailable
 		}
 		key, err = store.Credential(ctx, routes.Curation.Connection)
 	}
@@ -138,11 +156,14 @@ func (p Producer) decideTrack(ctx context.Context, djID, model, input, instructi
 		Answers []struct{ Type, Name, Choice string }
 	}
 	if json.Unmarshal(raw, &response) != nil || len(response.Answers) != 1 {
-		return "", errors.New("invalid next-track decision")
+		return "", ai.ErrInvalidStructuredResponse
 	}
 	answer := response.Answers[0]
+	if answer.Type == "refusal" && answer.Name == "next_track" {
+		return "", ai.ErrRefused
+	}
 	if answer.Type != "choice" || answer.Name != "next_track" {
-		return "", errors.New("next-track decision unavailable")
+		return "", ai.ErrInvalidStructuredResponse
 	}
 	return answer.Choice, nil
 }

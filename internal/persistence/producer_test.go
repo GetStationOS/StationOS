@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/producer"
 )
 
@@ -252,5 +253,51 @@ func TestUnambiguousLegacyDJKeyMigratesWithoutDuplicatingSecrets(t *testing.T) {
 	var count int
 	if e = db.QueryRow(`SELECT count(*) FROM djs WHERE length(api_key_cipher)>0`).Scan(&count); e != nil || count != 0 {
 		t.Fatal("DJ credential copies remain", count, e)
+	}
+}
+
+func TestWritingModelAndConnectionAreIndependent(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	dj, err := NewDJs(db, make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := NewProducer(dj)
+	s, err := p.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.CurationModel != "gpt-6-luna" {
+		t.Fatal("new installations must use Decisions for OpenAI planning", s)
+	}
+	s.CurationModel = "gpt-6-luna"
+	s.WritingModel = "independent-writer"
+	conn := ai.Connection{ID: "writer", Name: "Writing", Type: "ollama", Address: "http://localhost:11434", ContextTokens: 8192, OutputTokens: 2048}
+	if err = p.SaveConnection(ctx, conn, ai.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	s.Routes.Writing.Connection = "writer"
+	if err = p.Configure(ctx, s, producer.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	if err = p.DeleteConnection(ctx, "writer"); err == nil {
+		t.Fatal("removed endpoint selected only for writing")
+	}
+	got, err := p.Settings(ctx)
+	if err != nil || got.Routes.Writing.Connection != "writer" || got.Routes.Curation.Connection == "writer" {
+		t.Fatal(got, err)
+	}
+	writing, err := p.Model(ctx, "writing")
+	if err != nil || writing != "independent-writer" {
+		t.Fatal(writing, err)
+	}
+	planning, err := p.Model(ctx, "curation")
+	if err != nil || planning != "gpt-6-luna" {
+		t.Fatal(planning, err)
 	}
 }

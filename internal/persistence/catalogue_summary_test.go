@@ -16,7 +16,6 @@ func TestCatalogueSummaryAggregatesOneHundredThousandTracks(t *testing.T) {
 		t.Fatal(err)
 	}
 	repo := Catalogue{DB: db}
-	service := catalogue.SummaryService{Repo: repo}
 	start := time.Now()
 	// Exercise the aggregate adapter directly: race instrumentation must not
 	// turn this scale test into a test of the production service deadline.
@@ -33,7 +32,19 @@ func TestCatalogueSummaryAggregatesOneHundredThousandTracks(t *testing.T) {
 	if err != nil || s.Tracks != 50000 || s.Artists != 50 || s.Genres != 1 || s.TopGenres[0].Name != "Jazz" {
 		t.Fatal("genre scope was not respected", s, err)
 	}
-	s, err = service.Summarize(context.Background(), catalogue.SummaryQuery{SourceID: "missing"})
+	s, err = repo.Summary(context.Background(), catalogue.SummaryQuery{SourceID: "missing", Limit: 12})
+	if err != nil || s.Tracks != 0 || len(s.TopGenres) != 0 {
+		t.Fatal(s, err)
+	}
+}
+
+// Keep the production service deadline covered with a small catalogue, rather
+// than tying the instrumented 100k-row scale fixture to a wall-clock budget.
+func TestCatalogueSummaryServiceMissingSource(t *testing.T) {
+	db := database(t)
+	seed(t, db)
+	service := catalogue.SummaryService{Repo: Catalogue{DB: db}}
+	s, err := service.Summarize(context.Background(), catalogue.SummaryQuery{SourceID: "missing"})
 	if err != nil || s.Tracks != 0 || len(s.TopGenres) != 0 {
 		t.Fatal(s, err)
 	}

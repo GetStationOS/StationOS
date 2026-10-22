@@ -153,6 +153,9 @@ type SelectionPlay struct {
 	Item    content.AudioItem
 	Started time.Time
 }
+
+// TrackEligibility returns eligible music ordered by last play: never played,
+// then oldest first, with varied ties. Consumers preserve this order when shortlisting.
 type TrackEligibility interface {
 	EligibleTracks(context.Context, schedule.Occurrence, time.Time, []SelectionPlay) ([]content.AudioItem, error)
 }

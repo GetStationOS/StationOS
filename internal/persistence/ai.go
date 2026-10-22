@@ -125,7 +125,7 @@ func (p Producer) DeleteConnection(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	for _, role := range []string{"assistant", "curation", "audience", "image"} {
+	for _, role := range []string{"assistant", "curation", "writing", "audience", "image"} {
 		s := routes.For(role)
 		if s.Connection == id {
 			return errors.New("Choose another connection for every role before removing this connection")
@@ -159,7 +159,7 @@ func (p Producer) Routes(ctx context.Context) (ai.Routes, error) {
 	return routes, err
 }
 func (p Producer) validateRoutes(ctx context.Context, r ai.Routes) error {
-	for _, role := range []string{"assistant", "curation", "audience", "image"} {
+	for _, role := range []string{"assistant", "curation", "writing", "audience", "image"} {
 		s := r.For(role)
 		c, err := p.Connection(ctx, s.Connection)
 		if err != nil {

@@ -1163,15 +1163,18 @@ func (m *Manager) playProgramme(id string, r *run) {
 					if err != nil {
 						status = "Unavailable"
 					}
+					// Publish the result before readiness. A listener observing Ready
+					// can immediately reach a track boundary and must find the audio.
+					select {
+					case out <- linkResult{provenance: provenance, text: transcript, request: req, audio: audio, speech: speech, err: err, audienceIDs: audienceIDs, audienceValidIDs: audienceValidIDs}:
+					case <-linkCtx.Done():
+						return
+					}
 					if linkCtx.Err() == nil {
 						select {
 						case linkUpdates <- linkStatus{req.Show.Key, status}:
 						case <-linkCtx.Done():
 						}
-					}
-					select {
-					case out <- linkResult{provenance: provenance, text: transcript, request: req, audio: audio, speech: speech, err: err, audienceIDs: audienceIDs, audienceValidIDs: audienceValidIDs}:
-					case <-linkCtx.Done():
 					}
 				}()
 			default:

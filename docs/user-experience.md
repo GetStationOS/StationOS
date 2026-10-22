@@ -780,3 +780,7 @@ ElevenLabs speech receipts capture the voice display name when generated. Timeli
 shows that saved name, retaining the voice ID in diagnostic exports. Older records
 or unavailable voice discovery retain their recorded ID; do not infer historical
 voices from a DJ's current settings. Name discovery is best effort and bounded.
+
+### Separate show planning and DJ writing
+
+Assistant → Models shows separate Show planning and DJ writing groups, each with its own provider and model. Planning chooses music; writing creates introductions, links and sign-offs. Keep speech choices on each DJ profile. Saving either text role preserves the other, including when an older form omits the new writing fields.

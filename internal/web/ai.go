@@ -21,12 +21,14 @@ type aiRoleView struct {
 
 func roleViews(s producer.Settings) []aiRoleView {
 	out := []aiRoleView{}
-	for _, r := range []struct{ Name, Label string }{{"assistant", "Producer assistant"}, {"curation", "Show planning and DJ writing"}, {"audience", "Audience review"}, {"image", "Artwork"}} {
+	for _, r := range []struct{ Name, Label string }{{"assistant", "Producer assistant"}, {"curation", "Show planning"}, {"writing", "DJ writing"}, {"audience", "Audience review"}, {"image", "Artwork"}} {
 		v := s.Routes.For(r.Name)
 		model, field := s.Model, "model"
 		switch r.Name {
 		case "curation":
 			model, field = s.CurationModel, "curation_model"
+		case "writing":
+			model, field = s.WritingModel, "writing_model"
 		case "audience":
 			model, field = s.AudienceModel, "audience_model"
 		case "speech":
@@ -42,7 +44,7 @@ func routesFromForm(r *http.Request) ai.Routes {
 	get := func(role string) ai.Selection {
 		return ai.Selection{Connection: r.PostForm.Get(role + "_connection")}
 	}
-	return ai.Routes{Assistant: get("assistant"), Curation: get("curation"), Audience: get("audience"), Speech: get("speech"), Image: get("image")}
+	return ai.Routes{Assistant: get("assistant"), Curation: get("curation"), Writing: get("writing"), Audience: get("audience"), Speech: get("speech"), Image: get("image")}
 }
 func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v assistantPageView) {
 	store, ok := s.d.Assistant.Store.(ai.Store)

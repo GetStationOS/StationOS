@@ -24,14 +24,23 @@ func TestProviderSettingsConnectionsAndIndependentRoleSelection(t *testing.T) {
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	settings := url.Values{"csrf": {token}, "model": {"gemma4:12b"}, "curation_model": {"gemma4:12b"}, "audience_model": {"gemma4:12b"}, "speech_model": {"speech-model"}, "image_model": {"image-model"}, "assistant_connection": {id}, "curation_connection": {id}, "audience_connection": {id}, "speech_connection": {"openai"}, "image_connection": {"openai"}}
+	settings := url.Values{"csrf": {token}, "model": {"gemma4:12b"}, "curation_model": {"gemma4:12b"}, "writing_model": {"independent-writer"}, "writing_connection": {id}, "audience_model": {"gemma4:12b"}, "speech_model": {"speech-model"}, "image_model": {"image-model"}, "assistant_connection": {id}, "curation_connection": {id}, "audience_connection": {id}, "speech_connection": {"openai"}, "image_connection": {"openai"}}
 	w = request(h, "POST", "/producer/assistant/settings", settings, nil)
 	if w.Code != 303 {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	s, e := store.Settings(context.Background())
-	if e != nil || s.HasKey || !s.Enabled() || s.Routes.Curation.Connection != id {
+	if e != nil || s.HasKey || !s.Enabled() || s.Routes.Curation.Connection != id || s.Routes.Writing.Connection != id || s.WritingModel != "independent-writer" {
 		t.Fatal(s, e)
+	}
+	// Older forms must not erase the independently saved writing route/model.
+	settings.Del("writing_model")
+	settings.Del("writing_connection")
+	settings.Set("curation_model", "different-planner")
+	w = request(h, "POST", "/producer/assistant/settings", settings, nil)
+	s, e = store.Settings(context.Background())
+	if w.Code != 303 || e != nil || s.WritingModel != "independent-writer" || s.Routes.Writing.Connection != id || s.CurationModel != "different-planner" {
+		t.Fatal("older form erased independent writing configuration", w.Code, s, e)
 	}
 	w = request(h, "GET", "/producer/assistant", nil, nil)
 	if strings.Contains(w.Body.String(), "Add an API key") || !strings.Contains(w.Body.String(), `data-assistant-enabled="true"`) {

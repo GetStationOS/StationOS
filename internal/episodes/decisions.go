@@ -2,9 +2,6 @@ package episodes
 
 import (
 	"context"
-	"fmt"
-	"hash/fnv"
-	"sort"
 	"time"
 
 	"stationos.local/stationos/internal/ai"
@@ -21,18 +18,14 @@ func (s *Service) planDecision(ctx context.Context, o schedule.Occurrence, base 
 	if base.RepetitionReason != "" {
 		format = "album"
 	}
-	ordered := append([]content.AudioItem(nil), pool...)
-	sort.Slice(ordered, func(i, j int) bool { return ordered[i].ID < ordered[j].ID })
-	seed := fnv.New64a()
-	fmt.Fprintf(seed, "%s:%d:%d", base.Key, len(base.Aired), len(base.Plan))
-	offset := 0
-	if len(ordered) > 0 {
-		offset = int(seed.Sum64() % uint64(len(ordered)))
-	}
 	offered := map[string]bool{}
 	candidates := []content.AudioItem{}
-	for n := 0; n < len(ordered) && len(candidates) < 10; n++ {
-		a := ordered[(offset+n)%len(ordered)]
+	// Eligibility supplies oldest-played-first order with varied ties. Keep that
+	// order while skipping candidates that fail the episode-specific checks.
+	for _, a := range pool {
+		if len(candidates) == 10 {
+			break
+		}
 		cmd := command{Tracks: []string{a.ID}, Theme: base.Theme, RepetitionReason: base.RepetitionReason}
 		if _, err := validateNextTrack(cmd, base, eligible, map[string]bool{a.ID: true}, remaining, format); err != nil {
 			continue

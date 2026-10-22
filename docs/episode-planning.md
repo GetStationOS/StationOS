@@ -42,3 +42,5 @@ including older records saved with a warning severity. Real incidents retain the
 warning/error state.
 
 With OpenAI `gpt-6-luna` selected for Show planning, rolling choices use one Decisions API request over at most ten locally validated candidates. Each request includes episode context and aired/queued recordings. Selection failures preserve ready music and use the existing automatic retry flow. DJ writing uses its own selected endpoint and model.
+
+The Decisions shortlist favours the ten least recently played eligible recordings on that station, placing never-played tracks first. Equal timestamps use a varied tie-break as the episode progresses. Duration, repeat, queue and artist/album variety checks still apply before a candidate is offered. The playlist itself remains an unordered eligibility pool.

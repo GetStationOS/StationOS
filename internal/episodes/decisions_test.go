@@ -3,6 +3,7 @@ package episodes
 import (
 	"context"
 	"errors"
+	"fmt"
 	"stationos.local/stationos/internal/production"
 	"testing"
 )
@@ -72,5 +73,33 @@ func TestScheduledDecisionPreservesQueueAndRejectsStaleOrInvalidChoice(t *testin
 				t.Fatal("accepted failed/stale choice", err, e)
 			}
 		})
+	}
+}
+
+func TestDecisionShortlistKeepsRecencyOrderWhileSkippingIneligibleTracks(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	o.DJ.Model = "gpt-6-luna"
+	store := &memoryStore{}
+	store.Update(ctx, o, func(e *Episode) error { e.Excluded = []string{"excluded"}; return nil })
+	pool := poolStub{recording("excluded", 40), recording("too-long", 900)}
+	// The eligibility adapter supplies timestamp order, deliberately unlike ID order.
+	for i := 0; i < 15; i++ {
+		pool = append(pool, recording(fmt.Sprintf("track-%02d", 15-i), 40))
+	}
+	svc := &Service{Store: store, Pool: pool, Text: &decisionText{}, Eligibility: upcomingGate{pool: pool}}
+	svc.Fallback = selectionFunc(func(_ context.Context, q production.SelectionRequest) (string, error) {
+		if len(q.Candidates) != 10 {
+			t.Fatal(len(q.Candidates))
+		}
+		for i, a := range q.Candidates {
+			if a.ID != pool[i+2].ID {
+				t.Fatal("lost oldest-first order or admitted an ineligible track", i, a.ID)
+			}
+		}
+		return q.Candidates[0].ID, nil
+	})
+	if err := svc.Plan(ctx, o); err != nil {
+		t.Fatal(err)
 	}
 }

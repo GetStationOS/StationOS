@@ -29,7 +29,9 @@ func (r Broadcast) Rotation(ctx context.Context, id string, at time.Time) (broad
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return result, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT track_id,last_started_at FROM station_track_plays WHERE station_id=? AND last_started_at>=?`, id, at.Add(-result.Interval).UnixNano())
+	// Keep one last-played timestamp per recording, including plays outside the
+	// repeat window, so never-played and long-unplayed music rank differently.
+	rows, err := tx.QueryContext(ctx, `SELECT track_id,last_started_at FROM station_track_plays WHERE station_id=?`, id)
 	if err != nil {
 		return result, err
 	}

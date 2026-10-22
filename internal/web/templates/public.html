@@ -160,7 +160,7 @@
   </div>
 </div>{{end}}
 {{define "public-live"}}
-<section id="public-live" class="panel public-now" {{if .BroadcastEnabled}}data-public-events="/radio/{{.Station.StreamSlug}}/live"{{end}} aria-label="Live programme">
+<section id="public-live" class="public-now" {{if .BroadcastEnabled}}data-public-events="/radio/{{.Station.StreamSlug}}/live"{{end}} aria-label="Live programme">
   <div class="public-programme">
     {{if .Broadcast.Current.ID}}<span class="eyebrow">ON AIR</span>
     <strong>
@@ -168,8 +168,9 @@
     {{if .Broadcast.Programme.DJ.Name}}<span>with {{.Broadcast.Programme.DJ.Name}}</span>{{end}}{{else}}<strong>Ready when you are</strong>
     <span>Press Play to start listening.</span>{{end}}
   </div>
-  <div class="card-tracks">
-    {{template "card-track" .PublicCurrent}}{{template "card-track" .PublicNext}}
+  <div class="public-playback-cards">
+    <section class="panel public-playback-card public-playback-current" aria-label="Now playing">{{template "card-track" .PublicCurrent}}</section>
+    <section class="panel public-playback-card public-playback-next" aria-label="Up next">{{template "card-track" .PublicNext}}</section>
   </div>
   {{if or (eq .Broadcast.Status "Unavailable") (eq .Broadcast.Status "Retrying")}}
   <p role="status">The station is temporarily unavailable. Please try again shortly.</p>{{end}}

@@ -23,7 +23,7 @@ navigation is the fallback when EventSource is unavailable.
 ## HTTP contract
 
 The existing allowlisted read-only fragment/version routes support `?subscribe=1`:
-Overview `/live`, Audience `/audience`, Assistant `/{conversation}/messages`, and
+Overview `/live`, Audience `/audience`, Timeline `/timeline`, Assistant `/{conversation}/messages`, and
 `/operations/indicator` or `/operations/version`. They retain authentication, station,
 conversation and filter validation. Invalid requests fail before opening the stream.
 The shared adapter in `internal/web/subscriptions.go` subscribes before its initial
@@ -57,7 +57,7 @@ Overview and directory cards patch changed nodes, retaining unchanged covers and
 focused controls. Assistant updates patch only messages/status and preserve the composer,
 open details and reading position. Audience retains horizontal scroll and defers the
 latest snapshot while a control in its region has focus; it applies after focus leaves.
-Historical Timeline/Incident rows stay still: their filtered fingerprint subscription
+The latest unfiltered, unanchored first Timeline page subscribes to rendered history snapshots and patches rows in place, retaining reading position and deferring updates while focus or text selection is inside the results. Filtered, anchored and later Timeline pages and Incident rows stay still: their filtered fingerprint subscription
 only enables/highlights the explicit refresh icon. Refresh changes the results card
 and baseline, retaining filters and navigation. Disconnection feedback stays local;
 never add a global Working/Loading banner.

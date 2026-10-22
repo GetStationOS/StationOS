@@ -1404,3 +1404,9 @@ textarea{font-weight:400;line-height:1.5}
  .sidebar nav{gap:2px;flex-shrink:0}
  .sidebar nav a{padding:8px 6px;min-height:44px;align-items:center}
 }
+
+/* Keep the mobile timeline toolbar focused on results and refresh. */
+@media(max-width:700px){
+ #history-results>.results-toolbar>.results-size,
+ #history-results>.results-toolbar>.results-action{display:none}
+}

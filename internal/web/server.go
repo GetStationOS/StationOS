@@ -152,7 +152,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("GET /producer/station", s.page)
 	mux.HandleFunc("GET /producer/stations/new", s.page)
 	mux.HandleFunc("GET /producer/stations/{id}", s.stationPage)
-	mux.HandleFunc("GET /producer/stations/{id}/timeline", s.operationsPage)
+	mux.HandleFunc("GET /producer/stations/{id}/timeline", s.subscription("operations", "history-results", s.operationsPage))
 	mux.HandleFunc("GET /producer/stations/{id}/upcoming", s.upcomingOverview)
 	mux.HandleFunc("GET /producer/stations/{id}/incidents", s.operationsPage)
 	mux.HandleFunc("GET /producer/stations/{id}/history.csv", s.operationsPage)

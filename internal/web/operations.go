@@ -76,6 +76,7 @@ type operationsView struct {
 	Incidents                                       []operationalIncident
 	Query, Kind, Outcome, From, Until, ShowID, DJID string
 	ExportURL, Version, RefreshURL, VersionURL      string
+	HistoryLive                                     bool
 }
 
 func (v operationsView) player() playerView {
@@ -177,6 +178,7 @@ func (s *Server) operationsPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	v.HistoryLive = v.Section == "timeline" && page == 1 && f.Anchor == "" && f.Before == "" && f.Query == "" && f.Kind == "" && f.Outcome == "" && f.ShowID == "" && f.ShowName == "" && f.DJID == "" && f.From.IsZero() && f.Until.IsZero()
 	history, err := s.d.Operations.History(r.Context(), f, page, size)
 	if err != nil {
 		s.fail(w, err)

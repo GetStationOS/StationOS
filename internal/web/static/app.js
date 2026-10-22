@@ -911,7 +911,18 @@ function operationsVersion(region,raw){
 function applyLiveSnapshot(region,html){
  if(region.hasAttribute('data-operations-version')){operationsVersion(region,html);return;}
  const template=document.createElement('template');template.innerHTML=html;
- if(region.id==='episode-content'){
+ if(region.id==='history-results'){
+  const incoming=template.content.querySelector('#history-results');if(!incoming)return;
+  const anchor=window.scrollY>0?Array.from(region.querySelectorAll('.history-table tbody>tr')).find(row=>row.getBoundingClientRect().bottom>0):null;
+  const top=anchor?.getBoundingClientRect().top;
+  const scroll=region.querySelector('.table-scroll')?.scrollLeft||0;
+  region.querySelectorAll('details[open]').forEach(detail=>{
+   if(detail.id){const match=incoming.querySelector('#'+CSS.escape(detail.id));if(match)match.open=true;}
+  });
+  patchStationNode(region,incoming,null);htmx.process(region);
+  const scroller=region.querySelector('.table-scroll');if(scroller)scroller.scrollLeft=scroll;
+  if(anchor?.isConnected)window.scrollBy(0,anchor.getBoundingClientRect().top-top);
+ }else if(region.id==='episode-content'){
   const incoming=template.content.querySelector('#episode-content');if(!incoming)return;
   const form=region.querySelector('[data-episode-form]');
   if(form&&(form.dataset.dirty==='true'||form.contains(document.activeElement)||region.querySelector('[data-episode-error]'))){
@@ -997,40 +1008,48 @@ function syncLiveSubscriptions(){
    const owner=region();if(!owner)return;
    let html;try{html=JSON.parse(event.data);}catch{return;}
    subscription.latest=html;disconnected(false);
-   if(id==='audience-queue-results'&&(subscription.requesting||owner.contains(document.activeElement))){subscription.pending=html;return;}
+   if((id==='audience-queue-results'||id==='history-results')&&(subscription.requesting||liveRegionBusy(owner))){subscription.pending=html;return;}
    subscription.pending=null;applyLiveSnapshot(owner,html);
   });
   connection.addEventListener('error',()=>disconnected(true));
   connection.addEventListener('unavailable',()=>disconnected(true));
  }
 }
-document.body.addEventListener('focusout',()=>{
+function liveRegionBusy(owner){
+ const selection=window.getSelection();
+ return owner.contains(document.activeElement)||!!(selection&&!selection.isCollapsed&&selection.rangeCount&&selection.getRangeAt(0).intersectsNode(owner));
+}
+function flushPendingLiveSnapshots(){
  queueMicrotask(()=>{for(const [id,subscription] of liveSubscriptions){
   const owner=document.getElementById(id);
-  if(subscription.pending!==null&&!subscription.requesting&&owner&&!owner.contains(document.activeElement)){
+  if(subscription.pending!==null&&!subscription.requesting&&owner&&!liveRegionBusy(owner)){
    const html=subscription.pending;subscription.pending=null;applyLiveSnapshot(owner,html);
   }
  }});
-});
+}
+document.body.addEventListener('focusout',flushPendingLiveSnapshots);
+document.addEventListener('selectionchange',flushPendingLiveSnapshots);
 document.body.addEventListener('htmx:afterSettle',syncLiveSubscriptions);
 window.addEventListener('pageshow',syncLiveSubscriptions);
 window.addEventListener('pagehide',()=>{for(const {connection} of liveSubscriptions.values())connection.close();liveSubscriptions.clear();});
 
-// An explicit queue review owns its response; never replay a deferred pre-review snapshot.
+// Explicit navigation/review owns its response; discard older deferred snapshots.
 document.body.addEventListener('htmx:beforeRequest',event=>{
- if(event.detail.target?.id!=='audience-queue-results')return;
- const subscription=liveSubscriptions.get('audience-queue-results');
+ const id=event.detail.target?.id;
+ if(id!=='audience-queue-results'&&id!=='history-results')return;
+ const subscription=liveSubscriptions.get(id);
  if(subscription){subscription.requesting=true;subscription.pending=null;}
 });
 document.body.addEventListener('htmx:afterRequest',event=>{
- if(event.detail.target?.id!=='audience-queue-results')return;
- const subscription=liveSubscriptions.get('audience-queue-results');
+ const id=event.detail.target?.id;
+ if(id!=='audience-queue-results'&&id!=='history-results')return;
+ const subscription=liveSubscriptions.get(id);
  if(!subscription)return;
  subscription.requesting=false;
  const pending=subscription.pending;subscription.pending=null;
  if(event.detail.failed&&pending!==null){
-  const owner=document.getElementById('audience-queue-results');
-  if(owner&&!owner.contains(document.activeElement))applyLiveSnapshot(owner,pending);
+  const owner=document.getElementById(id);
+  if(owner&&!liveRegionBusy(owner))applyLiveSnapshot(owner,pending);
   else subscription.pending=pending;
  }
 });

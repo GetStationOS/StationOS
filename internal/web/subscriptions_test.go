@@ -288,3 +288,74 @@ func TestAudienceSubscriptionFollowsSubmitReviewAndUse(t *testing.T) {
 	}
 	quietSnapshot(t, snapshots)
 }
+
+func TestLatestTimelineLiveSnapshotsAndHistoricalViews(t *testing.T) {
+	_, stations, src, cat := setupWeb(t, "")
+	ctx := context.Background()
+	if err := stations.Save(ctx, station.Station{ID: "radio", Name: "Radio", Timezone: "UTC"}); err != nil {
+		t.Fatal(err)
+	}
+	changes := &changefeed.Bus{}
+	store := persistence.Operations{DB: stations.DB, Changes: changes}
+	deps := Dependencies{Changes: changes, Stations: stations, Sources: src, Catalogue: cat, Operations: store}
+	h, err := New(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := "/producer/stations/radio/timeline"
+	for _, query := range []string{"", "?page=1", "?per_page=50"} {
+		html := request(h, "GET", base+query, nil, nil).Body.String()
+		if !strings.Contains(html, "data-history-live") || !strings.Contains(html, "data-live-url=") {
+			t.Fatal("latest page is not live", query)
+		}
+	}
+	for _, query := range []string{"?page=2", "?anchor=old", "?before=old", "?q=music", "?kind=music", "?outcome=completed", "?show=show", "?dj=dj", "?from=2026-10-01", "?until=2026-10-22"} {
+		html := request(h, "GET", base+query, nil, nil).Body.String()
+		if strings.Contains(html, "data-history-live") || !strings.Contains(html, "data-operations-version=") {
+			t.Fatal("historical/filter view is not stable", query)
+		}
+	}
+	server := httptest.NewServer(h)
+	t.Cleanup(server.Close)
+	t.Cleanup(server.CloseClientConnections)
+	live := openSnapshots(t, server, base+"?subscribe=1")
+	if !strings.Contains(nextSnapshot(t, live), "No matching broadcasts") {
+		t.Fatal("missing initial empty state")
+	}
+	e := operations.Event{ID: "live-track", StationID: "radio", Kind: "music", Outcome: "transmitting", Started: time.Now().UTC(), Title: "New recording", Artist: "The Quartet"}
+	if err := store.Save(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	if html := nextSnapshot(t, live); !strings.Contains(html, "New recording") || !strings.Contains(html, "data-history-live") {
+		t.Fatal("committed row not streamed", html)
+	}
+	e.AudioBytes = 500
+	if err := store.Save(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	quietSnapshot(t, live)
+	e.Outcome = "completed"
+	e.Ended = e.Started.Add(time.Minute)
+	if err := store.Save(ctx, e); err != nil {
+		t.Fatal(err)
+	}
+	completed := nextSnapshot(t, live)
+	if !strings.Contains(completed, "Completed") {
+		t.Fatal("completion missing")
+	}
+	reconnect := openSnapshots(t, server, base+"?subscribe=1")
+	if nextSnapshot(t, reconnect) != completed {
+		t.Fatal("reconnect missed latest rows")
+	}
+	if response := request(h, "GET", base+"?from=invalid&subscribe=1", nil, nil); response.Code != 400 {
+		t.Fatal("invalid subscription accepted", response.Code)
+	}
+	deps.Password = "secret"
+	protected, err := New(deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := request(protected, "GET", base+"?subscribe=1", nil, nil); response.Code != 401 {
+		t.Fatal("timeline subscription bypassed authentication", response.Code)
+	}
+}

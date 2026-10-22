@@ -41,7 +41,7 @@
 {{end}}
 
 {{define "history-results"}}
-<section class="panel results-panel history-card" data-operations-label="Broadcast history" id="history-results" aria-label="Broadcast history results" data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}">
+<section class="panel results-panel history-card" data-operations-label="Broadcast history" id="history-results" aria-label="Broadcast history results" {{if .HistoryLive}}data-live-url="{{.RefreshURL}}" data-history-live{{else}}data-operations-version="{{.Version}}" data-operations-url="{{.VersionURL}}"{{end}}>
 <p class="visually-hidden" role="status" data-operations-announcement></p>
 <p class="hint" data-operations-disconnected hidden role="status">Live updates disconnected. <a href="{{.RefreshURL}}" hx-get="{{.RefreshURL}}" hx-target="#history-results" hx-swap="outerHTML show:none" hx-push-url="false">Refresh to reconnect</a>.</p>
 {{template "results-toolbar" .Pagination}}

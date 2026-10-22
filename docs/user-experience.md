@@ -504,8 +504,9 @@ background screen changes. Never introduce periodic HTMX triggers, timed fetches
 or a polling fallback. Transport heartbeats stay invisible. A disconnected stream
 shows a quiet local reconnecting state and recovers with a fresh snapshot.
 Preserve editing forms, keyboard focus, artwork, horizontal scroll and reading position.
-Timeline and Incidents subscriptions enable their refresh controls; they never
-replace history rows until the producer requests it.
+The latest unfiltered, unanchored first Timeline page patches history rows automatically.
+Filtered, anchored and later Timeline pages and Incidents enable their refresh controls
+and retain their rows until the producer requests a refresh.
 
 
 Station navigation retains its horizontal scroll position when changing tabs on small
@@ -772,3 +773,5 @@ Unsupported complete tags are stripped; malformed brackets and cue-only
 utterances are rejected. The final synthesized text is the timeline transcript.
 Capabilities remain part of prepared-audio identity so changes invalidate stale
 prepared speech. Discovery does not generate speech or run in a polling loop.
+
+The latest unfiltered Timeline first page updates through its event subscription. Anchored snapshots, later pages and filtered results remain stable with an explicit refresh indicator. Live row patches preserve reading position and open details, and wait while a result control has focus or text is selected.

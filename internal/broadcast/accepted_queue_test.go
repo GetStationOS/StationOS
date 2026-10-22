@@ -123,6 +123,21 @@ func TestAcceptedQueueSurvivesSlowPlanningAndAdvances(t *testing.T) {
 	for turn := 0; turn < 5; turn++ {
 		current.write.Write([]byte("MUSIC"))
 		receive(t, sub)
+		// Audio delivery precedes its persisted airtime receipt. Planning from
+		// the old receipt is correctly rejected as stale, so wait for the
+		// current track's receipt before testing uninterrupted queue refill.
+		waitFor(t, func() bool {
+			episode, err := service.Store.Get(ctx, o.Key)
+			if err != nil {
+				return false
+			}
+			for _, aired := range episode.Aired {
+				if aired.ID == current.item.ID {
+					return true
+				}
+			}
+			return false
+		})
 		state := m.State("radio")
 		promised := state.Next.ID
 		if promised == "" {

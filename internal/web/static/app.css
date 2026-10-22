@@ -1410,3 +1410,5 @@ textarea{font-weight:400;line-height:1.5}
  #history-results>.results-toolbar>.results-size,
  #history-results>.results-toolbar>.results-action{display:none}
 }
+
+.dj-status-mark .dj-status-dots{display:block;width:10px;height:10px;fill:currentColor;stroke:none}

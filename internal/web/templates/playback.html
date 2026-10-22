@@ -185,7 +185,7 @@
     {{else}}<path d="M4 5h12M4 10h12M4 15h6M18 12v7"/>
     <ellipse cx="15" cy="19" rx="3" ry="2"/>{{end}}</svg>
   <span class="dj-status-mark" aria-hidden="true">
-    {{if eq .State "ready"}}✓{{else if eq .State "unavailable"}}×{{else if eq .State "speaking"}}♪{{else}}…{{end}}</span>
+    {{if eq .State "ready"}}✓{{else if eq .State "unavailable"}}×{{else if eq .State "speaking"}}♪{{else}}<svg class="dj-status-dots" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="3" cy="6" r=".9"/><circle cx="6" cy="6" r=".9"/><circle cx="9" cy="6" r=".9"/></svg>{{end}}</span>
   <span class="dj-status-tooltip" hidden aria-hidden="true">{{.Label}}</span>
 </button>{{end}}
 

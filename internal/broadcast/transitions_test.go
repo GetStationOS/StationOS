@@ -85,9 +85,21 @@ func TestReadyChatterAndPrimedMusicDoNotWaitForTrackCleanup(t *testing.T) {
 	}
 	next.write.Write([]byte("NEXT MUSIC"))
 	<-encoder.primed
-	current.write.Write([]byte("CURRENT MUSIC"))
-	receive(t, a)
-	receive(t, b)
+	// Entering Link does not mean its result has been published yet. Keep
+	// the current track playing until actual readiness is visible, then
+	// measure only the boundary and cleanup behaviour under test.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		current.write.Write([]byte("CURRENT MUSIC"))
+		receive(t, a)
+		receive(t, b)
+		if m.State("radio").PresenterStatus == "Ready" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("chatter did not become ready")
+		}
+	}
 	boundary := time.Now()
 	current.write.Close()
 	select {

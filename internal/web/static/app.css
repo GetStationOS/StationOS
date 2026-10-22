@@ -1394,3 +1394,13 @@ textarea{font-weight:400;line-height:1.5}
  .matrix-table .matrix-station-footer>th{padding:14px 54px 14px 18px;border-top:1px solid var(--line)}
  .matrix-table .matrix-following-health{display:none}
 }
+
+/* A compact brand mark keeps the producer navigation on one line on phones. */
+.sidebar .brand picture{display:block}
+@media(max-width:650px){
+ .sidebar{flex-wrap:nowrap;padding:12px;gap:6px}
+ .sidebar .brand{width:44px;min-height:44px;justify-content:center}
+ .sidebar .brand img{width:44px;height:44px}
+ .sidebar nav{gap:2px;flex-shrink:0}
+ .sidebar nav a{padding:8px 6px;min-height:44px;align-items:center}
+}

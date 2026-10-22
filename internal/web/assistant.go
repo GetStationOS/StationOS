@@ -272,6 +272,9 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 				settings.CurationModel = strings.TrimSpace(r.PostForm.Get("curation_model"))
 			}
 
+			if r.PostForm.Has("writing_model") {
+				settings.WritingModel = strings.TrimSpace(r.PostForm.Get("writing_model"))
+			}
 			if r.PostForm.Has("image_model") {
 				settings.ImageModel = strings.TrimSpace(r.PostForm.Get("image_model"))
 			}
@@ -279,9 +282,13 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 				settings.AudienceModel = strings.TrimSpace(r.PostForm.Get("audience_model"))
 			}
 			if r.PostForm.Has("assistant_connection") {
+				previousWriting := settings.Routes.Writing
 				previousSpeech := settings.Routes.Speech
 				settings.Routes = routesFromForm(r)
 				settings.Routes.Speech = previousSpeech
+				if !r.PostForm.Has("writing_connection") {
+					settings.Routes.Writing = previousWriting
+				}
 			}
 			v.AssistantSettings = settings
 			e = s.d.Assistant.Store.Configure(r.Context(), settings, k)

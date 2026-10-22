@@ -162,6 +162,7 @@ func run(args []string, logger *slog.Logger) error {
 		recorder.Record(operations.Event{ID: operations.ID(), StationID: o.StationID, ShowID: o.ShowID, Show: o.Title, DJID: o.DJ.ID, DJ: o.DJ.Name, PlaylistID: o.PlaylistID, Playlist: o.PlaylistName, Started: at, Ended: at, Kind: kind, Outcome: "observed", Phase: "curation", Reason: reason, IncidentCode: "episode-plan:" + o.ShowID + ":" + o.Start.UTC().Format(time.RFC3339), Recover: planningErr == nil, Severity: "warning", Effect: "Local music continues", Action: "Review curation connection settings, episode details and server logs."})
 	}
 	presenter.Session = episodeService
+	episodeService.Fallback = presenter
 	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: episodeService, Session: episodeService, Audience: audienceRepo})
 	episodeService.Eligibility = broadcasts
 	stopEpisodes := episodeService.Start(ctx, stations, shows, changes, logger)

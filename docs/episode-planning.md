@@ -40,3 +40,5 @@ refresh preparation but do not restart an episode or create a mid-show handover.
 Routine handovers and station start/stop observations are neutral Timeline activity,
 including older records saved with a warning severity. Real incidents retain their
 warning/error state.
+
+With OpenAI `gpt-6-luna` selected for Show planning, rolling choices use one Decisions API request over at most ten locally validated candidates. Each request includes episode context and aired/queued recordings. Selection failures preserve ready music and use the existing automatic retry flow. DJ writing uses its own selected endpoint and model.

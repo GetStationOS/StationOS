@@ -217,7 +217,7 @@ type configuredModels map[string]string
 func (m configuredModels) Model(_ context.Context, role string) (string, error) { return m[role], nil }
 func TestSpeechUsesRoleModelAndProfileUsesItsOwnModel(t *testing.T) {
 	p := New(testKeys{}, nil, testAudio{})
-	p.Models = configuredModels{"speech": "speech-role-model"}
+	p.Models = configuredModels{"speech": "speech-role-model", "writing": "writing-role-model"}
 	p.Client = &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
 		if r.Header.Get("Authorization") != "Bearer test-secret" {
 			t.Fatal("different service credential")
@@ -227,8 +227,8 @@ func TestSpeechUsesRoleModelAndProfileUsesItsOwnModel(t *testing.T) {
 			t.Fatal(e)
 		}
 		if r.URL.Path == "/v1/responses" {
-			if body["model"] != "chosen-model" {
-				t.Fatal("DJ override lost", body)
+			if body["model"] != "writing-role-model" {
+				t.Fatal("writing model lost", body)
 			}
 			return answer(`{"intro":"Welcome","outro":"Goodbye"}`), nil
 		}

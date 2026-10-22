@@ -47,3 +47,5 @@ Text, speech and image generation may incur separate charges. Local services nee
 Endpoint response deadlines and context limits bound requests. Slow or unavailable AI can delay curation or speech while eligible music continues. Each feature uses its selected endpoint and model; failures do not silently switch to a different cloud service.
 
 [All guides](README.md)
+
+Show planning and DJ writing have separate endpoint and model choices. Show planning selects music; OpenAI `gpt-6-luna` uses the Decisions API to choose one eligible recording from a shortlist. DJ writing generates introductions, spoken links and sign-offs. DJ writing inherits the previous combined setting on upgrade. OpenAI Show planning switches to `gpt-6-luna`; other planning providers retain their model. Changing either role leaves the other unchanged. Other planning models/providers retain structured text selection.

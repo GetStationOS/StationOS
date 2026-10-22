@@ -11,6 +11,7 @@ import (
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/production"
+	"stationos.local/stationos/internal/schedule"
 )
 
 func selectionRequest() production.SelectionRequest {
@@ -157,5 +158,62 @@ func TestOtherOpenAIModelUsesConstrainedSingleChoice(t *testing.T) {
 	id, err := p.SelectTrack(context.Background(), selectionRequest())
 	if err != nil || id != "opaque-b" || calls != 1 {
 		t.Fatal(id, err, calls)
+	}
+}
+
+type cloudText struct{ localText }
+
+func (*cloudText) Kind(context.Context, string) (string, error) { return "openai", nil }
+
+func TestDecisionBypassesTextGatewayAndUsesPlanningCredential(t *testing.T) {
+	p := New(noKey{}, nil, testAudio{})
+	gateway := &cloudText{}
+	p.Text = gateway
+	p.Session = selectionMemory{}
+	p.Models = selectionRoutes{configuredModels: configuredModels{"curation": "gpt-6-luna", "writing": "other-model"}}
+	p.Client.Transport = transport(func(r *http.Request) (*http.Response, error) {
+		var body struct{ Input string }
+		if json.NewDecoder(r.Body).Decode(&body) != nil || !strings.Contains(body.Input, "Played artist") || !strings.Contains(body.Input, "Queued recording") {
+			t.Fatal("missing aired/queued evidence", body.Input)
+		}
+		if r.URL.Path != "/v1/decisions" || r.Header.Get("Authorization") != "Bearer curation-key" {
+			t.Fatal(r.URL, r.Header.Get("Authorization"))
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"answers":[{"type":"choice","name":"next_track","choice":"t01"}]}`))}, nil
+	})
+	id, err := p.SelectTrack(context.Background(), selectionRequest())
+	if err != nil || id != "opaque-a" || len(gateway.requests) != 0 {
+		t.Fatal(id, err, gateway.requests)
+	}
+}
+
+type selectionMemory struct{ speechMemory }
+
+func (selectionMemory) Context(context.Context, schedule.Occurrence) (string, error) {
+	return `{"Aired":[{"Title":"Played recording","Artist":"Played artist"}],"Plan":[{"Title":"Queued recording"}]}`, nil
+}
+
+func (selectionRoutes) Connection(_ context.Context, id string) (ai.Connection, error) {
+	return ai.Connection{ID: id, Type: "openai"}, nil
+}
+
+type changedPlanningRoute struct{ selectionRoutes }
+
+func (changedPlanningRoute) Connection(context.Context, string) (ai.Connection, error) {
+	return ai.Connection{Type: "compatible"}, nil
+}
+func (changedPlanningRoute) Credential(context.Context, string) (string, error) {
+	panic("must not obtain a private-provider key for OpenAI Decisions")
+}
+func TestDecisionRejectsNonOpenAIPlanningConnection(t *testing.T) {
+	p := New(noKey{}, nil, testAudio{})
+	p.Models = changedPlanningRoute{selectionRoutes{configuredModels: configuredModels{"curation": "gpt-6-luna"}}}
+	p.Text = &cloudText{}
+	p.Client.Transport = transport(func(*http.Request) (*http.Response, error) {
+		t.Fatal("private provider routed to OpenAI")
+		return nil, nil
+	})
+	if _, err := p.SelectTrack(context.Background(), selectionRequest()); err == nil {
+		t.Fatal("accepted non-OpenAI route")
 	}
 }

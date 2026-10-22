@@ -19,7 +19,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -274,7 +274,7 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 			}
 			if version >= 23 {
 				var curation, routes string
-				if err = db.QueryRow(`SELECT curation_model,provider_routes FROM producer_settings`).Scan(&curation, &routes); err != nil || curation != "gemma4:12b" || routes != `{"Curation":{"Connection":"local"}}` {
+				if err = db.QueryRow(`SELECT curation_model,provider_routes FROM producer_settings`).Scan(&curation, &routes); err != nil || curation != "gemma4:12b" || routes != `{"Curation":{"Connection":"local"},"Writing":{"Connection":"local"}}` {
 					t.Fatal("upgrade changed global DJ configuration", curation, routes, err)
 				}
 				var cipher []byte
@@ -320,5 +320,43 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 				t.Fatal("idempotent migration", err)
 			}
 		})
+	}
+}
+
+func TestWritingUpgradeInheritsExistingPlanningConfiguration(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "legacy.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY,checksum TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	for n := 1; n <= 40; n++ {
+		raw, err := os.ReadFile(fmt.Sprintf("testdata/v%d.sql", n))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = db.Exec(string(raw)); err != nil {
+			t.Fatal(n, err)
+		}
+		hash := sha256.Sum256(raw)
+		if _, err = db.Exec(`INSERT INTO schema_migrations VALUES(?,?)`, n, hex.EncodeToString(hash[:])); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = db.Exec(`UPDATE producer_settings SET curation_model='legacy-selector',provider_routes='{"Curation":{"Connection":"legacy-local"}}'; INSERT INTO ai_connections(id,name,provider_type,address) VALUES('legacy-local','Local','ollama','http://localhost:11434')`); err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	db, err = Open(ctx, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var model, connection string
+	if err = db.QueryRow(`SELECT writing_model,json_extract(provider_routes,'$.Writing.Connection') FROM producer_settings`).Scan(&model, &connection); err != nil || model != "legacy-selector" || connection != "legacy-local" {
+		t.Fatal(model, connection, err)
 	}
 }

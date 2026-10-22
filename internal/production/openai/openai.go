@@ -127,7 +127,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 			return production.Prepared{}, err
 		}
 	}
-	budget, err := p.textBudget(parent, "curation", 0)
+	budget, err := p.textBudget(parent, "writing", 0)
 	if err != nil {
 		return production.Prepared{}, err
 	}
@@ -142,9 +142,16 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	if err != nil {
 		return production.Prepared{}, err
 	}
+	writingModel, err := p.model(ctx, "writing", show.DJ.Model)
+	if err != nil {
+		return production.Prepared{}, err
+	}
+	if writingModel == "" {
+		writingModel = show.DJ.Model
+	}
 	identity := ""
 	if p.Text != nil {
-		identity, err = p.Text.Identity(ctx, "curation")
+		identity, err = p.Text.Identity(ctx, "writing")
 		if err != nil {
 			return production.Prepared{}, err
 		}
@@ -167,7 +174,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 		}
 	}
 	capabilityIdentity, _ := json.Marshal(capabilities)
-	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+speechIdentity+instructions+string(capabilityIdentity))
+	cacheKey := modelCacheKey(production.CacheKey(show, next), speechModel+identity+speechIdentity+writingModel+instructions+string(capabilityIdentity))
 	if p.Store != nil {
 		if prepared, err := p.Store.Get(ctx, cacheKey); err == nil && production.ValidatePresentation(prepared.Plan) == nil {
 			if p.Session != nil {
@@ -180,7 +187,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 	input, _ := json.Marshal(map[string]any{"episode_session": p.episodeContext(ctx, show), "musical_direction": show.MusicDirection, "show": show.Title, "dj": show.DJ.Name, "fictional_background": show.DJ.Background, "next_show": next.Title, "next_dj": next.DJ.Name})
 	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"intro", "outro"}, "properties": map[string]any{"intro": map[string]any{"type": "string"}, "outro": map[string]any{"type": "string"}}}
 
-	body := map[string]any{"model": show.DJ.Model, "instructions": instructions, "input": string(input), "max_output_tokens": 512, "store": false, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "radio_show", "strict": true, "schema": schema}}}
+	body := map[string]any{"model": writingModel, "instructions": instructions, "input": string(input), "max_output_tokens": 512, "store": false, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "radio_show", "strict": true, "schema": schema}}}
 	plan, err := p.generatePlan(ai.WithSession(ctx, schedule.EpisodeKey(show.Key)), key, body)
 	if err != nil {
 		return production.Prepared{}, err
@@ -250,7 +257,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if link.Show.DJ.ID == "" || (!link.Show.DJ.HasKey && p.Text == nil) {
 		return nil, nil, production.ErrUnavailable
 	}
-	budget, err := p.textBudget(parent, "curation", 0)
+	budget, err := p.textBudget(parent, "writing", 0)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -264,6 +271,13 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	speechModel, err := p.speechModel(ctx, link.Show.DJ)
 	if err != nil {
 		return nil, nil, err
+	}
+	writingModel, err := p.model(ctx, "writing", link.Show.DJ.Model)
+	if err != nil {
+		return nil, nil, err
+	}
+	if writingModel == "" {
+		writingModel = link.Show.DJ.Model
 	}
 	sequence := []string{"spoken_link", "next_recording"}
 	nextPresenter := link.Show.DJ.Name
@@ -285,7 +299,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	}
 	capabilities := p.speechCapabilities(ctx, speechModel)
 	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions}, "\n\n")
-	body := map[string]any{"model": link.Show.DJ.Model, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
+	body := map[string]any{"model": writingModel, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
 	// An explicit JSON field makes silence distinguishable from an empty or
 	// incomplete provider response across every supported inference adapter.
 	if len(link.Audience) == 0 {
@@ -456,7 +470,7 @@ func (p Producer) textCall(ctx context.Context, key string, body map[string]any,
 		return p.call(ctx, "responses", key, body, limit)
 	}
 	maxTokens, _ := body["max_output_tokens"].(int)
-	q := ai.TextRequest{Session: ai.Session(ctx), Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: maxTokens}, Role: "curation", Model: body["model"].(string), Instructions: body["instructions"].(string), Input: body["input"].(string)}
+	q := ai.TextRequest{Session: ai.Session(ctx), Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: maxTokens}, Role: "writing", Model: body["model"].(string), Instructions: body["instructions"].(string), Input: body["input"].(string)}
 	if format, ok := body["text"].(map[string]any); ok {
 		if f, ok := format["format"].(map[string]any); ok {
 			q.Schema, _ = json.Marshal(f["schema"])

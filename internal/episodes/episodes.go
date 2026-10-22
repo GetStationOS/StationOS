@@ -579,6 +579,15 @@ func (s *Service) Plan(ctx context.Context, o schedule.Occurrence) error {
 			return ai.ErrNoEligibleTracks
 		}
 	}
+	if s.Fallback != nil && o.DJ.Model == "gpt-6-luna" {
+		kind, err := s.Text.Kind(ctx, "curation")
+		if err != nil {
+			return err
+		}
+		if kind == "openai" {
+			return s.planDecision(ctx, o, base, pool, byID, eligibleByID)
+		}
+	}
 	// Strip all transport and artwork metadata before sharing any catalogue result.
 	input := map[string]any{"episode": modelCheckpoint(base), "show": o.Title, "musical_direction": o.MusicDirection, "dj": o.DJ.Name, "dj_prompt": o.DJ.Prompt, "playlist_count": len(pool), "seconds_available": int64(o.End.Sub(planningStart(base, o, time.Now())).Seconds())}
 	transcript := []any{}

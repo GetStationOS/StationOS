@@ -18,12 +18,8 @@ their global text settings.
    switching within the form and are saved together with the profile. Previewing
    a provider never writes data, generates speech or creates a listener.
 
-Shared addresses and credentials stay under Assistant → Endpoints. Speech no
-longer appears under the global Models settings. New DJs default to the built-in
-OpenAI endpoint and gpt-4o-mini-tts until another endpoint is chosen. Migration 39
-copies the old global speech endpoint/model to every existing DJ, retaining voice,
-speed and vibe and all prior Chatterbox voice choices. Normal upgrades do not
-change which provider existing DJs use.
+Shared addresses and credentials stay under Assistant → Endpoints. Choose speech on each DJ profile. New DJs default to the built-in
+OpenAI endpoint and gpt-4o-mini-tts until another endpoint is chosen.
 
 Localhost refers to the StationOS process. Use `http://127.0.0.1:8000` only when
 both processes run directly on the same host; use a reachable LAN/server address

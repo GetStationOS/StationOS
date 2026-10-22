@@ -16,7 +16,7 @@ These steps install a local, self-hosted instance. For a server behind an HTTPS 
 Download the project and create your private settings file:
 
 ```sh
-git clone https://github.com/paulbowler/StationOS.git
+git clone https://github.com/GetStationOS/StationOS.git
 cd StationOS
 cp .env.example .env
 ```

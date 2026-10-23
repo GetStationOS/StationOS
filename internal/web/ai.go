@@ -91,7 +91,7 @@ func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v assistan
 		ctxTokens, _ := strconv.Atoi(r.PostForm.Get("context_tokens"))
 		output, _ := strconv.Atoi(r.PostForm.Get("output_tokens"))
 		timeout, _ := strconv.Atoi(r.PostForm.Get("request_timeout_seconds"))
-		c := ai.Connection{ID: id, Name: strings.TrimSpace(r.PostForm.Get("connection_name")), Type: r.PostForm.Get("provider_type"), Address: strings.TrimRight(strings.TrimSpace(r.PostForm.Get("address")), "/"), ContextTokens: ctxTokens, OutputTokens: output, RequestTimeoutSeconds: timeout}
+		c := ai.Connection{ID: id, Name: strings.TrimSpace(r.PostForm.Get("connection_name")), Type: r.PostForm.Get("provider_type"), Address: strings.TrimRight(strings.TrimSpace(r.PostForm.Get("address")), "/"), ContextTokens: ctxTokens, OutputTokens: output, RequestTimeoutSeconds: timeout, Thinking: r.PostForm.Get("thinking") == "yes"}
 		v.AIConnection = c
 		change := ai.KeyChange{Value: strings.TrimSpace(r.PostForm.Get("credential")), Clear: r.PostForm.Get("clear_credential") == "yes"}
 		err = c.Validate()

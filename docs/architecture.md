@@ -1006,3 +1006,11 @@ The curation role is Show planning. The independent writing role owns DJ introdu
 Last-played ranking loads the station’s complete per-recording timestamps from station_track_plays, not just the repeat interval. This remains one latest timestamp per recording. Rotation still enforces the configured repeat interval independently; playlist membership has no playback order.
 
 Shortlisting runs after episode duration, exclusion, queue and repeat validation through the production TrackShortlist port. Broadcast history partitions new versus previously aired music. Album/performer diversity is preferred globally across the shortlist; small pools relax performers before albums, but never exceed three never-played candidates. The same policy applies to the standalone playback shortlist.
+
+### Ollama thinking configuration
+
+Migration 42 stores an endpoint-owned boolean thinking preference, default off.
+The native Ollama adapter sends the saved boolean on every chat request, overriding
+legacy task hints and avoiding metadata-dependent omission. Other providers retain
+their own protocols. Endpoint saves increment ai_revision and connection identities
+include the preference, invalidating future prepared speech and conversations.

@@ -175,3 +175,35 @@ func TestChatterboxSpeechRouteAndReadinessWithoutKey(t *testing.T) {
 		t.Fatal(ready, err)
 	}
 }
+
+func TestOllamaThinkingRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	d, err := NewDJs(db, make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := NewProducer(d)
+	c := ai.Connection{ID: "local", Name: "Ollama", Type: "ollama", Address: "http://localhost:11434", ContextTokens: 8192, OutputTokens: 512}
+	for _, enabled := range []bool{false, true, false} {
+		c.Thinking = enabled
+		if err := p.SaveConnection(ctx, c, ai.KeyChange{}); err != nil {
+			t.Fatal(err)
+		}
+		got, err := p.Connection(ctx, c.ID)
+		if err != nil || got.Thinking != enabled {
+			t.Fatal(got, err)
+		}
+		list, err := p.Connections(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 2 || list[1].Thinking != enabled {
+			t.Fatal(list)
+		}
+	}
+}

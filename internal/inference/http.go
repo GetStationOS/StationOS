@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"stationos.local/stationos/internal/ai"
@@ -27,10 +26,8 @@ func (e *HTTPError) Error() string {
 
 type safeFailure struct{ error }
 type Client struct {
-	HTTP   *http.Client
-	Gate   *Gate
-	capsMu sync.Mutex
-	caps   map[string]thinkingEntry
+	HTTP *http.Client
+	Gate *Gate
 }
 
 func NewClient() *Client {
@@ -259,9 +256,8 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 			body["truncate"] = false
 			body["shift"] = false
 		}
-		if options.DisableThinking && c.canDisableThinking(ctx, conn, key, model) {
-			body["think"] = false
-		}
+		// The saved endpoint setting applies to every role, including DJ writing.
+		body["think"] = conn.Thinking
 		body["options"] = map[string]any{"num_ctx": conn.ContextTokens, "num_predict": conn.OutputTokens}
 		if len(schema) > 0 {
 			body["format"] = schema

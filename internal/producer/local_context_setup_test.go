@@ -238,7 +238,7 @@ func TestLocalAIResumesLargeHistoryAndBuildsApprovedWeeklyStation(t *testing.T) 
 		}
 	}
 	configured, err := providers.Connection(ctx, "local")
-	if err != nil || configured.OutputTokens != 8192 || configured.ContextTokens != 16384 || !adaptedOutput || metadata != 1 || requests != next+1 {
+	if err != nil || configured.OutputTokens != 8192 || configured.ContextTokens != 16384 || !adaptedOutput || metadata != 0 || requests != next+1 {
 		t.Fatal("recovery changed settings or did not adapt", configured, err, adaptedOutput, metadata, requests, next)
 	}
 	for _, private := range []string{"Do not preserve truncated reply", "Private reasoning", "Must not execute"} {

@@ -290,3 +290,31 @@ func TestChatterboxEndpointAndSpeechOnlySelection(t *testing.T) {
 		t.Fatal("default voice capabilities missing")
 	}
 }
+
+func TestOllamaThinkingSwitchSaveAndRedisplay(t *testing.T) {
+	h, store, _ := setupAssistant(t, "", &listingAssistantModel{assistantModel: &assistantModel{}})
+	token := csrf(t, h)
+	form := url.Values{"csrf": {token}, "connection_action": {"save"}, "connection_id": {"local"}, "connection_name": {"Ollama"}, "provider_type": {"ollama"}, "address": {"http://localhost:11434"}, "context_tokens": {"8192"}, "output_tokens": {"512"}, "request_timeout_seconds": {"180"}}
+	for _, enabled := range []bool{true, false} {
+		if enabled {
+			form.Set("thinking", "yes")
+		} else {
+			form.Del("thinking")
+		}
+		w := request(h, "POST", "/producer/assistant/endpoints?connection=local", form, nil)
+		if w.Code != 303 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		c, err := store.(ai.Store).Connection(context.Background(), "local")
+		if err != nil || c.Thinking != enabled {
+			t.Fatal(c, err)
+		}
+		w = request(h, "GET", "/producer/assistant/endpoints?connection=local", nil, nil)
+		if w.Code != 200 || !strings.Contains(w.Body.String(), `role="switch" name="thinking"`) {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		if strings.Contains(w.Body.String(), `name="thinking" value="yes" checked`) != enabled {
+			t.Fatal("switch state not retained")
+		}
+	}
+}

@@ -19,7 +19,7 @@ import (
 )
 
 func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
-	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40} {
+	for _, version := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41} {
 		t.Run(fmt.Sprint(version), func(t *testing.T) {
 			ctx := context.Background()
 			path := filepath.Join(t.TempDir(), "legacy.db")
@@ -173,6 +173,11 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if version >= 41 {
+				if _, err = db.Exec(`UPDATE producer_settings SET writing_model='gemma4:12b',provider_routes=json_set(provider_routes,'$.Writing',json('{"Connection":"local"}'))`); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if version == 33 {
 				if _, err = db.Exec(`UPDATE station_shows SET music_direction='Explore songwriting.',rotation_format='artist' WHERE id='legacy-show'`); err != nil {
 					t.Fatal(err)
@@ -279,7 +284,8 @@ func TestUpgradePreservesExistingStationsSourcesAndCatalogue(t *testing.T) {
 				}
 				var cipher []byte
 				var seconds int
-				if err = db.QueryRow(`SELECT api_key_cipher,request_timeout_seconds FROM ai_connections WHERE id='local'`).Scan(&cipher, &seconds); err != nil || hex.EncodeToString(cipher) != "5678" || seconds != 180 {
+				var thinking bool
+				if err = db.QueryRow(`SELECT api_key_cipher,request_timeout_seconds,thinking FROM ai_connections WHERE id='local'`).Scan(&cipher, &seconds, &thinking); err != nil || thinking || hex.EncodeToString(cipher) != "5678" || seconds != 180 {
 					t.Fatal("private provider upgrade lost credentials or deadline", err)
 				}
 			}

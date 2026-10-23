@@ -18,6 +18,7 @@ var ErrInvalidStructuredResponse = errors.New("Provider returned invalid structu
 type Connection struct {
 	ID, Name, Type, Address     string
 	HasKey                      bool
+	Thinking                    bool
 	ContextTokens, OutputTokens int
 	RequestTimeoutSeconds       int
 }

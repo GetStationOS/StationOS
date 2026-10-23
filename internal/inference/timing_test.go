@@ -40,30 +40,19 @@ func TestGenerationDeadlineStartsAfterQueueAdmission(t *testing.T) {
 		})
 	}
 }
-func TestDJThinkingControlIsAdvertisedAndOutputIsBounded(t *testing.T) {
-	for _, allowed := range []bool{true, false} {
-		t.Run(map[bool]string{true: "supports-disabled", false: "mandatory-thinking"}[allowed], func(t *testing.T) {
-			var metadata atomic.Int32
+func TestOllamaThinkingSettingForLiveAndBackground(t *testing.T) {
+	for _, thinking := range []bool{false, true} {
+		for _, live := range []bool{false, true} {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/api/show" {
-					metadata.Add(1)
-					if allowed {
-						io.WriteString(w, `{"thinking":{"values":[false,true],"default":true}}`)
-					} else {
-						io.WriteString(w, `{"thinking":{"values":["low","medium"],"default":"medium"}}`)
-					}
-					return
+				if r.URL.Path != "/api/chat" {
+					t.Errorf("unexpected metadata request: %s", r.URL.Path)
 				}
 				var body map[string]any
 				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 					t.Error(err)
 				}
-				value, exists := body["think"]
-				if allowed && (!exists || value != false) {
-					t.Error("thinking not disabled")
-				}
-				if !allowed && exists {
-					t.Error("unsupported thinking control sent")
+				if value, exists := body["think"]; !exists || value != thinking {
+					t.Errorf("think = %v, want %v", value, thinking)
 				}
 				options := body["options"].(map[string]any)
 				if options["num_predict"] != float64(512) {
@@ -71,19 +60,14 @@ func TestDJThinkingControlIsAdvertisedAndOutputIsBounded(t *testing.T) {
 				}
 				io.WriteString(w, `{"done":true,"message":{"content":"A short spoken link."}}`)
 			}))
-			defer server.Close()
-			c := NewClient()
 			conn := connection("ollama", server.URL)
-			for range 2 {
-				_, err := c.chatWithOptions(context.Background(), conn, "", "gemma4:12b", "prompt", nil, nil, nil, true, ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: 512})
-				if err != nil {
-					t.Fatal(err)
-				}
+			conn.Thinking = thinking
+			_, err := NewClient().chatWithOptions(context.Background(), conn, "", "gemma4:12b", "prompt", nil, nil, nil, live, ai.GenerationOptions{MaxOutputTokens: 512})
+			server.Close()
+			if err != nil {
+				t.Fatal(err)
 			}
-			if metadata.Load() != 1 {
-				t.Fatal("model metadata was not cached", metadata.Load())
-			}
-		})
+		}
 	}
 }
 func TestQueueTimeoutIsDistinctAndDoesNotDispatch(t *testing.T) {

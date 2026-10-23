@@ -49,3 +49,11 @@ Text, speech and image generation may incur separate charges. Local services nee
 Endpoint response deadlines and context limits bound requests. Slow or unavailable AI can delay curation or speech while eligible music continues. Each feature uses its selected endpoint and model; failures do not silently switch to a different cloud service.
 
 [All guides](README.md)
+
+### Ollama thinking
+
+Assistant → Endpoints → your Ollama endpoint has a Thinking switch, off by default
+for new and upgraded endpoints. Save the endpoint to apply it to subsequent text
+requests in every role. StationOS explicitly sends `think: false` or `think: true`
+to Ollama; terminal chat settings do not affect it. The selected model must support
+the chosen setting. Other providers do not receive this Ollama-specific field.

@@ -202,6 +202,10 @@
   {{if .AIConnection.HasKey}}
   <label class="choice">
     <input type="checkbox" name="clear_credential" value="yes">Remove saved credential</label>{{end}}
+  <div data-provider-thinking {{if ne .AIConnection.Type "ollama"}}hidden{{end}}>
+    <label class="choice"><input type="checkbox" role="switch" name="thinking" value="yes" {{if .AIConnection.Thinking}}checked{{end}}>Thinking</label>
+    <p class="hint">Ollama only. Off gives faster, direct answers. Applies to new text requests on this endpoint. Choose a model that supports the selected setting.</p>
+  </div>
   <details class="endpoint-advanced" {{if .AssistantError}}open{{end}}>
     <summary>Advanced settings</summary>
     <label data-provider-text-budget>Context token budget<input name="context_tokens" type="number" min="2048" max="32768" required value="{{.AIConnection.ContextTokens}}">

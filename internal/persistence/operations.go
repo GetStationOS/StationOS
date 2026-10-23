@@ -49,7 +49,9 @@ func (o Operations) Save(ctx context.Context, e operations.Event) (changeErr err
 		if err = tx.QueryRowContext(ctx, `SELECT count(*) FROM transmission_incidents WHERE station_id=? AND code=? AND recovered_at=0`, e.StationID, e.IncidentCode).Scan(&count); err != nil {
 			return err
 		}
-		if count == 0 {
+		// Successful link preparations carry their transcript even without a
+		// preceding incident; other recovery observations remain incident-only.
+		if count == 0 && !(e.Kind == "recovery" && e.IncidentCode == "speech" && e.Phase == "speech-preparation") {
 			return nil
 		}
 	}

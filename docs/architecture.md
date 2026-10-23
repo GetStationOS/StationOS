@@ -1028,3 +1028,13 @@ composer/album/conductor credits. Handovers receive only incoming DJ/show detail
 no recording metadata or selection protocol. Listener instructions and data are
 included only for audience links. Fixed playback, factual and JSON contracts are
 short and task-specific; saved prompt overrides remain untouched.
+
+### Prepared speech timeline details
+
+The existing speech recovery observation is retained for every successful link
+preparation, including when there was no preceding incident. It captures the exact synthesis transcript
+and speech provenance before publishing link readiness. Aired receipts retain
+these fields for durable history and export. Timeline displays the transcript
+only on the preparation observation, with recorded provider/endpoint/model/voice;
+no extra speech event is created and old records are not inferred from current
+DJ configuration. Existing Operations commits drive the unchanged SSE path.

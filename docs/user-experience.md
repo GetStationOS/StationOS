@@ -791,3 +791,9 @@ Thinking belongs beside each text model on Assistant → Models, visible for Oll
 It applies independently to that feature's selected model, defaults off and retains
 saved state. Endpoint forms contain only connection settings. Saving an older
 form without thinking controls preserves existing preferences.
+
+Timeline Recording / activity shows the transcript and recorded speech provider,
+endpoint, model and voice on DJ speech prepared entries. Endpoint names link to
+Assistant endpoint settings. Aired speech retains its existing presentation and
+AI metadata but omits the transcript. Do not add another timeline entry for these
+details. Historical preparation records without captured details remain unknown.

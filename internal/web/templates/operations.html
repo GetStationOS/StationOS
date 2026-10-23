@@ -59,7 +59,10 @@
         <div class="history-recording-content">
           <strong>{{if .Title}}{{.Title}}{{else}}{{.TypeLabel}}{{end}}</strong>
           {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint history-album">{{.Album}}</span>{{end}}
-          {{if and (eq .Kind "speech") .Speech}}<p class="history-speech">{{.Speech}}</p>{{end}}
+          {{if .SpeechPrepared}}
+          {{if .Speech}}<p class="history-speech">{{.Speech}}</p>{{else}}<p class="hint">Transcript: Not recorded</p>{{end}}
+          <p class="hint history-speech-source">Provider: {{.SpeechProviderLabel}} · Endpoint: {{if .SpeechEndpointURL}}<a href="{{.SpeechEndpointURL}}">{{.SpeechEndpointLabel}}</a>{{else}}Not recorded{{end}} · Model: {{if .SpeechModel}}{{.SpeechModel}}{{else}}Not recorded{{end}} · Voice: {{if .SpeechVoiceName}}{{.SpeechVoiceName}}{{else if .SpeechVoice}}{{.SpeechVoice}}{{else}}Not recorded{{end}}</p>
+          {{end}}
           {{if eq .Kind "speech"}}
           <p class="hint history-speech-source">{{if .SpeechProvider}}Provider: {{.SpeechProviderName}} · Model: {{if .SpeechModel}}{{.SpeechModel}}{{else}}Not recorded{{end}} · Voice: {{if .SpeechVoiceName}}{{.SpeechVoiceName}}{{else if .SpeechVoice}}{{.SpeechVoice}}{{else}}Not recorded{{end}}{{else}}Speech model and voice: Not recorded{{end}}</p>
           {{end}}

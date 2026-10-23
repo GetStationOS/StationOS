@@ -56,6 +56,8 @@ type operationalEvent struct {
 	StartDate, StartTime, EndTime                                  string
 	OutcomeStyle, OutcomeIcon                                      string
 	TypeIcon                                                       string
+	SpeechPrepared                                                 bool
+	SpeechProviderLabel, SpeechEndpointLabel, SpeechEndpointURL    string
 }
 type operationalIncident struct {
 	operations.Incident
@@ -411,7 +413,7 @@ func (s *Server) historyDisplayEvents(r *http.Request, stationID string, events 
 	// The provider, model and voice used are never taken from current DJ settings.
 	needsProviderNames := false
 	for _, e := range events {
-		if e.Kind == "speech" && e.SpeechProviderName == "" && e.SpeechConnection != "" {
+		if (e.Kind == "speech" || ((e.Recover || e.Kind == "recovery") && e.IncidentCode == "speech")) && e.SpeechProviderName == "" && e.SpeechConnection != "" {
 			needsProviderNames = true
 			break
 		}
@@ -516,6 +518,18 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 		v.Reason = "Show presentation preparation completed."
 	}
 	if (e.Recover || e.Kind == "recovery") && e.IncidentCode == "speech" {
+		v.SpeechPrepared = true
+		v.SpeechProviderLabel = map[string]string{"chatterbox": "Chatterbox", "elevenlabs": "ElevenLabs", "openai": "OpenAI"}[e.SpeechProvider]
+		if v.SpeechProviderLabel == "" {
+			v.SpeechProviderLabel = "Not recorded"
+		}
+		v.SpeechEndpointLabel = e.SpeechProviderName
+		if v.SpeechEndpointLabel == "" {
+			v.SpeechEndpointLabel = e.SpeechConnection
+		}
+		if e.SpeechConnection != "" {
+			v.SpeechEndpointURL = "/producer/assistant/endpoints?connection=" + url.QueryEscape(e.SpeechConnection)
+		}
 		v.TypeLabel = "DJ speech prepared"
 		v.Reason = "Preparation of the next spoken DJ link completed."
 	}

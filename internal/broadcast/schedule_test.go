@@ -108,12 +108,18 @@ func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
 	b.Close()
 	m.Close()
 	recorder.Close()
-	music, speech, handover := 0, 0, 0
+	music, speech, handover, prepared := 0, 0, 0, 0
 	for _, e := range store.events {
 		if e.Kind == "music" {
 			music++
 			if e.TrackID == "pop-pool" && e.Outcome != "completed" {
 				t.Fatalf("completed music: %+v", e)
+			}
+		}
+		if e.Kind == "recovery" && e.IncidentCode == "speech" {
+			prepared++
+			if e.Speech != "Handing over to the next presenter." || e.SpeechProvider != "chatterbox" || e.SpeechConnection != "nano" || e.SpeechModel != "chatterbox-nano" || e.SpeechVoice != "alex" {
+				t.Fatalf("prepared speech attribution: %+v", e)
 			}
 		}
 		if e.Kind == "speech" {
@@ -129,8 +135,8 @@ func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
 			handover++
 		}
 	}
-	if music != 2 || speech != 1 || handover != 1 {
-		t.Fatalf("history music=%d speech=%d handover=%d", music, speech, handover)
+	if music != 2 || speech != 1 || handover != 1 || prepared != 1 {
+		t.Fatalf("history music=%d speech=%d handover=%d prepared=%d", music, speech, handover, prepared)
 	}
 }
 

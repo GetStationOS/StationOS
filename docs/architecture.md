@@ -1033,8 +1033,11 @@ short and task-specific; saved prompt overrides remain untouched.
 
 The existing speech recovery observation is retained for every successful link
 preparation, including when there was no preceding incident. It captures the exact synthesis transcript
-and speech provenance before publishing link readiness. Aired receipts retain
+and separate text-generation provenance before publishing link readiness.
+Writing provider, endpoint ID and model are captured at request time; the prepared
+row displays only writing provider and model. Synthesis provenance remains on
+the speaking receipt. Aired receipts retain
 these fields for durable history and export. Timeline displays the transcript
-only on the preparation observation, with recorded provider/endpoint/model/voice;
+only on the preparation observation, with the recorded writing provider and text model;
 no extra speech event is created and old records are not inferred from current
 DJ configuration. Existing Operations commits drive the unchanged SSE path.

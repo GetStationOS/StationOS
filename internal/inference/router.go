@@ -84,7 +84,11 @@ func (r *Router) respond(ctx context.Context, role, model, prompt string, input 
 		}
 		return r.Local.chatWithOptions(ctx, c, key, model, prompt, input, tools, schema, role != "assistant", options)
 	}
-	return invoke(c, key, model)
+	out, err := invoke(c, key, model)
+	if err == nil {
+		ai.ReportTextProvenance(ctx, ai.TextProvenance{Provider: c.Type, Connection: c.ID, Model: model})
+	}
+	return out, err
 }
 func (r *Router) Generate(ctx context.Context, q ai.TextRequest) (string, error) {
 	input, _ := json.Marshal(map[string]string{"role": "user", "content": q.Input})

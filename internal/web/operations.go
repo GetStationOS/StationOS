@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/schedule"
@@ -57,7 +56,7 @@ type operationalEvent struct {
 	OutcomeStyle, OutcomeIcon                                      string
 	TypeIcon                                                       string
 	SpeechPrepared                                                 bool
-	SpeechProviderLabel, SpeechEndpointLabel, SpeechEndpointURL    string
+	WritingProviderLabel                                           string
 }
 type operationalIncident struct {
 	operations.Incident
@@ -409,31 +408,6 @@ func (s *Server) operationsVersion(w http.ResponseWriter, r *http.Request) {
 // Prefer the immutable name captured at transmission. Older records can show
 // an explicitly labelled current playlist name without rewriting their snapshot.
 func (s *Server) historyDisplayEvents(r *http.Request, stationID string, events []operations.Event) []operations.Event {
-	// Resolve display names for older receipts by their recorded endpoint ID only.
-	// The provider, model and voice used are never taken from current DJ settings.
-	needsProviderNames := false
-	for _, e := range events {
-		if (e.Kind == "speech" || ((e.Recover || e.Kind == "recovery") && e.IncidentCode == "speech")) && e.SpeechProviderName == "" && e.SpeechConnection != "" {
-			needsProviderNames = true
-			break
-		}
-	}
-	if needsProviderNames && s.d.Assistant != nil {
-		if store, ok := s.d.Assistant.Store.(ai.Store); ok {
-			if connections, err := store.Connections(r.Context()); err == nil {
-				names := map[string]string{}
-				for _, c := range connections {
-					names[c.ID] = c.Name
-				}
-				events = append([]operations.Event(nil), events...)
-				for i := range events {
-					if events[i].SpeechProviderName == "" {
-						events[i].SpeechProviderName = names[events[i].SpeechConnection]
-					}
-				}
-			}
-		}
-	}
 
 	if s.d.Playlists == nil {
 		return events
@@ -479,6 +453,17 @@ func operationOutcomeLabel(outcome string) string {
 	}
 	return label
 }
+func operationProviderLabel(kind string) string {
+	names := map[string]string{"ollama": "Ollama", "openai": "OpenAI", "compatible": "OpenAI-compatible", "anthropic": "Anthropic", "gemini": "Gemini", "chatterbox": "Chatterbox", "elevenlabs": "ElevenLabs"}
+	if label := names[kind]; label != "" {
+		return label
+	}
+	if kind != "" {
+		return kind
+	}
+	return "Not recorded"
+}
+
 func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	// Older routine observations were incorrectly recorded as warnings.
 	if e.Outcome == "observed" && e.IncidentCode == "" && e.Severity != "critical" && e.Severity != "error" && (e.Kind == "handover" || e.Kind == "started" || e.Kind == "stopped" || e.Kind == "intervention") {
@@ -486,12 +471,8 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	}
 
 	v := operationalEvent{Event: e, StartLabel: operationalTime(e.Started, loc), EndLabel: operationalTime(e.Ended, loc), Duration: "—"}
-	if v.SpeechProviderName == "" {
-		v.SpeechProviderName = map[string]string{"chatterbox": "Chatterbox", "elevenlabs": "ElevenLabs", "openai": "OpenAI"}[e.SpeechProvider]
-	}
-	if v.SpeechProviderName == "" {
-		v.SpeechProviderName = "Not recorded"
-	}
+	v.SpeechProviderName = operationProviderLabel(e.SpeechProvider)
+
 	v.StartDate = e.Started.In(loc).Format("02 Jan 2006")
 	v.StartTime = e.Started.In(loc).Format("15:04:05")
 	if !e.Ended.IsZero() && (e.Kind == "music" || e.Kind == "speech") {
@@ -519,17 +500,7 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 	}
 	if (e.Recover || e.Kind == "recovery") && e.IncidentCode == "speech" {
 		v.SpeechPrepared = true
-		v.SpeechProviderLabel = map[string]string{"chatterbox": "Chatterbox", "elevenlabs": "ElevenLabs", "openai": "OpenAI"}[e.SpeechProvider]
-		if v.SpeechProviderLabel == "" {
-			v.SpeechProviderLabel = "Not recorded"
-		}
-		v.SpeechEndpointLabel = e.SpeechProviderName
-		if v.SpeechEndpointLabel == "" {
-			v.SpeechEndpointLabel = e.SpeechConnection
-		}
-		if e.SpeechConnection != "" {
-			v.SpeechEndpointURL = "/producer/assistant/endpoints?connection=" + url.QueryEscape(e.SpeechConnection)
-		}
+		v.WritingProviderLabel = operationProviderLabel(e.WritingProvider)
 		v.TypeLabel = "DJ speech prepared"
 		v.Reason = "Preparation of the next spoken DJ link completed."
 	}

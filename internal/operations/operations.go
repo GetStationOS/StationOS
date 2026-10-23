@@ -13,6 +13,7 @@ import (
 )
 
 type Event struct {
+	WritingProvider, WritingConnection, WritingModel                string
 	SpeechProviderName                                              string
 	SpeechVoiceName                                                 string
 	SpeechProvider, SpeechConnection, SpeechModel, SpeechVoice      string

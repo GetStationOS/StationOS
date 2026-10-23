@@ -65,7 +65,7 @@ func TestTimelineTranscriptBelongsToPreparedEntry(t *testing.T) {
 	store := persistence.Operations{DB: stations.DB}
 	now := time.Now().Add(-time.Minute)
 	speech := "Here is River. <script>untrusted</script>"
-	prepared := operations.Event{ID: "prepared", Phase: "speech-preparation", StationID: st.ID, Kind: "recovery", Recover: true, IncidentCode: "speech", Outcome: "observed", Started: now, Ended: now, Speech: speech, SpeechProvider: "chatterbox", SpeechProviderName: "Studio <Mac>", SpeechConnection: "studio-mac", SpeechModel: "nano", SpeechVoiceName: "Alex", Reason: "DJ speech preparation recovered"}
+	prepared := operations.Event{ID: "prepared", Phase: "speech-preparation", StationID: st.ID, Kind: "recovery", Recover: true, IncidentCode: "speech", Outcome: "observed", Started: now, Ended: now, Speech: speech, WritingProvider: "ollama", WritingConnection: "local", WritingModel: "gemma4:12b", SpeechProvider: "chatterbox", SpeechProviderName: "Studio <Mac>", SpeechConnection: "studio-mac", SpeechModel: "nano", SpeechVoiceName: "Alex", Reason: "DJ speech preparation recovered"}
 	aired := prepared
 	aired.ID = "aired"
 	aired.Kind = "speech"
@@ -75,7 +75,7 @@ func TestTimelineTranscriptBelongsToPreparedEntry(t *testing.T) {
 	aired.Outcome = "completed"
 	aired.Started = now.Add(time.Second)
 	aired.Ended = now.Add(2 * time.Second)
-	legacy := operations.Event{ID: "legacy-prepared", Phase: "speech-preparation", StationID: st.ID, Kind: "recovery", Recover: true, IncidentCode: "speech", Outcome: "observed", Started: now.Add(-time.Second)}
+	legacy := operations.Event{ID: "legacy-prepared", SpeechProvider: "chatterbox", SpeechModel: "turbo", SpeechVoice: "elena-vance", Phase: "speech-preparation", StationID: st.ID, Kind: "recovery", Recover: true, IncidentCode: "speech", Outcome: "observed", Started: now.Add(-time.Second)}
 	for _, e := range []operations.Event{prepared, aired, legacy} {
 		if err = store.Save(ctx, e); err != nil {
 			t.Fatal(err)
@@ -100,15 +100,21 @@ func TestTimelineTranscriptBelongsToPreparedEntry(t *testing.T) {
 			return strings.SplitN(parts[1], "</tr>", 2)[0]
 		}
 		prep, air, old := row("prepared"), row("aired"), row("legacy-prepared")
-		for _, want := range []string{"Here is River. &lt;script&gt;", "Provider: Chatterbox", `href="/producer/assistant/endpoints?connection=studio-mac"`, "Studio &lt;Mac&gt;", "Model: nano", "Voice: Alex"} {
+		for _, want := range []string{"Here is River. &lt;script&gt;", "Provider: Ollama", "Model: gemma4:12b"} {
 			if !strings.Contains(prep, want) {
 				t.Fatal("missing prepared detail", want, prep)
 			}
 		}
+		if strings.Contains(prep, "Chatterbox") || strings.Contains(prep, "Voice:") || strings.Contains(prep, "Endpoint:") || strings.Contains(prep, "Model: nano") {
+			t.Fatal("synthesis details shown on writing entry", prep)
+		}
+		if strings.Contains(air, "Studio &lt;Mac&gt;") || !strings.Contains(air, "Provider: Chatterbox") {
+			t.Fatal("endpoint name displayed as provider", air)
+		}
 		if strings.Contains(air, "Here is River") || !strings.Contains(air, "Model: nano") || strings.Count(body, "Here is River") != 1 || strings.Contains(body, "<script>untrusted") {
 			t.Fatal("transcript duplicated or not escaped", body)
 		}
-		if !strings.Contains(old, "Transcript: Not recorded") || !strings.Contains(old, "Endpoint: Not recorded") {
+		if !strings.Contains(old, "Transcript: Not recorded") || !strings.Contains(old, "Provider: Not recorded · Model: Not recorded") {
 			t.Fatal("legacy details fabricated", old)
 		}
 	}

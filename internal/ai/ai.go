@@ -210,3 +210,16 @@ func FailureMessage(code string) string {
 		return "The DJ selection attempt failed; the provider did not supply a recognised cause. Check the curation connection and server logs."
 	}
 }
+
+// TextProvenance records the actual text request, independently of speech synthesis.
+type TextProvenance struct{ Provider, Connection, Model string }
+type textProvenanceKey struct{}
+
+func WithTextProvenance(ctx context.Context, report func(TextProvenance)) context.Context {
+	return context.WithValue(ctx, textProvenanceKey{}, report)
+}
+func ReportTextProvenance(ctx context.Context, value TextProvenance) {
+	if report, ok := ctx.Value(textProvenanceKey{}).(func(TextProvenance)); ok {
+		report(value)
+	}
+}

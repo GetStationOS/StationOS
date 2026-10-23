@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/mixer"
@@ -36,6 +37,7 @@ type Encoder interface {
 type State struct {
 	SpeechText             string
 	SpeechProvenance       production.SpeechProvenance
+	WritingProvenance      ai.TextProvenance
 	AINotice               string
 	CurationStatus         string
 	RepeatRelaxed          bool
@@ -1141,7 +1143,8 @@ func (m *Manager) playProgramme(id string, r *run) {
 					}
 					var transcript string
 					var provenance production.SpeechProvenance
-					transcriptCtx := production.WithSpeechTranscript(production.WithSpeechProvenance(linkCtx, func(value production.SpeechProvenance) { provenance = value }), func(text string) { transcript = text })
+					var writing ai.TextProvenance
+					transcriptCtx := production.WithSpeechTranscript(production.WithSpeechProvenance(ai.WithTextProvenance(linkCtx, func(value ai.TextProvenance) { writing = value }), func(value production.SpeechProvenance) { provenance = value }), func(text string) { transcript = text })
 					audio, audienceIDs, audienceValidIDs, err := m.audienceLink(production.WithInferenceNotice(transcriptCtx, func(message string) {
 						select {
 						case inferenceNotices <- inferenceNotice{req.Show.Key, message}:
@@ -1157,7 +1160,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 						m.observe(id, "ai", "DJ speech preparation failed; music continues", State{Programme: req.Show}, "speech", false)
 					}
 					if err == nil && len(audio) > 0 {
-						m.observe(id, "recovery", "DJ speech preparation recovered", State{Programme: req.Show, SpeechText: transcript, SpeechProvenance: provenance, Phase: "speech-preparation"}, "speech", true)
+						m.observe(id, "recovery", "DJ speech preparation recovered", State{Programme: req.Show, SpeechText: transcript, WritingProvenance: writing, Phase: "speech-preparation"}, "speech", true)
 					}
 					status := "Ready"
 					if err != nil {

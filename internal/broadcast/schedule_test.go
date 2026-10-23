@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/content"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/operations"
@@ -36,6 +37,7 @@ type readyLinks struct{ called chan production.LinkRequest }
 
 func (p readyLinks) Link(ctx context.Context, r production.LinkRequest) ([]byte, error) {
 	p.called <- r
+	ai.ReportTextProvenance(ctx, ai.TextProvenance{Provider: "ollama", Connection: "local", Model: "gemma4:12b"})
 	production.ReportSpeechTranscript(ctx, "Handing over to the next presenter.")
 	production.ReportSpeechProvenance(ctx, production.SpeechProvenance{Provider: "chatterbox", Connection: "nano", Model: "chatterbox-nano", Voice: "alex"})
 	return []byte("HANDOVER"), nil
@@ -118,7 +120,7 @@ func TestTrackFinishesAndHandoverKeepsBothListenersConnected(t *testing.T) {
 		}
 		if e.Kind == "recovery" && e.IncidentCode == "speech" {
 			prepared++
-			if e.Speech != "Handing over to the next presenter." || e.SpeechProvider != "chatterbox" || e.SpeechConnection != "nano" || e.SpeechModel != "chatterbox-nano" || e.SpeechVoice != "alex" {
+			if e.Speech != "Handing over to the next presenter." || e.WritingProvider != "ollama" || e.WritingConnection != "local" || e.WritingModel != "gemma4:12b" || e.SpeechProvider != "" || e.SpeechVoice != "" {
 				t.Fatalf("prepared speech attribution: %+v", e)
 			}
 		}

@@ -289,3 +289,18 @@ func TestThinkingIsIndependentForModelsSharingOllamaEndpoint(t *testing.T) {
 		}
 	}
 }
+
+func TestWritingProvenanceCapturesActualTextRequest(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"done":true,"message":{"content":"A link."}}`)
+	}))
+	defer server.Close()
+	r := router(connection("ollama", server.URL))
+	r.Store.(*testStore).routes.Writing = ai.Selection{Connection: "local"}
+	var got ai.TextProvenance
+	ctx := ai.WithTextProvenance(context.Background(), func(v ai.TextProvenance) { got = v })
+	_, err := r.Generate(ctx, ai.TextRequest{Role: "writing", Model: "gemma4:12b", Input: "Write a link"})
+	if err != nil || got != (ai.TextProvenance{Provider: "ollama", Connection: "local", Model: "gemma4:12b"}) {
+		t.Fatal(got, err)
+	}
+}

@@ -481,7 +481,12 @@ func modelCacheKey(base, model string) string {
 // remains a separate call with its own centrally selected credential and model.
 func (p Producer) textCall(ctx context.Context, key string, body map[string]any, limit int64) ([]byte, error) {
 	if p.Text == nil {
-		return p.call(ctx, "responses", key, body, limit)
+		raw, err := p.call(ctx, "responses", key, body, limit)
+		if err == nil {
+			model, _ := body["model"].(string)
+			ai.ReportTextProvenance(ctx, ai.TextProvenance{Provider: "openai", Connection: "openai", Model: model})
+		}
+		return raw, err
 	}
 	maxTokens, _ := body["max_output_tokens"].(int)
 	q := ai.TextRequest{Session: ai.Session(ctx), Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: maxTokens, Stateless: true}, Role: "writing", Model: body["model"].(string), Instructions: body["instructions"].(string), Input: body["input"].(string)}

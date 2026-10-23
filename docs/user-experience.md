@@ -792,8 +792,10 @@ It applies independently to that feature's selected model, defaults off and reta
 saved state. Endpoint forms contain only connection settings. Saving an older
 form without thinking controls preserves existing preferences.
 
-Timeline Recording / activity shows the transcript and recorded speech provider,
-endpoint, model and voice on DJ speech prepared entries. Endpoint names link to
-Assistant endpoint settings. Aired speech retains its existing presentation and
+Timeline Recording / activity shows the transcript and captured text-generation
+provider and model on DJ speech prepared entries. Speech synthesis provider,
+model and voice belong on the aired/speaking entry. Aired speech retains its existing presentation and
 AI metadata but omits the transcript. Do not add another timeline entry for these
 details. Historical preparation records without captured details remain unknown.
+
+Show provider brands and model IDs, without endpoint names or endpoint links.

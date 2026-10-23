@@ -1074,3 +1074,29 @@ receipts and historical timing do not change. Changes to future parent settings
 invalidate stale production revisions through the existing transactional validation.
 Archiving removes a show from active scheduling without deleting its sessions;
 station deletion still cascades. Audience admission rechecks active show state.
+
+
+### Producer model evaluation and playlist feedback
+
+The opt-in `make test-ollama` suite runs the production conversational runner,
+capability registry, native adapter and SQLite services against isolated synthetic
+catalogues. It checks exact persisted weekly windows, presenters, genre eligibility,
+defaults and duplicate configuration rather than accepting a model's completion
+claim. Native response diagnostics exclude credentials and private thinking.
+See [producer-ollama-testing.md](producer-ollama-testing.md) for scenarios and usage.
+
+Discovery advertises a required plural-facet enum, while playlist rule kinds stay
+singular. At the agent boundary, genre/artist/composer values with one unique
+case-insensitive catalogue match use the actual catalogue spelling; results report
+both requested and canonical values. Exact matches, ambiguous matches, unknown
+future values and source-scoped album rules retain their supplied values. Domain
+rule matching remains exact. New-pool creation explicitly identifies its empty eligibility; default assignment
+and successful selection writes return measured eligible counts and empty-pool guidance; a subsequent read failure reports unknown eligibility
+without changing the committed write into a failed action. Counts also appear in
+the durable summary so context compaction retains that outcome.
+
+A native provider's explicitly completed response with no usable text or calls is
+a typed failure, preserving usage without exposing private thinking. The producer
+permits one continuation with compact context and a focused work-area choice.
+Repeated empty completions pause normally. This does not replay prior mutations or
+relax the existing prohibition on retrying uncertain transport failures.

@@ -362,7 +362,7 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 		out.Items = append(out.Items, b)
 	}
 	if out.Text == "" && len(out.Calls) == 0 {
-		return producer.Response{}, errors.New("Provider returned no answer or tools")
+		return producer.Response{Usage: usage}, producer.ErrEmptyResponse
 	}
 	return out, nil
 }

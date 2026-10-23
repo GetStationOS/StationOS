@@ -92,6 +92,83 @@ func (r *Registry) call(ctx context.Context, name string, raw json.RawMessage, a
 	return result
 }
 
+// A saved selection is not proof of usable music. Report measured eligibility
+// immediately so an agent can repair an empty pool before scheduling it.
+func (r *Registry) savedPlaylistSelection(ctx context.Context, id, summary, url string, normalized ...ruleNormalization) (Result, error) {
+	result, _ := saved(nil, summary, url)
+	data := map[string]any{"playlist_id": id}
+	if len(normalized) > 0 {
+		data["normalizations"] = normalized
+	}
+	counts, err := r.availability(ctx, id)
+	if err != nil {
+		// The write already committed. Never report it as a failed mutation or
+		// invent a zero count when its subsequent verification read fails.
+		result.Summary += "; eligibility not verified"
+		data["warning"] = "Selection saved, but eligibility could not be read. Read get_playlist before claiming music is available; do not repeat the successful write."
+	} else {
+		data["total"] = counts.Total
+		data["unavailable"] = counts.Unavailable
+		data["available"] = counts.Total - counts.Unavailable
+		result.Summary += fmt.Sprintf("; %d available recordings", counts.Total-counts.Unavailable)
+		if counts.Total <= counts.Unavailable {
+			data["warning"] = "Selection saved, but no playable recordings currently match. This pool cannot supply music yet."
+			data["next_step"] = "Use explore_music to verify exact catalogue values (including case), then get_playlist and replace_playlist_rules to correct mismatched rules, preserving unrelated selections. If no suitable music exists, report that blocker; do not claim a complete playable station."
+		}
+	}
+	result.Data = data
+	return result, nil
+}
+
+type ruleNormalization struct {
+	Kind      string `json:"kind"`
+	Requested string `json:"requested"`
+	Value     string `json:"value"`
+}
+
+// Catalogue rules remain exact in the domain. Resolve only a unique spelling
+// difference at the agent boundary, retaining exact and ambiguous values.
+func catalogueRuleValues(ctx context.Context, repo catalogue.Repository, input []rule) ([]rule, []ruleNormalization) {
+	rules := append([]rule(nil), input...)
+	if repo == nil {
+		return rules, nil
+	}
+	facets, err := repo.Facets(ctx)
+	if err != nil {
+		return rules, nil
+	}
+	changed := []ruleNormalization{}
+	for i, r := range rules {
+		var values []string
+		switch r.Kind {
+		case "genre":
+			values = facets.Genres
+		case "artist":
+			values = facets.Artists
+		case "composer":
+			values = facets.Composers
+		default:
+			continue
+		}
+		exact := false
+		matches := []string{}
+		for _, value := range values {
+			if value == r.Value {
+				exact = true
+				break
+			}
+			if strings.EqualFold(value, r.Value) {
+				matches = append(matches, value)
+			}
+		}
+		if !exact && len(matches) == 1 {
+			rules[i].Value = matches[0]
+			changed = append(changed, ruleNormalization{Kind: r.Kind, Requested: r.Value, Value: matches[0]})
+		}
+	}
+	return rules, changed
+}
+
 // Definitions and typed dispatch are shared by the internal runner and a future MCP adapter.
 func register[T any](r *Registry, name, description string, write bool, fn func(context.Context, T) (Result, error)) {
 	r.tools[name] = registered{Tool: Tool{Name: name, Description: description, Parameters: schema(reflect.TypeOf((*T)(nil)).Elem()), Mutates: write}, invoke: func(ctx context.Context, raw json.RawMessage) (Result, error) {
@@ -121,6 +198,8 @@ func createShowsArgumentError(err error) error {
 	var typed *json.UnmarshalTypeError
 	var syntax *json.SyntaxError
 	switch {
+	case strings.Contains(err.Error(), `unknown field "station_id"`):
+		correction = `station_id belongs inside the show object as show.station_id, not at the top level. Keep only show and days at the top level, and put the existing station ID in show.station_id.`
 	case errors.As(err, &typed):
 		switch {
 		case typed.Field == "show":
@@ -165,6 +244,10 @@ func schema(t reflect.Type) any {
 			props[name] = schema(f.Type)
 		}
 		definition := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+		if t == reflect.TypeOf(exploreMusicArgs{}) {
+			props["kind"] = map[string]any{"type": "string", "enum": []string{"genres", "albums", "artists", "composers", "years", "decades"}, "description": "Catalogue facet to discover. Use plural names; playlist rule kinds are singular."}
+			definition["required"] = []string{"kind"}
+		}
 		if t == reflect.TypeOf(rule{}) {
 			props["kind"] = map[string]any{"type": "string", "enum": []string{"genre", "album", "artist", "composer", "year", "decade"}}
 			props["value"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Exact catalogue genre, album, artist or composer; year as digits; decade as its first year (1980)."}
@@ -196,7 +279,13 @@ func schema(t reflect.Type) any {
 		}
 		if t == reflect.TypeOf(createShowsArgs{}) {
 			props["days"] = map[string]any{"type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": map[string]any{"type": "integer", "minimum": 0, "maximum": 6}, "description": "Selected weekdays, Monday=0 through Sunday=6, each appearing once."}
-			props["show"].(map[string]any)["required"] = []string{"station_id", "name", "dj_id", "playlist_id", "start", "end"}
+			show := props["show"].(map[string]any)
+			show["required"] = []string{"station_id", "name", "dj_id", "playlist_id", "start", "end"}
+			show["description"] = "One programme object. Put station_id, name, dj_id, playlist_id, start, end and music_direction here. Only show and days belong at the top level."
+			showProps := show["properties"].(map[string]any)
+			delete(showProps, "id")
+			delete(showProps, "day")
+			delete(showProps, "days")
 			definition["required"] = []string{"show", "days"}
 		}
 		return definition
@@ -277,6 +366,13 @@ type playlistPatch struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
 }
+type exploreMusicArgs struct {
+	Kind   string `json:"kind"`
+	Text   string `json:"text"`
+	Offset int    `json:"offset"`
+	Limit  int    `json:"limit"`
+}
+
 type voiceQuery struct {
 	DJID       string `json:"dj_id"`
 	Connection string `json:"connection"`
@@ -517,12 +613,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(map[string]any{"catalogue_page": true, "query": a, "items": out, "total": v.Total, "offset": o, "limit": l}, nil)
 	})
-	register(r, "explore_music", "Explore dynamic rule values. kind: genres, albums, artists, composers, years or decades. Decades use their first year. Dates prefer source original dates, falling back to release dates; absence is unknown. Filter by text; paginate with offset and limit.", false, func(ctx context.Context, a struct {
-		Kind   string `json:"kind"`
-		Text   string `json:"text"`
-		Offset int    `json:"offset"`
-		Limit  int    `json:"limit"`
-	}) (Result, error) {
+	register(r, "explore_music", "Explore dynamic rule values. kind: genres, albums, artists, composers, years or decades. Decades use their first year. Dates prefer source original dates, falling back to release dates; absence is unknown. Filter by text; paginate with offset and limit.", false, func(ctx context.Context, a exploreMusicArgs) (Result, error) {
 		o, l, e := bounds(a.Offset, a.Limit)
 		if e != nil {
 			return Result{}, e
@@ -600,7 +691,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(map[string]any{"playlist": v, "rules": rules, "tracks": out, "total": items.Total, "unavailable": items.Unavailable, "seconds": items.Duration.Seconds(), "unknown_durations": items.UnknownDurations}, nil)
 	})
-	register(r, "save_playlist", "Create a station-owned eligibility pool (omit id), or update supplied fields. Inspect and reuse suitable existing pools first. New pools require station_id and a distinct programme or musical identity name; recurring editions share one pool. Preserve unrelated fields and rules.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
+	register(r, "save_playlist", "Create an EMPTY station-owned eligibility pool (omit id), or update supplied fields. Name and description never select music; populate a new pool with add_playlist_rule, replace_playlist_rules or select_tracks. Inspect and reuse suitable existing pools first. New pools require station_id and a distinct programme or musical identity name; recurring editions share one pool. Preserve unrelated fields and rules.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
 		r.playlistMu.Lock()
 		defer r.playlistMu.Unlock()
 		v := playlists.Playlist{StationID: a.StationID}
@@ -640,7 +731,11 @@ func NewRegistry(d Dependencies) *Registry {
 		if e != nil {
 			return Result{}, e
 		}
-		return saved(v, "Saved playlist: "+v.Name, "/producer/playlists/"+v.ID)
+		summary := "Saved playlist: " + v.Name
+		if a.ID == "" {
+			summary += "; 0 eligible recordings. Add music rules or track selections; the name does not select music."
+		}
+		return saved(v, summary, "/producer/playlists/"+v.ID)
 	})
 	register(r, "delete_playlist", "Delete a playlist. Shows using it must be changed first.", true, func(ctx context.Context, a entityID) (Result, error) {
 		v, e := d.Playlists.Get(ctx, a.ID)
@@ -652,27 +747,30 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(nil, "Deleted playlist: "+v.Name, "/producer/playlists?station="+v.StationID)
 	})
-	register(r, "add_playlist_rule", "Add ONE dynamic rule to an existing playlist. Kinds: genre, album, artist, composer, year, decade. Use exact explore_music values. Album requires source_id; others omit it. Values within a category are OR; selected categories combine with AND. Years and decades share the date category. Use ordinary rules; separate combined rules are unnecessary. Years prefer source original dates, falling back to release dates. New matching imports join automatically.", true, func(ctx context.Context, a playlistRuleArgs) (Result, error) {
+	register(r, "add_playlist_rule", "Add ONE dynamic rule to an existing playlist. Kinds: genre, album, artist, composer, year, decade. Use exact explore_music values. Unique case-insensitive genre/artist/composer matches use the catalogue spelling, reported in normalizations. Album requires source_id; others omit it. Values within a category are OR; selected categories combine with AND. Years and decades share the date category. Use ordinary rules; separate combined rules are unnecessary. Years prefer source original dates, falling back to release dates. New matching imports join automatically.", true, func(ctx context.Context, a playlistRuleArgs) (Result, error) {
 		if a.Rule.Kind == "filter" {
 			return Result{}, errors.New("Use genre, album, artist, composer, year or decade selections; categories combine automatically")
 		}
+		canonical, normalized := catalogueRuleValues(ctx, d.Catalogue, []rule{a.Rule})
+		a.Rule = canonical[0]
 		if e := ps.AddRule(ctx, a.PlaylistID, a.Rule.domain()); e != nil {
 			return Result{}, e
 		}
-		return saved(nil, "Added playlist rule: "+a.Rule.Value, "/producer/playlists/"+a.PlaylistID)
+		return r.savedPlaylistSelection(ctx, a.PlaylistID, "Added playlist rule: "+a.Rule.Value, "/producer/playlists/"+a.PlaylistID, normalized...)
 	})
-	register(r, "replace_playlist_rules", "Atomically replace ALL dynamic rules in a playlist, up to 100. Values within each category are alternatives; every selected category must match. Years and decades share a date category. Manual inclusions/exclusions remain. An empty rules array clears rules.", true, func(ctx context.Context, a struct {
+	register(r, "replace_playlist_rules", "Atomically replace ALL dynamic rules in a playlist, up to 100. Unique case-insensitive genre/artist/composer matches use the catalogue spelling, reported in normalizations. Values within each category are alternatives; every selected category must match. Years and decades share a date category. Manual inclusions/exclusions remain. An empty rules array clears rules.", true, func(ctx context.Context, a struct {
 		PlaylistID string `json:"playlist_id"`
 		Rules      []rule `json:"rules"`
 	}) (Result, error) {
+		canonical, normalized := catalogueRuleValues(ctx, d.Catalogue, a.Rules)
 		rules := []playlists.Rule{}
-		for _, rule := range a.Rules {
+		for _, rule := range canonical {
 			rules = append(rules, rule.domain())
 		}
 		if e := ps.ReplaceRules(ctx, a.PlaylistID, rules); e != nil {
 			return Result{}, e
 		}
-		return saved(nil, "Replaced playlist rules", "/producer/playlists/"+a.PlaylistID)
+		return r.savedPlaylistSelection(ctx, a.PlaylistID, "Replaced playlist rules", "/producer/playlists/"+a.PlaylistID, normalized...)
 	})
 	register(r, "remove_playlist_rule", "Remove one playlist rule using a rule ID returned by get_playlist.", true, func(ctx context.Context, a struct {
 		PlaylistID string `json:"playlist_id"`
@@ -681,7 +779,7 @@ func NewRegistry(d Dependencies) *Registry {
 		if e := d.Playlists.RemoveRule(ctx, a.PlaylistID, a.RuleID); e != nil {
 			return Result{}, e
 		}
-		return saved(nil, "Removed playlist rule", "/producer/playlists/"+a.PlaylistID)
+		return r.savedPlaylistSelection(ctx, a.PlaylistID, "Removed playlist rule", "/producer/playlists/"+a.PlaylistID)
 	})
 	register(r, "select_tracks", "Include or exclude 1–100 exact catalogue track IDs. Exclusions override dynamic rules. This does not order playback.", true, func(ctx context.Context, a struct {
 		PlaylistID string   `json:"playlist_id"`
@@ -694,7 +792,7 @@ func NewRegistry(d Dependencies) *Registry {
 		if e := ps.Select(ctx, a.PlaylistID, a.TrackIDs, *a.Included); e != nil {
 			return Result{}, e
 		}
-		return saved(nil, fmt.Sprintf("Updated %d track selections", len(a.TrackIDs)), "/producer/playlists/"+a.PlaylistID+"/tracks")
+		return r.savedPlaylistSelection(ctx, a.PlaylistID, fmt.Sprintf("Updated %d track selections", len(a.TrackIDs)), "/producer/playlists/"+a.PlaylistID+"/tracks")
 	})
 	register(r, "assign_default_playlist", "Set a station's gap/default playlist. Empty playlist_id clears the assignment. Playlist must belong to this station.", true, func(ctx context.Context, a struct {
 		StationID  string  `json:"station_id"`
@@ -705,6 +803,9 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		if e := d.Broadcast.Assign(ctx, a.StationID, *a.PlaylistID); e != nil {
 			return Result{}, e
+		}
+		if *a.PlaylistID != "" {
+			return r.savedPlaylistSelection(ctx, *a.PlaylistID, "Updated default playlist", "/producer/stations/"+a.StationID)
 		}
 		return saved(nil, "Updated default playlist", "/producer/stations/"+a.StationID)
 	})
@@ -817,7 +918,10 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return saved(v, "Saved show: "+v.Name, "/producer/stations/"+v.StationID+"/shows/"+v.ID)
 	})
-	register(r, "create_shows", "Create one programme on selected weekdays atomically. Supply ONE show object and days, never an array in show. Call separately for distinct programmes. Monday=0 through Sunday=6. Start/end use quarter-hour minutes after midnight; midnight end is 0 or 1440, never 2400. Use existing presenter and station-owned playlist IDs; omit show.id. Set show.music_direction to the programme-specific DJ music prompt, shared across its recurring days. Conflicts reject every selected day.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
+	register(r, "create_shows", "Create one programme on selected weekdays atomically. Supply ONE show object and days, never an array in show. Put station_id inside show (show.station_id), never at the top level. Call separately for distinct programmes. Monday=0 through Sunday=6. Start/end use quarter-hour minutes after midnight; midnight end is 0 or 1440, never 2400. Use existing presenter and station-owned playlist IDs; omit show.id. Set show.music_direction to the programme-specific DJ music prompt, shared across its recurring days. Conflicts reject every selected day.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
+		if strings.TrimSpace(a.Show.StationID) == "" {
+			return Result{}, schedule.Invalid("supply show.station_id inside the show object, using the existing station ID. Only show and days belong at the top level. No shows were created by this call")
+		}
 		if a.Show.ID != "" {
 			return Result{}, schedule.Invalid("omit show.id in create_shows; use save_show to edit an existing show")
 		}

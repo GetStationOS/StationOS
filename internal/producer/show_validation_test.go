@@ -91,6 +91,7 @@ func TestCreateShowsDecoderReportsActualProblem(t *testing.T) {
 	_, r, _, _, repo, _ := fixture(t)
 	for _, tc := range []struct{ args, want string }{
 		{`{"show":[],"days":[0]}`, "Never put an array in show"},
+		{`{"station_id":"saved-id","show":{},"days":[0]}`, "show.station_id"},
 		{`{"show":{"start":"08:00"},"days":[0]}`, "show.start must be an integer number of minutes"},
 		{`{"show":{"end":"24:00"},"days":[0]}`, "show.end must be an integer number of minutes"},
 		{`{"show":{},"days":"Monday"}`, "days must be an array of integers"},
@@ -116,5 +117,19 @@ func TestCreateShowsDecoderReportsActualProblem(t *testing.T) {
 	shows, err := repo.List(context.Background(), "")
 	if err != nil || len(shows) != 0 {
 		t.Fatalf("malformed calls created shows: %+v %v", shows, err)
+	}
+}
+
+func TestCreateShowsMissingNestedStationGivesRepairLocation(t *testing.T) {
+	_, r, _, _, repo, _ := fixture(t)
+	result := r.Call(context.Background(), "create_shows", []byte(`{"show":{"name":"Morning","dj_id":"dj","playlist_id":"pool","start":480,"end":600},"days":[0]}`))
+	for _, want := range []string{"show.station_id", "inside the show object", "No shows were created"} {
+		if !strings.Contains(result.Error, want) {
+			t.Errorf("missing repair guidance %q: %s", want, result.Error)
+		}
+	}
+	shows, err := repo.List(context.Background(), "")
+	if err != nil || len(shows) != 0 {
+		t.Fatal("invalid request saved configuration", shows, err)
 	}
 }

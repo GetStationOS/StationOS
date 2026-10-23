@@ -26,6 +26,10 @@ import (
 
 var ErrNotFound = errors.New("conversation not found")
 
+// ErrEmptyResponse means a provider explicitly completed without usable text or
+// calls. It is distinct from uncertain transport failures; no actions were offered.
+var ErrEmptyResponse = errors.New("Provider completed without an answer or tools")
+
 // ErrOutputLimit means a completed provider response was truncated. No tool
 // calls from that response may be executed or added to durable history.
 var ErrOutputLimit = errors.New("The assistant reached its reply limit before completing the response")
@@ -469,6 +473,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 	outputRecoveries := 0
 	batchRecoveries := 0
 	budgetRecovery := false
+	emptyRecovery := false
 	generationOptions := ai.GenerationOptions{}
 	seenResults := map[[32]byte]bool{}
 	schedulesToReview := map[string]bool{}
@@ -506,6 +511,17 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Context recovery: the previous request or response could not be used safely. No actions from it ran. Only tools for one next work area are offered. Use select_work_step if needed, preserve the original brief and saved references, and make one small next action without restating the full plan."}))
 			if err := checkpoint(); err != nil {
 				fail("The context recovery checkpoint could not be saved. Completed work remains saved.")
+				return
+			}
+			continue
+		}
+		if errors.Is(err, ErrEmptyResponse) && ctx.Err() == nil && !emptyRecovery {
+			emptyRecovery = true
+			generationOptions.CompactContext = true
+			focus = "choose"
+			input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Empty response recovery: the provider explicitly finished without usable text or tool calls. No actions from that response ran. Earlier successful writes remain saved. Use select_work_step for one unfinished area, inspect its saved configuration and continue the original brief with one small action. Do not recreate completed entities or repeat the full plan. If genuinely blocked, record the blocker honestly."}))
+			if err = checkpoint(); err != nil {
+				fail("The empty-response recovery checkpoint could not be saved. Completed actions remain saved; use Continue to resume.")
 				return
 			}
 			continue

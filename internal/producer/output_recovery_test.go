@@ -2,7 +2,9 @@ package producer_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -27,6 +29,7 @@ func TestIncompleteRecoveryIsBoundedAndDoesNotExecutePartialActions(t *testing.T
 		calls   int
 	}{
 		{"completed-output-limit", producer.ErrOutputLimit, 3},
+		{"completed-empty-response", producer.ErrEmptyResponse, 2},
 		{"ambiguous-network-failure", errors.New("Provider response failed; request outcome is uncertain and was not retried"), 1},
 		{"request-deadline", context.DeadlineExceeded, 1},
 	} {
@@ -66,10 +69,7 @@ func TestIncompleteRecoveryIsBoundedAndDoesNotExecutePartialActions(t *testing.T
 				}
 			}
 			usage := false
-			expected := "100 input tokens (including cached input), 200 output tokens"
-			if tc.calls == 3 {
-				expected = "300 input tokens (including cached input), 600 output tokens"
-			}
+			expected := fmt.Sprintf("%d input tokens (including cached input), %d output tokens", 100*tc.calls, 200*tc.calls)
 			for _, message := range conversation.Messages {
 				if strings.Contains(message.Text, expected) {
 					usage = true
@@ -79,5 +79,64 @@ func TestIncompleteRecoveryIsBoundedAndDoesNotExecutePartialActions(t *testing.T
 				t.Fatal("incomplete response usage was lost", conversation.Messages)
 			}
 		})
+	}
+}
+
+type emptyContinuationModel struct {
+	t       *testing.T
+	step    int
+	station string
+}
+
+func (m *emptyContinuationModel) Respond(_ context.Context, _, _, _ string, input []producer.Item, tools []producer.Tool) (producer.Response, error) {
+	step := m.step
+	m.step++
+	switch step {
+	case 0:
+		return responseCall(step, "save_station", map[string]string{"name": "Before Empty"}), nil
+	case 1:
+		m.station = resultID(input)
+		return producer.Response{}, producer.ErrEmptyResponse
+	case 2:
+		offered := map[string]bool{}
+		for _, tool := range tools {
+			offered[tool.Name] = true
+		}
+		if !offered["select_work_step"] || offered["save_station"] {
+			m.t.Fatal("empty response did not narrow tools", offered)
+		}
+		raw, _ := json.Marshal(input)
+		if !strings.Contains(string(raw), "Empty response recovery") || !strings.Contains(string(raw), m.station) {
+			m.t.Fatal("lost recovery contract or committed ID")
+		}
+		return responseCall(step, "select_work_step", map[string]string{"area": "station", "station_id": m.station}), nil
+	case 3:
+		return responseCall(step, "save_task_progress", producer.Task{Brief: "Create Before Empty", Completed: []string{"Verified the saved station; no repeated creation"}}), nil
+	}
+	return producer.Response{Text: "Verified the saved station."}, nil
+}
+func TestCompletedEmptyReplyContinuesWithoutRecreatingCommittedStation(t *testing.T) {
+	ctx := context.Background()
+	store, registry, stations, _, _, _ := fixture(t)
+	if err := store.SaveSettings(ctx, "test-model", producer.KeyChange{Value: "test-key"}); err != nil {
+		t.Fatal(err)
+	}
+	model := &emptyContinuationModel{t: t}
+	svc, err := producer.New(ctx, store, registry, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	id, err := svc.Create(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = svc.Start(ctx, id, producer.ID(), "Create a station named Before Empty."); err != nil {
+		t.Fatal(err)
+	}
+	conversation := waitDone(t, store, id)
+	saved, err := stations.List(ctx)
+	if err != nil || len(saved) != 1 || saved[0].ID != model.station || conversation.Status != "idle" || model.step != 5 {
+		t.Fatal("lost or repeated committed work", saved, err, conversation.Status, model.step)
 	}
 }

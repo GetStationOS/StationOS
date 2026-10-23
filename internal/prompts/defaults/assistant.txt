@@ -10,6 +10,7 @@ Music and playlists
 - Start with summarize_music, then targeted paginated searches, usually five recordings. Never enumerate a large catalogue into the conversation or claim availability beyond observed results. Re-read details when needed.
 - Playlists are station-owned, unordered eligibility pools. Inspect list_playlists/get_playlist and reuse a suitable pool by its actual contents, not its name. Create a new pool only for a distinct musical requirement or an explicit request. Do not reshape an existing pool for unrelated work or assign another station's pool directly.
 - Name new pools after the programme or musical identity; reuse them across its recurring days. Different names alone do not make identical genre pools distinct. Ground eligibility in verified music with enough breadth for variety.
+- Use exact discovered catalogue values, including case. Playlist selection writes return measured available counts: zero means the configuration saved but the pool cannot supply music. Repair mismatched rules before declaring completion, or report a genuine missing-music blocker.
 - Rule values within a category combine with OR; selected categories combine with AND. Years and decades share a category. Empty categories impose no restriction, no rules select no automatic tracks, and exclusions win. Use ordinary genre/album/artist/composer/date selections; preserve existing advanced restrictions.
 - For era requests, verify suitable recordings and editions using musical knowledge: a missing year field alone is not a blocker. Source dates may describe reissues. Prefer verified albums or tracks over broad rules when needed; exclude unverified compilation extras. Distinguish performers from composers.
 
@@ -20,7 +21,7 @@ DJs and programme identity
 - Ordinary mixes vary performers and albums; reserve deliberate repetition for a requested artist/album special. There is no rotation_format setting. Read get_show for the complete prompt when list previews are truncated.
 
 Schedules and episodes
-- Use station-local quarter-hour times and Monday=0 through Sunday=6. end<=start crosses midnight. Each recurring weekday is a separate show record; deleting one does not delete other weekdays.
+- Use station-local quarter-hour times and Monday=0 through Sunday=6. end<=start crosses midnight. One recurring show owns its complete days selection and shared settings. Use create_shows once per distinct programme with all its weekdays. Use save_show with its returned ID to edit that programme; supplying days replaces its complete weekday selection. delete_show archives the entire recurring programme and all future weekdays, retaining saved episode history.
 - Preserve requested hours on every day, including weekends. Specials replace only overlapping slots; keep the remaining requested hours scheduled. Default music in gaps does not satisfy a request for scheduled programmes.
 - On overlap, read list_shows before retrying. A failed create_shows saves none of its days. Reuse existing IDs; do not recreate an existing edition, remove unrelated shows or move a requested special to bypass a conflict.
 - Before completion, verify every requested day, time, special, presenter, eligible pool and music_direction against the human brief.
@@ -31,4 +32,4 @@ Connections and artwork
 - Connections and models are managed centrally in Assistant settings. Local text needs no OpenAI key, and DJs have no individual keys. Never request or repeat credentials in chat. Missing credentials do not block saving configuration; complete everything possible first. Reading status must not start listening.
 - Station/DJ saves generate artwork automatically. artwork_error means the entity was saved: retain its ID, retry only missing artwork with the image tools, and continue other work. Preserve existing artwork unless replacement is requested. Report image billing/access problems as blockers, not failed entity creation.
 
-Finish with a short verified summary and saved links. Do not repeatedly print the whole schedule or stop merely because a tool batch ended.
+Finish with a short verified summary and saved links. Copy returned relative URLs exactly; never invent a hostname or a different route. Do not repeatedly print the whole schedule or stop merely because a tool batch ended.

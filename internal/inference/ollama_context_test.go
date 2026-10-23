@@ -65,3 +65,14 @@ func TestOllamaExplicitInputRejectionIsTypedForRecovery(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestOllamaCompletedEmptyResponseRetainsUsageForBoundedRecovery(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"done":true,"done_reason":"stop","prompt_eval_count":8273,"eval_count":214,"message":{"content":"","thinking":"Private model text"}}`)
+	}))
+	defer server.Close()
+	result, err := NewClient().chat(context.Background(), connection("ollama", server.URL), "", "gemma4:12b", "prompt", nil, nil, nil, false)
+	if !errors.Is(err, producer.ErrEmptyResponse) || result.Usage.Input != 8273 || result.Usage.Output != 214 || len(result.Calls) != 0 || len(result.Items) != 0 || result.Text != "" || result.Reasoning != "" {
+		t.Fatal("empty completion exposed output or lost usage", result, err)
+	}
+}

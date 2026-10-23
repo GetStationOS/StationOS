@@ -61,8 +61,7 @@ func TestOllamaThinkingSettingForLiveAndBackground(t *testing.T) {
 				io.WriteString(w, `{"done":true,"message":{"content":"A short spoken link."}}`)
 			}))
 			conn := connection("ollama", server.URL)
-			conn.Thinking = thinking
-			_, err := NewClient().chatWithOptions(context.Background(), conn, "", "gemma4:12b", "prompt", nil, nil, nil, live, ai.GenerationOptions{MaxOutputTokens: 512})
+			_, err := NewClient().chatWithOptions(context.Background(), conn, "", "gemma4:12b", "prompt", nil, nil, nil, live, ai.GenerationOptions{MaxOutputTokens: 512, Thinking: thinking})
 			server.Close()
 			if err != nil {
 				t.Fatal(err)
@@ -258,5 +257,35 @@ func TestProducerQueueCancellationDoesNotDispatchOrLeakSlot(t *testing.T) {
 	budget, err := router(conn).Budget(context.Background(), "assistant")
 	if err != nil || budget != 0 {
 		t.Fatal("producer was given a deadline that excludes unbounded queue time", budget, err)
+	}
+}
+
+func TestThinkingIsIndependentForModelsSharingOllamaEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model string
+			Think *bool
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if body.Think == nil || *body.Think != (body.Model == "planning-model") {
+			t.Error("wrong model setting", body)
+		}
+		io.WriteString(w, `{"done":true,"message":{"content":"Ready"}}`)
+	}))
+	defer server.Close()
+	r := router(connection("ollama", server.URL))
+	store := r.Store.(*testStore)
+	store.routes.Curation = ai.Selection{Connection: "local", Thinking: true}
+	store.routes.Writing = ai.Selection{Connection: "local", Thinking: false}
+	for _, role := range []string{"curation", "writing", "assistant"} {
+		model := "speech-model"
+		if role == "curation" {
+			model = "planning-model"
+		}
+		if _, err := r.Generate(context.Background(), ai.TextRequest{Role: role, Model: model, Input: "test"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

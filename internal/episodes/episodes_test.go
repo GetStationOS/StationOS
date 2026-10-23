@@ -1081,3 +1081,35 @@ func TestEpisodeCheckpointRetainsEarlierWorksAndComposer(t *testing.T) {
 		t.Fatal(aired)
 	}
 }
+
+func TestSpeechContextKeepsNotesAndOnlySixAiredRemarks(t *testing.T) {
+	ctx := context.Background()
+	o := futureEpisode()
+	store := &memoryStore{}
+	s := Service{Store: store}
+	if err := store.Update(ctx, o, func(e *Episode) error {
+		e.Theme = "Quiet evening"
+		e.Notes = "Play it gently"
+		e.Plan = []Track{{ID: "private-plan"}}
+		e.Aired = []Track{{ID: "full-history"}}
+		e.Turns = []Turn{{Kind: "prepared speech (not yet aired)", Text: "Unbroadcast draft"}}
+		e.RecentSpeech = []string{"old1", "old2", "heard1", "heard2", "heard3", "heard4", "heard5", "heard6"}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := s.SpeechContext(ctx, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unneeded := range []string{"private-plan", "full-history", "Unbroadcast draft", "old1", "old2"} {
+		if strings.Contains(raw, unneeded) {
+			t.Fatal(raw)
+		}
+	}
+	for _, needed := range []string{"Quiet evening", "Play it gently", "heard1", "heard6"} {
+		if !strings.Contains(raw, needed) {
+			t.Fatal(raw)
+		}
+	}
+}

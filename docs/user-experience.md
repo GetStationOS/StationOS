@@ -786,3 +786,8 @@ voices from a DJ's current settings. Name discovery is best effort and bounded.
 Assistant → Models shows separate Show planning and DJ writing groups, each with its own provider and model. Planning chooses music; writing creates introductions, links and sign-offs. Keep speech choices on each DJ profile. Saving either text role preserves the other, including when an older form omits the new writing fields.
 
 Listener station playback uses two equal-width cards on desktop: navy with white text for Now playing, and white with navy text for Up next. Stack them in that order at phone widths. Keep artwork and metadata aligned, allow long titles and artist names to wrap, and retain the existing measured state and event subscription.
+
+Thinking belongs beside each text model on Assistant → Models, visible for Ollama.
+It applies independently to that feature's selected model, defaults off and retains
+saved state. Endpoint forms contain only connection settings. Saving an older
+form without thinking controls preserves existing preferences.

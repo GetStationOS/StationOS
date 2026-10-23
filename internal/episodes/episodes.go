@@ -170,6 +170,24 @@ func (s *Service) Context(ctx context.Context, o schedule.Occurrence) (string, e
 	raw, err := json.Marshal(modelCheckpoint(e))
 	return string(raw), err
 }
+
+// SpeechContext projects only editorial direction and actual aired speech.
+// Planning and repeat validation continue to use the complete episode checkpoint.
+func (s *Service) SpeechContext(ctx context.Context, o schedule.Occurrence) (string, error) {
+	if o.ShowID == "" {
+		return "", nil
+	}
+	e, err := s.Store.Get(ctx, o.Key)
+	if errors.Is(err, ErrNotFound) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	raw, err := json.Marshal(map[string]any{"Theme": e.Theme, "Notes": e.Notes, "recent_aired_speech": recentAiredSpeech(e)})
+	return string(raw), err
+}
+
 func (s *Service) Begin(ctx context.Context, o schedule.Occurrence) error {
 	if o.ShowID == "" {
 		return nil
@@ -979,7 +997,7 @@ func (s *Service) Remember(ctx context.Context, o schedule.Occurrence, kind, tex
 
 // Retain the authoritative plan and constraints; bound conversational replay.
 // Full records remain in the durable episode, including all actual-play receipts.
-func modelCheckpoint(e Episode) map[string]any {
+func recentAiredSpeech(e Episode) []string {
 	recentSpeech := e.RecentSpeech
 	if len(recentSpeech) == 0 {
 		for _, turn := range e.Turns {
@@ -989,6 +1007,11 @@ func modelCheckpoint(e Episode) map[string]any {
 		}
 	}
 	recentSpeech = recentSpeech[max(0, len(recentSpeech)-6):]
+	return recentSpeech
+}
+
+func modelCheckpoint(e Episode) map[string]any {
+	recentSpeech := recentAiredSpeech(e)
 	turns := []Turn{}
 	for _, t := range e.Turns {
 		switch t.Kind {

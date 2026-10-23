@@ -86,7 +86,7 @@ func TestApprovedShoutoutCannotBeSilentlyOmitted(t *testing.T) {
 		calls++
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
-		if !strings.Contains(body["instructions"].(string), "shout-outs have already been approved") {
+		if !strings.Contains(body["instructions"].(string), "approved listener item") {
 			t.Fatal("approved shoutout not required by prompt")
 		}
 		return answer(`{"speech":"Here is the next song.","used_ids":[]}`), nil
@@ -118,7 +118,7 @@ func TestListenerShoutoutSectionAcknowledgesOnlySpokenMessages(t *testing.T) {
 					var body map[string]any
 					json.NewDecoder(r.Body).Decode(&body)
 					instructions := body["instructions"].(string)
-					for _, want := range []string{"listener shout-outs", "first supplied audience item", "maximum 75 words", "IDs actually spoken"} {
+					for _, want := range []string{"listener shout-outs", "first approved listener item", "at most 75 words", "contributions spoken"} {
 						if !strings.Contains(instructions, want) {
 							t.Fatal("missing section instruction", want)
 						}
@@ -155,7 +155,7 @@ func TestRequestPromptContainsRequesterDedicationAndExactNextRecording(t *testin
 						t.Fatal("request missing from speech prompt", text, input)
 					}
 				}
-				if !strings.Contains(instructions, "request introduction is required") || !strings.Contains(instructions, "never choose or substitute music") {
+				if !strings.Contains(instructions, "Speech is required") || !strings.Contains(instructions, "Never substitute music") {
 					t.Fatal(instructions)
 				}
 				return answer(`{"speech":"Sam from Birmingham requested Dreams by Fleetwood Mac. Thanks Sam, here it is.","used_ids":["request-a"]}`), nil

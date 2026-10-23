@@ -284,7 +284,7 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 			if r.PostForm.Has("assistant_connection") {
 				previousWriting := settings.Routes.Writing
 				previousSpeech := settings.Routes.Speech
-				settings.Routes = routesFromForm(r)
+				settings.Routes = routesFromForm(r, settings.Routes)
 				settings.Routes.Speech = previousSpeech
 				if !r.PostForm.Has("writing_connection") {
 					settings.Routes.Writing = previousWriting
@@ -316,7 +316,7 @@ func (s *Server) assistantSettings(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("notice") == "key-saved" {
 		v.Notice = "OpenAI key saved."
 	}
-	v.AIRoles = roleViews(v.AssistantSettings)
+	v.AIRoles = roleViews(v.AssistantSettings, v.AIConnections)
 	s.renderAssistantPage(w, r, http.StatusOK, v)
 }
 

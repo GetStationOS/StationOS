@@ -53,7 +53,7 @@ func TestOptionalLinkSkipAndSpeechValidation(t *testing.T) {
 			} else if speechCalls != 1 || len(audio) == 0 || transcript != "Here is the next recording." {
 				t.Fatal(speechCalls, string(audio), transcript)
 			}
-			if len(local.requests) != 1 || len(local.requests[0].Schema) == 0 || !strings.Contains(local.requests[0].Instructions, "empty string") {
+			if len(local.requests) != 1 || len(local.requests[0].Schema) == 0 || !strings.Contains(local.requests[0].Instructions, "Empty speech") {
 				t.Fatal("missing explicit skip contract")
 			}
 		})
@@ -81,7 +81,7 @@ func TestRequiredLinksCannotBeSkipped(t *testing.T) {
 			if err == nil || len(audio) != 0 {
 				t.Fatal("required speech was skipped", err)
 			}
-			if !strings.Contains(local.requests[0].Instructions, "never skip them") {
+			if !strings.Contains(local.requests[0].Instructions, "Speech is required") && !strings.Contains(local.requests[0].Instructions, "handovers require non-empty speech") {
 				t.Fatal("required speech missing from prompt")
 			}
 		})

@@ -275,3 +275,25 @@ func TestContinuedConversationSendsOnlyNewAiredReceipts(t *testing.T) {
 		t.Fatal("replay lost authoritative history", replay)
 	}
 }
+
+func TestStatelessSpeechDoesNotReadReplayOrWritePlanningHistory(t *testing.T) {
+	ctx := context.Background()
+	store := &memoryConversations{values: map[string]ai.Conversation{"episode": {History: []json.RawMessage{json.RawMessage(`{"role":"assistant","content":"Never aired draft"}`)}}}}
+	model := &sessionCloud{}
+	r := cloudRouter(store, model)
+	r.Store.(*testStore).routes.Writing = ai.Selection{Connection: "openai"}
+	_, err := r.Generate(ctx, ai.TextRequest{Session: "episode", Role: "writing", Instructions: "Write a link", Input: `{"recent_aired_speech":["Actually aired"]}`, Options: ai.GenerationOptions{Stateless: true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(model.inputs) != 1 || len(model.inputs[0]) != 1 || !strings.Contains(string(model.inputs[0][0]), "Actually aired") || strings.Contains(string(model.inputs[0][0]), "Never aired") {
+		t.Fatal(model.inputs)
+	}
+	if model.options[0].StoreConversation || model.options[0].PreviousResponseID != "" || len(store.values["episode"].History) != 1 {
+		t.Fatal("speech modified planning history")
+	}
+	r.Conversations = nil
+	if _, err = r.Generate(ctx, ai.TextRequest{Session: "episode", Role: "writing", Input: "link", Options: ai.GenerationOptions{Stateless: true}}); err != nil {
+		t.Fatal("stateless speech requires planning storage", err)
+	}
+}

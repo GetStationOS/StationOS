@@ -18,12 +18,12 @@ var ErrInvalidStructuredResponse = errors.New("Provider returned invalid structu
 type Connection struct {
 	ID, Name, Type, Address     string
 	HasKey                      bool
-	Thinking                    bool
 	ContextTokens, OutputTokens int
 	RequestTimeoutSeconds       int
 }
 type Selection struct {
 	Connection string
+	Thinking   bool
 }
 type Routes struct{ Assistant, Curation, Writing, Audience, Speech, Image Selection }
 type KeyChange struct {
@@ -60,6 +60,8 @@ type GenerationOptions struct {
 	PreviousResponseID string
 	MaxOutputTokens    int
 	DisableThinking    bool
+	Thinking           bool
+	Stateless          bool
 	CompactContext     bool
 }
 type TextRequest struct {

@@ -59,10 +59,11 @@ func (r *Router) RespondWithOptions(ctx context.Context, model, _, prompt string
 }
 
 func (r *Router) respond(ctx context.Context, role, model, prompt string, input []producer.Item, tools []producer.Tool, schema json.RawMessage, options ai.GenerationOptions) (producer.Response, error) {
-	_, c, key, err := r.selection(ctx, role)
+	selection, c, key, err := r.selection(ctx, role)
 	if err != nil {
 		return producer.Response{}, err
 	}
+	options.Thinking = selection.Thinking
 	invoke := func(c ai.Connection, key, model string) (producer.Response, error) {
 		if c.Type == "openai" {
 			cloudInput := cleanAnnotations(input)

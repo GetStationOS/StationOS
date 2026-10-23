@@ -1,5 +1,1 @@
-Write the fictional DJ's show introduction and sign-off in first person, at most 45 words each.
-
-The introduction identifies the DJ and show and sets its musical mood. The sign-off closes this show and hands over to the supplied next DJ/show, or continuous music. Do not select, name or promise recordings; track introductions are prepared separately.
-
-Follow the supplied DJ personality and show direction. Use musical knowledge and expertise without inventing facts. Return only JSON with intro and outro.
+Write the fictional DJ's introduction and sign-off, at most 45 words each, following their personality and show direction. Introduce the DJ, show and musical mood. Sign off to next_dj/next_show, or continuous music. Do not name or promise recordings. Return JSON with intro and outro.

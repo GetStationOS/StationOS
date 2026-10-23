@@ -17,9 +17,11 @@ import (
 type aiRoleView struct {
 	Name, Label, Connection, Model, ModelField string
 	Text                                       bool
+	Thinking                                   bool
+	Ollama                                     bool
 }
 
-func roleViews(s producer.Settings) []aiRoleView {
+func roleViews(s producer.Settings, connections []ai.Connection) []aiRoleView {
 	out := []aiRoleView{}
 	for _, r := range []struct{ Name, Label string }{{"assistant", "Producer assistant"}, {"curation", "Show planning"}, {"writing", "DJ writing"}, {"audience", "Audience review"}, {"image", "Artwork"}} {
 		v := s.Routes.For(r.Name)
@@ -36,13 +38,23 @@ func roleViews(s producer.Settings) []aiRoleView {
 		case "image":
 			model, field = s.ImageModel, "image_model"
 		}
-		out = append(out, aiRoleView{Name: r.Name, Label: r.Label, Connection: v.Connection, Model: model, ModelField: field, Text: r.Name != "speech" && r.Name != "image"})
+		kind := ""
+		for _, c := range connections {
+			if c.ID == v.Connection {
+				kind = c.Type
+			}
+		}
+		out = append(out, aiRoleView{Name: r.Name, Label: r.Label, Connection: v.Connection, Model: model, ModelField: field, Text: r.Name != "speech" && r.Name != "image", Thinking: v.Thinking, Ollama: kind == "ollama"})
 	}
 	return out
 }
-func routesFromForm(r *http.Request) ai.Routes {
+func routesFromForm(r *http.Request, previous ai.Routes) ai.Routes {
 	get := func(role string) ai.Selection {
-		return ai.Selection{Connection: r.PostForm.Get(role + "_connection")}
+		thinking := previous.For(role).Thinking
+		if r.PostForm.Has(role + "_thinking_present") {
+			thinking = r.PostForm.Get(role+"_thinking") == "yes"
+		}
+		return ai.Selection{Connection: r.PostForm.Get(role + "_connection"), Thinking: thinking}
 	}
 	return ai.Routes{Assistant: get("assistant"), Curation: get("curation"), Writing: get("writing"), Audience: get("audience"), Speech: get("speech"), Image: get("image")}
 }
@@ -91,7 +103,7 @@ func (s *Server) aiConnection(w http.ResponseWriter, r *http.Request, v assistan
 		ctxTokens, _ := strconv.Atoi(r.PostForm.Get("context_tokens"))
 		output, _ := strconv.Atoi(r.PostForm.Get("output_tokens"))
 		timeout, _ := strconv.Atoi(r.PostForm.Get("request_timeout_seconds"))
-		c := ai.Connection{ID: id, Name: strings.TrimSpace(r.PostForm.Get("connection_name")), Type: r.PostForm.Get("provider_type"), Address: strings.TrimRight(strings.TrimSpace(r.PostForm.Get("address")), "/"), ContextTokens: ctxTokens, OutputTokens: output, RequestTimeoutSeconds: timeout, Thinking: r.PostForm.Get("thinking") == "yes"}
+		c := ai.Connection{ID: id, Name: strings.TrimSpace(r.PostForm.Get("connection_name")), Type: r.PostForm.Get("provider_type"), Address: strings.TrimRight(strings.TrimSpace(r.PostForm.Get("address")), "/"), ContextTokens: ctxTokens, OutputTokens: output, RequestTimeoutSeconds: timeout}
 		v.AIConnection = c
 		change := ai.KeyChange{Value: strings.TrimSpace(r.PostForm.Get("credential")), Clear: r.PostForm.Get("clear_credential") == "yes"}
 		err = c.Validate()

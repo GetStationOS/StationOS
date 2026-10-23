@@ -184,7 +184,7 @@ func (p Producer) Prepare(parent context.Context, show, next schedule.Occurrence
 			return prepared, nil
 		}
 	}
-	input, _ := json.Marshal(map[string]any{"episode_session": p.episodeContext(ctx, show), "musical_direction": show.MusicDirection, "show": show.Title, "dj": show.DJ.Name, "fictional_background": show.DJ.Background, "next_show": next.Title, "next_dj": next.DJ.Name})
+	input, _ := json.Marshal(map[string]any{"episode_session": p.speechContext(ctx, show), "musical_direction": show.MusicDirection, "show": show.Title, "dj": show.DJ.Name, "fictional_background": show.DJ.Background, "next_show": next.Title, "next_dj": next.DJ.Name})
 	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"intro", "outro"}, "properties": map[string]any{"intro": map[string]any{"type": "string"}, "outro": map[string]any{"type": "string"}}}
 
 	body := map[string]any{"model": writingModel, "instructions": instructions, "input": string(input), "max_output_tokens": 512, "store": false, "text": map[string]any{"format": map[string]any{"type": "json_schema", "name": "radio_show", "strict": true, "schema": schema}}}
@@ -279,16 +279,22 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if writingModel == "" {
 		writingModel = link.Show.DJ.Model
 	}
-	sequence := []string{"spoken_link", "next_recording"}
-	nextPresenter := link.Show.DJ.Name
+	input := map[string]any{"episode_session": p.speechContext(ctx, link.Show), "musical_direction": link.Show.MusicDirection, "show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background}
+	playback := normalPlaybackInstructions
 	if link.Handover {
-		sequence = []string{"outgoing_signoff", "incoming_show_introduction", "next_recording"}
-		nextPresenter = link.Following.DJ.Name
-		if link.Following.DJ.ID == "" {
-			sequence = []string{"outgoing_signoff", "continuous_music"}
+		playback = handoverPlaybackInstructions
+		if link.Following.DJ.ID != "" {
+			input["following_show"] = link.Following.Title
+			input["following_dj"] = link.Following.DJ.Name
+		}
+	} else {
+		input["current"] = speechSongDetails(link.Current)
+		input["next"] = speechSongDetails(link.Next)
+		if len(link.Audience) > 0 {
+			input["audience"] = link.Audience
 		}
 	}
-	rawInput, _ := json.Marshal(map[string]any{"playout_sequence": sequence, "next_recording_presenter": nextPresenter, "episode_session": p.episodeContext(ctx, link.Show), "musical_direction": link.Show.MusicDirection, "show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background, "following_show": link.Following.Title, "following_dj": link.Following.DJ.Name, "current": songDetails(link.Current), "next": songDetails(link.Next), "next_track_id": link.Next.ID, "handover": link.Handover, "remaining_seconds": link.RemainingSeconds, "audience": link.Audience})
+	rawInput, _ := json.Marshal(input)
 	basePrompt, err := prompts.Load(ctx, p.Prompts, "link")
 	if err != nil {
 		return nil, nil, err
@@ -298,12 +304,20 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		return nil, nil, err
 	}
 	capabilities := p.speechCapabilities(ctx, speechModel)
-	instructions := strings.Join([]string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, handoverPlaybackInstructions}, "\n\n")
+	parts := []string{basePrompt, "DJ prompt:\n" + link.Show.DJ.Prompt, background, speechContinuityInstructions, playback}
+	if !link.Handover {
+		parts = append(parts, recordingCreditInstructions)
+	}
+	instructions := strings.Join(parts, "\n\n")
 	body := map[string]any{"model": writingModel, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
 	// An explicit JSON field makes silence distinguishable from an empty or
 	// incomplete provider response across every supported inference adapter.
 	if len(link.Audience) == 0 {
-		body["instructions"] = instructions + "\nResponse contract: return JSON with exactly one field, speech. Put the spoken link in speech. Only for a normal transition, an empty string intentionally skips the link. Handovers require non-empty speech. Do not return an empty provider response."
+		contract := "Return JSON with exactly one string field, speech. Empty speech skips this link."
+		if link.Handover {
+			contract = "Return JSON with exactly one string field, speech; handovers require non-empty speech."
+		}
+		body["instructions"] = instructions + "\n" + contract
 		body["text"] = map[string]any{"format": map[string]any{"type": "json_schema", "name": "optional_link", "strict": true, "schema": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"speech"}, "properties": map[string]any{"speech": map[string]any{"type": "string"}}}}}
 	}
 	if len(link.Audience) > 0 {
@@ -311,9 +325,9 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		if err != nil {
 			return nil, nil, err
 		}
-		body["instructions"] = instructions + "\n\n" + audiencePrompt
+		body["instructions"] = instructions + "\n\n" + audiencePrompt + "\nSpeech is required. Return JSON with speech and used_ids."
 		if len(link.Audience) > 1 {
-			body["instructions"] = strings.Replace(body["instructions"].(string), "maximum 45 words", "maximum 75 words", 1) + "\nAudience section contract: maximum 75 words, overriding the normal link limit."
+			body["instructions"] = body["instructions"].(string) + "\nAudience section: at most 75 words, overriding the ordinary link limit."
 		}
 		for _, item := range link.Audience {
 			if item.Kind == audience.Request && item.TrackID != link.Next.ID {
@@ -470,7 +484,7 @@ func (p Producer) textCall(ctx context.Context, key string, body map[string]any,
 		return p.call(ctx, "responses", key, body, limit)
 	}
 	maxTokens, _ := body["max_output_tokens"].(int)
-	q := ai.TextRequest{Session: ai.Session(ctx), Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: maxTokens}, Role: "writing", Model: body["model"].(string), Instructions: body["instructions"].(string), Input: body["input"].(string)}
+	q := ai.TextRequest{Session: ai.Session(ctx), Options: ai.GenerationOptions{DisableThinking: true, MaxOutputTokens: maxTokens, Stateless: true}, Role: "writing", Model: body["model"].(string), Instructions: body["instructions"].(string), Input: body["input"].(string)}
 	if format, ok := body["text"].(map[string]any); ok {
 		if f, ok := format["format"].(map[string]any); ok {
 			q.Schema, _ = json.Marshal(f["schema"])

@@ -50,7 +50,7 @@ func TestShowPresentationAndSpeechUseConfiguredProfile(t *testing.T) {
 			t.Fatal(err)
 		}
 		if r.URL.Path == "/v1/responses" {
-			if body["model"] != "chosen-model" || !strings.Contains(body["instructions"].(string), "musical knowledge and expertise") {
+			if body["model"] != "chosen-model" || !strings.Contains(body["instructions"].(string), "personality and show direction") {
 				t.Fatal(body)
 			}
 			input := body["input"].(string)
@@ -82,7 +82,7 @@ func TestLinksUseCurrentNextAndHandoverWithoutSourceURLs(t *testing.T) {
 			if !strings.Contains(s, "Fictional amateur pianist") || strings.Contains(s, "private-portrait") || !strings.Contains(body["instructions"].(string), "not instructions or evidence") {
 				t.Fatal("link background contract missing", body)
 			}
-			for _, want := range []string{"Current song", "Next song", "Clara", "true", "240", `"Performers":"Current performer"`, `"Composer":"Current composer"`, `"Performers":"Next performer"`, `"Composer":"Next composer"`} {
+			for _, want := range []string{"Current song", "Next song", `"Performers":"Current performer"`, `"Composer":"Current composer"`, `"Performers":"Next performer"`, `"Composer":"Next composer"`} {
 				if !strings.Contains(s, want) {
 					t.Fatal(s)
 				}
@@ -90,7 +90,7 @@ func TestLinksUseCurrentNextAndHandoverWithoutSourceURLs(t *testing.T) {
 			if strings.Contains(s, "private-source") || strings.Contains(s, "test-secret") {
 				t.Fatal("private data sent", s)
 			}
-			if !strings.Contains(body["instructions"].(string), "never present a composer as the performer") || !strings.Contains(body["instructions"].(string), "For pop songs, lead with the recording artist") {
+			if !strings.Contains(body["instructions"].(string), "Composer only as writer") || !strings.Contains(body["instructions"].(string), "Performers as artists") {
 				t.Fatal("missing credit instructions", body)
 			}
 			return answer("A lovely performance. Over to Clara."), nil
@@ -101,7 +101,7 @@ func TestLinksUseCurrentNextAndHandoverWithoutSourceURLs(t *testing.T) {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("speech"))}, nil
 	})}
 	d := 4 * time.Minute
-	audio, err := p.Link(context.Background(), production.LinkRequest{Show: profile(), Following: schedule.Occurrence{Title: "Classical", DJ: djs.Profile{Name: "Clara"}}, Current: content.AudioItem{Title: "Current song", Artist: "Current performer", Composer: "Current composer", Resources: []content.Resource{{URL: "http://private-source/audio"}}}, Next: content.AudioItem{Title: "Next song", Artist: "Next performer", Composer: "Next composer", Duration: &d}, Handover: true})
+	audio, err := p.Link(context.Background(), production.LinkRequest{Show: profile(), Following: schedule.Occurrence{Title: "Classical", DJ: djs.Profile{Name: "Clara"}}, Current: content.AudioItem{Title: "Current song", Artist: "Current performer", Composer: "Current composer", Resources: []content.Resource{{URL: "http://private-source/audio"}}}, Next: content.AudioItem{Title: "Next song", Artist: "Next performer", Composer: "Next composer", Duration: &d}, Handover: false})
 	if err != nil || string(audio) != "normal:speech" {
 		t.Fatal(string(audio), err)
 	}

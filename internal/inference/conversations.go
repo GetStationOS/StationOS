@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/producer"
 	"time"
@@ -50,13 +51,13 @@ func (r *Router) lockConversation(ctx context.Context, key string) (func(), erro
 }
 
 func (r *Router) converse(ctx context.Context, q ai.TextRequest, input producer.Item) (producer.Response, error) {
-	if q.Session != "" {
+	if q.Session != "" && !q.Options.Stateless {
 		q.Instructions += "\nEpisode conversation contract: continue this dated DJ episode. Earlier assistant responses are preparations, not proof of acceptance or airtime. The latest episode checkpoint and current/next metadata are authoritative. Follow the current task and response format; do not repeat an earlier task."
 	}
 	invoke := func(items []producer.Item, options ai.GenerationOptions) (producer.Response, error) {
 		return r.respond(ctx, q.Role, q.Model, q.Instructions, items, nil, q.Schema, options)
 	}
-	if q.Session == "" {
+	if q.Session == "" || q.Options.Stateless {
 		return invoke([]producer.Item{input}, q.Options)
 	}
 	if r.Conversations == nil {
@@ -73,11 +74,11 @@ func (r *Router) converse(ctx context.Context, q ai.TextRequest, input producer.
 		return producer.Response{}, err
 	}
 	ctx = ai.PinRoutes(ctx, routes)
-	_, conn, key, err := r.selection(ctx, q.Role)
+	selection, conn, key, err := r.selection(ctx, q.Role)
 	if err != nil {
 		return producer.Response{}, err
 	}
-	identityRaw, _ := json.Marshal([]string{conn.ID, conn.Type, conn.Address, key, q.Model})
+	identityRaw, _ := json.Marshal([]string{conn.ID, conn.Type, conn.Address, key, q.Model, fmt.Sprint(selection.Thinking)})
 	sum := sha256.Sum256(identityRaw)
 	identity := hex.EncodeToString(sum[:])
 	saved, err := r.Conversations.LoadConversation(ctx, q.Session)

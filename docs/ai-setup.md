@@ -52,8 +52,9 @@ Endpoint response deadlines and context limits bound requests. Slow or unavailab
 
 ### Ollama thinking
 
-Assistant → Endpoints → your Ollama endpoint has a Thinking switch, off by default
-for new and upgraded endpoints. Save the endpoint to apply it to subsequent text
-requests in every role. StationOS explicitly sends `think: false` or `think: true`
-to Ollama; terminal chat settings do not affect it. The selected model must support
-the chosen setting. Other providers do not receive this Ollama-specific field.
+Assistant → Models has a Thinking switch beside each selected text model. It is
+off by default. Show planning and DJ writing can use different settings even on
+the same endpoint. Save to apply the setting to new requests. Existing endpoint
+preferences are carried over during upgrade. StationOS sends `think: false` or
+`think: true`; terminal chat settings do not affect it. Choose an Ollama model
+that supports the selected setting. Other providers do not receive this field.

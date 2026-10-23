@@ -176,7 +176,7 @@ func TestChatterboxSpeechRouteAndReadinessWithoutKey(t *testing.T) {
 	}
 }
 
-func TestOllamaThinkingRoundTrip(t *testing.T) {
+func TestModelThinkingRoundTrip(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(ctx, ":memory:")
 	if err != nil {
@@ -189,21 +189,22 @@ func TestOllamaThinkingRoundTrip(t *testing.T) {
 	}
 	p := NewProducer(d)
 	c := ai.Connection{ID: "local", Name: "Ollama", Type: "ollama", Address: "http://localhost:11434", ContextTokens: 8192, OutputTokens: 512}
+	if err := p.SaveConnection(ctx, c, ai.KeyChange{}); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := p.Settings(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, enabled := range []bool{false, true, false} {
-		c.Thinking = enabled
-		if err := p.SaveConnection(ctx, c, ai.KeyChange{}); err != nil {
+		settings.Routes.Writing = ai.Selection{Connection: "local", Thinking: enabled}
+		settings.Routes.Curation = ai.Selection{Connection: "local", Thinking: !enabled}
+		if err := p.Configure(ctx, settings, producer.KeyChange{}); err != nil {
 			t.Fatal(err)
 		}
-		got, err := p.Connection(ctx, c.ID)
-		if err != nil || got.Thinking != enabled {
+		got, err := p.Settings(ctx)
+		if err != nil || got.Routes.Writing.Thinking != enabled || got.Routes.Curation.Thinking == enabled {
 			t.Fatal(got, err)
-		}
-		list, err := p.Connections(ctx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(list) != 2 || list[1].Thinking != enabled {
-			t.Fatal(list)
 		}
 	}
 }

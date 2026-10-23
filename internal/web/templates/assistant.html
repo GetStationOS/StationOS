@@ -165,6 +165,13 @@
   <label data-model-manual="{{.Name}}">Model ID<input name="{{.ModelField}}" data-feature-model="{{.Name}}" list="models-{{.Name}}" value="{{.Model}}" required maxlength="128">
     <span class="hint">Choose a discovered model or enter its exact ID.{{if eq .Name "curation"}} Plans episodes and selects tracks. OpenAI gpt-6-luna uses fast Decisions selections.{{else if eq .Name "writing"}} Writes DJ introductions, links and sign-offs. Each DJ chooses their own speech endpoint, model and voice.{{else if eq .Name "speech"}} OpenAI or Chatterbox.{{else if eq .Name "image"}} Requires an OpenAI endpoint.{{end}}</span>
   </label>
+  {{if .Text}}
+  <input type="hidden" name="{{.Name}}_thinking_present" value="yes">
+  <div data-feature-thinking="{{.Name}}" {{if not .Ollama}}hidden{{end}}>
+    <label class="choice"><input type="checkbox" role="switch" name="{{.Name}}_thinking" value="yes" {{if .Thinking}}checked{{end}}>Thinking</label>
+    <p class="hint">Ollama only. Off gives faster, direct answers. Applies to this feature's selected model; choose a model that supports the setting.</p>
+  </div>
+  {{end}}
   {{if eq .Name "speech"}}<p class="hint">Choose the Chatterbox model and voice on each DJ’s profile; conversation speed and vibe apply to OpenAI only.</p>{{end}}
   <datalist id="models-{{.Name}}">
   </datalist>
@@ -202,10 +209,6 @@
   {{if .AIConnection.HasKey}}
   <label class="choice">
     <input type="checkbox" name="clear_credential" value="yes">Remove saved credential</label>{{end}}
-  <div data-provider-thinking {{if ne .AIConnection.Type "ollama"}}hidden{{end}}>
-    <label class="choice"><input type="checkbox" role="switch" name="thinking" value="yes" {{if .AIConnection.Thinking}}checked{{end}}>Thinking</label>
-    <p class="hint">Ollama only. Off gives faster, direct answers. Applies to new text requests on this endpoint. Choose a model that supports the selected setting.</p>
-  </div>
   <details class="endpoint-advanced" {{if .AssistantError}}open{{end}}>
     <summary>Advanced settings</summary>
     <label data-provider-text-budget>Context token budget<input name="context_tokens" type="number" min="2048" max="32768" required value="{{.AIConnection.ContextTokens}}">

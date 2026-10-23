@@ -723,7 +723,6 @@ function providerAddressHelp(select, changed) {
  if (!field) return;
  field.placeholder=defaults[select.value];
  if (changed && (!field.value || Object.values(defaults).includes(field.value)) && ['openai','anthropic','gemini','chatterbox','elevenlabs'].includes(select.value)) field.value=defaults[select.value];
- select.form.querySelectorAll('[data-provider-thinking]').forEach(group=>{group.hidden=select.value!=='ollama';});
  const credentialLabel=select.form.querySelector('[data-provider-credential-label]');
  if(credentialLabel) credentialLabel.textContent=select.value==='elevenlabs'?'ElevenLabs API key':'Optional credential';
  select.form.querySelectorAll('[data-provider-text-budget]').forEach(label=>{label.hidden=['chatterbox','elevenlabs'].includes(select.value);});
@@ -742,6 +741,8 @@ function discoverFeatureModels() {
  const requests=new Map();
  document.querySelectorAll('[data-feature-provider]').forEach(select=>{
   const id=select.value, role=select.dataset.featureProvider;
+  const thinking=document.querySelector('[data-feature-thinking="'+role+'"]');
+  if(thinking)thinking.hidden=select.selectedOptions[0]?.dataset.providerKind!=='ollama';
   const nano=select.selectedOptions[0]?.dataset.providerKind==='chatterbox';
   if(nano){const model=document.querySelector('[data-feature-model="'+role+'"]');if(model)model.value='chatterbox-nano';}
   const list=document.getElementById('models-'+role);

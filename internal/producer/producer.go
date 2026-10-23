@@ -403,7 +403,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		s.finish(id, "failed", c.Transcript, "The assistant prompt could not be loaded. Use Continue to retry.")
 		return
 	}
-	prompt := basePrompt + "\nConversation station ID: " + c.StationID + "\nConfigured assistant model: " + model + ". Global DJ curation and writing model: " + curationModel + ". All DJs use this global model and provider; do not supply model fields to DJ tools.\nCurrent UTC time: " + time.Now().UTC().Format(time.RFC3339)
+	prompt := basePrompt + "\nConversation station ID: " + c.StationID + "\nConfigured assistant model: " + model + ". Show planning model: " + curationModel + ". DJ writing is configured separately in Assistant settings; do not supply model fields to DJ tools.\nCurrent UTC time: " + time.Now().UTC().Format(time.RFC3339)
 	task := c.Task
 	briefing, _ := json.Marshal(c.Requests)
 	prompt += "\nSaved human requests in chronological order (preserve the original brief and apply later amendments):\n" + string(briefing)

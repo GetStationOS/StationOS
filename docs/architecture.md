@@ -1007,10 +1007,24 @@ Last-played ranking loads the station’s complete per-recording timestamps from
 
 Shortlisting runs after episode duration, exclusion, queue and repeat validation through the production TrackShortlist port. Broadcast history partitions new versus previously aired music. Album/performer diversity is preferred globally across the shortlist; small pools relax performers before albums, but never exceed three never-played candidates. The same policy applies to the standalone playback shortlist.
 
-### Ollama thinking configuration
+### Model thinking configuration
 
-Migration 42 stores an endpoint-owned boolean thinking preference, default off.
-The native Ollama adapter sends the saved boolean on every chat request, overriding
-legacy task hints and avoiding metadata-dependent omission. Other providers retain
-their own protocols. Endpoint saves increment ai_revision and connection identities
-include the preference, invalidating future prepared speech and conversations.
+Migration 42 introduced an endpoint thinking preference. Migration 43 copies it
+into each selected text role's route, preserving existing choices. The Models
+screen owns the switch alongside each feature model. The native Ollama adapter
+sends that route's boolean, independently of other roles using the same endpoint.
+The legacy connection column remains for migration compatibility. Other providers
+retain their own protocols. Route identities include thinking, invalidating
+future prepared speech and stored provider continuation when the setting changes.
+
+### Focused speech requests
+
+DJ writing uses stateless generation with the dated session ID retained for
+tracing. It neither replays nor changes planning conversations. Episode speech
+context contains Theme, Notes and the last six actually aired remarks, including
+legacy aired-speech receipts; planning keeps its complete checkpoint and history.
+Ordinary links receive current/next recording titles, performers and nonempty
+composer/album/conductor credits. Handovers receive only incoming DJ/show details;
+no recording metadata or selection protocol. Listener instructions and data are
+included only for audience links. Fixed playback, factual and JSON contracts are
+short and task-specific; saved prompt overrides remain untouched.

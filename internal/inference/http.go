@@ -256,8 +256,8 @@ func (c *Client) chatWithOptions(ctx context.Context, conn ai.Connection, key, m
 			body["truncate"] = false
 			body["shift"] = false
 		}
-		// The saved endpoint setting applies to every role, including DJ writing.
-		body["think"] = conn.Thinking
+		// The selected feature model owns thinking independently of its endpoint.
+		body["think"] = options.Thinking
 		body["options"] = map[string]any{"num_ctx": conn.ContextTokens, "num_predict": conn.OutputTokens}
 		if len(schema) > 0 {
 			body["format"] = schema

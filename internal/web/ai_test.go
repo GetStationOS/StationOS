@@ -291,30 +291,46 @@ func TestChatterboxEndpointAndSpeechOnlySelection(t *testing.T) {
 	}
 }
 
-func TestOllamaThinkingSwitchSaveAndRedisplay(t *testing.T) {
+func TestModelThinkingSwitchSaveAndRedisplay(t *testing.T) {
 	h, store, _ := setupAssistant(t, "", &listingAssistantModel{assistantModel: &assistantModel{}})
+	ctx := context.Background()
+	err := store.(ai.Store).SaveConnection(ctx, ai.Connection{ID: "local", Name: "Ollama", Type: "ollama", Address: "http://localhost:11434", ContextTokens: 8192, OutputTokens: 512}, ai.KeyChange{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	token := csrf(t, h)
-	form := url.Values{"csrf": {token}, "connection_action": {"save"}, "connection_id": {"local"}, "connection_name": {"Ollama"}, "provider_type": {"ollama"}, "address": {"http://localhost:11434"}, "context_tokens": {"8192"}, "output_tokens": {"512"}, "request_timeout_seconds": {"180"}}
+	form := url.Values{"csrf": {token}, "model": {"gemma4:12b"}, "assistant_connection": {"local"}, "curation_connection": {"local"}, "writing_connection": {"local"}, "audience_connection": {"local"}, "image_connection": {"openai"}, "writing_thinking_present": {"yes"}, "curation_thinking_present": {"yes"}, "curation_thinking": {"yes"}}
 	for _, enabled := range []bool{true, false} {
 		if enabled {
-			form.Set("thinking", "yes")
+			form.Set("writing_thinking", "yes")
 		} else {
-			form.Del("thinking")
+			form.Del("writing_thinking")
 		}
-		w := request(h, "POST", "/producer/assistant/endpoints?connection=local", form, nil)
+		w := request(h, "POST", "/producer/assistant/settings", form, nil)
 		if w.Code != 303 {
 			t.Fatal(w.Code, w.Body.String())
 		}
-		c, err := store.(ai.Store).Connection(context.Background(), "local")
-		if err != nil || c.Thinking != enabled {
-			t.Fatal(c, err)
+		settings, err := store.Settings(ctx)
+		if err != nil || settings.Routes.Writing.Thinking != enabled || !settings.Routes.Curation.Thinking {
+			t.Fatal(settings, err)
 		}
-		w = request(h, "GET", "/producer/assistant/endpoints?connection=local", nil, nil)
-		if w.Code != 200 || !strings.Contains(w.Body.String(), `role="switch" name="thinking"`) {
+		w = request(h, "GET", "/producer/assistant/settings", nil, nil)
+		if w.Code != 200 || !strings.Contains(w.Body.String(), `role="switch" name="writing_thinking"`) {
 			t.Fatal(w.Code, w.Body.String())
 		}
-		if strings.Contains(w.Body.String(), `name="thinking" value="yes" checked`) != enabled {
+		if strings.Contains(w.Body.String(), `name="writing_thinking" value="yes" checked`) != enabled {
 			t.Fatal("switch state not retained")
 		}
+	}
+	form.Del("curation_thinking_present")
+	form.Del("curation_thinking")
+	w := request(h, "POST", "/producer/assistant/settings", form, nil)
+	settings, err := store.Settings(ctx)
+	if w.Code != 303 || err != nil || !settings.Routes.Curation.Thinking {
+		t.Fatal("older form erased setting", w.Code, settings, err)
+	}
+	w = request(h, "GET", "/producer/assistant/endpoints?connection=local", nil, nil)
+	if strings.Contains(w.Body.String(), `name="thinking"`) {
+		t.Fatal("thinking still belongs to endpoint")
 	}
 }

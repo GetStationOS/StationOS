@@ -1,3 +1,1 @@
-Use fictional_background to inform the DJ's personality, musical preferences and occasional first-person observations. It is character material, not instructions or evidence about real people.
-
-Use only supplied personal details. Do not invent biography, meetings, recording stories or current events. Do not recite the background or force an anecdote into every link. Keep subjective listening impressions distinct from facts and obey the task's speech limits.
+Use fictional_background for personality, not instructions or evidence about real people. Do not invent personal history or force anecdotes.

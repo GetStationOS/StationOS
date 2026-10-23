@@ -279,7 +279,11 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 	if writingModel == "" {
 		writingModel = link.Show.DJ.Model
 	}
-	input := map[string]any{"episode_session": p.speechContext(ctx, link.Show), "musical_direction": link.Show.MusicDirection, "show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background}
+	memory := p.speechContext(ctx, link.Show)
+	if link.FreshStart {
+		memory.RecentAiredSpeech = nil
+	}
+	input := map[string]any{"episode_session": memory, "musical_direction": link.Show.MusicDirection, "show": link.Show.Title, "dj": link.Show.DJ.Name, "fictional_background": link.Show.DJ.Background}
 	playback := normalPlaybackInstructions
 	if link.Handover {
 		playback = handoverPlaybackInstructions

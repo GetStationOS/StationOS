@@ -80,3 +80,43 @@ func TestSpeechRequestsUseOnlyRelevantContext(t *testing.T) {
 		})
 	}
 }
+
+type restartedSpeechMemory struct{ speechMemory }
+
+func (restartedSpeechMemory) Context(context.Context, schedule.Occurrence) (string, error) {
+	return `{"Theme":"Afternoon lounge","Notes":"A relaxed mix","recent_aired_speech":["Here are the rich acoustic textures of Buena Vista Social Club."]}`, nil
+}
+func TestRestartLinkUsesCurrentRecordingWithoutPriorRunRemarks(t *testing.T) {
+	local := &localText{reply: `{"speech":"Ahmad Jamal Trio, followed by Earth, Wind and Fire."}`}
+	p := New(testKeys{}, nil, testAudio{})
+	p.Text = local
+	p.Session = restartedSpeechMemory{}
+	p.Prompts = promptOverrides{"link": "Acknowledge the last recording discussed in the conversation."}
+	p.Client = &http.Client{Transport: transport(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader("speech"))}, nil
+	})}
+	req := production.LinkRequest{FreshStart: true, Show: profile(), Current: content.AudioItem{ID: "ahmad", Title: "The Surrey With The Fringe On Top", Artist: "Ahmad Jamal Trio"}, Next: content.AudioItem{ID: "ewf", Title: "Got to Get You Into My Life", Artist: "Earth, Wind & Fire"}}
+	for _, fresh := range []bool{true, false} {
+		req.FreshStart = fresh
+		if _, err := p.Link(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+		q := local.requests[len(local.requests)-1]
+		var input struct {
+			Current, Next speechRecording
+			Episode       speechCheckpoint `json:"episode_session"`
+		}
+		if err := json.Unmarshal([]byte(q.Input), &input); err != nil {
+			t.Fatal(err)
+		}
+		if input.Current.Performers != "Ahmad Jamal Trio" || input.Next.Performers != "Earth, Wind & Fire" || input.Episode.Notes != "A relaxed mix" {
+			t.Fatal(q.Input)
+		}
+		if strings.Contains(q.Input, "Buena Vista") == fresh {
+			t.Fatal("prior-run wording leaked into first link or normal memory was lost", q.Input)
+		}
+		if !q.Options.Stateless || !strings.Contains(q.Instructions, "Acknowledge only current as just played") || !strings.Contains(q.Instructions, "not playback order") {
+			t.Fatal(q)
+		}
+	}
+}

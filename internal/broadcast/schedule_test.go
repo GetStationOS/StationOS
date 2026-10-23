@@ -282,3 +282,53 @@ func TestTemplateRevisionDoesNotHandoverWithinSameEpisode(t *testing.T) {
 		}
 	}
 }
+
+func TestRestartLinkReferencesNewRunCurrentRecording(t *testing.T) {
+	start := time.Date(2026, 10, 12, 10, 0, 0, 0, time.UTC)
+	repo := &memoryRepo{playlist: "pool", pool: []content.AudioItem{length("ahmad", 90), length("ewf", 90)}}
+	source := timedSchedule{shows: []schedule.Show{{ID: "lounge", StationID: "radio", Name: "Afternoon Lounge", Day: 0, Start: 540, End: 1020, PlaylistID: "pool", DJ: djs.Profile{ID: "sarah", Name: "Sarah", HasKey: true}}}}
+	links := readyLinks{called: make(chan production.LinkRequest, 8)}
+	encoder := &fakeEncoder{calls: make(chan opening, 16)}
+	m := New(repo, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Links: links, Now: func() time.Time { return start }})
+	defer m.Close()
+	for run := 0; run < 2; run++ {
+		sub, err := m.Subscribe(context.Background(), "radio")
+		if err != nil {
+			t.Fatal(err)
+		}
+		current := opened(t, encoder)
+		var req production.LinkRequest
+		select {
+		case req = <-links.called:
+		case <-time.After(3 * time.Second):
+			t.Fatal("link not requested")
+		}
+		if !req.FreshStart || req.Current.ID != current.item.ID || req.Current.ID == req.Next.ID {
+			t.Fatal("restart reused an earlier transition", run, req, current.item)
+		}
+		if _, err := current.write.Write([]byte("MUSIC")); err != nil {
+			t.Fatal(err)
+		}
+		if string(receive(t, sub)) != "MUSIC" {
+			t.Fatal("music did not start")
+		}
+		if run == 1 {
+			waitFor(t, func() bool { return m.State("radio").PresenterStatus == "Ready" })
+			current.write.Close()
+			next := opened(t, encoder)
+			if string(receive(t, sub)) != "HANDOVER" {
+				t.Fatal("prepared link missing")
+			}
+			select {
+			case req = <-links.called:
+			case <-time.After(3 * time.Second):
+				t.Fatal("next link not requested")
+			}
+			if req.FreshStart || req.Current.ID != next.item.ID {
+				t.Fatal("ongoing broadcast treated as restart", req)
+			}
+		}
+		sub.Close()
+		waitFor(t, func() bool { return m.State("radio").Status == "Dormant" })
+	}
+}

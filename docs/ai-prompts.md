@@ -25,3 +25,8 @@ required handovers and audience acknowledgement validation remain enforced.
 Track selection and producer-assistant planning retain their existing context and
 safeguards. Logo and portrait defaults are unchanged. The assistant's runtime text
 now correctly distinguishes show planning from separately configured DJ writing.
+
+On the first recording after a broadcast starts or restarts, speech receives the
+episode's theme/notes without remarks aired before that start. Stored episode
+history and music rotation remain intact. Later links retain recent aired remarks
+for wording variety; current/next metadata alone defines the immediate transition.

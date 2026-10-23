@@ -97,6 +97,8 @@ func ReadBounded(r io.Reader, limit int64) ([]byte, error) {
 const Timeout = 90 * time.Second
 
 type LinkRequest struct {
+	// FreshStart marks the first recording of a newly started broadcast.
+	FreshStart       bool
 	Audience         []AudienceItem
 	Show, Following  schedule.Occurrence
 	Current, Next    content.AudioItem

@@ -1041,3 +1041,13 @@ these fields for durable history and export. Timeline displays the transcript
 only on the preparation observation, with the recorded writing provider and text model;
 no extra speech event is created and old records are not inferred from current
 DJ configuration. Existing Operations commits drive the unchanged SSE path.
+
+### Restart-safe DJ acknowledgements
+
+The broadcast marks the first link request of each new run as FreshStart. Speech
+projection omits prior-run aired remarks for that request while retaining episode
+notes/theme and the explicit current/next recording metadata. The durable episode
+and curation history are unchanged. Runtime instructions make current authoritative
+for any just-played acknowledgement, including when older custom prompts are saved.
+A prepared link is usable only when its source recording matches the last recording
+that actually started in this run; a failed/unplayed source cannot supply a link.

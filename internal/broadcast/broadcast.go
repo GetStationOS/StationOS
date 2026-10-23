@@ -854,7 +854,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if pendingLink != nil {
 			select {
 			case result := <-pendingLink:
-				if result.err == nil {
+				if result.err == nil && result.request.Current.ID == previousMusic.ID {
 					link = &result
 				}
 			default:
@@ -1111,7 +1111,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				out := make(chan linkResult, 1)
 				pendingLink = out
 				linkWorkers.Add(1)
-				req := production.LinkRequest{Show: playing, Following: nextTimeline.Current, Current: current, Next: queued, Handover: !schedule.SameEpisode(nextTimeline.Current, playing), RemainingSeconds: int64(remaining.Seconds())}
+				req := production.LinkRequest{FreshStart: previousMusic.ID == "", Show: playing, Following: nextTimeline.Current, Current: current, Next: queued, Handover: !schedule.SameEpisode(nextTimeline.Current, playing), RemainingSeconds: int64(remaining.Seconds())}
 				selection := production.SelectionRequest{Show: nextTimeline.Current, Current: current, Candidates: m.selectionCandidates(nextPool, current.ID, rotation, nextRemaining), RemainingSeconds: int64(nextRemaining.Seconds())}
 				go func() {
 					defer linkWorkers.Done()

@@ -19,10 +19,10 @@ func headingLink(title, metadata, label, destination string) headingView {
 	return headingView{Title: title, Metadata: metadata, Actions: []headingAction{{Label: label, URL: destination}}}
 }
 func episodeHeading(v schedulePageView) headingView {
-	return headingView{Title: v.Show.Name, Metadata: v.Episode.Start.Format("Mon 2 Jan · 15:04") + "–" + v.Episode.End.Format("15:04 MST"), Actions: []headingAction{{Label: "Edit show template", URL: "/producer/stations/" + v.Station.ID + "/schedule/" + v.Show.ID, Icon: "settings", IconOnly: true, Secondary: true, Hint: "Edit show template"}}}
+	return headingView{Title: v.Show.Name, Metadata: v.Episode.Start.Format("Mon 2 Jan · 15:04") + "–" + v.Episode.End.Format("15:04 MST"), Actions: []headingAction{{Label: "Edit show", URL: "/producer/stations/" + v.Station.ID + "/shows/" + v.Show.ID, Icon: "settings", IconOnly: true, Secondary: true, Hint: "Edit show"}}}
 }
 func scheduleHeading(v schedulePageView) headingView {
-	return headingLink(v.Title, "Repeats weekly · "+v.Station.Timezone, "+ Add show", "/producer/stations/"+v.Station.ID+"/schedule/new")
+	return headingLink(v.Title, "Repeats weekly · "+v.Station.Timezone, "+ Add show", "/producer/stations/"+v.Station.ID+"/shows/new")
 }
 func playlistsHeading(v playlistPageView) headingView {
 	if len(v.Stations) == 0 {
@@ -107,7 +107,7 @@ type workspaceTabsView struct {
 func stationTabs(v pageFrame) workspaceTabsView {
 	base := "/producer/stations/" + v.Station.ID
 	out := workspaceTabsView{Label: "Station navigation", ScrollKey: "station:" + v.Station.ID}
-	for _, item := range []struct{ label, key, path string }{{"Overview", "overview", ""}, {"Schedule", "schedule", "/schedule"}, {"Timeline", "timeline", "/timeline"}, {"Audience", "audience", "/audience"}, {"Incidents", "incidents", "/incidents"}, {"Mixer", "mixer", "/mixer"}, {"Playlists", "playlists", ""}, {"Settings", "settings", "/settings"}} {
+	for _, item := range []struct{ label, key, path string }{{"Overview", "overview", ""}, {"Shows", "shows", "/shows"}, {"Schedule", "schedule", "/schedule"}, {"Audience", "audience", "/audience"}, {"Timeline", "timeline", "/timeline"}, {"Incidents", "incidents", "/incidents"}, {"Mixer", "mixer", "/mixer"}, {"Playlists", "playlists", ""}, {"Settings", "settings", "/settings"}} {
 		tab := workspaceTab{Label: item.label, URL: base + item.path, Current: v.Section == item.key}
 		if item.key == "playlists" {
 			tab.URL = "/producer/playlists?station=" + v.Station.ID

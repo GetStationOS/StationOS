@@ -18,18 +18,24 @@ type Schedule struct {
 	Changes *changefeed.Bus
 }
 
-var showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + strings.ReplaceAll(speechReadySQL, "djs.", "d.") + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction,d.speech_voices,d.speech_connection,d.speech_model,d.speech_settings`
+var showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + strings.ReplaceAll(speechReadySQL, "djs.", "d.") + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction,d.speech_voices,d.speech_connection,d.speech_model,d.speech_settings,s.weekdays,s.archived,s.slot_ids`
 
 const showJoin = ` FROM station_shows s JOIN djs d ON d.id=s.dj_id JOIN playlists p ON p.id=s.playlist_id `
 
 func scanShow(row interface{ Scan(...any) error }) (schedule.Show, error) {
 	var v schedule.Show
-	var voices, speechSettings string
-	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection, &voices, &v.DJ.SpeechConnection, &v.DJ.SpeechModel, &speechSettings)
+	var voices, speechSettings, days, slots string
+	err := row.Scan(&v.ID, &v.StationID, &v.Name, &v.Day, &v.Start, &v.End, &v.DJID, &v.PlaylistID, &v.Revision, &v.DJName, &v.PlaylistName, &v.DJ.Model, &v.DJ.Voice, &v.DJ.Prompt, &v.DJ.Vibe, &v.DJ.ConversationSpeed, &v.DJ.Background, &v.DJ.PortraitURL, &v.DJ.HasKey, &v.DJ.TextReady, &v.DJ.AIRevision, &v.AcceptRequests, &v.AcceptShoutouts, &v.Description, &v.MusicDirection, &voices, &v.DJ.SpeechConnection, &v.DJ.SpeechModel, &speechSettings, &days, &v.Archived, &slots)
 	if err == nil {
 		err = json.Unmarshal([]byte(voices), &v.DJ.SpeechVoices)
 		if err == nil {
 			err = json.Unmarshal([]byte(speechSettings), &v.DJ.SpeechSettings)
+		}
+	}
+	if err == nil {
+		err = json.Unmarshal([]byte(days), &v.Days)
+		if err == nil {
+			err = json.Unmarshal([]byte(slots), &v.SlotIDs)
 		}
 	}
 	v.DJ.ID = v.DJID
@@ -40,7 +46,13 @@ func scanShow(row interface{ Scan(...any) error }) (schedule.Show, error) {
 	return v, err
 }
 func (r Schedule) List(ctx context.Context, id string) ([]schedule.Show, error) {
-	rows, err := r.DB.QueryContext(ctx, `SELECT `+showFields+showJoin+` WHERE s.station_id=? ORDER BY s.weekday,s.start_minute,s.id`, id)
+	return r.listShows(ctx, id, false)
+}
+func (r Schedule) ListArchived(ctx context.Context, id string) ([]schedule.Show, error) {
+	return r.listShows(ctx, id, true)
+}
+func (r Schedule) listShows(ctx context.Context, id string, archived bool) ([]schedule.Show, error) {
+	rows, err := r.DB.QueryContext(ctx, `SELECT `+showFields+showJoin+` WHERE s.station_id=? AND s.archived=? ORDER BY s.weekday,s.start_minute,s.id`, id, archived)
 	if err != nil {
 		return nil, err
 	}
@@ -53,10 +65,26 @@ func (r Schedule) List(ctx context.Context, id string) ([]schedule.Show, error) 
 		}
 		out = append(out, v)
 	}
-	return out, rows.Err()
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := r.loadEpisodeWindows(ctx, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 func (r Schedule) Get(ctx context.Context, stationID, id string) (schedule.Show, error) {
-	return scanShow(r.DB.QueryRowContext(ctx, `SELECT `+showFields+showJoin+` WHERE s.station_id=? AND s.id=?`, stationID, id))
+	v, err := scanShow(r.DB.QueryRowContext(ctx, `SELECT `+showFields+showJoin+` WHERE s.station_id=? AND s.id=?`, stationID, id))
+
+	if err == nil {
+		single := []schedule.Show{v}
+		err = r.loadEpisodeWindows(ctx, single)
+		v = single[0]
+	}
+	return v, err
 }
 func (r Schedule) Save(ctx context.Context, v schedule.Show) error {
 	return r.SaveMany(ctx, []schedule.Show{v})
@@ -85,6 +113,7 @@ func (r Schedule) SaveMany(ctx context.Context, shows []schedule.Show) error {
 }
 
 func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
+	v = v.Normalized()
 	if err := v.Validate(); err != nil {
 		return err
 	}
@@ -111,14 +140,19 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 	if count != 1 {
 		return schedule.Invalid("selected presenter does not exist; choose an existing DJ")
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id,station_id,name,weekday,start_minute,end_minute FROM station_shows WHERE station_id=? ORDER BY weekday,start_minute,id`, v.StationID)
+	rows, err := tx.QueryContext(ctx, `SELECT id,station_id,name,weekday,start_minute,end_minute,weekdays FROM station_shows WHERE station_id=? AND archived=0 ORDER BY weekday,start_minute,id`, v.StationID)
 	if err != nil {
 		return err
 	}
 	existing := []schedule.Show{}
 	for rows.Next() {
 		var x schedule.Show
-		if err = rows.Scan(&x.ID, &x.StationID, &x.Name, &x.Day, &x.Start, &x.End); err != nil {
+		var days string
+		if err = rows.Scan(&x.ID, &x.StationID, &x.Name, &x.Day, &x.Start, &x.End, &days); err != nil {
+			rows.Close()
+			return err
+		}
+		if err = json.Unmarshal([]byte(days), &x.Days); err != nil {
 			rows.Close()
 			return err
 		}
@@ -135,14 +169,43 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 			found = true
 			continue
 		}
-		if schedule.Overlaps(v, x) {
-			return schedule.Conflict(v, x)
+		for _, a := range schedule.ExpandDays([]schedule.Show{v}) {
+			for _, b := range schedule.ExpandDays([]schedule.Show{x}) {
+				if schedule.Overlaps(a, b) {
+					return schedule.Conflict(a, b)
+				}
+			}
 		}
 	}
 	if !found && len(existing) >= schedule.MaxShows {
 		return schedule.Invalid("station has reached its scheduled-show limit")
 	}
-	result, err := tx.ExecContext(ctx, `INSERT INTO station_shows(id,station_id,name,weekday,start_minute,end_minute,dj_id,playlist_id,accept_requests,accept_shoutouts,description,music_direction) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,weekday=excluded.weekday,start_minute=excluded.start_minute,end_minute=excluded.end_minute,dj_id=excluded.dj_id,playlist_id=excluded.playlist_id,accept_requests=excluded.accept_requests,accept_shoutouts=excluded.accept_shoutouts,description=excluded.description,music_direction=excluded.music_direction,revision=station_shows.revision+1 WHERE station_shows.station_id=excluded.station_id`, v.ID, v.StationID, v.Name, v.Day, v.Start, v.End, v.DJID, v.PlaylistID, v.AcceptRequests, v.AcceptShoutouts, v.Description, v.MusicDirection)
+	var oldDays, oldSlots string
+	previous := schedule.Show{}
+	err = tx.QueryRowContext(ctx, `SELECT weekdays,slot_ids FROM station_shows WHERE id=? AND station_id=? AND archived=0`, v.ID, v.StationID).Scan(&oldDays, &oldSlots)
+	if err == nil {
+		if err = json.Unmarshal([]byte(oldDays), &previous.Days); err != nil {
+			return err
+		}
+		if err = json.Unmarshal([]byte(oldSlots), &previous.SlotIDs); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return err
+	}
+	v, err = v.AssignSlots(previous)
+	if err != nil {
+		return err
+	}
+	slots, err := json.Marshal(v.SlotIDs)
+	if err != nil {
+		return err
+	}
+	days, err := json.Marshal(v.Weekdays())
+	if err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx, `INSERT INTO station_shows(id,station_id,name,weekday,start_minute,end_minute,dj_id,playlist_id,accept_requests,accept_shoutouts,description,music_direction,weekdays,slot_ids) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,weekday=excluded.weekday,start_minute=excluded.start_minute,end_minute=excluded.end_minute,dj_id=excluded.dj_id,playlist_id=excluded.playlist_id,accept_requests=excluded.accept_requests,accept_shoutouts=excluded.accept_shoutouts,description=excluded.description,music_direction=excluded.music_direction,weekdays=excluded.weekdays,slot_ids=excluded.slot_ids,revision=station_shows.revision+1 WHERE station_shows.station_id=excluded.station_id`, v.ID, v.StationID, v.Name, v.Day, v.Start, v.End, v.DJID, v.PlaylistID, v.AcceptRequests, v.AcceptShoutouts, v.Description, v.MusicDirection, string(days), string(slots))
 	if err != nil {
 		return err
 	}
@@ -156,7 +219,7 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 	return nil
 }
 func (r Schedule) Delete(ctx context.Context, stationID, id string) error {
-	result, err := r.DB.ExecContext(ctx, `DELETE FROM station_shows WHERE station_id=? AND id=?`, stationID, id)
+	result, err := r.DB.ExecContext(ctx, `UPDATE station_shows SET archived=1,revision=revision+1 WHERE station_id=? AND id=? AND archived=0`, stationID, id)
 	if err != nil {
 		return err
 	}
@@ -227,4 +290,39 @@ func (r Schedule) CancelledEpisodes(ctx context.Context, id string) (map[string]
 		return nil, err
 	}
 	return cancelled, nil
+}
+
+func (r Schedule) loadEpisodeWindows(ctx context.Context, shows []schedule.Show) error {
+	if len(shows) == 0 {
+		return nil
+	}
+	byID := map[string]*schedule.Show{}
+	args := []any{shows[0].StationID, time.Now().Unix(), time.Now().Unix()}
+	for i := range shows {
+		shows[i].History = map[string]schedule.EpisodeWindow{}
+		byID[shows[i].ID] = &shows[i]
+		args = append(args, shows[i].ID)
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(shows)), ",")
+	rows, err := r.DB.QueryContext(ctx, `SELECT show_id,episode_key,json_extract(payload,'$.Start'),json_extract(payload,'$.End') FROM show_episodes WHERE station_id=? AND starts_at<=? AND (json_array_length(payload,'$.Aired')>0 OR unixepoch(json_extract(payload,'$.End'))<?) AND show_id IN (`+placeholders+`)`, args...)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var showID, key, start, end string
+		if err := rows.Scan(&showID, &key, &start, &end); err != nil {
+			return err
+		}
+		a, err := time.Parse(time.RFC3339, start)
+		if err != nil {
+			return err
+		}
+		b, err := time.Parse(time.RFC3339, end)
+		if err != nil {
+			return err
+		}
+		byID[showID].History[key] = schedule.EpisodeWindow{Start: a, End: b}
+	}
+	return rows.Err()
 }

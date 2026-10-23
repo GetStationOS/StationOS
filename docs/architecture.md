@@ -1051,3 +1051,26 @@ and curation history are unchanged. Runtime instructions make current authoritat
 for any just-played acknowledgement, including when older custom prompts are saved.
 A prepared link is usable only when its source recording matches the last recording
 that actually started in this run; a failed/unplayed source cannot supply a link.
+
+
+### Shared shows and stable dated episodes
+
+A station show is one recurring programme with a weekday selection, shared name,
+description, DJ, playlist, audience settings and musical direction. Migration 44
+adds the weekday selection, immutable recurrence-slot IDs and archiving flag.
+The next deployment is intended to use a fresh database for onboarding validation;
+no compatibility conversion of previous independent weekday shows is provided.
+
+The schedule key combines show ID, recurrence-slot ID, station-local Monday and
+editorial revision. Episode identity strips only the revision; its URL is an opaque,
+URL-safe ID encoding that immutable session key. Moving a selected weekday reuses
+removed slot IDs in weekday order, preserving dated direction/cancellation and
+links. Additional weekdays get fresh slot IDs. Removed slots retain saved sessions
+for history. Reads construct unsaved upcoming projections without persisting them.
+
+The schedule adapter loads lightweight historical timing windows for started or
+ended saved instances; current parent metadata remains inherited while actual-air
+receipts and historical timing do not change. Changes to future parent settings
+invalidate stale production revisions through the existing transactional validation.
+Archiving removes a show from active scheduling without deleting its sessions;
+station deletion still cascades. Audience admission rechecks active show state.

@@ -128,7 +128,7 @@ func TestNamedStationEditWithoutChecklistBindsInsteadOfRediscovering(t *testing.
 				t.Fatal("request lost", conversation.Requests)
 			}
 			saved, err := shows.List(ctx, owner.ID)
-			if err != nil || len(saved) != 5 {
+			if err != nil || len(saved) != 1 || len(saved[0].Weekdays()) != 5 {
 				t.Fatal(saved, err)
 			}
 			for _, show := range saved {

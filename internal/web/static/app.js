@@ -1245,3 +1245,10 @@ document.body.addEventListener('click',event => {
  input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));input.focus({preventScroll:true});
  if (!input.matches('[data-filter-choices]') && !input.closest('.audience-track-search')) input.form?.requestSubmit();
 });
+
+// Retain show fields and selected weekdays when server validation rejects a save.
+document.body.addEventListener('htmx:beforeSwap', event => {
+ if (event.detail.requestConfig?.elt?.closest('[data-show-form]') && event.detail.xhr.status === 422 && event.detail.xhr.responseText.includes('data-show-form')) {
+  event.detail.shouldSwap = true; event.detail.isError = false;
+ }
+});

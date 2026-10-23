@@ -123,14 +123,17 @@ type playlistPageView struct {
 type schedulePageView struct {
 	Episode                                               episodes.Episode
 	EpisodePlanChanged                                    bool
+	EpisodeReadOnly                                       bool
 	EpisodeCanCancel                                      bool
 	EpisodeEditing                                        bool
 	EpisodeQueue                                          []episodes.RunningTrack
 	EpisodeQueueLive                                      bool
 	EpisodePlayed                                         []episodes.Track
 	EpisodePagination                                     pagination
+	EpisodeURL                                            string
+	ShowEpisodes                                          []showEpisodeRow
+	ShowEpisodePagination                                 pagination
 	EpisodeStart, Week, WeekLabel, PreviousWeek, NextWeek string
-	EpisodeStarts                                         map[string]string
 	EpisodeExclusions                                     map[string]bool
 	SelectedEpisodeID                                     string
 	EpisodeError                                          string

@@ -172,7 +172,7 @@ func (s *Server) publicView(r *http.Request) (publicPageView, error) {
 			v.AudiencePanel = "contribution-" + id
 			v.AudienceBase += "/shows/" + url.PathEscape(id)
 			v.Title = show.Name
-			v.PublicShow = publicShow{ID: id, Name: show.Name, Presenter: show.DJName, Description: show.Description, Time: weekDays[show.Day].Name + " · " + schedule.TimeLabel(show.Start) + "–" + schedule.TimeLabel(show.End), URL: v.AudienceBase}
+			v.PublicShow = publicShow{ID: id, Name: show.Name, Presenter: show.DJName, Description: show.Description, Time: show.DaysLabel() + " · " + schedule.TimeLabel(show.Start) + "–" + schedule.TimeLabel(show.End), URL: v.AudienceBase}
 			if show.End <= show.Start {
 				v.PublicShow.Time += " (next day)"
 			}

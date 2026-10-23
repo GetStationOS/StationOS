@@ -15,6 +15,7 @@ import (
 	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/producer"
+	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 )
 
@@ -202,13 +203,13 @@ func TestLocalAIResumesLargeHistoryAndBuildsApprovedWeeklyStation(t *testing.T) 
 	}
 	savedPools, _ := pools.List(ctx, savedStations[0].ID)
 	savedShows, _ := shows.List(ctx, savedStations[0].ID)
-	if len(savedPools) != len(names) || len(savedShows) != 42 {
+	if len(savedPools) != len(names) || len(schedule.ExpandDays(savedShows)) != 42 {
 		t.Fatal("missing or duplicate configuration", len(savedPools), len(savedShows))
 	}
 	if next < progressStep+3 {
 		t.Fatal("final answer was accepted before schedule verification", next)
 	}
-	for _, show := range savedShows {
+	for _, show := range schedule.ExpandDays(savedShows) {
 		if (show.Name == "Saturday Soirée" && show.Day != 5) || (show.Name == "Sunday Sanctuary" && show.Day != 6) {
 			t.Fatal("weekend special on wrong day", show)
 		}
@@ -216,7 +217,7 @@ func TestLocalAIResumesLargeHistoryAndBuildsApprovedWeeklyStation(t *testing.T) 
 	for day := 0; day < 7; day++ {
 		type slot struct{ start, end int }
 		slots := []slot{}
-		for _, show := range savedShows {
+		for _, show := range schedule.ExpandDays(savedShows) {
 			if show.Day == day {
 				end := show.End
 				if end == 0 {

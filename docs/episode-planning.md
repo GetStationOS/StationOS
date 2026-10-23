@@ -44,3 +44,14 @@ warning/error state.
 With OpenAI `gpt-6-luna` selected for Show planning, rolling choices use one Decisions API request over at most ten locally validated candidates. Each request includes episode context and aired/queued recordings. Selection failures preserve ready music and use the existing automatic retry flow. DJ writing uses its own selected endpoint and model.
 
 The Decisions shortlist contains up to three never-played recordings, with remaining places filled from the station’s least recently played eligible recordings. Prefer distinct albums and performers; relax performer then album spacing only if needed to fill the shortlist, without exceeding the three-track new-music allowance. A wholly unplayed library therefore offers at most three candidates per choice. Equal timestamps use a varied tie-break as the episode progresses. Duration, repeat, queue and artist/album variety checks still apply before a candidate is offered. The playlist itself remains an unordered eligibility pool.
+
+
+## Shows and episode identity
+
+Shows is between Overview and Schedule. A multi-day show has one shared Details
+page and an Episodes tab. Name, description, presenter, playlist and recurring
+musical direction come from the parent show; notes and cancellation remain local
+to the episode. Upcoming instances and saved history share permanent ID-based
+links. Moving the time or selected weekday retains the slot's episode identity,
+including notes and cancellation. Aired history and historical timing are retained.
+Archive stops future scheduling and keeps saved instances under Archived shows.

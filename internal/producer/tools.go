@@ -176,6 +176,7 @@ func schema(t reflect.Type) any {
 			definition["required"] = []string{"playlist_id", "rule"}
 		}
 		if t == reflect.TypeOf(showPatch{}) {
+			props["days"] = map[string]any{"type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": map[string]any{"type": "integer", "minimum": 0, "maximum": 6}, "description": "Complete weekday selection for one recurring show. Omit to retain current days."}
 			props["day"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 6, "description": "Monday=0, Tuesday=1, Wednesday=2, Thursday=3, Friday=4, Saturday=5, Sunday=6."}
 			props["start"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 1439, "multipleOf": 15, "description": "Station-local minutes after midnight; 08:00 is 480 and 20:00 is 1200. Never use HHMM values such as 2000."}
 			props["end"] = map[string]any{"type": "integer", "minimum": 0, "maximum": 1440, "multipleOf": 15, "description": "Station-local minutes after midnight. Midnight may be 0 or 1440 (24:00), never 2400. End at or before start crosses midnight."}
@@ -300,6 +301,7 @@ type showPatch struct {
 	DJID            *string `json:"dj_id"`
 	PlaylistID      *string `json:"playlist_id"`
 	Day             *int    `json:"day"`
+	Days            *[]int  `json:"days"`
 	Start           *int    `json:"start"`
 	End             *int    `json:"end"`
 	AcceptRequests  *bool   `json:"accept_requests"`
@@ -312,7 +314,7 @@ type createShowsArgs struct {
 }
 
 func (a showPatch) merge(ctx context.Context, d Dependencies) (schedule.Show, error) {
-	if a.ID == "" && (a.Start == nil || a.End == nil || a.Day == nil) {
+	if a.ID == "" && (a.Start == nil || a.End == nil || a.Day == nil && a.Days == nil) {
 		return schedule.Show{}, errors.New("Supply day, start and end for a new show")
 	}
 	v := schedule.Show{StationID: a.StationID}
@@ -328,6 +330,14 @@ func (a showPatch) merge(ctx context.Context, d Dependencies) (schedule.Show, er
 	set(&v.MusicDirection, a.MusicDirection)
 	set(&v.DJID, a.DJID)
 	set(&v.PlaylistID, a.PlaylistID)
+	if a.Days != nil {
+		if len(*a.Days) == 0 {
+			return v, schedule.Invalid("choose at least one weekday")
+		}
+		v.Days = *a.Days
+	} else if a.Day != nil {
+		v.Days = []int{*a.Day}
+	}
 	set(&v.Day, a.Day)
 	set(&v.Start, a.Start)
 	set(&v.End, a.End)
@@ -805,7 +815,7 @@ func NewRegistry(d Dependencies) *Registry {
 		if e != nil {
 			return Result{}, e
 		}
-		return saved(v, "Saved show: "+v.Name, "/producer/stations/"+v.StationID+"/schedule/"+v.ID)
+		return saved(v, "Saved show: "+v.Name, "/producer/stations/"+v.StationID+"/shows/"+v.ID)
 	})
 	register(r, "create_shows", "Create one programme on selected weekdays atomically. Supply ONE show object and days, never an array in show. Call separately for distinct programmes. Monday=0 through Sunday=6. Start/end use quarter-hour minutes after midnight; midnight end is 0 or 1440, never 2400. Use existing presenter and station-owned playlist IDs; omit show.id. Set show.music_direction to the programme-specific DJ music prompt, shared across its recurring days. Conflicts reject every selected day.", true, func(ctx context.Context, a createShowsArgs) (Result, error) {
 		if a.Show.ID != "" {
@@ -819,25 +829,15 @@ func NewRegistry(d Dependencies) *Registry {
 		if e != nil {
 			return Result{}, e
 		}
-		if e = (schedule.Service{Repo: d.Schedule}).CreateDays(ctx, v, a.Days); e != nil {
-			return Result{}, e
-		}
-		shows, e := d.Schedule.List(ctx, v.StationID)
+		v.Days = a.Days
+		v, e = (schedule.Service{Repo: d.Schedule}).Save(ctx, v)
 		if e != nil {
 			return Result{}, e
 		}
-		created := []schedule.Show{}
-		for _, show := range shows {
-			for _, day := range a.Days {
-				if show.Day == day && show.Start == v.Start && show.End == v.End && show.Name == v.Name {
-					show.DJ = djs.Profile{}
-					created = append(created, show)
-				}
-			}
-		}
-		return saved(created, "Added weekly shows: "+v.Name, "/producer/stations/"+v.StationID+"/schedule")
+		v.DJ = djs.Profile{}
+		return saved([]schedule.Show{v}, "Added show: "+v.Name, "/producer/stations/"+v.StationID+"/shows/"+v.ID)
 	})
-	register(r, "delete_show", "Delete one weekly show, retaining its DJ and playlist.", true, func(ctx context.Context, a struct {
+	register(r, "delete_show", "Archive one recurring show, stopping future broadcasts and retaining its saved episodes, DJ and playlist.", true, func(ctx context.Context, a struct {
 		StationID string `json:"station_id"`
 		ID        string `json:"id"`
 	}) (Result, error) {
@@ -848,7 +848,7 @@ func NewRegistry(d Dependencies) *Registry {
 		if e = d.Schedule.Delete(ctx, a.StationID, a.ID); e != nil {
 			return Result{}, e
 		}
-		return saved(nil, "Deleted show: "+v.Name, "/producer/stations/"+a.StationID+"/schedule")
+		return saved(nil, "Archived show: "+v.Name, "/producer/stations/"+a.StationID+"/schedule")
 	})
 	register(r, "get_status", "Read actual station runtime and default playlist. Does not start broadcasting or add a listener.", false, func(ctx context.Context, a stationID) (Result, error) {
 		if _, e := d.Stations.Get(ctx, a.StationID); e != nil {

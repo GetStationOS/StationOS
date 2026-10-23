@@ -1432,3 +1432,25 @@ textarea{font-weight:400;line-height:1.5}
  .public-playback-cards .public-playback-card{padding:20px}
  .public-playback-card .card-track-info>strong{font-size:18px}
 }
+
+/* Shows reuse the common action layout; reversible actions stay neutral. */
+.entity-secondary-link,
+.entity-secondary-link:visited {
+ display:inline-flex;
+ align-items:center;
+ min-height:44px;
+ padding:6px 0;
+ font-size:13px;
+ color:var(--accent);
+}
+.shows-table { min-width:760px; }
+.shows-table th:first-child { width:22%; }
+.shows-table th:nth-child(2) { width:28%; }
+.shows-table td:nth-child(3) { white-space:nowrap; }
+.shows-table td a,
+.show-episodes-table td a {
+ display:inline-flex;
+ align-items:center;
+ min-height:44px;
+}
+.show-episodes-table { min-width:480px; }

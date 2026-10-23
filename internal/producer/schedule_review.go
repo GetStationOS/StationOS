@@ -14,13 +14,8 @@ import (
 // Keep the domain's Monday-based numbering explicit at the model boundary.
 func namedSchedule(shows []schedule.Show) []namedShow {
 	out := make([]namedShow, 0, len(shows))
-	days := [...]string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 	for _, show := range shows {
-		day := "unknown"
-		if show.Day >= 0 && show.Day < len(days) {
-			day = days[show.Day]
-		}
-		out = append(out, namedShow{ID: show.ID, StationID: show.StationID, Name: show.Name, MusicDirection: djSummary(show.MusicDirection, 240), MusicDirectionTruncated: len(show.MusicDirection) > 240, DJID: show.DJID, PlaylistID: show.PlaylistID, DJName: show.DJName, PlaylistName: show.PlaylistName, Day: show.Day, Start: show.Start, End: show.End, DayName: day, StartTime: fmt.Sprintf("%02d:%02d", show.Start/60, show.Start%60), EndTime: fmt.Sprintf("%02d:%02d", show.End/60, show.End%60)})
+		out = append(out, namedShow{ID: show.ID, StationID: show.StationID, Name: show.Name, MusicDirection: djSummary(show.MusicDirection, 240), MusicDirectionTruncated: len(show.MusicDirection) > 240, DJID: show.DJID, PlaylistID: show.PlaylistID, DJName: show.DJName, PlaylistName: show.PlaylistName, Days: show.Weekdays(), Day: show.Day, Start: show.Start, End: show.End, DayName: show.DaysLabel(), StartTime: fmt.Sprintf("%02d:%02d", show.Start/60, show.Start%60), EndTime: fmt.Sprintf("%02d:%02d", show.End/60, show.End%60)})
 	}
 	return out
 }
@@ -30,6 +25,7 @@ type namedShow struct {
 	MusicDirectionTruncated               bool   `json:"music_direction_truncated"`
 	ID, StationID, Name, DJID, PlaylistID string
 	DJName, PlaylistName                  string
+	Days                                  []int `json:"days"`
 	Day, Start, End                       int
 	DayName                               string `json:"day_name"`
 	StartTime                             string `json:"start_time"`
@@ -223,17 +219,23 @@ func conversationStations(c Conversation) map[string]bool {
 // Split overnight/week-wrapping shows into minute coverage without enumerating
 // any catalogue items. Report gaps even on completely empty weekend days.
 func scheduleGaps(shows []namedShow) []map[string]any {
+	days := [...]string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 	var covered [schedule.WeekMinutes]bool
 	for _, s := range shows {
-		duration := s.End - s.Start
-		if duration <= 0 {
-			duration += 1440
+		days := s.Days
+		if len(days) == 0 {
+			days = []int{s.Day}
 		}
-		for minute := 0; minute < duration; minute++ {
-			covered[(s.Day*1440+s.Start+minute)%schedule.WeekMinutes] = true
+		for _, day := range days {
+			duration := s.End - s.Start
+			if duration <= 0 {
+				duration += 1440
+			}
+			for minute := 0; minute < duration; minute++ {
+				covered[(day*1440+s.Start+minute)%schedule.WeekMinutes] = true
+			}
 		}
 	}
-	days := [...]string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 	gaps := []map[string]any{}
 	for day := 0; day < 7; day++ {
 		for minute := 0; minute < 1440; {

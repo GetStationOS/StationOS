@@ -43,7 +43,7 @@ type episodeSummary struct {
 }
 
 func episodeURL(o schedule.Occurrence) string {
-	return "/producer/stations/" + url.PathEscape(o.StationID) + "/schedule/" + url.PathEscape(o.ShowID) + "/episode?start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
+	return "/producer/stations/" + url.PathEscape(o.StationID) + "/episodes/" + schedule.EpisodeID(o.Key)
 }
 
 func resolveEpisode(ctx context.Context, d Dependencies, id episodeID) (schedule.Occurrence, error) {

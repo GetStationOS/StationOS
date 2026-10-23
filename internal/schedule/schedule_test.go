@@ -71,13 +71,14 @@ func TestConflictReportsWeekBoundaryAndPreservesCategory(t *testing.T) {
 }
 
 func TestEpisodeIdentityIgnoresRevisionButRetainsDate(t *testing.T) {
-	a := Occurrence{ShowID: "show", StationID: "station", Key: "revision-1", Start: time.Date(2026, 10, 19, 20, 0, 0, 0, time.UTC)}
+	a := Occurrence{ShowID: "show", StationID: "station", Key: "show:slot:2026-10-19:1", Start: time.Date(2026, 10, 19, 20, 0, 0, 0, time.UTC)}
 	b := a
-	b.Key = "revision-2"
+	b.Key = "show:slot:2026-10-19:2"
 	if !SameEpisode(a, b) {
 		t.Fatal("revision changed episode identity")
 	}
 	b.Start = b.Start.AddDate(0, 0, 7)
+	b.Key = "show:slot:2026-10-26:2"
 	if SameEpisode(a, b) {
 		t.Fatal("separate episode dates merged")
 	}

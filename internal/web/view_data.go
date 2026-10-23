@@ -130,7 +130,7 @@ func (s *Server) loadStationCards(r *http.Request, v *stationDirectoryView) erro
 		programmeURL := func(o schedule.Occurrence) string {
 			path := "/producer/stations/" + url.PathEscape(st.ID) + "/schedule/" + url.PathEscape(o.ShowID)
 			if s.d.Episodes != nil && !o.Start.IsZero() {
-				path += "/episode?start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
+				path = episodePath(o.StationID, o.Key)
 			}
 			return path
 		}

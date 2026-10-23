@@ -108,8 +108,8 @@ func TestEpisodePersistenceIsolationInvalidationAndCommitNotification(t *testing
 	if err = shows.Delete(ctx, "s", "show"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = repo.Get(ctx, o.Key); !errors.Is(err, episodes.ErrNotFound) {
-		t.Fatal("episode not deleted with show", err)
+	if retained, err := repo.Get(ctx, o.Key); err != nil || retained.Notes != loaded.Notes {
+		t.Fatal("archive lost episode", retained, err)
 	}
 }
 

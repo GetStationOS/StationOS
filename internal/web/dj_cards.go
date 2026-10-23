@@ -78,7 +78,7 @@ func presenterCard(p djs.Profile, stations []djStation, now time.Time) djCard {
 			loc = time.UTC
 		}
 		monday := schedule.Monday(now, loc)
-		for _, show := range item.Shows {
+		for _, show := range schedule.ExpandDays(item.Shows) {
 			if show.DJID != p.ID {
 				continue
 			}

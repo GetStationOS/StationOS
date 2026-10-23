@@ -1224,3 +1224,13 @@ func (s *Service) ApprovedTracks(ctx context.Context, o schedule.Occurrence) ([]
 	}
 	return out, nil
 }
+
+// Summary is a list projection; private planning conversations and track history
+// are read only when opening the episode itself.
+type Summary struct {
+	Key        string
+	Start, End time.Time
+	Label      string
+	AiredCount int
+	Cancelled  bool
+}

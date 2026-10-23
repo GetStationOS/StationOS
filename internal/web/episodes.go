@@ -3,7 +3,6 @@ package web
 import (
 	"errors"
 	"net/http"
-	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +14,13 @@ import (
 )
 
 func (s *Server) episodeView(r *http.Request) (schedulePageView, schedule.Occurrence, error) {
+	if id := r.PathValue("episode"); id != "" {
+		showID, _, err := schedule.ParseEpisodeID(id)
+		if err != nil {
+			return schedulePageView{}, schedule.Occurrence{}, err
+		}
+		r.SetPathValue("show", showID)
+	}
 	v, err := s.scheduleView(r)
 	if err != nil {
 		return v, schedule.Occurrence{}, err
@@ -30,18 +36,15 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 	if err != nil {
 		return v, schedule.Occurrence{}, err
 	}
-	start, err := time.Parse(time.RFC3339, r.URL.Query().Get("start"))
-	if err != nil {
-		return v, schedule.Occurrence{}, schedule.ErrInvalid
-	}
 	loc, err := time.LoadLocation(v.Station.Timezone)
 	if err != nil {
 		return v, schedule.Occurrence{}, err
 	}
-	for _, o := range schedule.Occurrences([]schedule.Show{v.Show}, start, loc) {
-		if !o.Start.Equal(start) {
-			continue
-		}
+	o, err := s.resolveEpisodeOccurrence(r, v.Show, loc)
+	if err != nil {
+		return v, o, err
+	}
+	{
 		v.Episode, err = s.d.Episodes.Store.Get(r.Context(), o.Key)
 		if errors.Is(err, episodes.ErrNotFound) {
 			v.Episode = episodes.New(o)
@@ -50,6 +53,9 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 		if err == nil && !v.Episode.Cancelled && v.Episode.ShowKey != o.Key {
 			v.Episode.Status = "attention"
 			v.Episode.Problem = "Show settings changed; the DJ will update this episode automatically."
+		}
+		if len(v.Episode.Aired) == 0 && v.Episode.End.After(time.Now()) {
+			v.Episode.Start, v.Episode.End = o.Start, o.End
 		}
 		// Older saved failures use full-show planning terminology.
 		v.Episode.Problem = strings.ReplaceAll(v.Episode.Problem, "The DJ returned an invalid planning response. No new running order was saved. Automatic preparation will retry.", "The DJ returned an unreadable track choice. No new DJ selection was accepted.")
@@ -72,20 +78,27 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 			v.EpisodePlayed[i], v.EpisodePlayed[j] = v.EpisodePlayed[j], v.EpisodePlayed[i]
 		}
 		sort.SliceStable(v.EpisodePlayed, func(i, j int) bool { return v.EpisodePlayed[i].AiredAt.After(v.EpisodePlayed[j].AiredAt) })
-		v.EpisodePagination = paging("/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(showID)+"/episode", r.URL.Query(), page, size, len(v.EpisodePlayed))
+		v.EpisodePagination = paging(episodePath(v.Station.ID, o.Key), r.URL.Query(), page, size, len(v.EpisodePlayed))
 		v.EpisodePagination.CountLabel = "track"
 		v.EpisodePlayed = v.EpisodePlayed[(v.EpisodePagination.Number-1)*size : min(v.EpisodePagination.Number*size, len(v.EpisodePlayed))]
 		v.EpisodeQueue = v.Episode.Upcoming()
 		if s.d.Broadcast != nil {
 			v.EpisodeQueue, v.EpisodeQueueLive = episodeQueue(v.Episode, s.d.Broadcast.State(v.Station.ID))
 		}
-		v.EpisodeCanCancel = time.Now().Before(o.Start) && len(v.Episode.Aired) == 0
+		scheduled := false
+		for _, candidate := range schedule.Occurrences([]schedule.Show{v.Show}, o.Start, loc) {
+			if schedule.EpisodeKey(candidate.Key) == schedule.EpisodeKey(o.Key) {
+				scheduled = true
+			}
+		}
+		v.EpisodeReadOnly = !scheduled || v.Show.Archived || !o.End.After(time.Now())
+		v.EpisodeCanCancel = !v.EpisodeReadOnly && time.Now().Before(o.Start) && len(v.Episode.Aired) == 0
 		v.Title = o.Title + " · " + o.Start.In(loc).Format("2 Jan 2006")
+		v.EpisodeURL = episodePath(v.Station.ID, o.Key)
 		v.EpisodeStart = o.Start.Format(time.RFC3339)
 		v.Week = schedule.Monday(o.Start, loc).Format("2006-01-02")
 		return v, o, err
 	}
-	return v, schedule.Occurrence{}, schedule.ErrNotFound
 }
 func (s *Server) episodePage(w http.ResponseWriter, r *http.Request) {
 	v, _, err := s.episodeView(r)
@@ -122,7 +135,7 @@ func (s *Server) saveEpisode(w http.ResponseWriter, r *http.Request) {
 		s.renderPage(w, r, 422, "episode-page", v)
 		return
 	}
-	s.redirect(w, r, "/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(o.ShowID)+"/episode?start="+url.QueryEscape(o.Start.Format(time.RFC3339))+"&notice=saved")
+	s.redirect(w, r, episodePath(v.Station.ID, o.Key)+"?notice=saved")
 }
 func (s *Server) scheduleLive(w http.ResponseWriter, r *http.Request) {
 	v, err := s.scheduleView(r)
@@ -187,7 +200,7 @@ func (s *Server) cancelEpisode(w http.ResponseWriter, r *http.Request) {
 	if restore {
 		notice = "restored"
 	}
-	s.redirect(w, r, "/producer/stations/"+v.Station.ID+"/schedule/"+url.PathEscape(o.ShowID)+"/episode?start="+url.QueryEscape(o.Start.Format(time.RFC3339))+"&notice="+notice)
+	s.redirect(w, r, episodePath(v.Station.ID, o.Key)+"?notice="+notice)
 }
 
 func (s *Server) episodeLive(w http.ResponseWriter, r *http.Request) {
@@ -196,7 +209,7 @@ func (s *Server) episodeLive(w http.ResponseWriter, r *http.Request) {
 		s.scheduleError(w, r, err)
 		return
 	}
-	v.EpisodeEditing = r.URL.Query().Get("edit") == "1"
+	v.EpisodeEditing = !v.EpisodeReadOnly && r.URL.Query().Get("edit") == "1"
 	s.renderHTML(w, 200, "episode-live", v)
 }
 
@@ -204,6 +217,10 @@ func (s *Server) episodeDirection(w http.ResponseWriter, r *http.Request) {
 	v, _, err := s.episodeView(r)
 	if err != nil {
 		s.scheduleError(w, r, err)
+		return
+	}
+	if v.EpisodeReadOnly {
+		s.redirect(w, r, v.EpisodeURL)
 		return
 	}
 	v.EpisodeEditing = true
@@ -236,4 +253,64 @@ func episodeQueue(e episodes.Episode, state broadcast.State) ([]episodes.Running
 		}
 	}
 	return queue, true
+}
+
+func episodePath(stationID, key string) string {
+	return "/producer/stations/" + stationID + "/episodes/" + schedule.EpisodeID(key)
+}
+
+func (s *Server) resolveEpisodeOccurrence(r *http.Request, show schedule.Show, loc *time.Location) (schedule.Occurrence, error) {
+	var key string
+	var start time.Time
+	var err error
+	if id := r.PathValue("episode"); id != "" {
+		_, key, err = schedule.ParseEpisodeID(id)
+		if err != nil {
+			return schedule.Occurrence{}, err
+		}
+		parts := strings.Split(key, ":")
+		if len(parts) != 3 {
+			return schedule.Occurrence{}, schedule.ErrNotFound
+		}
+		start, err = time.ParseInLocation("2006-01-02", parts[2], loc)
+	} else {
+		start, err = time.Parse(time.RFC3339, r.URL.Query().Get("start"))
+	}
+	if err != nil {
+		return schedule.Occurrence{}, schedule.ErrInvalid
+	}
+	var saved episodes.Episode
+	found := false
+	if key != "" {
+		saved, err = s.d.Episodes.Store.Get(r.Context(), key)
+		found = err == nil
+		if err != nil && !errors.Is(err, episodes.ErrNotFound) {
+			return schedule.Occurrence{}, err
+		}
+	}
+	for _, o := range schedule.Occurrences([]schedule.Show{show}, start, loc) {
+		matches := key != "" && schedule.EpisodeKey(o.Key) == key || key == "" && o.Start.Equal(start)
+		if !matches {
+			continue
+		}
+		if !found {
+			saved, err = s.d.Episodes.Store.Get(r.Context(), o.Key)
+			found = err == nil
+			if err != nil && !errors.Is(err, episodes.ErrNotFound) {
+				return schedule.Occurrence{}, err
+			}
+		}
+		// An aired/ended occurrence retains its actual timing when the weekly slot changes.
+		if found && (len(saved.Aired) > 0 || saved.End.Before(time.Now())) {
+			o.Start, o.End = saved.Start.In(loc), saved.End.In(loc)
+		}
+		return o, nil
+	}
+	if found {
+		return savedOccurrence(show, saved), nil
+	}
+	return schedule.Occurrence{}, schedule.ErrNotFound
+}
+func savedOccurrence(show schedule.Show, e episodes.Episode) schedule.Occurrence {
+	return schedule.Occurrence{Key: e.ShowKey, StationID: show.StationID, ShowID: show.ID, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, MusicDirection: show.MusicDirection, Start: e.Start, End: e.End, AcceptRequests: show.AcceptRequests, AcceptShoutouts: show.AcceptShoutouts}
 }

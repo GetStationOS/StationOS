@@ -59,7 +59,7 @@ func TestCreateShowsValidationAndMidnight(t *testing.T) {
 	}
 	result := call(t, r, "create_shows", map[string]any{"show": base, "days": []int{0, 5, 6}})
 	created, ok := result.Data.([]schedule.Show)
-	if !ok || len(created) != 3 {
+	if !ok || len(created) != 1 || len(created[0].Weekdays()) != 3 {
 		t.Fatalf("missing created references: %+v", result)
 	}
 	for _, show := range created {
@@ -77,7 +77,7 @@ func TestCreateShowsValidationAndMidnight(t *testing.T) {
 		}
 	}
 	shows, err := repo.List(ctx, s.ID)
-	if err != nil || len(shows) != 3 {
+	if err != nil || len(shows) != 1 || len(shows[0].Weekdays()) != 3 {
 		t.Fatalf("overlap committed partial days: %+v, %v", shows, err)
 	}
 	// Editing a single show accepts the same end-of-day convention.

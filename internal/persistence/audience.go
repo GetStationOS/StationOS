@@ -32,7 +32,7 @@ func scanAudience(row interface{ Scan(...any) error }) (audience.Message, error)
 	return m, err
 }
 func expireAudience(ctx context.Context, tx *sql.Tx, now time.Time) error {
-	_, err := tx.ExecContext(ctx, `UPDATE audience_messages SET status='expired',reason='Show ended or changed' WHERE status IN ('pending','review','approved') AND (expires_at<=? OR NOT EXISTS(SELECT 1 FROM station_shows s WHERE s.id=show_id AND (kind='request' AND s.accept_requests=1 OR kind='shoutout' AND s.accept_shoutouts=1) AND occurrence_key LIKE s.id||':%:'||s.revision))`, now.Unix())
+	_, err := tx.ExecContext(ctx, `UPDATE audience_messages SET status='expired',reason='Show ended or changed' WHERE status IN ('pending','review','approved') AND (expires_at<=? OR NOT EXISTS(SELECT 1 FROM station_shows s WHERE s.id=show_id AND s.archived=0 AND (kind='request' AND s.accept_requests=1 OR kind='shoutout' AND s.accept_shoutouts=1) AND occurrence_key LIKE s.id||':%:'||s.revision))`, now.Unix())
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func (r Audience) Submit(ctx context.Context, m audience.Message) (changeErr err
 	}
 	var count int
 	// Recheck public/show policy atomically at commit, including occurrence revision.
-	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM station_shows s JOIN stations t ON t.id=s.station_id WHERE s.id=? AND s.station_id=? AND t.visibility<>'private' AND ? LIKE s.id||':%:'||s.revision AND (s.accept_requests=1 AND ?='request' OR s.accept_shoutouts=1 AND ?='shoutout') AND NOT EXISTS (SELECT 1 FROM show_episodes WHERE episode_key=? AND json_extract(payload,'$.Cancelled')=1)`, m.ShowID, m.StationID, m.OccurrenceKey, m.Kind, m.Kind, episodes.SessionKey(m.OccurrenceKey)).Scan(&count)
+	err = tx.QueryRowContext(ctx, `SELECT count(*) FROM station_shows s JOIN stations t ON t.id=s.station_id WHERE s.id=? AND s.archived=0 AND s.station_id=? AND t.visibility<>'private' AND ? LIKE s.id||':%:'||s.revision AND (s.accept_requests=1 AND ?='request' OR s.accept_shoutouts=1 AND ?='shoutout') AND NOT EXISTS (SELECT 1 FROM show_episodes WHERE episode_key=? AND json_extract(payload,'$.Cancelled')=1)`, m.ShowID, m.StationID, m.OccurrenceKey, m.Kind, m.Kind, episodes.SessionKey(m.OccurrenceKey)).Scan(&count)
 	if err != nil {
 		return err
 	}
@@ -206,7 +206,7 @@ func (r Audience) Usable(ctx context.Context, station, key string, ids []string,
 	// Include current policy/revision and publication when checking prepared speech.
 	for _, id := range ids {
 		var count int
-		err := r.DB.QueryRowContext(ctx, `SELECT count(*) FROM audience_messages a JOIN station_shows s ON s.id=a.show_id JOIN stations t ON t.id=a.station_id WHERE a.id=? AND a.station_id=? AND a.occurrence_key=? AND a.status='approved' AND a.expires_at>? AND t.visibility<>'private' AND a.occurrence_key LIKE s.id||':%:'||s.revision AND (a.kind='request' AND s.accept_requests=1 OR a.kind='shoutout' AND s.accept_shoutouts=1)`, id, station, key, at.Unix()).Scan(&count)
+		err := r.DB.QueryRowContext(ctx, `SELECT count(*) FROM audience_messages a JOIN station_shows s ON s.id=a.show_id JOIN stations t ON t.id=a.station_id WHERE a.id=? AND a.station_id=? AND a.occurrence_key=? AND s.archived=0 AND a.status='approved' AND a.expires_at>? AND t.visibility<>'private' AND a.occurrence_key LIKE s.id||':%:'||s.revision AND (a.kind='request' AND s.accept_requests=1 OR a.kind='shoutout' AND s.accept_shoutouts=1)`, id, station, key, at.Unix()).Scan(&count)
 		if err != nil {
 			return false, err
 		}

@@ -154,7 +154,7 @@ func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
 				t.Fatal(err)
 			}
 			var covered [schedule.WeekMinutes]int
-			for _, show := range saved {
+			for _, show := range schedule.ExpandDays(saved) {
 				for minute := 0; minute < show.Duration(); minute++ {
 					covered[(show.Day*1440+show.Start+minute)%schedule.WeekMinutes]++
 				}

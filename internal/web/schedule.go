@@ -19,28 +19,12 @@ type scheduleDay struct {
 type scheduleCard struct {
 	ID, Name, DJ, Playlist, Time, Class string
 	EpisodeStart, Status                string
+	Day                                 int
+	URL                                 string
 }
 
 var weekDays = []scheduleDay{{0, "Monday"}, {1, "Tuesday"}, {2, "Wednesday"}, {3, "Thursday"}, {4, "Friday"}, {5, "Saturday"}, {6, "Sunday"}}
 
-func calendarCards(shows []schedule.Show) []scheduleCard {
-	cards := []scheduleCard{}
-	for _, s := range shows {
-		end := s.Start + s.Duration()
-		add := func(day, start, end int, continuation bool) {
-			name := s.Name
-			if continuation {
-				name += " (continued)"
-			}
-			cards = append(cards, scheduleCard{s.ID, name, s.DJName, s.PlaylistName, schedule.TimeLabel(start) + "–" + schedule.TimeLabel(end), "day-" + strconv.Itoa(day) + " at-" + strconv.Itoa(start/15) + " length-" + strconv.Itoa((end-start)/15), "", "Unplanned"})
-		}
-		add(s.Day, s.Start, min(end, 1440), false)
-		if end > 1440 {
-			add((s.Day+1)%7, 0, end-1440, true)
-		}
-	}
-	return cards
-}
 func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 	v := schedulePageView{pageView: s.baseView(r)}
 	var err error
@@ -50,6 +34,9 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 	}
 	v.StationID = v.Station.ID
 	v.Section = "schedule"
+	if strings.Contains(r.URL.Path, "/shows") || r.PathValue("episode") != "" {
+		v.Section = "shows"
+	}
 	v.Title = "Schedule"
 	v.ScheduleMode = "list"
 	v.ScheduleDays = weekDays
@@ -65,8 +52,7 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 	if err != nil {
 		return v, err
 	}
-	v.ScheduleCards = calendarCards(v.Shows)
-	v.EpisodeStarts = map[string]string{}
+	v.ScheduleCards = []scheduleCard{}
 	loc, err := time.LoadLocation(v.Station.Timezone)
 	if err != nil {
 		return v, err
@@ -84,10 +70,9 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 	v.PreviousWeek = week.AddDate(0, 0, -7).Format("2006-01-02")
 	v.NextWeek = week.AddDate(0, 0, 7).Format("2006-01-02")
 	for _, o := range schedule.Occurrences(v.Shows, week, loc) {
-		if o.Start.Before(week) || !o.Start.Before(week.AddDate(0, 0, 7)) {
+		if !o.End.After(week) || !o.Start.Before(week.AddDate(0, 0, 7)) {
 			continue
 		}
-		v.EpisodeStarts[o.ShowID] = o.Start.Format(time.RFC3339)
 		e := episodes.New(o)
 		if s.d.Episodes != nil {
 			loaded, loadErr := s.d.Episodes.Store.Get(r.Context(), o.Key)
@@ -101,12 +86,24 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 			}
 		}
 		class := episodeScheduleClass(e)
-		for i := range v.ScheduleCards {
-			if v.ScheduleCards[i].ID == o.ShowID {
-				v.ScheduleCards[i].EpisodeStart = o.Start.Format(time.RFC3339)
-				v.ScheduleCards[i].Status = e.Label()
-				v.ScheduleCards[i].Class += " " + class
+		for date := time.Date(o.Start.In(loc).Year(), o.Start.In(loc).Month(), o.Start.In(loc).Day(), 0, 0, 0, 0, loc); date.Before(o.End); date = date.AddDate(0, 0, 1) {
+			if date.Before(week) || !date.Before(week.AddDate(0, 0, 7)) {
+				continue
 			}
+			first, last := o.Start.In(loc), o.End.In(loc)
+			if first.Before(date) {
+				first = date
+			}
+			midnight := date.AddDate(0, 0, 1)
+			if last.After(midnight) {
+				last = midnight
+			}
+			startMinute, endMinute := first.Hour()*60+first.Minute(), last.Hour()*60+last.Minute()
+			if last.Equal(midnight) {
+				endMinute = 1440
+			}
+			day := (int(date.Weekday()) + 6) % 7
+			v.ScheduleCards = append(v.ScheduleCards, scheduleCard{ID: o.ShowID, Name: o.Title, DJ: o.DJ.Name, Playlist: o.PlaylistName, Time: schedule.TimeLabel(startMinute) + "–" + schedule.TimeLabel(endMinute), Class: "day-" + strconv.Itoa(day) + " at-" + strconv.Itoa(startMinute/15) + " length-" + strconv.Itoa(max(1, (endMinute-startMinute)/15)) + " " + class, EpisodeStart: o.Start.Format(time.RFC3339), Status: e.Label(), Day: day, URL: episodePath(o.StationID, o.Key)})
 		}
 	}
 	v.Show = schedule.Show{StationID: v.Station.ID, Start: 9 * 60, End: 10 * 60}
@@ -123,6 +120,10 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 		}
 		v.ScheduleMode = "form"
 		v.Title = v.Show.Name
+		v.ShowDays = map[int]bool{}
+		for _, day := range v.Show.Weekdays() {
+			v.ShowDays[day] = true
+		}
 		v.ShowStart = schedule.TimeLabel(v.Show.Start)
 		v.ShowEnd = schedule.TimeLabel(v.Show.End)
 		if strings.HasSuffix(r.URL.Path, "/delete") {
@@ -137,11 +138,11 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 	}
 	switch r.URL.Query().Get("notice") {
 	case "shows-added":
-		v.Notice = "Shows added on the selected days."
+		v.Notice = "Show added on the selected days."
 	case "show-saved":
 		v.Notice = "Show saved."
 	case "show-deleted":
-		v.Notice = "Show deleted."
+		v.Notice = "Show archived. Its saved episodes are kept."
 	}
 	if selected := r.URL.Query().Get("episode"); selected != "" && s.d.Episodes != nil {
 		var o schedule.Occurrence
@@ -214,7 +215,7 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 	}
 	start, e2 := parseShowTime(r.PostForm.Get("start"))
 	end, e3 := parseShowTime(r.PostForm.Get("end"))
-	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), Description: r.PostForm.Get("description"), MusicDirection: r.PostForm.Get("music_direction"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Start: start, End: end}
+	v := schedule.Show{ID: r.PostForm.Get("show_id"), StationID: r.PathValue("id"), Name: r.PostForm.Get("name"), Description: r.PostForm.Get("description"), MusicDirection: r.PostForm.Get("music_direction"), DJID: r.PostForm.Get("dj"), PlaylistID: r.PostForm.Get("playlist"), Day: day, Days: days, Start: start, End: end}
 	if r.PostForm.Get("audience_settings") == "yes" {
 		v.AcceptRequests = r.PostForm.Get("accept_requests") == "yes"
 		v.AcceptShoutouts = r.PostForm.Get("accept_shoutouts") == "yes"
@@ -226,7 +227,7 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 		}
 		v.AcceptRequests, v.AcceptShoutouts = old.AcceptRequests, old.AcceptShoutouts
 	}
-	if dayError || len(days) == 0 || (v.ID != "" && len(days) != 1) || e2 != nil || e3 != nil {
+	if dayError || len(days) == 0 || e2 != nil || e3 != nil {
 		s.invalidShow(w, r, v, "Choose at least one day and valid quarter-hour start/end times.")
 		return
 	}
@@ -247,7 +248,7 @@ func (s *Server) saveShow(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	s.redirect(w, r, "/producer/stations/"+v.StationID+"/schedule?notice="+notice)
+	s.redirect(w, r, "/producer/stations/"+v.StationID+"/shows?notice="+notice)
 }
 func (s *Server) deleteShow(w http.ResponseWriter, r *http.Request) {
 	if s.d.Schedule == nil {
@@ -262,14 +263,10 @@ func (s *Server) deleteShow(w http.ResponseWriter, r *http.Request) {
 		s.scheduleError(w, r, err)
 		return
 	}
-	s.redirect(w, r, "/producer/stations/"+r.PathValue("id")+"/schedule?notice=show-deleted")
+	s.redirect(w, r, "/producer/stations/"+r.PathValue("id")+"/shows?notice=show-deleted")
 }
 
 func (s *Server) invalidShow(w http.ResponseWriter, r *http.Request, show schedule.Show, message string) {
-	if r.Header.Get("HX-Request") == "true" {
-		http.Error(w, message, 422)
-		return
-	}
 	v, err := s.scheduleView(r)
 	if err != nil {
 		s.scheduleError(w, r, err)
@@ -289,7 +286,19 @@ func (s *Server) invalidShow(w http.ResponseWriter, r *http.Request, show schedu
 	if show.ID != "" {
 		v.Title = show.Name
 	}
+	if i := strings.LastIndex(message, ", show_id="); i >= 0 {
+		if end := strings.Index(message[i:], ")"); end >= 0 {
+			message = message[:i] + message[i+end:]
+		}
+	}
 	v.ShowError = message
+	if r.Header.Get("HX-Request") == "true" {
+		destination := "/producer/stations/" + v.Station.ID + "/shows/new"
+		if show.ID != "" {
+			destination = "/producer/stations/" + v.Station.ID + "/shows/" + show.ID
+		}
+		w.Header().Set("HX-Push-Url", destination)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	s.renderSchedulePage(w, r, http.StatusUnprocessableEntity, v)
 }

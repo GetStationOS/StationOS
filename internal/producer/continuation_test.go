@@ -111,7 +111,7 @@ func TestFullRequestContinuesBeyondBatchLimit(t *testing.T) {
 		t.Fatal("duplicated or missing station", saved)
 	}
 	scheduled, e := shows.List(ctx, saved[0].ID)
-	if e != nil || len(scheduled) != 2 {
+	if e != nil || len(scheduled) != 1 || len(scheduled[0].Weekdays()) != 2 {
 		t.Fatal("shows missing", scheduled, e)
 	}
 	if len(c.Requests) != 1 || c.Requests[0] != fullBrief {

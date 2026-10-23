@@ -63,7 +63,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	if w.Code != 200 || !strings.Contains(w.Body.String(), "episode-ready") || !strings.Contains(w.Body.String(), "Ready") {
 		t.Fatal(w.Code, w.Body.String())
 	}
-	match := regexp.MustCompile(`href="([^"]*/schedule/show/episode[^"]*)"`).FindStringSubmatch(w.Body.String())
+	match := regexp.MustCompile(`href="([^"]*/episodes/[^"]*)"`).FindStringSubmatch(w.Body.String())
 	if len(match) != 2 {
 		t.Fatal("missing episode link")
 	}
@@ -71,15 +71,15 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if actual.Query().Get("start") != o.Start.Format(time.RFC3339) {
+	if actual.Path != episodePath("s", o.Key) || actual.RawQuery != "" {
 		t.Fatal("episode timestamp double encoded", actual.String())
 	}
-	hxMatch := regexp.MustCompile(`hx-get="([^"]*/schedule/show/episode[^"]*)"`).FindStringSubmatch(w.Body.String())
+	hxMatch := regexp.MustCompile(`hx-get="([^"]*/episodes/[^"]*)"`).FindStringSubmatch(w.Body.String())
 	if len(hxMatch) != 2 {
 		t.Fatal("missing HTMX episode link")
 	}
 	hxURL, err := url.Parse(html.UnescapeString(hxMatch[1]))
-	if err != nil || hxURL.Query().Get("start") != o.Start.Format(time.RFC3339) {
+	if err != nil || hxURL.Path != episodePath("s", o.Key) {
 		t.Fatal("HTMX timestamp incorrectly encoded", hxMatch, err)
 	}
 	hxResponse := request(h, "GET", hxURL.RequestURI(), nil, map[string]string{"HX-Request": "true", "HX-Target": "main"})
@@ -95,7 +95,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	}
 	selected := path + "&episode=show&start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
 	w = request(h, "GET", selected, nil, map[string]string{"HX-Request": "true"})
-	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", "← Schedule", "Edit show template", "Played tracks", "Played album", "4:05", `scope="col"`, o.Start.Add(15 * time.Minute).Format("15:04:05")} {
+	for _, want := range []string{`id="episode-running-order"`, "First recording", "Second recording", "City lights", "← Schedule", "Edit show", "Played tracks", "Played album", "4:05", `scope="col"`, o.Start.Add(15 * time.Minute).Format("15:04:05")} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatal("missing", want, w.Body.String())
 		}
@@ -155,7 +155,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	editPath := "/producer/stations/s/schedule/show/episode?start=" + url.QueryEscape(o.Start.Format(time.RFC3339))
 	form := url.Values{"csrf": {token}, "version": {strconv.Itoa(before.Version)}, "notes": {"More discoveries"}, "locked": {"b"}, "excluded": {"a"}}
 	w = request(h, "POST", editPath, form, map[string]string{"HX-Request": "true"})
-	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "schedule/show/episode") {
+	if w.Code != 204 || !strings.Contains(w.Header().Get("HX-Location"), "/episodes/") {
 		t.Fatal(w.Code, w.Body.String(), w.Header())
 	}
 	after, _ := store.Get(ctx, o.Key)
@@ -172,7 +172,7 @@ func TestScheduleEpisodeReadinessHTMXDetailsAndProducerEdits(t *testing.T) {
 	}
 	// The live region replaces the manual refresh control and never starts generation.
 	w = request(h, "GET", editPath+"&notice=refreshed", nil, map[string]string{"HX-Request": "true"})
-	for _, want := range []string{`id="episode-content"`, `id="episode-status"`, `/episode/live?start=`, `data-live-url=`} {
+	for _, want := range []string{`id="episode-content"`, `id="episode-status"`, `/live?page=`, `data-live-url=`} {
 		if !strings.Contains(w.Body.String(), want) {
 			t.Fatal("missing feedback", want, w.Body.String())
 		}

@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/playlists"
+	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/station"
 	"strings"
 	"testing"
@@ -82,15 +83,13 @@ func TestMultiDayShowCreationIsAtomicAndRetainsSelections(t *testing.T) {
 		t.Fatal(w.Code, w.Header(), w.Body.String())
 	}
 	shows, err := (persistence.Schedule{DB: st.DB}).List(ctx, "s")
-	if err != nil || len(shows) != 5 {
+	if err != nil || len(shows) != 1 || len(shows[0].Weekdays()) != 5 {
 		t.Fatal(shows, err)
 	}
-	ids := map[string]bool{}
-	for day, show := range shows {
-		if show.Day != day || show.Name != "Weekday breakfast" || show.Start != 540 || show.End != 600 || show.DJID != "default-pop" || show.PlaylistID != "pool" || ids[show.ID] {
+	for day, show := range schedule.ExpandDays(shows) {
+		if show.Day != day || show.Name != "Weekday breakfast" || show.Start != 540 || show.End != 600 || show.DJID != "default-pop" || show.PlaylistID != "pool" {
 			t.Fatal(show)
 		}
-		ids[show.ID] = true
 	}
 	w = request(h, "GET", "/producer/stations/s/schedule", nil, nil)
 	if strings.Count(w.Body.String(), `class="calendar-show `) != 5 {
@@ -115,10 +114,10 @@ func TestMultiDayShowCreationIsAtomicAndRetainsSelections(t *testing.T) {
 		}
 	}
 	shows, err = (persistence.Schedule{DB: st.DB}).List(ctx, "s")
-	if err != nil || len(shows) != 5 {
+	if err != nil || len(shows) != 1 || len(shows[0].Weekdays()) != 5 {
 		t.Fatal("partial batch saved", shows, err)
 	}
-	// Editing still changes only a single independent entry.
+	// Editing the shared parent changes its complete weekday selection.
 	form.Set("show_id", shows[0].ID)
 	form.Set("day", "6")
 	w = request(h, "POST", "/producer/stations/s/schedule", form, nil)
@@ -126,7 +125,7 @@ func TestMultiDayShowCreationIsAtomicAndRetainsSelections(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	shows, err = (persistence.Schedule{DB: st.DB}).List(ctx, "s")
-	if err != nil || len(shows) != 5 || shows[4].Day != 6 {
+	if err != nil || len(shows) != 1 || len(shows[0].Weekdays()) != 1 || shows[0].Day != 6 {
 		t.Fatal(shows, err)
 	}
 }
@@ -147,7 +146,7 @@ func TestMultiDayShowsRejectOvernightSelfOverlap(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	shows, err := (persistence.Schedule{DB: st.DB}).List(ctx, "s")
-	if err != nil || len(shows) != 2 {
+	if err != nil || len(shows) != 1 || len(shows[0].Weekdays()) != 2 {
 		t.Fatal(shows, err)
 	}
 	// The second selected day overlaps Sunday’s continuation into Monday.
@@ -159,7 +158,7 @@ func TestMultiDayShowsRejectOvernightSelfOverlap(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	shows, err = (persistence.Schedule{DB: st.DB}).List(ctx, "s")
-	if err != nil || len(shows) != 2 {
+	if err != nil || len(shows) != 1 || len(shows[0].Weekdays()) != 2 {
 		t.Fatal("overnight conflict partially saved", shows, err)
 	}
 }

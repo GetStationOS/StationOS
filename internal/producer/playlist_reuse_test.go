@@ -66,7 +66,7 @@ func TestExistingPlaylistSupportsMultipleShowsAndDefaultWithoutCopying(t *testin
 	all, _ := repo.List(ctx, owner.ID)
 	scheduled, _ := shows.List(ctx, owner.ID)
 	assigned, err := (persistence.Broadcast{DB: stations.DB}).Assignment(ctx, owner.ID)
-	if err != nil || assigned != pool.ID || len(all) != 1 || len(scheduled) != 2 {
+	if err != nil || assigned != pool.ID || len(all) != 1 || len(scheduled) != 1 || len(scheduled[0].Weekdays()) != 2 {
 		t.Fatal(all, scheduled, assigned, err)
 	}
 	for _, show := range scheduled {

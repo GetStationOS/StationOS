@@ -11,6 +11,7 @@ import (
 	"stationos.local/stationos/internal/persistence"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/producer"
+	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
 )
@@ -102,10 +103,10 @@ func TestAlbumEraSelectionDoesNotRequireYearMetadata(t *testing.T) {
 		t.Fatal("out-of-pool music included", resolved, err)
 	}
 	saved, err := shows.List(ctx, owner.ID)
-	if err != nil || len(saved) != 5 {
+	if err != nil || len(saved) != 1 || len(saved[0].Weekdays()) != 5 {
 		t.Fatal(saved, err)
 	}
-	for day, show := range saved {
+	for day, show := range schedule.ExpandDays(saved) {
 		if show.Day != day || show.Start != 1080 || show.End != 1200 || show.PlaylistID != pool.ID || show.DJID != dj.ID {
 			t.Fatal("wrong weekday edition", show)
 		}

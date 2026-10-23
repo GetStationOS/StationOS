@@ -34,7 +34,7 @@ func TestPublicProgrammeCivilDaysAndOccurrenceLinks(t *testing.T) {
 	if len(rows) != 5 || rows[0].Name != "Late show" || rows[0].Time != "00:00–02:00" || rows[1].Time != "02:00–09:00" || rows[2].Name != "Sunday requests" || rows[3].Time != "10:00–22:00" || rows[4].Time != "22:00–24:00" {
 		t.Fatal(rows)
 	}
-	if !strings.Contains(rows[0].ContributionURL, "night%3A2026-10-24T22%3A00%3A00Z%3A3") || !strings.Contains(rows[2].ContributionURL, "morning%3A2026-10-25T09%3A00%3A00Z%3A2") || !strings.Contains(rows[2].ContributionURL, "day=2026-10-25") || rows[4].ContributionURL != "" {
+	if !strings.Contains(rows[0].ContributionURL, "night%3A5%3A2026-10-19%3A3") || !strings.Contains(rows[2].ContributionURL, "morning%3A6%3A2026-10-19%3A2") || !strings.Contains(rows[2].ContributionURL, "day=2026-10-25") || rows[4].ContributionURL != "" {
 		t.Fatal("wrong airing or unsupported contribution", rows)
 	}
 	later := time.Date(2026, 10, 25, 11, 0, 0, 0, loc)

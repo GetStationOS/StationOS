@@ -1,0 +1,51 @@
+{{define "shows-page"}}
+{{if .Shows}}
+{{template "page-heading" (headingLink "Shows" "" "+ Add show" (printf "/producer/stations/%s/shows/new" .Station.ID))}}
+{{else}}
+{{template "page-heading" (heading "Shows")}}
+{{end}}
+<nav class="workspace-tabs" aria-label="Show status" data-tab-scroll-key="shows:{{.Station.ID}}"><a href="/producer/stations/{{.Station.ID}}/shows" {{if ne .ScheduleMode "archived"}}aria-current="page"{{end}}>Active</a><a href="/producer/stations/{{.Station.ID}}/shows?archived=1" {{if eq .ScheduleMode "archived"}}aria-current="page"{{end}}>Archived</a></nav>
+{{if .Shows}}
+<section class="panel results-panel">
+<div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Station shows">
+<table class="shows-table">
+  <thead><tr><th scope="col">Show</th><th scope="col">Days</th><th scope="col">Time · {{.Station.Timezone}}</th><th scope="col">DJ</th><th scope="col">Playlist</th><th scope="col">Episodes</th></tr></thead>
+  <tbody>{{range .Shows}}
+    <tr>
+      <td><a href="/producer/stations/{{$.Station.ID}}/shows/{{.ID}}">{{.Name}}</a></td>
+      <td>{{.DaysLabel}}</td>
+      <td>{{.TimeLabel}}</td>
+      <td>{{.DJName}}</td><td>{{.PlaylistName}}</td>
+      <td><a href="/producer/stations/{{$.Station.ID}}/shows/{{.ID}}/episodes" aria-label="Episodes of {{.Name}}">Episodes</a></td>
+    </tr>{{end}}
+  </tbody>
+</table>
+</div>
+</section>
+{{else}}
+<section class="panel empty-state"><h2>{{if eq .ScheduleMode "archived"}}No archived shows{{else}}No shows yet{{end}}</h2>{{if ne .ScheduleMode "archived"}}<p>Add a show with a DJ, playlist and the days it runs. Between shows, the station plays its default playlist.</p><a class="button" href="/producer/stations/{{.Station.ID}}/shows/new">Add first show</a>{{end}}</section>
+{{end}}
+{{end}}
+
+{{define "show-tabs"}}
+<nav class="workspace-tabs" aria-label="Show navigation" data-tab-scroll-key="show:{{.Show.ID}}">
+  <a href="/producer/stations/{{.Station.ID}}/shows/{{.Show.ID}}" {{if ne .ScheduleMode "episodes"}}aria-current="page"{{end}}>Details</a>
+  <a href="/producer/stations/{{.Station.ID}}/shows/{{.Show.ID}}/episodes" {{if eq .ScheduleMode "episodes"}}aria-current="page"{{end}}>Episodes</a>
+</nav>
+{{end}}
+
+{{define "show-episodes-page"}}
+{{template "page-heading" (heading .Show.Name)}}
+{{template "show-tabs" .}}
+{{if .Show.Archived}}<p class="notice">This show is archived. Its saved episodes are kept.</p>{{end}}
+<section class="panel results-panel">
+{{if .ShowEpisodes}}
+{{template "results-toolbar" .ShowEpisodePagination}}
+<div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Show episodes">
+<table class="show-episodes-table"><thead><tr><th scope="col">Episode</th><th scope="col">Time · {{.Station.Timezone}}</th><th scope="col">Status</th></tr></thead>
+<tbody>{{range .ShowEpisodes}}<tr><td><a href="{{.URL}}">{{.Date}}</a></td><td>{{.Time}}</td><td>{{.Status}}</td></tr>{{end}}</tbody></table>
+</div>
+{{template "pagination" .ShowEpisodePagination}}
+{{else}}<p class="hint">No episodes to display.</p>{{end}}
+</section>
+{{end}}

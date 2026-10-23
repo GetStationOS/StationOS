@@ -4,6 +4,7 @@ package schedule
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -22,15 +23,56 @@ var ErrInUse = errors.New("this item is used by a scheduled show; remove or upda
 const WeekMinutes = 7 * 24 * 60
 const MaxShows = 200
 
+type EpisodeWindow struct{ Start, End time.Time }
+
 type Show struct {
+	History                               map[string]EpisodeWindow `json:"-"`
 	AcceptRequests, AcceptShoutouts       bool
 	ID, StationID, Name, DJID, PlaylistID string
 	Description                           string
 	MusicDirection                        string
-	Day, Start, End                       int // Monday=0; minutes after midnight. End <= Start means next day.
+	Day, Start, End                       int   // Monday=0; minutes after midnight. End <= Start means next day.
+	Days                                  []int // One recurring programme across selected weekdays; Day is the legacy single-day field.
+	Archived                              bool
+	SlotIDs                               map[int]string // Stable recurrence identities, independent of weekday and time.
 	Revision                              int
 	DJName, PlaylistName                  string
 	DJ                                    djs.Profile
+}
+
+func (s Show) Weekdays() []int {
+	if len(s.Days) == 0 {
+		return []int{s.Day}
+	}
+	return append([]int(nil), s.Days...)
+}
+
+func (s Show) DaysLabel() string {
+	names := []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+	labels := []string{}
+	for _, day := range s.Weekdays() {
+		if day >= 0 && day < 7 {
+			labels = append(labels, names[day])
+		}
+	}
+	return strings.Join(labels, ", ")
+}
+
+// ExpandDays supplies single-slot projections to calendar and overlap consumers.
+func ExpandDays(shows []Show) []Show {
+	out := []Show{}
+	for _, show := range shows {
+		if show.Archived {
+			continue
+		}
+		for _, day := range show.Weekdays() {
+			slot := show
+			slot.Day = day
+			slot.Days = nil
+			out = append(out, slot)
+		}
+	}
+	return out
 }
 
 func (s Show) Duration() int {
@@ -47,6 +89,11 @@ func Invalid(reason string) error { return fmt.Errorf("%w: %s", ErrInvalid, reas
 // Normalized keeps the stored midnight convention while accepting a caller's
 // unambiguous 24:00 end-of-day boundary. Start times never roll into another day.
 func (s Show) Normalized() Show {
+	if len(s.Days) > 0 {
+		s.Days = append([]int(nil), s.Days...)
+		sort.Ints(s.Days)
+		s.Day = s.Days[0]
+	}
 	s.Name = strings.TrimSpace(s.Name)
 	s.Description = strings.TrimSpace(s.Description)
 	s.MusicDirection = strings.TrimSpace(s.MusicDirection)
@@ -57,6 +104,19 @@ func (s Show) Normalized() Show {
 }
 
 func (s Show) Validate() error {
+	seen := map[int]bool{}
+	for _, day := range s.Weekdays() {
+		if day < 0 || day > 6 {
+			return Invalid("choose weekdays from Monday=0 through Sunday=6")
+		}
+		if seen[day] {
+			return Invalid("each weekday may appear only once in days")
+		}
+		seen[day] = true
+	}
+	if len(s.Weekdays()) > 7 {
+		return Invalid("choose one to seven weekdays")
+	}
 	switch {
 	case s.StationID == "":
 		return Invalid("choose an existing station (station_id)")
@@ -132,8 +192,14 @@ func (s Service) Save(ctx context.Context, v Show) (Show, error) {
 			return Show{}, err
 		}
 		v.ID = hex.EncodeToString(b[:])
-	} else if _, err := s.Repo.Get(ctx, v.StationID, v.ID); err != nil {
-		return Show{}, err
+	} else {
+		previous, err := s.Repo.Get(ctx, v.StationID, v.ID)
+		if err != nil {
+			return Show{}, err
+		}
+		if previous.Archived {
+			return Show{}, Invalid("archived shows cannot be edited")
+		}
 	}
 	if err := s.Repo.Save(ctx, v); err != nil {
 		return Show{}, err
@@ -141,35 +207,17 @@ func (s Service) Save(ctx context.Context, v Show) (Show, error) {
 	return s.Repo.Get(ctx, v.StationID, v.ID)
 }
 
-// CreateDays creates independent weekly shows in one atomic write.
+// CreateDays creates one recurring show with shared settings on all selected days.
 func (s Service) CreateDays(ctx context.Context, v Show, days []int) error {
 	if v.ID != "" {
-		return Invalid("omit id when creating new weekly shows; edit an existing show separately")
+		return Invalid("omit id when creating a show")
 	}
-	if len(days) == 0 || len(days) > 7 {
-		return Invalid("choose one to seven weekdays in days, using Monday=0 through Sunday=6")
+	if len(days) == 0 {
+		return Invalid("choose at least one weekday")
 	}
-	v = v.Normalized()
-	shows := make([]Show, 0, len(days))
-	seen := map[int]bool{}
-	for _, day := range days {
-		if seen[day] {
-			return Invalid("each weekday may appear only once in days")
-		}
-		seen[day] = true
-		show := v
-		show.Day = day
-		if err := show.Validate(); err != nil {
-			return err
-		}
-		var b [16]byte
-		if _, err := rand.Read(b[:]); err != nil {
-			return err
-		}
-		show.ID = hex.EncodeToString(b[:])
-		shows = append(shows, show)
-	}
-	return s.Repo.SaveMany(ctx, shows)
+	v.Days = days
+	_, err := s.Save(ctx, v)
+	return err
 }
 
 type Occurrence struct {
@@ -227,14 +275,22 @@ func Occurrences(shows []Show, now time.Time, loc *time.Location) []Occurrence {
 	monday := Monday(now, loc)
 	out := []Occurrence{}
 	for _, week := range []int{-1, 0, 1, 2} {
-		for _, show := range shows {
+		for _, show := range ExpandDays(shows) {
 			date := monday.AddDate(0, 0, week*7+show.Day)
 			start := WallTime(date, show.Start, false)
 			end := WallTime(date, show.Start+show.Duration(), true)
 			if !end.After(start) {
 				continue
 			}
-			out = append(out, Occurrence{AcceptRequests: show.AcceptRequests, AcceptShoutouts: show.AcceptShoutouts, Key: show.ID + ":" + start.UTC().Format(time.RFC3339) + ":" + strconv.Itoa(show.Revision), StationID: show.StationID, ShowID: show.ID, MusicDirection: show.MusicDirection, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, Start: start, End: end})
+			slot := show.SlotIDs[show.Day]
+			if slot == "" {
+				slot = strconv.Itoa(show.Day)
+			}
+			base := show.ID + ":" + slot + ":" + monday.AddDate(0, 0, week*7).Format("2006-01-02")
+			if saved, ok := show.History[base]; ok {
+				start, end = saved.Start.In(loc), saved.End.In(loc)
+			}
+			out = append(out, Occurrence{AcceptRequests: show.AcceptRequests, AcceptShoutouts: show.AcceptShoutouts, Key: base + ":" + strconv.Itoa(show.Revision), StationID: show.StationID, ShowID: show.ID, MusicDirection: show.MusicDirection, Title: show.Name, PlaylistID: show.PlaylistID, PlaylistName: show.PlaylistName, DJ: show.DJ, Start: start, End: end})
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Start.Before(out[j].Start) })
@@ -309,7 +365,61 @@ func EpisodeKey(key string) string {
 // SameEpisode excludes mutable template revisions from dated programme identity.
 func SameEpisode(a, b Occurrence) bool {
 	if a.ShowID != "" && b.ShowID != "" && !a.Start.IsZero() && !b.Start.IsZero() {
-		return a.StationID == b.StationID && a.ShowID == b.ShowID && a.Start.Equal(b.Start)
+		return a.StationID == b.StationID && a.ShowID == b.ShowID && EpisodeKey(a.Key) == EpisodeKey(b.Key)
 	}
 	return a.Key == b.Key
 }
+
+// EpisodeID is an opaque, URL-safe representation of the immutable session key.
+func EpisodeID(key string) string {
+	return base64.RawURLEncoding.EncodeToString([]byte(EpisodeKey(key)))
+}
+func ParseEpisodeID(id string) (string, string, error) {
+	raw, err := base64.RawURLEncoding.DecodeString(id)
+	if err != nil || len(raw) > 256 {
+		return "", "", ErrNotFound
+	}
+	key := string(raw)
+	i := strings.IndexByte(key, ':')
+	if i <= 0 {
+		return "", "", ErrNotFound
+	}
+	return key[:i], key, nil
+}
+
+// AssignSlots retains unchanged weekdays, and pairs moved weekdays with removed
+// slots. Moving a recurrence changes timing, never its episode identity.
+func (s Show) AssignSlots(previous Show) (Show, error) {
+	s.SlotIDs = map[int]string{}
+	used := map[int]bool{}
+	for _, day := range s.Weekdays() {
+		if id := previous.SlotIDs[day]; id != "" {
+			s.SlotIDs[day] = id
+			used[day] = true
+		}
+	}
+	spare := []string{}
+	for _, day := range previous.Weekdays() {
+		if !used[day] && previous.SlotIDs[day] != "" {
+			spare = append(spare, previous.SlotIDs[day])
+		}
+	}
+	for _, day := range s.Weekdays() {
+		if s.SlotIDs[day] != "" {
+			continue
+		}
+		if len(spare) > 0 {
+			s.SlotIDs[day] = spare[0]
+			spare = spare[1:]
+			continue
+		}
+		var b [16]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return s, err
+		}
+		s.SlotIDs[day] = hex.EncodeToString(b[:])
+	}
+	return s, nil
+}
+
+func (s Show) TimeLabel() string { return TimeLabel(s.Start) + "–" + TimeLabel(s.End) }

@@ -25,7 +25,7 @@ func TestAssistantCreatesDistinctMusicPromptsAndReadsThemBack(t *testing.T) {
 	for i, direction := range directions {
 		result := call(t, registry, "create_shows", map[string]any{"show": map[string]any{"station_id": owner.ID, "name": []string{"Open Windows", "Artist Stories"}[i], "description": "A listener-facing invitation.", "music_direction": direction, "dj_id": "default-pop", "playlist_id": p.ID, "start": 540 + i*60, "end": 600 + i*60, "accept_requests": true}, "days": []int{0, 2}})
 		editions := result.Data.([]schedule.Show)
-		if len(editions) != 2 {
+		if len(editions) != 1 || len(editions[0].Weekdays()) != 2 {
 			t.Fatal(result)
 		}
 		created = append(created, editions...)
@@ -87,7 +87,7 @@ func TestAssistantEpisodeToolsAreReadOnlyUntilProducerIntervention(t *testing.T)
 	call(t, registry, "list_episodes", map[string]any{"station_id": owner.ID, "week": tomorrow.Format("2006-01-02"), "limit": 1})
 	result := call(t, registry, "get_episode", base)
 	data := result.Data.(map[string]any)
-	if data["status"] != "Scheduled" || data["version"] != 0 || !strings.Contains(result.URL, "/episode?start=") {
+	if data["status"] != "Scheduled" || data["version"] != 0 || !strings.Contains(result.URL, "/episodes/") {
 		t.Fatal(result)
 	}
 	var count int

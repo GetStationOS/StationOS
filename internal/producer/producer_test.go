@@ -77,7 +77,7 @@ func TestProducerToolsCreateAndManageStation(t *testing.T) {
 	}
 	call(t, r, "create_shows", map[string]any{"show": map[string]any{"station_id": v.ID, "name": "Late Jazz", "dj_id": presenter.ID, "playlist_id": p.ID, "start": 1320, "end": 60}, "days": []int{4, 6}})
 	shows, e := sh.List(ctx, v.ID)
-	if e != nil || len(shows) != 2 {
+	if e != nil || len(shows) != 1 || len(shows[0].Weekdays()) != 2 {
 		t.Fatal(shows, e)
 	}
 	bad := r.Call(ctx, "create_shows", []byte(`{"show":{"station_id":"`+v.ID+`","name":"Conflicting","dj_id":"`+presenter.ID+`","playlist_id":"`+p.ID+`","start":1320,"end":60},"days":[2,4]}`))
@@ -85,7 +85,7 @@ func TestProducerToolsCreateAndManageStation(t *testing.T) {
 		t.Fatal("accepted overlapping shows")
 	}
 	shows, _ = sh.List(ctx, v.ID)
-	if len(shows) != 2 {
+	if len(shows) != 1 || len(shows[0].Weekdays()) != 2 {
 		t.Fatal("partial days committed")
 	}
 	if v.Timezone != "Europe/London" {
@@ -110,8 +110,8 @@ func TestProducerToolsCreateAndManageStation(t *testing.T) {
 	for _, s := range shows {
 		call(t, r, "delete_show", map[string]string{"station_id": v.ID, "id": s.ID})
 	}
-	call(t, r, "delete_dj", map[string]string{"id": presenter.ID})
 	call(t, r, "delete_station", map[string]string{"id": v.ID})
+	call(t, r, "delete_dj", map[string]string{"id": presenter.ID})
 	if _, e = pl.Get(ctx, p.ID); e == nil {
 		t.Fatal("station playlist survived deletion")
 	}

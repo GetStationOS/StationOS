@@ -8,7 +8,7 @@ Stations are the top-level domain. `/producer` is the station overview, with one
 
 Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. The shared API-key field in Assistant settings is write-only: leave blank to retain, enter a replacement or explicitly remove. DJ forms contain no credential fields. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
 
-Station tabs follow this order: Overview, Schedule, Audience, Timeline, Incidents, Mixer, Playlists, Settings. Keep daily production and monitoring ahead of occasional configuration.
+Station tabs follow this order: Overview, Shows, Schedule, Audience, Timeline, Incidents, Mixer, Playlists, Settings. Keep daily production and monitoring ahead of occasional configuration.
 
 ## Status and information
 
@@ -78,7 +78,11 @@ Station cards, per-station Overview/Playlists/Settings, playlist Selections/Trac
 
 ## Weekly shows
 
-Use a station Schedule tab with a weekly calendar, explicit local timezone and optional show list. Add show opens a dedicated form with a day checklist. Saving creates an independent weekly show for each selected day, atomically; a conflict on any day retains the choices and creates none. Selecting a card opens that day’s show details for individual editing. Use quarter-hour time controls, a shared DJ selector and a station-owned playlist selector. Reject overlaps with a useful message while retaining input. A show may cross midnight. Show deletion follows the common footer/dialog standard and leaves its DJ and playlist intact. Display measured current presenter/show state during playback; never label a planned presenter as actually on air. Starter DJs are editable configuration, seeded once with empty credentials.
+Use station Shows and Schedule tabs. Shows sits between Overview and Schedule and lists one entry per recurring programme, with its weekdays, local time, DJ and playlist. Its Details and Episodes tabs separate shared settings from dated instances. Use paginated episode history and show the next three weeks of upcoming episodes without creating sessions, invoking AI or starting playback merely to view them.
+
+Add show opens a dedicated form with a day checklist for both creation and editing. Saving creates or updates one show across all selected weekdays atomically; a conflict on any day retains all input and commits none. All episodes inherit the parent name, public description, DJ, playlist and editorial direction. Episode notes and cancellation belong only to the dated instance. Use quarter-hour times, a shared DJ selector and a station-owned playlist selector. A show may cross midnight.
+
+Each weekly slot has an immutable ID; a dated episode is identified by that slot and its station-local week, independently of mutable start time or template revision. Episode links use this stable ID rather than a start-time query. Retain slot IDs when moving weekdays so upcoming episode notes, cancellation and links survive. Started/saved historical windows and actual-air receipts remain factual when shared settings change. Show archiving follows the common footer/dialog standard, stops future scheduling and retains saved episodes; an Archived list keeps their history accessible. DJs and playlists referenced by archived shows remain protected from deletion. Display measured current presenter/show state during playback; never label a planned presenter as actually on air. Starter DJs are editable configuration, seeded once with empty credentials.
 
 ## Producer cards
 

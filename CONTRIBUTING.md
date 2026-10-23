@@ -13,6 +13,15 @@ make build
 
 Open `/producer` on the local server. The default database is `data/stationos.db`; templates, styles, timezone data and migrations are embedded.
 
+To repeat onboarding with a clean local database, stop the local server and run:
+
+```sh
+make reset
+make run
+```
+
+`make reset` removes the default local database, its SQLite WAL/SHM files and its `.secrets-key` sidecar. This clears saved stations, sources, playlists, shows, history and AI credentials. It keeps environment files, uploaded assets and music on source servers. When `lsof` is available, the target refuses to reset a database that is open.
+
 Run checks appropriate to the change:
 
 ```sh

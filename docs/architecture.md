@@ -1185,8 +1185,12 @@ speech/text-generation provenance and the version in transmission notes.
 Web previews explicitly generate a private sample without saving or broadcasting.
 The server admits at most two concurrent previews and retains at most sixteen
 bounded samples for fifteen minutes. Authenticated audio URLs are station-scoped.
-Successful preview uses POST/redirect/GET, with a version check before displaying
-the sample. Announcement lists use the existing SSE subscription adapter and
+HTMX previews replace only the preview region inside the Delivery card, retaining
+unsaved editor fields and showing prepared text even when synthesis fails. Ordinary
+forms retain POST/redirect/GET with a preview anchor. Samples are version checked,
+and authenticated audio supports browser range requests. Episode targeting resolves
+a show and station-local date to the stable occurrence key through a read-only
+fragment and revalidates the occurrence on save. Announcement lists use the existing SSE subscription adapter and
 one-shot validity/repeat deadlines, retaining focused controls and page position.
 The producer registry exposes read, save, delivery and settings tools; all writes
 use the same repository validations and committed changefeed notifications.

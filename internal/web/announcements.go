@@ -1,12 +1,14 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"slices"
 	"sort"
+	"stationos.local/stationos/internal/ai"
 	"stationos.local/stationos/internal/announcements"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/production"
@@ -26,12 +28,14 @@ type announcementOption struct {
 	Selected bool
 }
 type announcementPageView struct {
+	PreviewError string
 	pageView
 	Message                                                                   announcements.Message
 	Settings                                                                  announcements.Settings
 	Rows                                                                      []announcementRow
 	DJs                                                                       []djs.Profile
-	Shows, Episodes                                                           []announcementOption
+	Shows                                                                     []announcementOption
+	TargetScope, EpisodeShow, EpisodeDate, EpisodeLabel                       string
 	History                                                                   []announcements.Receipt
 	Pagination                                                                pagination
 	Base, Error, StartInput, ExpiryInput, TimesInput, PreviewURL, PreviewText string
@@ -83,18 +87,44 @@ func (s *Server) announcementChoices(r *http.Request, v *announcementPageView) e
 	if err != nil {
 		return err
 	}
-	now := time.Now()
-	seen := map[string]bool{}
-	for _, o := range schedule.Occurrences(shows, now, loc) {
-		if o.End.Before(now) || o.Start.After(now.AddDate(0, 0, 21)) {
-			continue
+	if v.TargetScope == "" {
+		v.TargetScope = "station"
+		if len(v.Message.ShowIDs) > 0 {
+			v.TargetScope = "shows"
 		}
-		key := schedule.EpisodeKey(o.Key)
-		seen[key] = true
-		v.Episodes = append(v.Episodes, announcementOption{key, o.Title + " · " + o.Start.In(loc).Format("Mon 2 Jan, 15:04 MST"), v.Message.EpisodeKey == key})
+		if v.Message.EpisodeKey != "" {
+			v.TargetScope = "episode"
+		}
 	}
-	if v.Message.EpisodeKey != "" && !seen[v.Message.EpisodeKey] {
-		v.Episodes = append(v.Episodes, announcementOption{v.Message.EpisodeKey, "Saved episode · " + v.Message.EpisodeKey, true})
+	if v.EpisodeShow == "" && len(v.Message.ShowIDs) == 1 {
+		v.EpisodeShow = v.Message.ShowIDs[0]
+	}
+	if v.EpisodeDate == "" {
+		if v.Message.EpisodeKey != "" {
+			parts := strings.Split(v.Message.EpisodeKey, ":")
+			week, e := time.ParseInLocation("2006-01-02", parts[len(parts)-1], loc)
+			if e == nil {
+				for _, o := range schedule.Occurrences(shows, week, loc) {
+					if schedule.EpisodeKey(o.Key) == v.Message.EpisodeKey {
+						v.EpisodeDate = o.Start.In(loc).Format("2006-01-02")
+						v.EpisodeLabel = o.Title + " · " + o.Start.In(loc).Format("Mon 2 Jan, 15:04 MST")
+					}
+				}
+			}
+		}
+		if v.EpisodeDate == "" {
+			at := v.Message.Starts
+			if at.IsZero() {
+				at = time.Now()
+			}
+			v.EpisodeDate = at.In(loc).Format("2006-01-02")
+		}
+	}
+	if v.EpisodeShow != "" {
+		o, e := s.announcementEpisode(r.Context(), v.Station.ID, v.Station.Timezone, v.EpisodeShow, v.EpisodeDate)
+		if e == nil {
+			v.EpisodeLabel = o.Title + " · " + o.Start.In(loc).Format("Mon 2 Jan, 15:04 MST")
+		}
 	}
 	return nil
 }
@@ -204,7 +234,19 @@ func (s *Server) announcementPage(w http.ResponseWriter, r *http.Request) {
 	case "settings":
 		v.Notice = "Announcement settings saved."
 	}
-	if token := r.URL.Query().Get("preview"); token != "" && v.Mode == "form" {
+	token := r.URL.Query().Get("preview")
+	if token == "" && v.Mode == "form" {
+		s.announcementPreviews.Lock()
+		var latest time.Time
+		for key, p := range s.announcementPreviews.Items {
+			if p.StationID == v.Station.ID && p.MessageID == v.Message.ID && p.Version == v.Message.Version && p.Expires.After(time.Now()) && p.Expires.After(latest) {
+				token = key
+				latest = p.Expires
+			}
+		}
+		s.announcementPreviews.Unlock()
+	}
+	if token != "" && v.Mode == "form" {
 		s.announcementPreviews.Lock()
 		p, ok := s.announcementPreviews.Items[token]
 		s.announcementPreviews.Unlock()
@@ -219,6 +261,14 @@ func (s *Server) announcementPage(w http.ResponseWriter, r *http.Request) {
 	s.renderAnnouncement(w, r, 200, &v)
 }
 func (s *Server) renderAnnouncement(w http.ResponseWriter, r *http.Request, status int, v *announcementPageView) {
+	if fragmentTarget(r, "announcement-preview") {
+		if v.PreviewError == "" {
+			v.PreviewError = v.Error
+		}
+		v.Error = ""
+		s.renderHTML(w, 200, "announcement-preview", v)
+		return
+	}
 	if v.Mode == "form" || v.Mode == "settings" {
 		if err := s.announcementChoices(r, v); err != nil {
 			s.fail(w, err)
@@ -282,7 +332,38 @@ func (s *Server) saveAnnouncement(w http.ResponseWriter, r *http.Request) {
 			m.Times = append(m.Times, strings.TrimSpace(s))
 		}
 	}
+	v.TargetScope = f.Get("scope")
+	v.EpisodeShow = f.Get("episode_show")
+	v.EpisodeDate = f.Get("episode_date")
+	switch v.TargetScope {
+	case "station":
+		m.ShowIDs = nil
+		m.EpisodeKey = ""
+	case "shows":
+		m.EpisodeKey = ""
+		if len(m.ShowIDs) == 0 {
+			err = fmt.Errorf("%w: select at least one show", announcements.ErrInvalid)
+		}
+	case "episode":
+		var o schedule.Occurrence
+		o, err = s.announcementEpisode(r.Context(), v.Station.ID, v.Station.Timezone, v.EpisodeShow, v.EpisodeDate)
+		if err == nil {
+			m.ShowIDs = []string{o.ShowID}
+			m.EpisodeKey = schedule.EpisodeKey(o.Key)
+		}
+	case "": // Legacy forms retain the original stable-key contract.
+	default:
+		err = fmt.Errorf("%w: choose where the announcement should play", announcements.ErrInvalid)
+	}
 	v.Message = m
+	if err != nil {
+		v.Error = announcementError(err)
+		if version == 0 {
+			v.Message.ID = ""
+		}
+		s.renderAnnouncement(w, r, 422, &v)
+		return
+	}
 	if se != nil || ee != nil {
 		err = fmt.Errorf("%w: enter valid start and expiry dates", announcements.ErrInvalid)
 	} else {
@@ -425,14 +506,14 @@ func (s *Server) deleteAnnouncement(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) previewAnnouncement(w http.ResponseWriter, r *http.Request, v *announcementPageView) {
 	if s.d.AnnouncementProducer == nil {
-		v.Error = "Speech preview is unavailable."
+		v.PreviewError = "Speech preview is unavailable."
 		s.renderAnnouncement(w, r, 422, v)
 		return
 	}
 	s.announcementPreviews.Lock()
 	if s.announcementPreviews.Running >= 2 {
 		s.announcementPreviews.Unlock()
-		v.Error = "Two previews are already preparing. Try again shortly."
+		v.PreviewError = "Two previews are already preparing. Try again shortly."
 		s.renderAnnouncement(w, r, 422, v)
 		return
 	}
@@ -446,7 +527,23 @@ func (s *Server) previewAnnouncement(w http.ResponseWriter, r *http.Request, v *
 	djID := v.Message.DJID
 	// Use the current DJ when one exists, with the station default as fallback.
 	if djID == "" && s.d.Broadcast != nil {
-		djID = s.d.Broadcast.State(v.Station.ID).Programme.DJ.ID
+		show := s.d.Broadcast.State(v.Station.ID).Programme
+		if v.Message.Matches(show.ShowID, schedule.EpisodeKey(show.Key)) {
+			djID = show.DJ.ID
+		}
+	}
+	if djID == "" && len(v.Message.ShowIDs) > 0 {
+		shows, e := s.d.Schedule.List(r.Context(), v.Station.ID)
+		if e != nil {
+			s.fail(w, e)
+			return
+		}
+		for _, show := range shows {
+			if slices.Contains(v.Message.ShowIDs, show.ID) {
+				djID = show.DJID
+				break
+			}
+		}
 	}
 	if djID == "" {
 		settings, err := s.d.Announcements.Settings(r.Context(), v.Station.ID)
@@ -457,13 +554,14 @@ func (s *Server) previewAnnouncement(w http.ResponseWriter, r *http.Request, v *
 		djID = settings.DJID
 	}
 	if djID == "" {
-		v.Error = "Choose a presenter override or set a default presenter in Announcement settings to preview this message."
+		v.PreviewError = "Choose a presenter override or set a default presenter in Announcement settings to preview this message."
 		s.renderAnnouncement(w, r, 422, v)
 		return
 	}
 	dj, err := s.d.DJs.Get(r.Context(), djID)
 	if err != nil {
-		s.fail(w, err)
+		v.PreviewError = "The selected presenter is unavailable. Choose an available presenter and retry."
+		s.renderAnnouncement(w, r, 422, v)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
@@ -471,7 +569,7 @@ func (s *Server) previewAnnouncement(w http.ResponseWriter, r *http.Request, v *
 	ctx = production.WithSpeechTranscript(ctx, func(text string) { v.PreviewText = text })
 	audio, err := s.d.AnnouncementProducer.Announcement(ctx, v.Message, dj)
 	if err != nil || len(audio) == 0 || len(audio) > 8<<20 {
-		v.Error = "Speech preview could not be prepared. Check the presenter's speech settings and try again."
+		v.PreviewError = "Audio preview could not be prepared. " + ai.FailureMessage(ai.FailureCode(err)) + " Check the presenter’s speech settings and retry."
 		s.renderAnnouncement(w, r, 422, v)
 		return
 	}
@@ -493,7 +591,12 @@ func (s *Server) previewAnnouncement(w http.ResponseWriter, r *http.Request, v *
 	}
 	s.announcementPreviews.Items[token] = announcementPreview{Audio: audio, Expires: time.Now().Add(15 * time.Minute), StationID: v.Station.ID, Text: v.PreviewText, MessageID: v.Message.ID, Version: v.Message.Version}
 	s.announcementPreviews.Unlock()
-	s.redirect(w, r, v.Base+"/"+v.Message.ID+"?preview="+token)
+	v.PreviewURL = "/producer/stations/" + v.Station.ID + "/announcement-previews/" + token
+	if fragmentTarget(r, "announcement-preview") {
+		s.renderHTML(w, 200, "announcement-preview", v)
+		return
+	}
+	s.redirect(w, r, v.Base+"/"+v.Message.ID+"?preview="+token+"#announcement-preview")
 }
 func (s *Server) announcementPreviewAudio(w http.ResponseWriter, r *http.Request) {
 	s.announcementPreviews.Lock()
@@ -505,7 +608,7 @@ func (s *Server) announcementPreviewAudio(w http.ResponseWriter, r *http.Request
 	}
 	w.Header().Set("Content-Type", "audio/mpeg")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Write(p.Audio)
+	http.ServeContent(w, r, "announcement-preview.mp3", time.Time{}, bytes.NewReader(p.Audio))
 }
 
 func (s *Server) announcementHTTPError(w http.ResponseWriter, r *http.Request, err error) {
@@ -514,4 +617,50 @@ func (s *Server) announcementHTTPError(w http.ResponseWriter, r *http.Request, e
 		return
 	}
 	s.publicError(w, r, err)
+}
+
+// A show and station-local date identify one existing occurrence without exposing
+// a station-wide, multi-week dropdown or starting any planning work.
+func (s *Server) announcementEpisode(ctx context.Context, stationID, zone, showID, date string) (schedule.Occurrence, error) {
+	loc, e := time.LoadLocation(zone)
+	if e != nil {
+		return schedule.Occurrence{}, e
+	}
+	day, e := time.ParseInLocation("2006-01-02", date, loc)
+	if e != nil || showID == "" {
+		return schedule.Occurrence{}, fmt.Errorf("%w: choose a show and a valid episode date", announcements.ErrInvalid)
+	}
+	shows, e := s.d.Schedule.List(ctx, stationID)
+	if e != nil {
+		return schedule.Occurrence{}, e
+	}
+	for _, o := range schedule.Occurrences(shows, day, loc) {
+		if o.ShowID == showID && o.Start.In(loc).Format("2006-01-02") == date {
+			if c, ok := s.d.Schedule.(schedule.Cancellations); ok {
+				cancelled, err := c.CancelledEpisodes(ctx, stationID)
+				if err != nil {
+					return schedule.Occurrence{}, err
+				}
+				if cancelled[schedule.EpisodeKey(o.Key)] {
+					return schedule.Occurrence{}, fmt.Errorf("%w: that episode is cancelled", announcements.ErrInvalid)
+				}
+			}
+			return o, nil
+		}
+	}
+	return schedule.Occurrence{}, fmt.Errorf("%w: this show has no episode on that date", announcements.ErrInvalid)
+}
+func (s *Server) announcementEpisodeMatch(w http.ResponseWriter, r *http.Request) {
+	v, err := s.announcementView(r)
+	if err != nil {
+		s.announcementHTTPError(w, r, err)
+		return
+	}
+	o, err := s.announcementEpisode(r.Context(), v.Station.ID, v.Station.Timezone, r.URL.Query().Get("episode_show"), r.URL.Query().Get("episode_date"))
+	if err != nil {
+		v.EpisodeLabel = announcementError(err)
+	} else {
+		v.EpisodeLabel = o.Title + " · " + o.Start.Format("Mon 2 Jan, 15:04 MST")
+	}
+	s.renderHTML(w, 200, "announcement-episode-match", v)
 }

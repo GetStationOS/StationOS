@@ -6,13 +6,6 @@
     <p class="hint">Messages play between tracks while listeners are connected. Times are in {{.Station.Timezone}}; scheduled times mean the first suitable track boundary at or after that time.</p>
     {{template "announcements-results" .}}
   {{else if eq .Mode "form"}}
-    {{if .PreviewURL}}
-    <section class="panel form-panel">
-      <h2>Speech preview</h2>
-      <audio controls preload="none" src="{{.PreviewURL}}" aria-label="Private announcement preview"></audio>
-      <p class="history-speech">{{.PreviewText}}</p>
-    </section>
-    {{end}}
     <section class="panel form-panel">
       <form method="post" action="{{.Base}}/{{if .Message.ID}}{{.Message.ID}}{{else}}new{{end}}" hx-disabled-elt="find button" data-announcement-form>
         <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -36,9 +29,9 @@
             </label>
           </div>
           <p class="hint">Read exactly speaks your script verbatim. DJ adaptation uses your facts in the presenter's style; preview it before activation.</p>
-          <label>Script or factual brief<textarea name="text" required rows="7" maxlength="4000">{{.Message.Text}}</textarea></label>
+          <label>Script or factual brief<textarea name="text" required rows="4" maxlength="4000">{{.Message.Text}}</textarea></label>
           <label>Pronunciation guidance <span class="optional">Optional</span>
-            <textarea name="pronunciation" rows="2" maxlength="1000">{{.Message.Pronunciation}}</textarea>
+            <input name="pronunciation" maxlength="1000" value="{{.Message.Pronunciation}}">
           </label>
         </fieldset>
         <fieldset class="form-group">
@@ -48,7 +41,7 @@
             <label>Expiry<input type="datetime-local" name="expires" required value="{{.ExpiryInput}}"></label>
           </div>
           <div class="fields">
-            <label>Status
+            <label>Broadcast status
               <select name="status">
                 <option value="draft" {{if eq .Message.Status "draft"}}selected{{end}}>Draft</option>
                 <option value="active" {{if eq .Message.Status "active"}}selected{{end}}>Active</option>
@@ -63,12 +56,12 @@
               </select>
             </label>
           </div>
-          <div class="fields">
-            <label>Repeat interval (minutes)
-              <input type="number" name="interval" min="1" max="10080" value="{{.Message.IntervalMinutes}}">
+          <div class="fields" data-announcement-repeat-details>
+            <label data-announcement-repeat="interval">Repeat interval (minutes)
+              <input type="number" name="interval" min="1" max="10080" value="{{if .Message.IntervalMinutes}}{{.Message.IntervalMinutes}}{{end}}">
               <span class="hint">Used only for interval repetition, measured from actual airtime.</span>
             </label>
-            <label>Daily times
+            <label data-announcement-repeat="times">Daily times
               <input name="times" value="{{.TimesInput}}" placeholder="08:00, 12:00, 17:00" maxlength="166">
               <span class="hint">Used only for selected daily times. Missed repeats do not accumulate.</span>
             </label>
@@ -76,26 +69,41 @@
         </fieldset>
         <fieldset class="form-group">
           <legend>Targeting <span class="optional">Optional</span></legend>
-          <fieldset class="form-group" data-announcement-shows>
+          <label>Where to play
+            <select name="scope" data-announcement-scope>
+              <option value="station" {{if eq .TargetScope "station"}}selected{{end}}>Whole station</option>
+              <option value="shows" {{if eq .TargetScope "shows"}}selected{{end}}>Selected shows</option>
+              <option value="episode" {{if eq .TargetScope "episode"}}selected{{end}}>One episode</option>
+            </select>
+          </label>
+          <fieldset class="form-group" data-announcement-target="shows" data-announcement-shows>
             <legend>Selected shows</legend>
+            {{if .Shows}}
             <label>Search shows<input type="search" data-announcement-search placeholder="Show name"></label>
-            <p class="hint"><span data-announcement-count></span> Leave all unchecked for the whole station.</p>
-            {{if .Shows}}<div class="choice-list" role="region" aria-label="Shows available for announcements" tabindex="0">
+            <p class="hint"><span data-announcement-count></span></p>
+            <div class="choice-list" role="region" aria-label="Shows available for announcements" tabindex="0">
               {{range .Shows}}
               <label class="choice" data-announcement-show>
                 <input type="checkbox" name="shows" value="{{.ID}}" {{if .Selected}}checked{{end}}>
                 <strong>{{.Name}}</strong>
               </label>
               {{end}}
-            </div>{{else}}<p class="hint">No shows yet. This announcement can run across the station.</p>{{end}}
+            </div>{{else}}<p class="hint">No shows yet. Choose Whole station to run this announcement.</p>{{end}}
           </fieldset>
-          <label>One dated episode
-            <select name="episode">
-              <option value="">Use station or selected shows</option>
-              {{range .Episodes}}<option value="{{.ID}}" {{if .Selected}}selected{{end}}>{{.Name}}</option>{{end}}
-            </select>
-            <span class="hint">Choosing an episode takes precedence over the show checkboxes.</span>
-          </label>
+          <div data-announcement-target="episode" hx-get="{{.Base}}/{{if .Message.ID}}{{.Message.ID}}{{else}}new{{end}}/episode" hx-trigger="change" hx-include="find select, find input" hx-target="#announcement-episode-match" hx-swap="outerHTML show:none" hx-push-url="false" hx-indicator="#announcement-episode-match">
+            <div class="fields">
+              <label>Show
+                <select name="episode_show">
+                  <option value="">Choose a show</option>
+                  {{range .Shows}}<option value="{{.ID}}" {{if eq $.EpisodeShow .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+                </select>
+              </label>
+              <label>Episode date · {{.Station.Timezone}}
+                <input type="date" name="episode_date" value="{{.EpisodeDate}}">
+              </label>
+            </div>
+            {{template "announcement-episode-match" .}}
+          </div>
           <label>Presenter override
             <select name="dj">
               <option value="">Current DJ, then station default</option>
@@ -110,28 +118,21 @@
       </form>
     </section>
     {{if .Message.ID}}
-    <section class="panel form-panel" aria-labelledby="announcement-delivery-heading">
-      <h2 id="announcement-delivery-heading">Delivery</h2>
-      <form method="post" action="{{.Base}}/{{.Message.ID}}/action" hx-push-url="false" hx-disabled-elt="find button">
-        <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <input type="hidden" name="version" value="{{.Message.Version}}">
-        <div class="heading-actions" role="group" aria-label="Saved announcement actions">
-          <button class="secondary icon-button" name="action" value="preview" title="Preview saved message" aria-label="Preview saved message">{{template "ui-icon" "listener"}}</button>
-          {{if eq .Message.Status "active"}}
-          <button class="secondary icon-button" name="action" value="paused" title="Pause announcement" aria-label="Pause announcement">{{template "ui-icon" "interrupted"}}</button>
-          {{else}}
-          <button class="icon-button" name="action" value="active" title="Activate announcement" aria-label="Activate announcement">{{template "ui-icon" "started"}}</button>
-          {{end}}
-          <button class="secondary icon-button" name="action" value="next" title="Announce next" aria-label="Announce next">{{template "ui-icon" "announce"}}</button>
-          <a class="button secondary icon-button" href="{{.Base}}/settings" title="Announcement settings" aria-label="Announcement settings">{{template "ui-icon" "settings"}}</a>
-        </div>
-        <span class="htmx-indicator hint" role="status">Preparing…</span>
-      </form>
-      <p class="hint">Preview privately, activate or pause delivery, or prioritise the next break. These actions use the saved message.</p>
-    </section>
     <section class="panel form-panel" aria-labelledby="announcement-history-heading">
-      <h2 id="announcement-history-heading">Transmission history</h2>
+      <div class="section-heading">
+        <h2 id="announcement-history-heading">Delivery</h2>
+        <form method="post" action="{{.Base}}/{{.Message.ID}}/action" hx-push-url="false" hx-disabled-elt="find button">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <input type="hidden" name="version" value="{{.Message.Version}}">
+          <button class="secondary" name="action" value="next">{{template "ui-icon" "announce"}}Announce next</button>
+        </form>
+      </div>
+      <p class="hint">Announce next queues the saved message for listeners at a track boundary. It does not play a private preview.</p>
+      {{if .Message.Next}}<p class="notice" role="status">Queued for the next eligible track boundary.</p>{{end}}
+      {{template "announcement-preview" .}}
+      <h3>Broadcast history</h3>
       {{if .History}}
+      {{with index .History 0}}{{if .Text}}<p class="hint">Last spoken text · {{.Started.Format "2 Jan, 15:04 MST"}}</p><p class="history-speech">{{.Text}}</p>{{end}}{{end}}
       <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Announcement transmission history">
         <table class="announcement-history-table">
           <thead><tr><th scope="col">Started</th><th scope="col">Version</th><th scope="col">Presenter</th><th scope="col">Outcome</th></tr></thead>
@@ -204,4 +205,30 @@
     </div></div>
   </form>
 </section>
+{{end}}
+
+{{define "announcement-preview"}}
+<div id="announcement-preview" aria-labelledby="announcement-preview-heading">
+  <div class="section-heading">
+    <h3 id="announcement-preview-heading">Private preview</h3>
+    <form method="post" action="{{.Base}}/{{.Message.ID}}/action" hx-post="{{.Base}}/{{.Message.ID}}/action" hx-target="#announcement-preview" hx-swap="outerHTML show:none" hx-push-url="false" hx-disabled-elt="find button" hx-indicator="this" data-announcement-preview-form>
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="version" value="{{.Message.Version}}">
+      <input type="hidden" name="action" value="preview">
+      <button class="secondary">{{template "ui-icon" "listener"}}Preview</button>
+      <span class="htmx-indicator hint" role="status">Preparing text and audio…</span>
+    </form>
+  </div>
+  <p class="hint">Previews use the saved message. Save edits first. This sample is private and does not go on air.</p>
+  <div id="announcement-preview-result" tabindex="-1">
+    {{if .PreviewError}}<p class="notice error" role="alert">{{.PreviewError}}</p>{{end}}
+    {{if .PreviewText}}<p class="hint">Prepared text · saved version {{.Message.Version}}</p><p class="history-speech">{{.PreviewText}}</p>{{end}}
+    {{if .PreviewURL}}<audio controls preload="metadata" src="{{.PreviewURL}}" aria-label="Play private announcement preview"></audio>
+    {{else if not .PreviewText}}<p class="hint">No preview prepared. Choose Preview to read the spoken text and listen to a sample.</p>{{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "announcement-episode-match"}}
+<p id="announcement-episode-match" class="hint" role="status">{{if .EpisodeLabel}}{{.EpisodeLabel}}{{else}}Choose a show and date to identify its episode.{{end}}</p>
 {{end}}

@@ -145,6 +145,7 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /producer/stations/{id}/announcements/settings", s.announcementSettings)
 	mux.HandleFunc("POST /producer/stations/{id}/announcements/{message}", s.saveAnnouncement)
 	mux.HandleFunc("POST /producer/stations/{id}/announcements/{message}/action", s.announcementAction)
+	mux.HandleFunc("GET /producer/stations/{id}/announcements/{message}/episode", s.announcementEpisodeMatch)
 	mux.HandleFunc("GET /producer/stations/{id}/announcements/{message}/delete", s.deleteAnnouncement)
 	mux.HandleFunc("POST /producer/stations/{id}/announcements/{message}/delete", s.deleteAnnouncement)
 	mux.HandleFunc("GET /producer/stations/{id}/announcement-previews/{token}", s.announcementPreviewAudio)

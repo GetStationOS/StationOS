@@ -109,7 +109,7 @@ let pendingNavigation = null;
 document.body.addEventListener('htmx:confirm', event => {
   const trigger = event.detail.elt;
   const form = trigger.closest('form');
-  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form], [data-choice-form], [data-episode-form], [data-announcement-form]'));
+  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form], [data-choice-form], [data-episode-form], [data-announcement-form], [data-announcement-preview-form]'));
   if (navigation && unsavedSelections()) {
     event.preventDefault();
     pendingNavigation = () => event.detail.issueRequest(true);
@@ -119,6 +119,7 @@ document.body.addEventListener('htmx:confirm', event => {
 window.addEventListener('beforeunload', event => { if (unsavedSelections()) { event.preventDefault(); event.returnValue = ''; } });
 document.body.addEventListener('htmx:afterSwap', event => {
   const target = event.detail.target || event.detail.elt || event.target;
+  if(target.id==='announcement-preview'){document.getElementById('announcement-preview-result')?.focus({preventScroll:true});}
   if (target.id === 'assistant-messages') { syncAssistant(); return; }
   if (target.id === 'audience-queue-results' || target.id === 'announcements-results') {
     if (resultsNavigation) {
@@ -1214,7 +1215,7 @@ document.body.addEventListener('htmx:beforeRequest',event => {
   const state=formSaves.get(form);if(state)state.button.disabled=true;
   return;
  }
- if (formSaves.has(form) && event.detail.requestConfig?.parameters?.action !== 'reset') setSaveControl(form,'saving');
+ if (event.detail.requestConfig?.verb !== 'get' && formSaves.has(form) && event.detail.requestConfig?.parameters?.action !== 'reset') setSaveControl(form,'saving');
 });
 
 // Also support successful HTMX saves that deliberately leave the form in place.
@@ -1258,9 +1259,16 @@ document.body.addEventListener('htmx:beforeSwap', event => {
 
 function initialiseAnnouncements(){
  document.querySelectorAll('[data-announcement-form]:not([data-announcement-ready])').forEach(form=>{
-  form.dataset.announcementReady='true';form.dataset.initial=editableFormState(form);
+  form.dataset.announcementReady='true';
   const update=()=>{const dirty=editableFormState(form)!==form.dataset.initial;form.dataset.dirty=String(dirty);const status=form.querySelector('[data-announcement-unsaved]');if(status)status.textContent=dirty?'Unsaved changes':'';const count=form.querySelector('[data-announcement-count]');if(count)count.textContent=form.querySelectorAll('input[name="shows"]:checked').length+' selected.';};
-  form.addEventListener('input',update);form.addEventListener('change',update);
+  const showFields=()=>{
+   const scope=form.querySelector('[data-announcement-scope]')?.value;
+   form.querySelectorAll('[data-announcement-target]').forEach(group=>{group.hidden=group.dataset.announcementTarget!==scope;group.querySelectorAll('input,select').forEach(input=>input.disabled=group.hidden);});
+   const repeat=form.querySelector('[name="repeat"]')?.value;
+   form.querySelectorAll('[data-announcement-repeat]').forEach(field=>{field.hidden=field.dataset.announcementRepeat!==repeat;field.querySelectorAll('input').forEach(input=>input.disabled=field.hidden);});
+   const details=form.querySelector('[data-announcement-repeat-details]');if(details)details.hidden=repeat==='once';
+  };
+  form.addEventListener('input',update);form.addEventListener('change',()=>{showFields();update();});showFields();form.dataset.initial=editableFormState(form);
   form.querySelector('[data-announcement-search]')?.addEventListener('input',event=>{const q=event.target.value.toLowerCase();form.querySelectorAll('[data-announcement-show]').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(q));});
   update();
  });

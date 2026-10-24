@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"stationos.local/stationos/internal/ai"
+	"stationos.local/stationos/internal/announcements"
 	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/inference"
 	"stationos.local/stationos/internal/production"
@@ -209,6 +210,53 @@ func TestSelectedDJVoiceReachesLinksAndShowPresentation(t *testing.T) {
 			}
 			if calls != want {
 				t.Fatal(calls, want)
+			}
+		})
+	}
+}
+
+// Exercise the real HTTP routing boundary, rather than a speech-provider stub:
+// the Timeline callback must receive precisely the text in Chatterbox's POST.
+func TestAnnouncementTimelineTextMatchesChatterboxRequest(t *testing.T) {
+	for _, mode := range []string{"exact", "adapt"} {
+		t.Run(mode, func(t *testing.T) {
+			script := "Good evening. Tomorrow is Spa day. Remember your bikini and dressing gowns."
+			var sent, recorded string
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]string
+				if r.URL.Path != "/tts" || json.NewDecoder(r.Body).Decode(&body) != nil {
+					t.Errorf("unexpected speech request: %s", r.URL.Path)
+					w.WriteHeader(400)
+					return
+				}
+				calls++
+				sent = body["text"]
+				if body["model"] != "turbo" || body["voice"] != "elena-vance" || len(body) != 3 {
+					t.Errorf("unexpected request fields: %#v", body)
+				}
+				w.Header().Set("Content-Type", "audio/wav")
+				w.Write(testWave())
+			}))
+			defer server.Close()
+			normalizer := &waveNormalizer{t: t}
+			p := New(testKeys{}, nil, normalizer)
+			reply, _ := json.Marshal(map[string]string{"speech": script})
+			writer := &localText{reply: string(reply)}
+			p.Text = writer
+			p.Speech = inference.New(speechStore{conn: ai.Connection{ID: "speech", Type: "chatterbox", Address: server.URL}}, nil)
+			dj := profile().DJ
+			dj.SpeechConnection = "speech"
+			dj.SpeechModel = "turbo"
+			dj.SpeechSettings = map[string]djs.SpeechPreference{"speech": {Model: "turbo", Voice: "elena-vance", Speed: 1}}
+			message := announcements.Message{Mode: mode, Text: script, Title: "Spa Day"}
+			if mode == "adapt" {
+				message.Text = "Tomorrow is Spa day. Bring bikini and dressing gowns."
+			}
+			ctx := production.WithSpeechTranscript(context.Background(), func(text string) { recorded = text })
+			audio, err := p.Announcement(ctx, message, dj)
+			if err != nil || calls != 1 || normalizer.calls != 1 || string(audio) != "normalized mp3" || sent != script || recorded != sent {
+				t.Fatalf("script/audio request pairing: err=%v calls=%d normalized=%d sent=%q recorded=%q", err, calls, normalizer.calls, sent, recorded)
 			}
 		})
 	}

@@ -58,3 +58,18 @@ func TestAdaptedAnnouncementRequiresValidScript(t *testing.T) {
 		})
 	}
 }
+
+func TestAnnouncementRetainsWrittenTextWhenAudioFails(t *testing.T) {
+	p := New(testKeys{}, nil, testAudio{})
+	p.Text = &localText{reply: `{"speech":"The prepared words."}`}
+	p.Client = &http.Client{Transport: transport(func(r *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: 503, Body: io.NopCloser(strings.NewReader("unavailable"))}, nil
+	})}
+	var text string
+	ctx, cancel := context.WithCancel(production.WithSpeechTranscript(context.Background(), func(s string) { text = s; cancelled := false; _ = cancelled }))
+	defer cancel()
+	_, err := p.Announcement(ctx, announcements.Message{Mode: "adapt", Text: "Brief"}, profile().DJ)
+	if err == nil || text != "The prepared words." {
+		t.Fatal("written text lost after synthesis failure", err, text)
+	}
+}

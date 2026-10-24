@@ -70,6 +70,7 @@ func (p Producer) Announcement(parent context.Context, m announcements.Message, 
 	if strings.TrimSpace(spoken) == "" || utf8.RuneCountInString(spoken) > 4000 {
 		return nil, errors.New("announcement script is empty or too long")
 	}
+	production.ReportSpeechTranscript(parent, spoken)
 	model, err := p.speechModel(ctx, dj)
 	if err != nil {
 		return nil, err
@@ -89,6 +90,5 @@ func (p Producer) Announcement(parent context.Context, m announcements.Message, 
 	if len(audio) == 0 {
 		return nil, production.ErrUnavailable
 	}
-	production.ReportSpeechTranscript(parent, spoken)
 	return audio, nil
 }

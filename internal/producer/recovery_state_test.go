@@ -28,36 +28,17 @@ func TestMeasuredGapsHandleSundayOvernight(t *testing.T) {
 	}
 }
 
-func TestFocusedToolsCapReadsAndPreserveWrites(t *testing.T) {
-	tools := []Tool{{Name: "list_voices"}, {Name: "get_playlist"}, {Name: "explore_music"}, {Name: "add_playlist_rule", Mutates: true}, {Name: "save_task_progress", Mutates: true}, {Name: "save_show", Mutates: true}}
-	got := focusedTools(tools, "playlists", map[string]int{"get_playlist": 2})
-	names := map[string]bool{}
-	for _, tool := range got {
-		names[tool.Name] = true
-	}
-	if names["list_voices"] || names["get_playlist"] || names["save_show"] || !names["explore_music"] || !names["add_playlist_rule"] || !names["save_task_progress"] {
-		t.Fatal(names)
-	}
-	got = focusedTools(tools, "schedule", nil)
-	names = map[string]bool{}
-	for _, tool := range got {
-		names[tool.Name] = true
-	}
-	if names["add_playlist_rule"] || !names["save_show"] || !names["get_playlist"] {
-		t.Fatal(names)
-	}
-}
-
-func TestUnscopedRecoveryOnlyOffersStepSelection(t *testing.T) {
-	tools := []Tool{{Name: "list_stations"}, {Name: "list_playlists"}, {Name: "get_station"}, {Name: "save_station", Mutates: true}, {Name: "save_task_progress", Mutates: true}}
-	for _, focus := range []string{"choose", "remaining", "unknown"} {
-		offered := focusedTools(tools, focus, nil)
-		names := map[string]bool{}
-		for _, tool := range offered {
-			names[tool.Name] = true
+func TestToolAvailabilityStableAcrossRecovery(t *testing.T) {
+	tools := []Tool{{Name: "summarize_music"}, {Name: "list_playlists"}, {Name: "create_playlist", Mutates: true}, {Name: "create_show", Mutates: true}, {Name: "save_task_progress", Mutates: true}}
+	for _, focus := range []string{"", "choose", "playlists", "schedule", "descriptions", "review", "unknown"} {
+		got := agentTools(tools)
+		if len(got) != len(tools)+1 {
+			t.Fatal(focus, got)
 		}
-		if len(names) != 2 || !names["select_work_step"] || !names["save_task_progress"] {
-			t.Fatal("unscoped recovery reopened discovery", focus, names)
+		for i, v := range tools {
+			if got[i].Name != v.Name {
+				t.Fatal(focus, got)
+			}
 		}
 	}
 }

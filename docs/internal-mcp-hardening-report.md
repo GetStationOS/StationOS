@@ -225,3 +225,28 @@ not been performed for these changes, to avoid adding inference load while the
 operator's Mac was already under heavy load. The original live evaluation results
 above remain unchanged; further model evaluation is still required. The running
 server and its database have not been modified.
+
+## Agent clarity refactor — 24 October 2026
+
+The reported daily Miles/Jazz/Funk request exposed a capability-access failure:
+recovery hid catalogue and playlist tools and removed reads after two uses. The
+agent interpreted this as a human blocker. Work-area and read-count restrictions
+have been removed. `inspect_station` provides saved facts without choosing a work area; the legacy selector is no longer advertised.
+
+The adopted [interface contract](producer-agent-interface.md) adds transactional
+`create_playlist` with initial genres and flat `create_show` with clock start and
+duration. Results carry saved IDs, selections, measured eligibility and schedule
+facts. Legacy nested show creation is no longer advertised. Invalid calls and
+empty pools retain actionable feedback; existing no-progress stops remain.
+
+Verification uses deterministic fixtures and native-provider regressions, without
+new Gemma inference or changes to a running server. Live completion-rate and token
+comparisons remain to be measured; earlier live scenario results are unchanged.
+
+Validation: `make check` and `make build` passed. Race tests passed for producer,
+playlist services, persistence and inference; the producer/inference race tests
+were rerun after the final inspection-tool changes. The runner regression finishes
+with or without an initial station inspection, requires no work-step selection or
+extra final review round, and repeats identical creation without duplicating a show.
+The playlist transaction regression rejects an unavailable album after starting
+the transaction and confirms that no partial pool remains.

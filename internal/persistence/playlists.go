@@ -262,6 +262,16 @@ func (r Playlists) ReplaceRulesAndRefresh(ctx context.Context, id string, rules 
 		return report, err
 	}
 	defer tx.Rollback()
+	report, err = replacePlaylistRules(ctx, tx, id, rules)
+	if err != nil {
+		return report, err
+	}
+	return report, tx.Commit()
+}
+
+func replacePlaylistRules(ctx context.Context, tx *sql.Tx, id string, rules []playlists.Rule) (playlists.RefreshResult, error) {
+	var report playlists.RefreshResult
+	var err error
 	if err = requirePlaylist(ctx, tx, id); err != nil {
 		return report, err
 	}
@@ -311,7 +321,7 @@ func (r Playlists) ReplaceRulesAndRefresh(ctx context.Context, id string, rules 
 	if err != nil {
 		return report, err
 	}
-	return report, tx.Commit()
+	return report, nil
 }
 
 // Delete removes only the playlist and its cascading selections.
@@ -356,4 +366,25 @@ func (r Playlists) Availability(ctx context.Context, id string) (playlists.Avail
 		return counts, err
 	}
 	return counts, tx.Commit()
+}
+
+func (r Playlists) CreateWithRules(ctx context.Context, p playlists.Playlist, rules []playlists.Rule) error {
+	if err := p.Validate(); err != nil {
+		return err
+	}
+	if p.ID == "" || len(rules) == 0 || len(rules) > playlists.MaxRules {
+		return playlists.ErrInvalid
+	}
+	tx, err := r.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO playlists(id,station_id,name,description) VALUES(?,?,?,?)`, p.ID, p.StationID, p.Name, p.Description); err != nil {
+		return err
+	}
+	if _, err = replacePlaylistRules(ctx, tx, p.ID, rules); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

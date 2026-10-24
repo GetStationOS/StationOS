@@ -44,7 +44,7 @@ func (m *namedEditModel) Respond(_ context.Context, _, _, prompt string, input [
 			}
 		}
 	}
-	if !m.bound && offered["list_stations"] {
+	if !m.bound && n < 3 {
 		switch n % 3 {
 		case 0:
 			return responseCall(n, "list_stations", map[string]any{}), nil
@@ -55,7 +55,7 @@ func (m *namedEditModel) Respond(_ context.Context, _, _, prompt string, input [
 		}
 	}
 	if !m.bound {
-		if !offered["select_work_step"] || offered["save_station"] {
+		if !offered["inspect_station"] || !offered["save_station"] {
 			m.t.Fatal("unscoped recovery did not require selection", offered)
 		}
 		m.bound = true
@@ -75,7 +75,7 @@ func (m *namedEditModel) Respond(_ context.Context, _, _, prompt string, input [
 	}
 	if m.edited < len(m.showIDs) {
 		for _, name := range []string{"list_stations", "list_playlists", "get_station"} {
-			if offered[name] {
+			if !offered[name] {
 				m.t.Fatalf("discovery leaked into bound work step: %s", name)
 			}
 		}

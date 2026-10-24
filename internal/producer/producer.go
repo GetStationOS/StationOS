@@ -411,7 +411,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 	task := c.Task
 	briefing, _ := json.Marshal(c.Requests)
 	prompt += "\nSaved human requests in chronological order (preserve the original brief and apply later amendments):\n" + string(briefing)
-	tools := append(s.Tools.List(), Tool{Name: "save_task_progress", Description: "Save the current task brief, completed steps, actionable remaining steps and genuine blockers. Put work requiring human input only in blockers, not in remaining. Protocol or tool-availability errors are not human-input blockers; use select_work_step to recover. Once saved reads verify a remaining item, move it to completed and clear remaining instead of repeating the read. Before a multi-step request, save a checklist; update it after verified work. Keep remaining work even if a response fails. If the shared key is missing, finish show, schedule and default-playlist configuration before requesting it in Assistant settings.", Parameters: schema(reflect.TypeOf(Task{})), Mutates: true})
+	tools := append(s.Tools.List(), Tool{Name: "save_task_progress", Description: "Save the current task brief, completed steps, actionable remaining steps and genuine blockers. Put work requiring human input only in blockers, not in remaining. Protocol or tool-availability errors are not human-input blockers; correct the call using the tool schema and feedback. Once saved reads verify a remaining item, move it to completed and clear remaining instead of repeating the read. Before a multi-step request, save a checklist; update it after verified work. Keep remaining work even if a response fails. If the shared key is missing, finish show, schedule and default-playlist configuration before requesting it in Assistant settings.", Parameters: schema(reflect.TypeOf(Task{})), Mutates: true})
 	fail := func(message string) {
 		raw, _ := json.Marshal(compactHistory(input))
 		s.finish(id, "failed", raw, message)
@@ -420,15 +420,11 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		raw, _ := json.Marshal(compactHistory(input))
 		return s.Store.Checkpoint(ctx, id, raw, task)
 	}
-	focus := ""
-	focusReads := map[string]int{}
 	checkCounts := map[string]int{}
 	lastActionError := ""
 	lastUnchangedKey := ""
 	unchangedAttempts := 0
 	observationRounds := 0
-	selectedWritePending := false
-	selectedArea := ""
 	reviewStations := conversationStations(c)
 	if c.Task.Brief != "" && len(reviewStations) > 0 {
 		review, err := s.configurationReview(ctx, reviewStations, true)
@@ -439,15 +435,11 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 
 		input = append(input, review)
 	}
-	if focus == "" && resumingStalled(c) {
-		focus = "choose"
-	}
 	recoverProgress := func(count int) bool {
 		if count != 3 && count != 8 {
 			return true
 		}
 		s.activity(id, "Checking saved configuration and remaining work", false)
-		focus = "choose"
 		if len(reviewStations) > 0 {
 			review, err := s.configurationReview(ctx, reviewStations, true)
 			if err != nil {
@@ -456,7 +448,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			}
 			input = append(input, review)
 		}
-		input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Progress recovery: recent replies have not advanced the task. Compare the original brief with fresh saved configuration. Unscheduled hours and empty unrelated pools are facts, not additional requirements. If requested writes are already correct and only verification remains, select review, compare saved state, then use save_task_progress to move verified items to completed and clear remaining. Verification does not require another configuration write. For public descriptions select descriptions; for a genuine missing change select its work area. Use one next action, saved IDs and the offered tools. Do not repeat unchanged reads, checklist entries or successful writes. Tool-availability errors are internal recovery issues, not requests for human input. Record a blocker only for actual missing information or unavailable dependencies."}))
+		input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Progress recovery: recent replies have not advanced the task. Compare the original brief with fresh saved configuration. Unscheduled hours and empty unrelated pools are facts, not additional requirements. If requested writes are already correct and only verification remains, compare saved state, then use save_task_progress to move verified items to completed and clear remaining. Verification does not require another configuration write. For public descriptions use the description tools; for a genuine missing change use the corresponding task tool. Use one next action, saved IDs and the offered tools. Do not repeat unchanged reads, checklist entries or successful writes. Tool-availability errors are internal recovery issues, not requests for human input. Record a blocker only for actual missing information or unavailable dependencies."}))
 		if err := checkpoint(); err != nil {
 			fail("The recovery checkpoint could not be saved. Completed work remains saved.")
 			return false
@@ -478,7 +470,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 	for round := 0; ; round++ {
 		taskJSON, _ := json.Marshal(task)
 		s.activity(id, "Waiting for the AI response", false)
-		offered := focusedTools(tools, focus, focusReads)
+		offered := agentTools(tools)
 		allowed := map[string]bool{}
 		for _, tool := range offered {
 			allowed[tool.Name] = true
@@ -490,7 +482,6 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		if (errors.Is(err, ErrContextBudget) || errors.Is(err, ErrInputContextLimit)) && ctx.Err() == nil && !budgetRecovery {
 			budgetRecovery = true
 			generationOptions.CompactContext = true
-			focus = "choose"
 			if len(reviewStations) > 0 && len(task.Remaining) > 0 {
 				review, reviewErr := s.configurationReview(ctx, reviewStations, true)
 				if reviewErr != nil {
@@ -499,7 +490,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 				}
 				input = append(input, review)
 			}
-			input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Context recovery: the previous request or response could not be used safely. No actions from it ran. Only tools for one next work area are offered. Use select_work_step if needed, preserve the original brief and saved references, and make one small next action without restating the full plan."}))
+			input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Context recovery: the previous request or response could not be used safely. No actions from it ran. The same tools remain available. preserve the original brief and saved references, and make one small next action without restating the full plan."}))
 			if err := checkpoint(); err != nil {
 				fail("The context recovery checkpoint could not be saved. Completed work remains saved.")
 				return
@@ -509,8 +500,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 		if errors.Is(err, ErrEmptyResponse) && ctx.Err() == nil && !emptyRecovery {
 			emptyRecovery = true
 			generationOptions.CompactContext = true
-			focus = "choose"
-			input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Empty response recovery: the provider explicitly finished without usable text or tool calls. No actions from that response ran. Earlier successful writes remain saved. Use select_work_step for one unfinished area, inspect its saved configuration and continue the original brief with one small action. Do not recreate completed entities or repeat the full plan. If genuinely blocked, record the blocker honestly."}))
+			input = append(input, mustJSON(map[string]any{"role": "developer", "content": "Empty response recovery: the provider explicitly finished without usable text or tool calls. No actions from that response ran. Earlier successful writes remain saved. Use the available task tools and saved configuration to continue the original brief with one small action. Do not recreate completed entities or repeat the full plan. If genuinely blocked, record the blocker honestly."}))
 			if err = checkpoint(); err != nil {
 				fail("The empty-response recovery checkpoint could not be saved. Completed actions remain saved; use Continue to resume.")
 				return
@@ -559,7 +549,7 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			return
 		}
 		if len(response.Calls) == 0 {
-			if len(task.Remaining) > 0 || selectedWritePending {
+			if len(task.Remaining) > 0 {
 				noProgress++
 				if !recoverProgress(noProgress) {
 					return
@@ -611,25 +601,30 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 				fail("The assistant stopped. Completed actions remain saved.")
 				return
 			}
-			if !allowed[call.Name] {
-				input = append(input, toolOutput(call.ID, Result{Error: "This tool is not offered in the current recovery step. Use the available tools for one unfinished action, or record an exact blocker with save_task_progress. No action ran."}))
+			if !allowed[call.Name] && call.Name != "create_shows" && call.Name != "select_work_step" {
+				input = append(input, toolOutput(call.ID, Result{Error: "Unknown tool name. Use a name from the provided tool definitions and correct its arguments. No action ran; no human input is needed for this protocol error."}))
 				continue
 			}
-			if call.Name == "select_work_step" {
+			if call.Name == "select_work_step" || call.Name == "inspect_station" {
 				checkCounts[call.Name]++
 				var step workStep
 				decoder := json.NewDecoder(strings.NewReader(string(call.Arguments)))
 				decoder.DisallowUnknownFields()
 				stepErr := decoder.Decode(&step)
+				if call.Name == "inspect_station" {
+					step.Area = "review"
+				}
 				var owner station.Station
 				if stepErr == nil {
 					owner, stepErr = s.resolveWorkStep(ctx, step, c)
+					if stepErr == nil && call.Name == "inspect_station" && owner.ID == "" {
+						stepErr = errors.New("Supply station_id or exact station_name; this conversation has no current station")
+					}
 				}
 				result := Result{}
 				if stepErr != nil {
 					result.Error = stepErr.Error()
 				} else {
-					focus = step.Area
 					if owner.ID != "" {
 						reviewStations = map[string]bool{owner.ID: true}
 						var review Item
@@ -646,21 +641,11 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 						}
 					}
 					if result.Error == "" {
-						selectedWritePending = step.Area != "review"
-						selectedArea = step.Area
+						// A context lookup must not invent a write requirement or checklist.
 						result.Data = map[string]any{"area": step.Area, "station_id": owner.ID, "station_name": owner.Name, "catalogue_release_year_available": false, "catalogue_source_date_rules_available": true}
-						if selectedWritePending && task.Brief == "" {
-							brief := c.Title
-							for _, request := range c.Requests {
-								if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(request)), "continue") {
-									brief = request
-								}
-							}
-							task = Task{Brief: brief, Remaining: []string{"Complete the saved human request and verify the resulting configuration"}}
-						}
-						instructions := "For description edits use only the description tools. For review, no configuration write is required: compare the saved readback with the brief, mark verified checklist items completed and finish. Internal tool restrictions are not human blockers. Selected StationOS work step: " + step.Area + ". Use the station ID returned by this tool. Honour only the original authorised request. Use musical knowledge of album/track releases together with exact artist, album and track matches in the catalogue for era requests. Source-date year/decade rules are available and selections combine automatically across categories; years prefer original release dates where supplied by the source, falling back to album release dates that may describe reissues. A missing year field alone is not a blocker: use suitable album rules or individual tracks, inspect editions and avoid unverified compilation/reissue extras. Never invent availability or claim unverified dates. Record blockers only when matching music or sufficient evidence is genuinely unavailable. Complete requested configuration, then verify before updating task progress."
+						instructions := "For description edits prefer the description tools. For review, no configuration write is required: compare the saved readback with the brief, mark verified checklist items completed and finish. Internal tool restrictions are not human blockers. Selected StationOS work step: " + step.Area + ". Use the station ID returned by this tool. Honour only the original authorised request. Use musical knowledge of album/track releases together with exact artist, album and track matches in the catalogue for era requests. Source-date year/decade rules are available and selections combine automatically across categories; years prefer original release dates where supplied by the source, falling back to album release dates that may describe reissues. A missing year field alone is not a blocker: use suitable album rules or individual tracks, inspect editions and avoid unverified compilation/reissue extras. Never invent availability or claim unverified dates. Record blockers only when matching music or sufficient evidence is genuinely unavailable. Complete requested configuration, then verify before updating task progress."
 						if step.Area == "descriptions" {
-							instructions = "Selected description editing. Use only set_station_description/set_show_description for requested public copy. Saved return values verify the text. Mark verified checklist items completed and clear remaining before finishing. Do not inspect or edit DJs, playlists or timing."
+							instructions = "Selected description editing. Use set_station_description/set_show_description for requested public copy. Saved return values verify the text. Mark verified checklist items completed and clear remaining before finishing. Do not inspect or edit DJs, playlists or timing."
 						}
 						if step.Area == "review" {
 							instructions = "Selected read-only verification. Compare the saved facts with the original brief; intentional gaps and unrelated empty pools are not requirements. No additional configuration write is required to verify correct saved settings. Use save_task_progress to mark verified items completed and clear remaining, then finish. Internal tool restrictions are not human-input blockers."
@@ -689,11 +674,6 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 					result = Result{Error: err.Error()}
 				} else {
 					task = next
-					if len(next.Remaining) == 0 && (len(next.Completed) > 0 || len(next.Blockers) > 0) {
-						selectedWritePending = false
-						selectedArea = ""
-						focus = ""
-					}
 				}
 				input = append(input, toolOutput(call.ID, result))
 				input = releaseCatalogueDetails(input)
@@ -708,15 +688,8 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 				input = append(input, toolOutput(call.ID, Result{Error: "Unknown tool"}))
 				continue
 			}
-			if focus != "" && !tool.Mutates && focusReads[tool.Name] >= 2 {
-				input = append(input, toolOutput(call.ID, Result{Error: "This recovery step has already used its two reads of this tool. Use the saved results for the next action, or record an exact blocker. No action ran."}))
-				continue
-			}
 			if !tool.Mutates {
 				checkCounts[tool.Name]++
-				if focus != "" {
-					focusReads[tool.Name]++
-				}
 			}
 			s.activity(id, toolActivity(tool), false)
 			if tool.Mutates {
@@ -740,9 +713,6 @@ func (s *Service) run(ctx context.Context, id, model, key, curationModel string)
 			}
 			if result.Error == "" && tool.Mutates && !cached && !result.Unchanged {
 				configurationChanged = true
-				selectedWritePending = false
-				focus = selectedArea
-				focusReads = map[string]int{}
 			}
 			if result.Error == "" {
 				if stationID := changedScheduleStation(call); stationID != "" {
@@ -927,6 +897,8 @@ func completedHistory(input []Item) []Item {
 
 func isCreation(call Call) bool {
 	switch call.Name {
+	case "create_playlist", "create_show":
+		return true
 	case "save_station", "save_playlist", "save_dj", "save_source":
 		var value struct {
 			ID string `json:"id"`

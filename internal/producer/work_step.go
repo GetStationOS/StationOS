@@ -15,11 +15,8 @@ type workStep struct {
 	StationName string `json:"station_name"`
 }
 
-func workStepTool() Tool {
-	return Tool{Name: "select_work_step", Description: "Select ONE work area. Use the station name from the human request; the server resolves its ID and reads current configuration. Select descriptions for public station/show copy. Select review for read-only requests or final verification after successful writes. This tool makes no configuration changes.", Parameters: map[string]any{"type": "object", "additionalProperties": false, "required": []string{"area"}, "properties": map[string]any{
-		"area":       map[string]any{"type": "string", "enum": []string{"station", "playlists", "schedule", "presenters", "sources", "audience", "descriptions", "review"}},
-		"station_id": map[string]any{"type": "string"}, "station_name": map[string]any{"type": "string"},
-	}}}
+func inspectionTool() Tool {
+	return Tool{Name: "inspect_station", Description: "Inspect a station's saved settings, playlists and weekly schedule. Supply station_id or exact station_name; omit both to use the current station. Returns measured configuration for comparison with the brief. Intentional gaps and unrelated empty pools do not require changes. This read does not change configuration or tool access.", Parameters: map[string]any{"type": "object", "additionalProperties": false, "properties": map[string]any{"station_id": map[string]any{"type": "string"}, "station_name": map[string]any{"type": "string"}}}}
 }
 
 func (s *Service) resolveWorkStep(ctx context.Context, step workStep, c Conversation) (station.Station, error) {

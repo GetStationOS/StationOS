@@ -245,6 +245,16 @@ func schema(t reflect.Type) any {
 			props[name] = schema(f.Type)
 		}
 		definition := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+		if t == reflect.TypeOf(createPlaylistArgs{}) {
+			definition["required"] = []string{"station_id", "name", "genres"}
+			props["genres"] = map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "items": map[string]any{"type": "string", "minLength": 1}, "description": "Exact genre names; alternatives, for example Jazz OR Funk."}
+		}
+		if t == reflect.TypeOf(createShowArgs{}) {
+			definition["required"] = []string{"station_id", "name", "dj_id", "playlist_id", "days", "start_time", "duration_minutes"}
+			props["days"] = map[string]any{"type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": map[string]any{"type": "integer", "minimum": 0, "maximum": 6}}
+			props["start_time"] = map[string]any{"type": "string", "pattern": "^([01][0-9]|2[0-3]):(00|15|30|45)$", "description": "Station-local 24-hour clock, for example 20:00."}
+			props["duration_minutes"] = map[string]any{"type": "integer", "minimum": 15, "maximum": 1440, "multipleOf": 15}
+		}
 		if t == reflect.TypeOf(exploreMusicArgs{}) {
 			props["kind"] = map[string]any{"type": "string", "enum": []string{"genres", "albums", "artists", "composers", "years", "decades"}, "description": "Catalogue facet to discover. Use plural names; playlist rule kinds are singular."}
 			definition["required"] = []string{"kind"}
@@ -501,6 +511,7 @@ func NewRegistry(d Dependencies) *Registry {
 	}
 	registerArtwork(r, d)
 	registerDescriptions(r, d)
+	registerAgentTasks(r, d)
 	if d.Runtime != nil {
 		r.changed = d.Runtime.Changed
 	}
@@ -708,7 +719,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(map[string]any{"playlist": v, "rules": rules, "tracks": out, "total": items.Total, "unavailable": items.Unavailable, "seconds": items.Duration.Seconds(), "unknown_durations": items.UnknownDurations}, nil)
 	})
-	register(r, "save_playlist", "Create an EMPTY station-owned eligibility pool (omit id), or update supplied fields. Name and description never select music; populate a new pool with add_playlist_rule, replace_playlist_rules or select_tracks. Inspect and reuse suitable existing pools first. New pools require station_id and a distinct programme or musical identity name; recurring editions share one pool. Preserve unrelated fields and rules.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
+	register(r, "save_playlist", "Edit supplied playlist metadata. Prefer create_playlist to create a new genre pool with music in one call. This legacy tool can also create an EMPTY station-owned eligibility pool (omit id). Name and description never select music; populate a new pool with add_playlist_rule, replace_playlist_rules or select_tracks. Inspect and reuse suitable existing pools first. New pools require station_id and a distinct programme or musical identity name; recurring editions share one pool. Preserve unrelated fields and rules.", true, func(ctx context.Context, a playlistPatch) (Result, error) {
 		r.playlistMu.Lock()
 		defer r.playlistMu.Unlock()
 		v := playlists.Playlist{StationID: a.StationID}
@@ -924,7 +935,7 @@ func NewRegistry(d Dependencies) *Registry {
 		}
 		return read(namedSchedule(v), e)
 	})
-	register(r, "save_show", "Create or update supplied show fields. Provide station_id; days Monday=0..Sunday=6; start/end are minutes after midnight, multiples of 15. Midnight ends may be 0 or 1440 (24:00), never 2400. Use existing DJ and station-owned playlist IDs. music_direction is the DJ agent prompt for this programme, distinct from its public description and the shared DJ personality prompt. Overlaps are rejected.", true, func(ctx context.Context, a showPatch) (Result, error) {
+	register(r, "save_show", "Edit supplied fields of an existing show using its id; prefer create_show for new programmes. Legacy creation remains accepted. Provide station_id; days Monday=0..Sunday=6; start/end are minutes after midnight, multiples of 15. Midnight ends may be 0 or 1440 (24:00), never 2400. Use existing DJ and station-owned playlist IDs. music_direction is the DJ agent prompt for this programme, distinct from its public description and the shared DJ personality prompt. Overlaps are rejected.", true, func(ctx context.Context, a showPatch) (Result, error) {
 		v, e := a.merge(ctx, d)
 		if e != nil {
 			return Result{}, e

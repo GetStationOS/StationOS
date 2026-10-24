@@ -1123,3 +1123,17 @@ This preserves intentional gaps in a single Saturday programme and avoids treati
 unrelated empty pools as unfinished work. Verification guidance tells the agent to
 move verified items out of remaining, and distinguishes internal tool restrictions
 from genuine human-input blockers. No checklist is silently cleared by the server.
+
+### Stable task interface (24 October 2026)
+
+The [agent interface contract](producer-agent-interface.md) supersedes work-area
+capability restrictions described above. Recovery and repeated reads retain the
+same tools. `inspect_station` supplies saved configuration by ID or name. Legacy work-step calls remain accepted but are no longer advertised. New recurring shows use
+flat `create_show` inputs (clock start plus duration); nested `create_shows` remains
+call-compatible but is no longer advertised. `create_playlist` saves genre rules
+and a new pool in one repository transaction through the application service.
+Both tools return saved verification facts. Existing patch/selection tools remain
+for edits and richer selections; bounded stall detection and mutation audit remain.
+
+The [complete producer tool reference](producer-tools.md) documents all advertised
+capabilities, input schemas, runtime requirements, result semantics and legacy calls.

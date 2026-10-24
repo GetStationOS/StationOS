@@ -102,7 +102,7 @@ func (m *emptyContinuationModel) Respond(_ context.Context, _, _, _ string, inpu
 		for _, tool := range tools {
 			offered[tool.Name] = true
 		}
-		if !offered["select_work_step"] || offered["save_station"] {
+		if !offered["inspect_station"] || !offered["save_station"] {
 			m.t.Fatal("empty response did not narrow tools", offered)
 		}
 		raw, _ := json.Marshal(input)

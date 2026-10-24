@@ -110,6 +110,7 @@ type AvailabilityRepository interface {
 
 type Repository interface {
 	Save(context.Context, Playlist) error
+	CreateWithRules(context.Context, Playlist, []Rule) error
 	Delete(context.Context, string) error
 	Get(context.Context, string) (Playlist, error)
 	List(context.Context, string) ([]Playlist, error)
@@ -214,4 +215,36 @@ func (s Service) ReplaceRulesAndRefresh(ctx context.Context, playlistID string, 
 		}
 	}
 	return s.Repo.ReplaceRulesAndRefresh(ctx, playlistID, rules)
+}
+
+// CreateWithRules saves a new eligibility pool and its initial selections together.
+func (s Service) CreateWithRules(ctx context.Context, p Playlist, rules []Rule) (Playlist, error) {
+	p.Name = strings.TrimSpace(p.Name)
+	if p.ID != "" || len(rules) == 0 || len(rules) > MaxRules {
+		return Playlist{}, ErrInvalid
+	}
+	if err := p.Validate(); err != nil {
+		return Playlist{}, err
+	}
+	if _, err := s.Stations.Get(ctx, p.StationID); err != nil {
+		return Playlist{}, err
+	}
+	var err error
+	p.ID, err = id()
+	if err != nil {
+		return Playlist{}, err
+	}
+	for i := range rules {
+		if err = rules[i].Validate(); err != nil {
+			return Playlist{}, err
+		}
+		rules[i].ID, err = id()
+		if err != nil {
+			return Playlist{}, err
+		}
+	}
+	if err = s.Repo.CreateWithRules(ctx, p, rules); err != nil {
+		return Playlist{}, err
+	}
+	return p, nil
 }

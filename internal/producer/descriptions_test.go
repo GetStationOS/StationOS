@@ -177,7 +177,7 @@ func (m *descriptionRecoveryModel) Respond(_ context.Context, _, _, _ string, in
 		return responseCall(n, "set_show_description", map[string]string{"station_id": m.station, "show_id": m.show, "description": "Existing public show copy"}), nil
 	}
 	if n == 0 {
-		if !offered["select_work_step"] || offered["create_shows"] || offered["add_playlist_rule"] {
+		if !offered["inspect_station"] || !offered["create_show"] || !offered["create_playlist"] {
 			m.t.Fatal("recovery inferred extra work from intentional gaps or unrelated empty pools", offered)
 		}
 		return responseCall(n, "select_work_step", map[string]string{"area": m.mode, "station_id": m.station}), nil
@@ -185,7 +185,7 @@ func (m *descriptionRecoveryModel) Respond(_ context.Context, _, _, _ string, in
 	if m.mode == "descriptions" {
 		if n == 1 {
 			raw, _ := json.Marshal(input)
-			if offered["list_djs"] || offered["list_playlists"] || offered["save_show"] || !offered["set_show_description"] || !strings.Contains(string(raw), "Existing public show copy") {
+			if !offered["list_djs"] || !offered["list_playlists"] || !offered["set_show_description"] || !strings.Contains(string(raw), "Existing public show copy") {
 				m.t.Fatal("description recovery omitted copy or exposed scheduling work", offered, string(raw))
 			}
 			return responseCall(n, "set_station_description", map[string]string{"station_id": m.station, "description": "Fresh station copy"}), nil

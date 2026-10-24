@@ -118,7 +118,7 @@ func TestListenerShoutoutSectionAcknowledgesOnlySpokenMessages(t *testing.T) {
 					var body map[string]any
 					json.NewDecoder(r.Body).Decode(&body)
 					instructions := body["instructions"].(string)
-					for _, want := range []string{"listener shout-outs", "first approved listener item", "at most 75 words", "contributions spoken"} {
+					for _, want := range []string{"listener shout-outs", "first approved listener item", "contributions spoken"} {
 						if !strings.Contains(instructions, want) {
 							t.Fatal("missing section instruction", want)
 						}

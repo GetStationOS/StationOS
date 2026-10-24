@@ -313,7 +313,7 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		parts = append(parts, recordingCreditInstructions)
 	}
 	instructions := strings.Join(parts, "\n\n")
-	body := map[string]any{"model": writingModel, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 512, "store": false}
+	body := map[string]any{"model": writingModel, "instructions": instructions, "input": string(rawInput), "max_output_tokens": 4096, "store": false}
 	// An explicit JSON field makes silence distinguishable from an empty or
 	// incomplete provider response across every supported inference adapter.
 	if len(link.Audience) == 0 {
@@ -330,9 +330,6 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 			return nil, nil, err
 		}
 		body["instructions"] = instructions + "\n\n" + audiencePrompt + "\nSpeech is required. Return JSON with speech and used_ids."
-		if len(link.Audience) > 1 {
-			body["instructions"] = body["instructions"].(string) + "\nAudience section: at most 75 words, overriding the ordinary link limit."
-		}
 		for _, item := range link.Audience {
 			if item.Kind == audience.Request && item.TrackID != link.Next.ID {
 				return nil, nil, errors.New("request does not match queued recording")
@@ -416,19 +413,12 @@ func (p Producer) audienceLink(parent context.Context, link production.LinkReque
 		spoken = strings.TrimSpace(result.Speech)
 		used = result.Used
 	}
-	maxSpeechBytes := 600
-	if len(link.Audience) > 1 {
-		maxSpeechBytes = 900
-	}
-	if len(spoken) == 0 || len(spoken) > maxSpeechBytes {
-		return nil, nil, errors.New("presenter link exceeds limits")
+	if len(spoken) == 0 {
+		return nil, nil, errors.New("presenter link is empty")
 	}
 	spoken, err = cleanSpeechCues(spoken, capabilities)
 	if err != nil {
 		return nil, nil, err
-	}
-	if len(spoken) > maxSpeechBytes {
-		return nil, nil, errors.New("presenter link exceeds limits including sound cue")
 	}
 	raw, err = p.synthesize(ctx, speechRequest(link.Show.DJ, spoken, speechModel))
 	if err != nil {

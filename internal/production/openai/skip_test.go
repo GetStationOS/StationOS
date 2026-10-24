@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"stationos.local/stationos/internal/audience"
@@ -83,6 +84,41 @@ func TestRequiredLinksCannotBeSkipped(t *testing.T) {
 			}
 			if !strings.Contains(local.requests[0].Instructions, "Speech is required") && !strings.Contains(local.requests[0].Instructions, "handovers require non-empty speech") {
 				t.Fatal("required speech missing from prompt")
+			}
+		})
+	}
+}
+
+func TestLongLinksReachSynthesis(t *testing.T) {
+	for _, withAudience := range []bool{false, true} {
+		t.Run(map[bool]string{false: "ordinary", true: "audience"}[withAudience], func(t *testing.T) {
+			spoken := strings.Repeat("A longer introduction with musical context. ", 40)
+			reply := map[string]any{"speech": spoken}
+			request := production.LinkRequest{Show: profile()}
+			if withAudience {
+				request.Audience = []production.AudienceItem{{ID: "a", Kind: audience.Shoutout}, {ID: "b", Kind: audience.Shoutout}}
+				reply["used_ids"] = []string{"a", "b"}
+			}
+			raw, err := json.Marshal(reply)
+			if err != nil {
+				t.Fatal(err)
+			}
+			local := &localText{reply: string(raw)}
+			speech := &cueSpeech{}
+			p := New(noKey{}, nil, testAudio{})
+			p.Text, p.Speech = local, speech
+			_, _, err = p.AudienceLink(context.Background(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(speech.requests) != 1 || speech.requests[0].Text != strings.TrimSpace(spoken) {
+				t.Fatal("long link did not reach synthesis intact")
+			}
+			if local.requests[0].Options.MaxOutputTokens != 4096 {
+				t.Fatal("writing allowance still constrains longer links")
+			}
+			if strings.Contains(local.requests[0].Instructions, "Audience section: at most 75 words") {
+				t.Fatal("code injected an editorial length limit")
 			}
 		})
 	}

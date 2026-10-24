@@ -61,7 +61,7 @@
           {{if .Artist}}<span>{{.Artist}}</span>{{end}}{{if .Album}}<span class="hint history-album">{{.Album}}</span>{{end}}
           {{if .SpeechPrepared}}
           {{if .Speech}}<p class="history-speech">{{.Speech}}</p>{{else}}<p class="hint">Transcript: Not recorded</p>{{end}}
-          <p class="hint history-speech-source">Provider: {{.WritingProviderLabel}} · Model: {{if .WritingModel}}{{.WritingModel}}{{else}}Not recorded{{end}}</p>
+          {{if and (or (eq .Phase "announcement") (eq .Phase "announcement-preparation")) (not .WritingProvider)}}<p class="hint history-speech-source">Producer script · no text generation</p>{{else}}<p class="hint history-speech-source">Provider: {{.WritingProviderLabel}} · Model: {{if .WritingModel}}{{.WritingModel}}{{else}}Not recorded{{end}}</p>{{end}}
           {{end}}
           {{if eq .Kind "speech"}}
           <p class="hint history-speech-source">{{if .SpeechProvider}}Provider: {{.SpeechProviderName}} · Model: {{if .SpeechModel}}{{.SpeechModel}}{{else}}Not recorded{{end}} · Voice: {{if .SpeechVoiceName}}{{.SpeechVoiceName}}{{else if .SpeechVoice}}{{.SpeechVoice}}{{else}}Not recorded{{end}}{{else}}Speech model and voice: Not recorded{{end}}</p>

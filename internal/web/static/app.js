@@ -47,6 +47,7 @@ document.body.addEventListener('htmx:beforeRequest', event => {
   if (event.detail.elt?.closest('[data-results-navigation]')) resultsNavigation = true;
 });
 function initialise() {
+ initialiseAnnouncements();
  document.querySelectorAll("[data-speech-preview]").forEach(button=>button.hidden=true);
   document.querySelectorAll("[data-clear-search-input]").forEach(button=>{button.hidden=false;});
   initialiseSaveControls();
@@ -103,12 +104,12 @@ function refreshMixer(form) {
  });
 
 }
-function unsavedSelections() { return !!document.querySelector('[data-selection-form][data-dirty="true"], [data-choice-form][data-dirty="true"], [data-episode-form][data-dirty="true"]'); }
+function unsavedSelections() { return !!document.querySelector('[data-selection-form][data-dirty="true"], [data-choice-form][data-dirty="true"], [data-episode-form][data-dirty="true"], [data-announcement-form][data-dirty="true"]'); }
 let pendingNavigation = null;
 document.body.addEventListener('htmx:confirm', event => {
   const trigger = event.detail.elt;
   const form = trigger.closest('form');
-  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form], [data-choice-form], [data-episode-form]'));
+  const navigation = trigger.closest('a[href]') || (form && !form.matches('[data-selection-form], [data-choice-form], [data-episode-form], [data-announcement-form]'));
   if (navigation && unsavedSelections()) {
     event.preventDefault();
     pendingNavigation = () => event.detail.issueRequest(true);
@@ -119,10 +120,10 @@ window.addEventListener('beforeunload', event => { if (unsavedSelections()) { ev
 document.body.addEventListener('htmx:afterSwap', event => {
   const target = event.detail.target || event.detail.elt || event.target;
   if (target.id === 'assistant-messages') { syncAssistant(); return; }
-  if (target.id === 'audience-queue-results') {
+  if (target.id === 'audience-queue-results' || target.id === 'announcements-results') {
     if (resultsNavigation) {
       resultsNavigation = false;
-      document.querySelector('#audience-queue-results #table-results-heading')?.focus({preventScroll:true});
+      document.getElementById(target.id)?.querySelector('#table-results-heading')?.focus({preventScroll:true});
     }
     return;
   }
@@ -690,20 +691,21 @@ async function copyStreamURL(control) {
 }
 
 // Queue refreshes retain the column being read, including on touch screens.
-const audienceScrollPositions=new WeakMap();
+const tableScrollPositions=new WeakMap();
 document.body.addEventListener('htmx:beforeSwap', event => {
  const target=event.detail.target;
- if (target?.id!=='audience-queue-results') return;
+ if (target?.id!=='audience-queue-results'&&target?.id!=='announcements-results') return;
  const automatic=event.detail.requestConfig?.elt?.id==='audience-queue-results';
  if (automatic && target.contains(document.activeElement)) {event.detail.shouldSwap=false;return;}
  const scroller=target.querySelector('.table-scroll');
- if (scroller && event.detail.xhr) audienceScrollPositions.set(event.detail.xhr,scroller.scrollLeft);
+ if (scroller && event.detail.xhr) tableScrollPositions.set(event.detail.xhr,{id:target.id,left:scroller.scrollLeft});
 });
 document.body.addEventListener('htmx:afterSwap', event => {
- if (!event.detail.xhr || !audienceScrollPositions.has(event.detail.xhr)) return;
- const scroller=document.querySelector('#audience-queue-results .table-scroll');
- if (scroller) scroller.scrollLeft=audienceScrollPositions.get(event.detail.xhr);
- audienceScrollPositions.delete(event.detail.xhr);
+ if (!event.detail.xhr || !tableScrollPositions.has(event.detail.xhr)) return;
+ const saved=tableScrollPositions.get(event.detail.xhr);
+ const scroller=document.getElementById(saved.id)?.querySelector('.table-scroll');
+ if (scroller) scroller.scrollLeft=saved.left;
+ tableScrollPositions.delete(event.detail.xhr);
 });
 
 // A failed status refresh must not leave a stale Working label looking authoritative.
@@ -959,12 +961,13 @@ function applyLiveSnapshot(region,html){
   });
   patchAssistantMessages(region,incoming);htmx.process(region);syncAssistant();
   if(follow&&before!==region.textContent)document.querySelector('[data-assistant-compose]')?.scrollIntoView({block:'end',behavior:'instant'});
- }else if(region.id==='audience-queue-results'){
-  const incoming=template.content.querySelector('#audience-queue-results');if(!incoming)return;
+ }else if(region.id==='audience-queue-results'||region.id==='announcements-results'){
+  const incoming=template.content.querySelector('#'+region.id);if(!incoming)return;
+  const regionID=region.id;
   const scroll=region.querySelector('.table-scroll')?.scrollLeft||0;
   if(region.isEqualNode(incoming))return;
   htmx.swap(region,incoming.outerHTML,{swapStyle:'outerHTML'});
-  const scroller=document.querySelector('#audience-queue-results .table-scroll');if(scroller)scroller.scrollLeft=scroll;
+  const scroller=document.getElementById(regionID)?.querySelector('.table-scroll');if(scroller)scroller.scrollLeft=scroll;
  }else{
   const incoming=region.cloneNode(false);incoming.append(...template.content.childNodes);
   patchStationNode(region,incoming,region.contains(document.activeElement)?document.activeElement:null);
@@ -1010,7 +1013,7 @@ function syncLiveSubscriptions(){
    const owner=region();if(!owner)return;
    let html;try{html=JSON.parse(event.data);}catch{return;}
    subscription.latest=html;disconnected(false);
-   if((id==='audience-queue-results'||id==='history-results')&&(subscription.requesting||liveRegionBusy(owner))){subscription.pending=html;return;}
+   if((id==='audience-queue-results'||id==='history-results'||id==='announcements-results')&&(subscription.requesting||liveRegionBusy(owner))){subscription.pending=html;return;}
    subscription.pending=null;applyLiveSnapshot(owner,html);
   });
   connection.addEventListener('error',()=>disconnected(true));
@@ -1038,13 +1041,13 @@ window.addEventListener('pagehide',()=>{for(const {connection} of liveSubscripti
 // Explicit navigation/review owns its response; discard older deferred snapshots.
 document.body.addEventListener('htmx:beforeRequest',event=>{
  const id=event.detail.target?.id;
- if(id!=='audience-queue-results'&&id!=='history-results')return;
+ if(id!=='audience-queue-results'&&id!=='history-results'&&id!=='announcements-results')return;
  const subscription=liveSubscriptions.get(id);
  if(subscription){subscription.requesting=true;subscription.pending=null;}
 });
 document.body.addEventListener('htmx:afterRequest',event=>{
  const id=event.detail.target?.id;
- if(id!=='audience-queue-results'&&id!=='history-results')return;
+ if(id!=='audience-queue-results'&&id!=='history-results'&&id!=='announcements-results')return;
  const subscription=liveSubscriptions.get(id);
  if(!subscription)return;
  subscription.requesting=false;
@@ -1252,3 +1255,14 @@ document.body.addEventListener('htmx:beforeSwap', event => {
   event.detail.shouldSwap = true; event.detail.isError = false;
  }
 });
+
+function initialiseAnnouncements(){
+ document.querySelectorAll('[data-announcement-form]:not([data-announcement-ready])').forEach(form=>{
+  form.dataset.announcementReady='true';form.dataset.initial=editableFormState(form);
+  const update=()=>{const dirty=editableFormState(form)!==form.dataset.initial;form.dataset.dirty=String(dirty);const status=form.querySelector('[data-announcement-unsaved]');if(status)status.textContent=dirty?'Unsaved changes':'';const count=form.querySelector('[data-announcement-count]');if(count)count.textContent=form.querySelectorAll('input[name="shows"]:checked').length+' selected.';};
+  form.addEventListener('input',update);form.addEventListener('change',update);
+  form.querySelector('[data-announcement-search]')?.addEventListener('input',event=>{const q=event.target.value.toLowerCase();form.querySelectorAll('[data-announcement-show]').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(q));});
+  update();
+ });
+}
+document.body.addEventListener('htmx:beforeOnLoad',event=>{const form=event.detail.elt?.closest('[data-announcement-form]');if(form&&event.detail.xhr.getResponseHeader('HX-Location'))form.dataset.dirty='false';});

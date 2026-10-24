@@ -1454,3 +1454,24 @@ textarea{font-weight:400;line-height:1.5}
  min-height:44px;
 }
 .show-episodes-table { min-width:480px; }
+
+/* Shared components contain long content and keep native media inside panels. */
+.panel { min-width:0; overflow-wrap:anywhere; }
+.form-panel audio { display:block; width:100%; max-width:100%; min-width:0; }
+.fields>label { min-width:0; }
+.choice { min-height:44px; }
+/* Several icon actions need their own row on narrow headings. */
+@media(max-width:700px) {
+ .page-heading:has(>.heading-actions>.icon-button + .icon-button) { flex-wrap:wrap; }
+ .page-heading:has(>.heading-actions>.icon-button + .icon-button)>.heading-copy { flex:1 1 100%; }
+}
+/* Feature tables supply columns; the shared frame owns borders and scrolling. */
+.announcement-table { min-width:720px; }
+.announcement-table th { white-space:nowrap; }
+.announcement-table td:first-child { width:34%; min-width:190px; max-width:320px; overflow-wrap:anywhere; }
+.announcement-table td:first-child>a { display:inline-flex; align-items:center; min-height:44px; }
+.announcement-table td:nth-child(2),.announcement-table td:last-child { white-space:nowrap; }
+.announcement-table td:last-child,.announcement-table th:last-child { text-align:right; }
+.announcement-history-table { min-width:560px; }
+.announcement-history-table td:first-child { white-space:nowrap; }
+.announcement-history-table td:nth-child(3) { min-width:150px; max-width:260px; overflow-wrap:anywhere; }

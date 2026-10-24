@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-var ErrInUse = errors.New("This DJ is used by a scheduled show. Update or remove the show first.")
+var ErrInUse = errors.New("This DJ is used by a show or station announcement. Update those references first.")
 var ErrNotFound = errors.New("DJ not found")
 var ErrInvalid = errors.New("invalid DJ settings")
 var photoVersion = regexp.MustCompile(`^[a-f0-9]{64}$`)

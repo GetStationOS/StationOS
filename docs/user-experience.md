@@ -8,7 +8,7 @@ Stations are the top-level domain. `/producer` is the station overview, with one
 
 Main navigation contains Stations, Sources and DJs. DJs are shared fictional presenter profiles, managed through a concise list and dedicated create/edit forms. They own a name, selected voice, conversation speed, prompt and voice-direction vibe. Conversation speed uses a labelled slider with a live multiplier display, from 0.25× to 4.00×, defaulting to 1.00×. It saves with the profile and affects newly generated speech. The shared API-key field in Assistant settings is write-only: leave blank to retain, enter a replacement or explicitly remove. DJ forms contain no credential fields. Reuse the standard footer and styled delete dialog. Creation/editing does not itself invoke AI or start broadcasting. Sources serve every station; their imported metadata is a shared implementation detail. Track browsing is opened while adding music to a playlist, retains the target station/playlist and offers a direct return to its Tracks tab. Never ask the operator to choose the same station again when the current workspace already supplies it.
 
-Station tabs follow this order: Overview, Shows, Schedule, Audience, Timeline, Incidents, Mixer, Playlists, Settings. Keep daily production and monitoring ahead of occasional configuration.
+Station tabs follow this order: Overview, Shows, Schedule, Announcements, Audience, Timeline, Incidents, Mixer, Playlists, Settings. Keep daily production and monitoring ahead of occasional configuration.
 
 ## Status and information
 
@@ -812,3 +812,18 @@ hands over after the current track. Extending the end continues the same episode
 Start-time changes apply to future episodes once broadcasting has begun. Completed
 episodes retain their historical timing. Schedule entries with a reconciled window
 show a quiet “Timing changed” label; no extra confirmation workflow is required.
+
+
+### Announcements
+
+Announcements belongs to the station workspace after Schedule. Use a paginated
+list, dedicated create/edit pages and a separate Announcement settings page.
+Start/expiry and daily repeat times use the station timezone. Label next timing
+as an opportunity rather than promised airtime. Draft saves generate no audio;
+Preview saved message explicitly prepares a private sample. Show exactly which
+saved version actually aired, including interrupted outcomes. Announce next does
+not interrupt music or start a dormant broadcast. Searchable show checkboxes keep
+hidden selections and show a selected count; a dated episode takes precedence.
+Live list subscriptions preserve focused controls, scrolling and pagination;
+editing forms remain untouched by background events. Reuse the shared footer,
+unsaved-change dialog and deletion confirmation, retaining input on failure.

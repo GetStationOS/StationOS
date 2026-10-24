@@ -1,0 +1,207 @@
+{{define "announcements-page"}}
+<div>
+  {{template "page-heading" (announcementHeading .)}}
+  {{if .Error}}<p class="notice error" role="alert">{{.Error}}</p>{{end}}
+  {{if eq .Mode "list"}}
+    <p class="hint">Messages play between tracks while listeners are connected. Times are in {{.Station.Timezone}}; scheduled times mean the first suitable track boundary at or after that time.</p>
+    {{template "announcements-results" .}}
+  {{else if eq .Mode "form"}}
+    {{if .PreviewURL}}
+    <section class="panel form-panel">
+      <h2>Speech preview</h2>
+      <audio controls preload="none" src="{{.PreviewURL}}" aria-label="Private announcement preview"></audio>
+      <p class="history-speech">{{.PreviewText}}</p>
+    </section>
+    {{end}}
+    <section class="panel form-panel">
+      <form method="post" action="{{.Base}}/{{if .Message.ID}}{{.Message.ID}}{{else}}new{{end}}" hx-disabled-elt="find button" data-announcement-form>
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="version" value="{{.Message.Version}}">
+        <fieldset class="form-group">
+          <legend>Message</legend>
+          <label>Title<input name="title" required maxlength="200" value="{{.Message.Title}}"></label>
+          <div class="fields">
+            <label>Category
+              <select name="category">
+                <option value="message" {{if eq .Message.Category "message"}}selected{{end}}>Message</option>
+                <option value="news" {{if eq .Message.Category "news"}}selected{{end}}>News</option>
+                <option value="promotion" {{if eq .Message.Category "promotion"}}selected{{end}}>Promotion</option>
+              </select>
+            </label>
+            <label>Delivery
+              <select name="mode">
+                <option value="exact" {{if eq .Message.Mode "exact"}}selected{{end}}>Read exactly</option>
+                <option value="adapt" {{if eq .Message.Mode "adapt"}}selected{{end}}>DJ adaptation</option>
+              </select>
+            </label>
+          </div>
+          <p class="hint">Read exactly speaks your script verbatim. DJ adaptation uses your facts in the presenter's style; preview it before activation.</p>
+          <label>Script or factual brief<textarea name="text" required rows="7" maxlength="4000">{{.Message.Text}}</textarea></label>
+          <label>Pronunciation guidance <span class="optional">Optional</span>
+            <textarea name="pronunciation" rows="2" maxlength="1000">{{.Message.Pronunciation}}</textarea>
+          </label>
+        </fieldset>
+        <fieldset class="form-group">
+          <legend>Timing · {{.Station.Timezone}}</legend>
+          <div class="fields">
+            <label>Start<input type="datetime-local" name="starts" required value="{{.StartInput}}"></label>
+            <label>Expiry<input type="datetime-local" name="expires" required value="{{.ExpiryInput}}"></label>
+          </div>
+          <div class="fields">
+            <label>Status
+              <select name="status">
+                <option value="draft" {{if eq .Message.Status "draft"}}selected{{end}}>Draft</option>
+                <option value="active" {{if eq .Message.Status "active"}}selected{{end}}>Active</option>
+                <option value="paused" {{if eq .Message.Status "paused"}}selected{{end}}>Paused</option>
+              </select>
+            </label>
+            <label>Frequency
+              <select name="repeat">
+                <option value="once" {{if eq .Message.Repeat "once"}}selected{{end}}>Once</option>
+                <option value="interval" {{if eq .Message.Repeat "interval"}}selected{{end}}>Repeat at an interval</option>
+                <option value="times" {{if eq .Message.Repeat "times"}}selected{{end}}>Selected daily times</option>
+              </select>
+            </label>
+          </div>
+          <div class="fields">
+            <label>Repeat interval (minutes)
+              <input type="number" name="interval" min="1" max="10080" value="{{.Message.IntervalMinutes}}">
+              <span class="hint">Used only for interval repetition, measured from actual airtime.</span>
+            </label>
+            <label>Daily times
+              <input name="times" value="{{.TimesInput}}" placeholder="08:00, 12:00, 17:00" maxlength="166">
+              <span class="hint">Used only for selected daily times. Missed repeats do not accumulate.</span>
+            </label>
+          </div>
+        </fieldset>
+        <fieldset class="form-group">
+          <legend>Targeting <span class="optional">Optional</span></legend>
+          <fieldset class="form-group" data-announcement-shows>
+            <legend>Selected shows</legend>
+            <label>Search shows<input type="search" data-announcement-search placeholder="Show name"></label>
+            <p class="hint"><span data-announcement-count></span> Leave all unchecked for the whole station.</p>
+            {{if .Shows}}<div class="choice-list" role="region" aria-label="Shows available for announcements" tabindex="0">
+              {{range .Shows}}
+              <label class="choice" data-announcement-show>
+                <input type="checkbox" name="shows" value="{{.ID}}" {{if .Selected}}checked{{end}}>
+                <strong>{{.Name}}</strong>
+              </label>
+              {{end}}
+            </div>{{else}}<p class="hint">No shows yet. This announcement can run across the station.</p>{{end}}
+          </fieldset>
+          <label>One dated episode
+            <select name="episode">
+              <option value="">Use station or selected shows</option>
+              {{range .Episodes}}<option value="{{.ID}}" {{if .Selected}}selected{{end}}>{{.Name}}</option>{{end}}
+            </select>
+            <span class="hint">Choosing an episode takes precedence over the show checkboxes.</span>
+          </label>
+          <label>Presenter override
+            <select name="dj">
+              <option value="">Current DJ, then station default</option>
+              {{range .DJs}}<option value="{{.ID}}" {{if eq $.Message.DJID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+            </select>
+          </label>
+        </fieldset>
+        <p class="hint">Saving a draft generates no audio. A message that starts playing counts as aired even if interrupted; use Announce next to retry it.</p>
+        <span class="htmx-indicator" role="status">Saving…</span>
+        <span data-announcement-unsaved class="hint" role="status"></span>
+        {{if .Message.ID}}{{template "form-actions" (formActions .Base "Save")}}{{else}}{{template "form-actions" (formActions .Base "Create announcement")}}{{end}}
+      </form>
+    </section>
+    {{if .Message.ID}}
+    <section class="panel form-panel" aria-labelledby="announcement-delivery-heading">
+      <h2 id="announcement-delivery-heading">Delivery</h2>
+      <form method="post" action="{{.Base}}/{{.Message.ID}}/action" hx-push-url="false" hx-disabled-elt="find button">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="version" value="{{.Message.Version}}">
+        <div class="heading-actions" role="group" aria-label="Saved announcement actions">
+          <button class="secondary icon-button" name="action" value="preview" title="Preview saved message" aria-label="Preview saved message">{{template "ui-icon" "listener"}}</button>
+          {{if eq .Message.Status "active"}}
+          <button class="secondary icon-button" name="action" value="paused" title="Pause announcement" aria-label="Pause announcement">{{template "ui-icon" "interrupted"}}</button>
+          {{else}}
+          <button class="icon-button" name="action" value="active" title="Activate announcement" aria-label="Activate announcement">{{template "ui-icon" "started"}}</button>
+          {{end}}
+          <button class="secondary icon-button" name="action" value="next" title="Announce next" aria-label="Announce next">{{template "ui-icon" "announce"}}</button>
+          <a class="button secondary icon-button" href="{{.Base}}/settings" title="Announcement settings" aria-label="Announcement settings">{{template "ui-icon" "settings"}}</a>
+        </div>
+        <span class="htmx-indicator hint" role="status">Preparing…</span>
+      </form>
+      <p class="hint">Preview privately, activate or pause delivery, or prioritise the next break. These actions use the saved message.</p>
+    </section>
+    <section class="panel form-panel" aria-labelledby="announcement-history-heading">
+      <h2 id="announcement-history-heading">Transmission history</h2>
+      {{if .History}}
+      <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Announcement transmission history">
+        <table class="announcement-history-table">
+          <thead><tr><th scope="col">Started</th><th scope="col">Version</th><th scope="col">Presenter</th><th scope="col">Outcome</th></tr></thead>
+          <tbody>{{range .History}}<tr><td>{{.Started.Format "2 Jan 2006, 15:04 MST"}}</td><td>{{.Version}}</td><td>{{.DJName}}</td><td>{{operationOutcomeLabel .Outcome}}</td></tr>{{end}}</tbody>
+        </table>
+      </div>
+      <p class="hint">Latest 100 transmissions. Spoken text and provider details are in <a href="/producer/stations/{{.Station.ID}}/timeline">Timeline</a>.</p>
+      {{else}}<p>No transmissions yet. Previewing or preparing speech does not count as airtime.</p>{{end}}
+    </section>
+    <div class="entity-delete-action"><a class="entity-delete-link" href="{{.Base}}/{{.Message.ID}}/delete" hx-get="{{.Base}}/{{.Message.ID}}/delete" hx-target="#dialog-body" hx-swap="innerHTML" hx-push-url="false">Delete announcement</a></div>
+    {{end}}
+  {{else if eq .Mode "settings"}}
+    <section class="panel form-panel">
+      <form method="post" action="{{.Base}}/settings" hx-disabled-elt="find button" data-announcement-form>
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="version" value="{{.Settings.Version}}">
+        <label>Default announcement presenter
+          <select name="dj">
+            <option value="">No default presenter</option>
+            {{range .DJs}}<option value="{{.ID}}" {{if eq $.Settings.DJID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+          </select>
+          <span class="hint">Used during continuous music when there is no current DJ or announcement override.</span>
+        </label>
+        <label>Minimum gap between announcements (minutes)<input type="number" name="gap" min="1" max="1440" required value="{{.Settings.GapMinutes}}"></label>
+        <p class="hint">Announce next bypasses this gap. Ordinary breaks play at most one announcement.</p>
+        <span data-announcement-unsaved class="hint" role="status"></span>
+        {{template "form-actions" (formActions .Base "Save")}}
+      </form>
+    </section>
+  {{else if eq .Mode "delete"}}{{template "delete-announcement" .}}{{end}}
+</div>
+{{end}}
+
+{{define "announcements-results"}}
+<div id="announcements-results" data-live-url="{{.Base}}{{if .Pagination.Number}}?page={{.Pagination.Number}}&amp;per_page={{.Pagination.Size}}{{end}}">
+  <section class="results-panel">
+    {{template "results-toolbar" .Pagination}}
+    <div class="table-scroll table-outline" tabindex="0" role="region" aria-label="Station announcements">
+      <table class="announcement-table">
+        <thead><tr><th scope="col">Announcement</th><th scope="col">Status</th><th scope="col">Next opportunity</th><th scope="col">Last aired</th><th scope="col">Plays</th></tr></thead>
+        <tbody>
+          {{range .Rows}}
+          <tr>
+            <td><a href="{{$.Base}}/{{.Message.ID}}">{{.Message.Title}}</a><span class="subline">{{.Message.Category}} · {{if eq .Message.Mode "exact"}}Read exactly{{else}}DJ adaptation{{end}}</span></td>
+            <td>{{.State}}</td><td>{{.Due}}</td>
+            <td>{{.Last}}{{if .Message.LastOutcome}}<span class="subline">{{operationOutcomeLabel .Message.LastOutcome}}</span>{{end}}</td>
+            <td>{{.Message.Plays}}</td>
+          </tr>
+          {{else}}<tr><td colspan="5">No announcements yet. Create a message, news item or promotion for your listeners.</td></tr>{{end}}
+        </tbody>
+      </table>
+    </div>
+    {{template "pagination" .Pagination}}
+  </section>
+</div>
+{{end}}
+
+{{define "delete-announcement"}}
+<section class="panel form-panel">
+  <h2 id="dialog-heading">Delete {{.Message.Title}}?</h2>
+  <p id="dialog-description">This removes the announcement from future broadcasts. Transmission history is retained.</p>
+  {{if .Error}}<p class="notice error" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="{{.Base}}/{{.Message.ID}}/delete" hx-disabled-elt="find button">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="hidden" name="version" value="{{.Message.Version}}">
+    <input type="hidden" name="confirm" value="yes">
+    <div class="form-footer"><div class="form-actions">
+      <a class="button secondary" href="{{.Base}}/{{.Message.ID}}" data-close-dialog>Cancel</a>
+      <button class="danger">Delete announcement</button>
+    </div></div>
+  </form>
+</section>
+{{end}}

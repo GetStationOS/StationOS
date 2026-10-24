@@ -1150,3 +1150,43 @@ for edits and richer selections; bounded stall detection and mutation audit rema
 
 The [complete producer tool reference](producer-tools.md) documents all advertised
 capabilities, input schemas, runtime requirements, result semantics and legacy calls.
+
+
+### Station announcements
+
+`internal/announcements` owns bounded producer messages, validity, repeat rules,
+station-local daily slots and targeting. Announcements are station configuration,
+separate from the rebuildable catalogue, playlists and audience submissions.
+Migration 45 adds optimistic message/settings versions and durable transmission
+receipts. Presenter references use foreign keys; show/dated episode targets are
+validated against the owning station and stable `show:slot:week` identities.
+Deleting a message keeps its receipts; deleting the station cascades its data.
+
+One bounded announcement worker per listener-driven station prepares standalone
+speech while music plays. It reacts to committed `announcements` changefeed events
+and reserved track boundaries, with one-shot eligibility wakeups when durations are
+unknown. Cancelled synthesis joins before another request starts. Exact delivery
+bypasses text generation; adaptation uses the configured writing role and only
+producer-supplied facts. Both use the selected DJ's speech route and normalizer.
+Audio files are not accepted. No announcement work starts on dormant stations.
+
+Playout rechecks message/settings version, validity, targeting, station spacing,
+priority and presenter configuration at the boundary. The normalized 128 kbps
+MP3 duration is reserved alongside the committed next recording; speech that
+would overrun the current programme is deferred without displacing music. At most one announcement
+replaces the routine DJ link in a break. Prepared speech is not proof of airtime.
+After the first delivered bytes, a receipt records the immutable script/version and
+presenter; completion/interruption updates that same receipt. Interrupted starts
+consume the one-off/repeat opportunity, avoiding duplicate partial bulletins.
+An explicit Announce next retries them. Serve startup recovers unfinished receipts;
+read-only CLI tasks never recover a running server's records. Timeline retains
+speech/text-generation provenance and the version in transmission notes.
+
+Web previews explicitly generate a private sample without saving or broadcasting.
+The server admits at most two concurrent previews and retains at most sixteen
+bounded samples for fifteen minutes. Authenticated audio URLs are station-scoped.
+Successful preview uses POST/redirect/GET, with a version check before displaying
+the sample. Announcement lists use the existing SSE subscription adapter and
+one-shot validity/repeat deadlines, retaining focused controls and page position.
+The producer registry exposes read, save, delivery and settings tools; all writes
+use the same repository validations and committed changefeed notifications.

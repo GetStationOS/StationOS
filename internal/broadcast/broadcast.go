@@ -7,16 +7,21 @@ import (
 	"io"
 	"log/slog"
 	"math/rand/v2"
+	"strconv"
 	"sync"
 	"time"
 
 	"stationos.local/stationos/internal/ai"
+	"stationos.local/stationos/internal/announcements"
 	"stationos.local/stationos/internal/audience"
+	"stationos.local/stationos/internal/changefeed"
 	"stationos.local/stationos/internal/content"
+	"stationos.local/stationos/internal/djs"
 	"stationos.local/stationos/internal/mixer"
 	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/schedule"
+	"stationos.local/stationos/internal/station"
 )
 
 var ErrUnavailable = errors.New("station has no playable music; assign a playlist with available tracks")
@@ -35,6 +40,7 @@ type Encoder interface {
 	Open(context.Context, content.AudioItem) (io.ReadCloser, error)
 }
 type State struct {
+	announcement           *preparedAnnouncement
 	SpeechText             string
 	SpeechProvenance       production.SpeechProvenance
 	WritingProvenance      ai.TextProvenance
@@ -51,6 +57,11 @@ type State struct {
 	Error                  string
 }
 type Options struct {
+	Announcements                           announcements.Repository
+	AnnouncementProducer                    production.AnnouncementProducer
+	Changes                                 *changefeed.Bus
+	DJs                                     djs.Repository
+	Stations                                station.Repository
 	Session                                 production.EditorialSession
 	Operations                              *operations.Recorder
 	Audience                                audience.Repository
@@ -626,6 +637,10 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		return true
 	}
+	announcer := m.startAnnouncements(r.ctx, id)
+	if announcer != nil {
+		defer func() { r.cancel(); <-announcer.done }()
+	}
 	stream := func(audio io.ReadCloser, state State, audienceIDs ...string) (startedResult bool, streamErr error) {
 		event := transmissionEvent(id, state)
 		event.Started = m.now()
@@ -647,10 +662,23 @@ func (m *Manager) playProgramme(id string, r *run) {
 				event.Reason = "No audio emitted"
 			}
 			m.record(event)
+			if state.announcement != nil && bytes > 0 {
+				a := state.announcement
+				ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 2*time.Second)
+				err := m.options.Announcements.Record(ctx, announcements.Receipt{ID: event.ID, StationID: id, AnnouncementID: a.Message.ID, Version: a.Message.Version, Title: a.Message.Title, Text: a.Text, DJID: a.DJ.ID, DJName: a.DJ.Name, Started: event.Started, Ended: event.Ended, Outcome: event.Outcome})
+				cancel()
+				if err != nil {
+					m.logger.Error("Announcement receipt could not be saved", "station_id", id, "error", err)
+				}
+			}
 			if streamErr != nil && r.ctx.Err() == nil {
 				m.observe(id, "failure", "Audio could not be transmitted; check the music source and decoder", state, "audio", false)
 			}
 		}()
+		if state.announcement != nil && (!m.announcementValid(r.ctx, id, state.announcement, state.Programme, playoutNow()) || !announcementFits(state.announcement, state.Programme, state.Next, playoutNow())) {
+			audio.Close()
+			return false, nil
+		}
 		if len(audienceIDs) > 0 && m.options.Audience != nil {
 			ok, err := m.options.Audience.Usable(r.ctx, id, state.Programme.Key, audienceIDs, playoutNow())
 			if err != nil || !ok {
@@ -735,6 +763,16 @@ func (m *Manager) playProgramme(id string, r *run) {
 						m.logger.Info("DJ speech aired", "station_id", id, "event_id", event.ID, "dj_id", event.DJID, "phase", event.Phase, "speech_provider", event.SpeechProvider, "speech_connection", event.SpeechConnection, "speech_model", event.SpeechModel, "speech_voice", event.SpeechVoice)
 					}
 					started = true
+					if state.announcement != nil {
+						a := state.announcement
+						ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 2*time.Second)
+						receiptErr := m.options.Announcements.Record(ctx, announcements.Receipt{ID: event.ID, StationID: id, AnnouncementID: a.Message.ID, Version: a.Message.Version, Title: a.Message.Title, Text: a.Text, DJID: a.DJ.ID, DJName: a.DJ.Name, Started: event.Started, Outcome: "transmitting"})
+						cancel()
+						if receiptErr != nil {
+							r.cancel()
+							return started, receiptErr
+						}
+					}
 					if len(audienceIDs) > 0 && m.options.Audience != nil {
 						ctx, cancel := context.WithTimeout(context.WithoutCancel(r.ctx), 2*time.Second)
 						err := m.options.Audience.MarkUsed(ctx, id, audienceIDs, state.Started)
@@ -993,6 +1031,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if audio == nil {
 			audio, musicErr = m.encoder.Open(musicCtx, current)
 		}
+		announcementPlayed := false
+		if a := announcer.take(); a != nil && musicErr == nil && m.announcementValid(r.ctx, id, a, playing, playoutNow()) && announcementFits(a, playing, current, playoutNow()) {
+			programme := playing
+			programme.DJ = a.DJ
+			cue := content.AudioItem{ID: "announcement:" + a.Message.ID + ":" + strconv.Itoa(a.Message.Version), Title: a.Message.Title, Artist: a.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
+			spoke, _ := stream(speechAudio(a.Audio, a.Speech), State{Status: "Broadcasting", Programme: programme, Following: timeline.Next, Current: cue, Next: current, SpeechText: a.Text, SpeechProvenance: a.Provenance, WritingProvenance: a.Writing, Phase: "announcement", PresenterStatus: "Speaking", announcement: a})
+			announcementPlayed = spoke
+		}
 		var announcedRequestIDs []string
 		linkUsable := true
 		if link != nil && len(link.audienceValidIDs) > 0 && m.options.Audience != nil {
@@ -1003,7 +1049,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				m.skippedSpeech(id, *link, playing, current, reason)
 			}
 		}
-		if musicErr == nil && linkUsable && !changing && link != nil && !link.request.Handover && link.request.Show.Key == playing.Key && link.request.Next.ID == current.ID && len(link.audio) > 0 {
+		if !announcementPlayed && musicErr == nil && linkUsable && !changing && link != nil && !link.request.Handover && link.request.Show.Key == playing.Key && link.request.Next.ID == current.ID && len(link.audio) > 0 {
 			cue := content.AudioItem{ID: "link:" + playing.Key + ":" + current.ID, Title: "DJ link", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
 			spoke, speechErr := stream(speechAudio(link.audio, link.speech), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, SpeechText: link.text, SpeechProvenance: link.provenance, Phase: "chatter", PresenterStatus: "Speaking"}, link.audienceIDs...)
 			if spoke && speechErr == nil {
@@ -1016,7 +1062,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 				}
 			}
 			introPlayed = true
-		} else if musicErr == nil && ready && !introPlayed && len(plan.Intro) > 0 {
+		} else if !announcementPlayed && musicErr == nil && ready && !introPlayed && len(plan.Intro) > 0 {
 			cue := content.AudioItem{ID: "intro:" + playing.Key, Title: "Show introduction", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}
 			stream(speechAudio(plan.Intro, preparedVoices[key].intro), State{Status: "Broadcasting", Programme: playing, Following: timeline.Next, Current: cue, Next: current, SpeechText: plan.Plan.IntroText, SpeechProvenance: plan.IntroSpeech, Phase: "chatter", PresenterStatus: "Speaking"})
 			introPlayed = true
@@ -1031,6 +1077,7 @@ func (m *Manager) playProgramme(id string, r *run) {
 		if err != nil {
 			return
 		}
+		announcer.target(nextTimeline.Current, predictedEnd)
 		nextRemaining := time.Duration(0)
 		if !nextTimeline.Current.End.IsZero() {
 			nextRemaining = nextTimeline.Current.End.Sub(predictedEnd)

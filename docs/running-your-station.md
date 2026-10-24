@@ -34,7 +34,15 @@ The current track finishes before a handover. Track durations and preparation ti
 
 Use ordered episodes for podcasts and audiobooks so instalments and chapters follow their intended sequence within the programme. Keep these sequences distinct from music playlists, which remain pools of eligible recordings.
 
-Advertising slots give promotions, sponsor messages and advertising their own place in your programming. Shape the messages and placement around the audience and purpose of the station.
+Open **Announcements** to create listener messages, news and promotions. **Read exactly** speaks your saved script verbatim; **DJ adaptation** uses your supplied facts in the presenter's style. Saving a draft generates no speech. **Preview saved message** explicitly prepares a private sample; it never starts the station or counts as airtime. Adapted wording may vary when prepared again for broadcast.
+
+Every message has a start and expiry in station-local time. Activate it for a single delivery, interval repetition or selected daily times. Optional show checkboxes restrict it to those programmes; selecting one dated episode takes precedence. A presenter override wins over the current DJ; continuous music uses the default presenter in **Announcement settings**. Configure that default to allow messages outside scheduled shows.
+
+Announcements play between tracks while listeners are connected. A selected time means the first suitable track boundary at or after that time. Ordinary breaks contain at most one announcement, respecting the station's minimum gap. **Announce next** activates and prioritises a saved message, bypassing the gap while retaining validity and targeting. It does not interrupt a track or start a dormant station. Missed repeats never build a backlog.
+
+Pausing, editing or deleting a message invalidates its prepared speech. Expired messages are skipped. Preparation failure leaves music playing and permits preparation at a later opportunity within the validity window. Once any audio has aired, an interrupted message counts as delivered for repeat spacing; retry it explicitly with **Announce next**. Its saved version, spoken text, presenter and outcome remain in transmission history and Timeline. A restart marks unfinished transmissions as interrupted and does not automatically replay a partial one-off message.
+
+Recorded announcements and advertising audio are reserved for a later advertising feature.
 
 ## Let listeners take part
 

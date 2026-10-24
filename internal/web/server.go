@@ -21,6 +21,7 @@ import (
 	"strconv"
 	"strings"
 
+	"stationos.local/stationos/internal/announcements"
 	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/catalogue"
 	"stationos.local/stationos/internal/djs"
@@ -29,6 +30,7 @@ import (
 	"stationos.local/stationos/internal/operations"
 	"stationos.local/stationos/internal/playlists"
 	"stationos.local/stationos/internal/producer"
+	"stationos.local/stationos/internal/production"
 	"stationos.local/stationos/internal/schedule"
 	"stationos.local/stationos/internal/sources"
 	"stationos.local/stationos/internal/station"
@@ -43,44 +45,47 @@ type ImageGenerator interface {
 }
 
 type Dependencies struct {
-	Voices          djs.VoiceSource
-	Changes         *changefeed.Bus
-	Prompts         prompts.Store
-	Operations      operations.Store
-	Recording       *operations.Recorder
-	Images          ImageGenerator
-	Assistant       *producer.Service
-	Audience        audience.Repository
-	Mixer           mixer.Repository
-	ArtworkFactory  sources.Factory
-	Episodes        *episodes.Service
-	Schedule        schedule.Repository
-	DJs             djs.Repository
-	Broadcast       *broadcast.Manager
-	BroadcastConfig broadcast.Repository
-	PublicURL       string
-	Stations        station.Repository
-	SourceDiscovery sources.Discoverer
-	Sources         sources.Repository
-	Catalogue       catalogue.Repository
-	Playlists       playlists.Repository
-	Sync            catalogue.Sync
-	Ready           func(context.Context) error
-	Logger          *slog.Logger
-	Password        string
+	Announcements        announcements.Repository
+	AnnouncementProducer production.AnnouncementProducer
+	Voices               djs.VoiceSource
+	Changes              *changefeed.Bus
+	Prompts              prompts.Store
+	Operations           operations.Store
+	Recording            *operations.Recorder
+	Images               ImageGenerator
+	Assistant            *producer.Service
+	Audience             audience.Repository
+	Mixer                mixer.Repository
+	ArtworkFactory       sources.Factory
+	Episodes             *episodes.Service
+	Schedule             schedule.Repository
+	DJs                  djs.Repository
+	Broadcast            *broadcast.Manager
+	BroadcastConfig      broadcast.Repository
+	PublicURL            string
+	Stations             station.Repository
+	SourceDiscovery      sources.Discoverer
+	Sources              sources.Repository
+	Catalogue            catalogue.Repository
+	Playlists            playlists.Repository
+	Sync                 catalogue.Sync
+	Ready                func(context.Context) error
+	Logger               *slog.Logger
+	Password             string
 }
 type Server struct {
-	audienceRates audienceRateLimiter
-	d             Dependencies
-	t             *template.Template
-	csrf          string
-	artworkSlots  chan struct{}
-	imageSlots    chan struct{}
-	eventSlots    chan struct{}
+	announcementPreviews announcementPreviews
+	audienceRates        audienceRateLimiter
+	d                    Dependencies
+	t                    *template.Template
+	csrf                 string
+	artworkSlots         chan struct{}
+	imageSlots           chan struct{}
+	eventSlots           chan struct{}
 }
 
 func templateFunctions() template.FuncMap {
-	return template.FuncMap{"audienceStateIcon": audienceStateIcon, "historyStateIcon": historyStateIcon, "incidentStateIcon": incidentStateIcon, "heading": heading, "headingLink": headingLink, "scheduleHeading": scheduleHeading, "episodeHeading": episodeHeading, "playlistsHeading": playlistsHeading, "playlistHeading": playlistHeading, "assistantHeading": assistantHeading, "crumb": crumb, "breadcrumbs": breadcrumbs, "stationBreadcrumbs": stationBreadcrumbs, "sourceBreadcrumbs": sourceBreadcrumbs, "publicBreadcrumbs": publicBreadcrumbs, "stationTabs": stationTabs, "sourceTabs": sourceTabs, "playlistTabs": playlistTabs, "assistantTabs": assistantTabs, "formActions": formActions, "operationTypeLabel": operationTypeLabel, "operationOutcomeLabel": operationOutcomeLabel, "operationKinds": func() []string {
+	return template.FuncMap{"audienceStateIcon": audienceStateIcon, "historyStateIcon": historyStateIcon, "incidentStateIcon": incidentStateIcon, "heading": heading, "announcementHeading": announcementHeading, "headingLink": headingLink, "scheduleHeading": scheduleHeading, "episodeHeading": episodeHeading, "playlistsHeading": playlistsHeading, "playlistHeading": playlistHeading, "assistantHeading": assistantHeading, "crumb": crumb, "breadcrumbs": breadcrumbs, "stationBreadcrumbs": stationBreadcrumbs, "sourceBreadcrumbs": sourceBreadcrumbs, "publicBreadcrumbs": publicBreadcrumbs, "stationTabs": stationTabs, "sourceTabs": sourceTabs, "playlistTabs": playlistTabs, "assistantTabs": assistantTabs, "formActions": formActions, "operationTypeLabel": operationTypeLabel, "operationOutcomeLabel": operationOutcomeLabel, "operationKinds": func() []string {
 		return []string{"music", "speech", "selection", "started", "stopped", "handover", "ai", "failure", "recovery", "stall", "listener", "intervention", "unavailable"}
 	}, "operationOutcomes": func() []string {
 		return []string{"transmitting", "completed", "interrupted", "failed", "unknown", "observed"}
@@ -135,6 +140,14 @@ func New(d Dependencies) (http.Handler, error) {
 	mux.HandleFunc("POST /radio/{slug}/requests", s.submitAudience)
 	mux.HandleFunc("GET /radio/{slug}/shoutouts", s.audienceForm)
 	mux.HandleFunc("POST /radio/{slug}/shoutouts", s.submitAudience)
+	mux.HandleFunc("GET /producer/stations/{id}/announcements", s.subscription("announcements", "announcements-results", s.announcementPage))
+	mux.HandleFunc("GET /producer/stations/{id}/announcements/{message}", s.announcementPage)
+	mux.HandleFunc("POST /producer/stations/{id}/announcements/settings", s.announcementSettings)
+	mux.HandleFunc("POST /producer/stations/{id}/announcements/{message}", s.saveAnnouncement)
+	mux.HandleFunc("POST /producer/stations/{id}/announcements/{message}/action", s.announcementAction)
+	mux.HandleFunc("GET /producer/stations/{id}/announcements/{message}/delete", s.deleteAnnouncement)
+	mux.HandleFunc("POST /producer/stations/{id}/announcements/{message}/delete", s.deleteAnnouncement)
+	mux.HandleFunc("GET /producer/stations/{id}/announcement-previews/{token}", s.announcementPreviewAudio)
 	mux.HandleFunc("GET /producer/stations/{id}/audience", s.subscription("audience", "audience-queue-results", s.audiencePage))
 	mux.HandleFunc("POST /producer/stations/{id}/audience/{message}", s.decideAudience)
 	mux.HandleFunc("GET /radio/{slug}/live", s.publicLive)

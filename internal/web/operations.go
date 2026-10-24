@@ -504,6 +504,16 @@ func producerEvent(e operations.Event, loc *time.Location) operationalEvent {
 		v.TypeLabel = "DJ speech prepared"
 		v.Reason = "Preparation of the next spoken DJ link completed."
 	}
+	if e.Recover && e.IncidentCode == "announcement" {
+		v.SpeechPrepared = true
+		v.WritingProviderLabel = operationProviderLabel(e.WritingProvider)
+		v.TypeLabel = "Announcement prepared"
+	}
+	if e.Kind == "speech" && e.Phase == "announcement" {
+		v.SpeechPrepared = true
+		v.WritingProviderLabel = operationProviderLabel(e.WritingProvider)
+		v.TypeLabel = "Station announcement"
+	}
 	v.OutcomeLabel = operationOutcomeLabel(e.Outcome)
 	v.OutcomeStyle, v.OutcomeIcon = e.Outcome, e.Outcome
 	if e.Outcome == "observed" {

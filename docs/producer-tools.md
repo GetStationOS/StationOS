@@ -5,11 +5,11 @@ internal authenticated producer interface, not an externally exposed MCP endpoin
 Read [the interface contract](producer-agent-interface.md) for design decisions and
 [the Ollama scenarios](producer-ollama-testing.md) for live evaluation instructions.
 
-There are **45 advertised tools** with all production dependencies configured,
-plus **two compatibility-only calls**. Registry definitions contribute 43 advertised
+There are **51 advertised tools** with all production dependencies configured,
+plus **two compatibility-only calls**. Registry definitions contribute 49 advertised
 tools; the runner adds `inspect_station` and `save_task_progress`. `create_shows`
 and `select_work_step` are accepted for compatibility but are not advertised.
-Mixer/audience/episode tools depend on configured repositories/services. Artwork
+Mixer/audience/episode/announcement tools depend on configured repositories/services. Artwork
 functions are registered but return an unavailable error without an image generator.
 The tool set does not change with recovery, work area or read counts.
 
@@ -827,3 +827,21 @@ schemas, registration conditions or result semantics change.
 
 This snapshot documents implementation contracts, not a claim that Gemma reliably
 uses every capability. Optional live tests still need to establish model outcomes.
+
+
+## Station announcements
+
+These tools are available when the announcement repository is composed:
+
+| Tool | Contract |
+| --- | --- |
+| `list_announcements` | `station_id`, optional `offset`/`limit`; returns summaries and actual airtime counts. |
+| `get_announcement` | `station_id`, `id`; full configuration, optimistic version and latest five transmission receipts. |
+| `save_announcement` | Create with no `id` and version zero, or replace an existing configuration with its latest `version` and all fields. Required: `station_id`, `title`, `text`, `starts`, `expires` (RFC3339 with offset). Defaults: `category=message`, `mode=exact`, `status=draft`, `repeat=once`. Optional `pronunciation`, `dj_id`, `show_ids`, `episode_key`; interval uses `interval_minutes`, daily times use `times` as HH:MM strings. Dated targets require exactly the matching show ID and stable `show:slot:week` identity. |
+| `set_announcement_delivery` | `station_id`, `id`, latest `version`, `action=active`, `paused` or `next`. Next respects validity/targeting and bypasses the station gap; it never interrupts music or starts a dormant station. |
+| `get_announcement_settings` | `station_id`; default presenter, minimum gap and optimistic version. |
+| `save_announcement_settings` | `station_id`, latest `version`, `dj_id` (empty clears), `gap_minutes` in 1–1440. |
+
+Configuration writes do not synthesize speech. Actual-air receipts are independent
+of prepared audio. Once a message starts, an interrupted one-off is not retried
+automatically; use the explicit next action. Preview is an explicit web action.

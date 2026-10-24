@@ -134,6 +134,10 @@ func run(args []string, logger *slog.Logger) error {
 	}
 	shows := persistence.Schedule{DB: db, Changes: changes}
 	audienceRepo := persistence.Audience{DB: db, Changes: changes}
+	announcementsRepo := persistence.Announcements{DB: db, Changes: changes}
+	if err = announcementsRepo.Recover(ctx); err != nil {
+		return err
+	}
 	sharedAI := persistence.NewProducer(djsRepo)
 	sharedAI.Changes = changes
 	if err = sharedAI.AdoptLegacyKey(ctx); err != nil {
@@ -163,7 +167,7 @@ func run(args []string, logger *slog.Logger) error {
 	}
 	presenter.Session = episodeService
 	episodeService.Fallback = presenter
-	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: episodeService, Session: episodeService, Audience: audienceRepo})
+	broadcasts := broadcast.New(config, broadcast.FFmpeg{Path: ffmpeg, Sources: sources, Factory: upnp.Factory}, logger, broadcast.Options{Announcements: announcementsRepo, AnnouncementProducer: presenter, Changes: changes, DJs: djsRepo, Stations: stations, Operations: recorder, History: config, Mixer: mixerConfig, StreamBuffer: *streamBuffer, MaxStations: *maxBroadcasts, MaxListeners: *maxListeners, Schedule: shows, Producer: presenter, Links: presenter, Selector: episodeService, Session: episodeService, Audience: audienceRepo})
 	episodeService.Eligibility = broadcasts
 	stopEpisodes := episodeService.Start(ctx, stations, shows, changes, logger)
 	defer stopEpisodes()
@@ -171,13 +175,13 @@ func run(args []string, logger *slog.Logger) error {
 	playlistsRepo := persistence.Playlists{DB: db}
 	images := producerAI.NewImages(sharedAI)
 	images.Prompts = promptStore
-	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Voices: textProviders, Episodes: episodeService, Images: images, Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), textProviders)
+	assistant, err := producer.New(ctx, sharedAI, producer.NewRegistry(producer.Dependencies{Announcements: announcementsRepo, Voices: textProviders, Episodes: episodeService, Images: images, Stations: stations, Sources: sources, Catalogue: cat, Playlists: playlistsRepo, DJs: djsRepo, Schedule: shows, Broadcast: config, Runtime: broadcasts, Sync: syncer, Mixer: mixerConfig, Audience: audienceRepo}), textProviders)
 	if err != nil {
 		return err
 	}
 	defer assistant.Close()
 	assistant.Prompts = promptStore
-	handler, err := web.New(web.Dependencies{Voices: textProviders, Episodes: episodeService, Changes: changes, Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
+	handler, err := web.New(web.Dependencies{Announcements: announcementsRepo, AnnouncementProducer: presenter, Voices: textProviders, Episodes: episodeService, Changes: changes, Prompts: promptStore, Operations: operationalStore, Recording: recorder, Images: images, SourceDiscovery: &upnp.Discovery{}, Assistant: assistant, Audience: audienceRepo, Mixer: mixerConfig, ArtworkFactory: upnp.Factory, Schedule: shows, DJs: djsRepo, Broadcast: broadcasts, BroadcastConfig: config, PublicURL: *publicURL, Stations: stations, Sources: sources, Catalogue: cat, Playlists: persistence.Playlists{DB: db}, Sync: syncer, Ready: db.PingContext, Logger: logger, Password: password})
 	if err != nil {
 		return err
 	}

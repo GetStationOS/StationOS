@@ -107,7 +107,7 @@ type workspaceTabsView struct {
 func stationTabs(v pageFrame) workspaceTabsView {
 	base := "/producer/stations/" + v.Station.ID
 	out := workspaceTabsView{Label: "Station navigation", ScrollKey: "station:" + v.Station.ID}
-	for _, item := range []struct{ label, key, path string }{{"Overview", "overview", ""}, {"Shows", "shows", "/shows"}, {"Schedule", "schedule", "/schedule"}, {"Audience", "audience", "/audience"}, {"Timeline", "timeline", "/timeline"}, {"Incidents", "incidents", "/incidents"}, {"Mixer", "mixer", "/mixer"}, {"Playlists", "playlists", ""}, {"Settings", "settings", "/settings"}} {
+	for _, item := range []struct{ label, key, path string }{{"Overview", "overview", ""}, {"Shows", "shows", "/shows"}, {"Schedule", "schedule", "/schedule"}, {"Announcements", "announcements", "/announcements"}, {"Audience", "audience", "/audience"}, {"Timeline", "timeline", "/timeline"}, {"Incidents", "incidents", "/incidents"}, {"Mixer", "mixer", "/mixer"}, {"Playlists", "playlists", ""}, {"Settings", "settings", "/settings"}} {
 		tab := workspaceTab{Label: item.label, URL: base + item.path, Current: v.Section == item.key}
 		if item.key == "playlists" {
 			tab.URL = "/producer/playlists?station=" + v.Station.ID
@@ -138,6 +138,17 @@ func assistantTabs(mode string) workspaceTabsView {
 			key = "models"
 		}
 		out.Items = append(out.Items, workspaceTab{Label: item.label, URL: "/producer/assistant" + item.path, Key: key, Current: mode == item.key || item.key == "endpoints" && mode == "delete-connection"})
+	}
+	return out
+}
+
+func announcementHeading(v announcementPageView) headingView {
+	out := heading(v.Title)
+	if v.Mode == "list" {
+		out.Actions = []headingAction{
+			{Label: "Create announcement", URL: v.Base + "/new", Hint: "Create announcement", Icon: "add", IconOnly: true},
+			{Label: "Announcement settings", URL: v.Base + "/settings", Hint: "Announcement settings", Icon: "settings", IconOnly: true, Secondary: true},
+		}
 	}
 	return out
 }

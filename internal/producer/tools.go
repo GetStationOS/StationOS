@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"stationos.local/stationos/internal/announcements"
 	"stationos.local/stationos/internal/audience"
 	"stationos.local/stationos/internal/broadcast"
 	"stationos.local/stationos/internal/catalogue"
@@ -329,20 +330,21 @@ func schema(t reflect.Type) any {
 }
 
 type Dependencies struct {
-	Voices    djs.VoiceSource
-	Episodes  *episodes.Service
-	Images    ImageGenerator
-	Stations  station.Repository
-	Sources   sources.Repository
-	Catalogue catalogue.Repository
-	Playlists playlists.Repository
-	DJs       djs.Repository
-	Schedule  schedule.Repository
-	Broadcast broadcast.Repository
-	Runtime   *broadcast.Manager
-	Sync      catalogue.Sync
-	Mixer     mixer.Repository
-	Audience  audience.Repository
+	Announcements announcements.Repository
+	Voices        djs.VoiceSource
+	Episodes      *episodes.Service
+	Images        ImageGenerator
+	Stations      station.Repository
+	Sources       sources.Repository
+	Catalogue     catalogue.Repository
+	Playlists     playlists.Repository
+	DJs           djs.Repository
+	Schedule      schedule.Repository
+	Broadcast     broadcast.Repository
+	Runtime       *broadcast.Manager
+	Sync          catalogue.Sync
+	Mixer         mixer.Repository
+	Audience      audience.Repository
 }
 type empty struct{}
 type entityID struct {
@@ -1059,6 +1061,7 @@ func NewRegistry(d Dependencies) *Registry {
 			return saved(nil, "Updated audience submission", "/producer/stations/"+a.StationID+"/audience")
 		})
 	}
+	registerAnnouncementTools(r, d)
 	registerEpisodeTools(r, d)
 	return r
 }

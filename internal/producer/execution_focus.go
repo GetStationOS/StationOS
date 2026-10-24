@@ -14,16 +14,20 @@ func focusedTools(tools []Tool, focus string, reads map[string]int) []Tool {
 	}
 	allowed := map[string]bool{"save_task_progress": true}
 	switch focus {
+	case "descriptions":
+		for _, name := range []string{"get_station", "list_shows", "get_show", "set_station_description", "set_show_description"} {
+			allowed[name] = true
+		}
 	case "playlists":
 		for _, name := range []string{"summarize_music", "explore_music", "search_music", "get_playlist", "save_playlist", "add_playlist_rule", "replace_playlist_rules", "remove_playlist_rule", "select_tracks", "assign_default_playlist"} {
 			allowed[name] = true
 		}
 	case "schedule":
-		for _, name := range []string{"list_djs", "get_dj", "save_dj", "get_playlist", "list_shows", "get_show", "list_episodes", "get_episode", "save_episode", "save_show", "create_shows", "delete_show", "assign_default_playlist"} {
+		for _, name := range []string{"list_djs", "get_dj", "save_dj", "get_playlist", "list_shows", "get_show", "list_episodes", "get_episode", "save_episode", "save_show", "set_show_description", "create_shows", "delete_show", "assign_default_playlist"} {
 			allowed[name] = true
 		}
 	case "station":
-		for _, name := range []string{"get_station", "save_station", "get_status", "get_mixer", "save_mixer", "assign_default_playlist"} {
+		for _, name := range []string{"get_station", "save_station", "set_station_description", "get_status", "get_mixer", "save_mixer", "assign_default_playlist"} {
 			allowed[name] = true
 		}
 	case "presenters":

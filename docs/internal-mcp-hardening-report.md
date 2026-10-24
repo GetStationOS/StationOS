@@ -186,3 +186,42 @@ The working tree contains the tests, interface changes and documentation. The
 appropriate current conclusion is **improved and reproducible, with a remaining
 complex-task completion failure**; Gemma4:12b has not been established as a reliable
 default producer model.
+
+## Follow-up: description and verification loops — 24 October 2026
+
+Operator examples exposed failures when adding public descriptions and when checking
+an already-saved Saturday 06:00–20:00 programme. The latter recorded successful
+creation but retained verification as remaining work, then paused after focused
+recovery. These examples are not evidence that description persistence itself failed.
+
+Inspection found that recovery selected a scheduling/playlist work area from any
+measured schedule gap or empty pool, even without evidence that the original brief
+required those hours or that pool. This could direct verification of a deliberately
+partial schedule back towards configuration work. Show list/review projections also
+omitted the public description.
+
+Implemented follow-up:
+
+- Dedicated description-only tools with existing IDs, required text, explicit
+  clearing, domain validation and saved-text results. Other settings are preserved.
+- Description previews and truncation flags in show listings and review projections.
+- A focused descriptions area without timing mutations, DJ or playlist discovery.
+- No-op results for identical descriptions, with no write, revision advance or
+  configuration event. Three repeated identical no-op edits pause early.
+- Recovery no longer infers required work from gaps or unrelated empty pools.
+  It offers explicit area selection and read-only review, with instructions to
+  complete verified checklist items and keep internal protocol issues out of
+  human-input blockers.
+
+Deterministic regressions exercise description updates/clearing, malformed and
+cross-station edits, retained timing/presenter/pool/music direction/recurrence slots,
+no-op revision preservation, early loop termination, and read-only completion of
+the Saturday show despite intentional gaps and an unrelated empty pool. Existing
+24/7 repair regressions still require and verify complete weekly coverage, now
+through explicit work-area selection rather than inferred scope.
+
+These follow-up checks do not generate model traffic. A fresh live Gemma run has
+not been performed for these changes, to avoid adding inference load while the
+operator's Mac was already under heavy load. The original live evaluation results
+above remain unchanged; further model evaluation is still required. The running
+server and its database have not been modified.

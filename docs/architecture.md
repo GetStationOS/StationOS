@@ -1100,3 +1100,26 @@ a typed failure, preserving usage without exposing private thinking. The produce
 permits one continuation with compact context and a focused work-area choice.
 Repeated empty completions pause normally. This does not replay prior mutations or
 relax the existing prohibition on retrying uncertain transport failures.
+
+### Description edits and scoped recovery
+
+The producer registry offers `set_station_description` and `set_show_description`
+for public-copy edits using existing station/show IDs and required description text.
+An empty string explicitly clears the field. These tools use existing application
+services, preserve unrelated settings and return the saved text. Show listings and
+review projections include a bounded description with a truncation flag; get_show
+retains the full value. The focused descriptions area exposes only the relevant
+metadata reads and edits, without DJ/playlist discovery or schedule mutations.
+
+Identical description edits return `unchanged` without writing or advancing the
+show revision. They do not reset progress/read counters or publish a configuration
+change. Three identical unchanged edit attempts pause the run early rather than
+consuming the ordinary twelve-round no-progress allowance.
+
+Recovery readbacks report gaps and eligibility as measured facts; they do not
+choose additional work based on those facts. The agent explicitly selects the
+area needed by the original brief, including review for final read-only verification.
+This preserves intentional gaps in a single Saturday programme and avoids treating
+unrelated empty pools as unfinished work. Verification guidance tells the agent to
+move verified items out of remaining, and distinguishes internal tool restrictions
+from genuine human-input blockers. No checklist is silently cleared by the server.

@@ -23,6 +23,8 @@ type partialRecoveryModel struct {
 	n                            int
 	station, pool, dj            string
 	recovered                    bool
+	selections                   int
+	playlistBound, scheduleBound bool
 	firstFocus                   bool
 	contextFailure, failedBudget bool
 	inputFailure                 bool
@@ -36,7 +38,7 @@ func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, i
 		}
 		return producer.Response{}, producer.ErrContextBudget
 	}
-	n := m.n
+	n := m.n - m.selections
 	if m.firstFocus {
 		n += 4
 	}
@@ -67,6 +69,16 @@ func (m *partialRecoveryModel) Respond(_ context.Context, _, _, prompt string, i
 				m.t.Errorf("unrelated tool remained in playlist recovery: %s", tool.Name)
 			}
 		}
+	}
+	if n == 4 && !m.playlistBound {
+		m.playlistBound = true
+		m.selections++
+		return responseCall(m.n+100, "select_work_step", map[string]string{"area": "playlists", "station_id": m.station}), nil
+	}
+	if n == 5 && !m.scheduleBound {
+		m.scheduleBound = true
+		m.selections++
+		return responseCall(m.n+100, "select_work_step", map[string]string{"area": "schedule", "station_id": m.station}), nil
 	}
 	if n == 4 {
 		if !m.firstFocus && !strings.Contains(text, "Progress recovery:") {
@@ -142,9 +154,9 @@ func TestResumedPartialStationRecoversFromUnchangedReads(t *testing.T) {
 				t.Fatal(err)
 			}
 			c := waitDone(t, store, id)
-			expected := 10
+			expected := 12
 			if focused || scenario.budget {
-				expected = 6
+				expected = 8
 			}
 			if c.Status != "idle" || model.n != expected {
 				t.Fatalf("recovery failed: %s %d %+v", c.Status, model.n, c.Messages)

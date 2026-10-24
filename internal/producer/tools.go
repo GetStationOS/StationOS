@@ -33,6 +33,7 @@ type Tool struct {
 	Mutates     bool   `json:"-"`
 }
 type Result struct {
+	Unchanged    bool   `json:"unchanged,omitempty"`
 	Usage        Usage  `json:"-"`
 	ArtworkError string `json:"artwork_error,omitempty"`
 	Data         any    `json:"data,omitempty"`
@@ -80,7 +81,7 @@ func (r *Registry) call(ctx context.Context, name string, raw json.RawMessage, a
 	if automatic && result.Error == "" && r.artwork != nil {
 		result = r.artwork(ctx, name, raw, result)
 	}
-	if t.Mutates && r.changed != nil {
+	if t.Mutates && r.changed != nil && !result.Unchanged {
 		r.changed()
 	}
 	if b, e := json.Marshal(result); e != nil || len(b) > 128<<10 {
@@ -248,6 +249,21 @@ func schema(t reflect.Type) any {
 			props["kind"] = map[string]any{"type": "string", "enum": []string{"genres", "albums", "artists", "composers", "years", "decades"}, "description": "Catalogue facet to discover. Use plural names; playlist rule kinds are singular."}
 			definition["required"] = []string{"kind"}
 		}
+		if t == reflect.TypeOf(stationDescriptionArgs{}) || t == reflect.TypeOf(showDescriptionArgs{}) {
+			maximum := 4000
+			required := []string{"station_id", "description"}
+			props["station_id"] = map[string]any{"type": "string", "minLength": 1, "description": "Existing station ID; never a name or placeholder."}
+			if t == reflect.TypeOf(showDescriptionArgs{}) {
+				maximum = 2000
+				required = append(required, "show_id")
+				props["show_id"] = map[string]any{"type": "string", "minLength": 1, "description": "Existing recurring show ID from list_shows/get_show."}
+			}
+			props["description"] = map[string]any{"type": "string", "maxLength": maximum, "description": "Public listener-facing description. Required; empty string explicitly clears it. Internal DJ instructions belong in music_direction."}
+			definition["required"] = required
+		}
+		if t == reflect.TypeOf(stationPatch{}) {
+			props["description"] = map[string]any{"type": "string", "maxLength": 4000, "description": "Public listener-facing station description. Omit to preserve; empty string clears. Prefer set_station_description for description-only edits."}
+		}
 		if t == reflect.TypeOf(rule{}) {
 			props["kind"] = map[string]any{"type": "string", "enum": []string{"genre", "album", "artist", "composer", "year", "decade"}}
 			props["value"] = map[string]any{"type": "string", "minLength": 1, "maxLength": 4096, "description": "Exact catalogue genre, album, artist or composer; year as digits; decade as its first year (1980)."}
@@ -281,7 +297,7 @@ func schema(t reflect.Type) any {
 			props["days"] = map[string]any{"type": "array", "minItems": 1, "maxItems": 7, "uniqueItems": true, "items": map[string]any{"type": "integer", "minimum": 0, "maximum": 6}, "description": "Selected weekdays, Monday=0 through Sunday=6, each appearing once."}
 			show := props["show"].(map[string]any)
 			show["required"] = []string{"station_id", "name", "dj_id", "playlist_id", "start", "end"}
-			show["description"] = "One programme object. Put station_id, name, dj_id, playlist_id, start, end and music_direction here. Only show and days belong at the top level."
+			show["description"] = "One programme object. Put station_id, name, dj_id, playlist_id, start, end, description and music_direction here. Only show and days belong at the top level."
 			showProps := show["properties"].(map[string]any)
 			delete(showProps, "id")
 			delete(showProps, "day")
@@ -484,6 +500,7 @@ func NewRegistry(d Dependencies) *Registry {
 		return playlists.Availability{Total: result.Total, Unavailable: result.Unavailable}, err
 	}
 	registerArtwork(r, d)
+	registerDescriptions(r, d)
 	if d.Runtime != nil {
 		r.changed = d.Runtime.Changed
 	}

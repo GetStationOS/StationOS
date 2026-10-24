@@ -16,15 +16,15 @@ type workStep struct {
 }
 
 func workStepTool() Tool {
-	return Tool{Name: "select_work_step", Description: "Select ONE work area. Use the station name from the human request; the server resolves its ID and reads current configuration. Select review for read-only requests. This tool makes no configuration changes.", Parameters: map[string]any{"type": "object", "additionalProperties": false, "required": []string{"area"}, "properties": map[string]any{
-		"area":       map[string]any{"type": "string", "enum": []string{"station", "playlists", "schedule", "presenters", "sources", "audience", "review"}},
+	return Tool{Name: "select_work_step", Description: "Select ONE work area. Use the station name from the human request; the server resolves its ID and reads current configuration. Select descriptions for public station/show copy. Select review for read-only requests or final verification after successful writes. This tool makes no configuration changes.", Parameters: map[string]any{"type": "object", "additionalProperties": false, "required": []string{"area"}, "properties": map[string]any{
+		"area":       map[string]any{"type": "string", "enum": []string{"station", "playlists", "schedule", "presenters", "sources", "audience", "descriptions", "review"}},
 		"station_id": map[string]any{"type": "string"}, "station_name": map[string]any{"type": "string"},
 	}}}
 }
 
 func (s *Service) resolveWorkStep(ctx context.Context, step workStep, c Conversation) (station.Station, error) {
 	switch step.Area {
-	case "station", "playlists", "schedule", "presenters", "sources", "audience", "review":
+	case "station", "playlists", "schedule", "presenters", "sources", "audience", "descriptions", "review":
 	default:
 		return station.Station{}, errors.New("Choose one offered work area")
 	}
@@ -75,7 +75,7 @@ func (s *Service) resolveWorkStep(ctx context.Context, step workStep, c Conversa
 		}
 		return station.Station{}, errors.New("No station has that exact name; use the name in the human request or an existing station_id. No station was created")
 	}
-	if step.Area == "playlists" || step.Area == "schedule" || step.Area == "audience" {
+	if step.Area == "playlists" || step.Area == "schedule" || step.Area == "audience" || step.Area == "descriptions" {
 		return station.Station{}, errors.New("Supply station_name from the human request or an existing station_id for this work area")
 	}
 	return station.Station{}, nil

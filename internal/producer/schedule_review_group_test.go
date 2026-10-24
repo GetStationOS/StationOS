@@ -33,3 +33,13 @@ func TestRecurringScheduleReadbackRetainsEveryEditionAndDistinctAssignment(t *te
 		}
 	}
 }
+
+func TestScheduleReviewRetainsDistinctPublicDescriptions(t *testing.T) {
+	groups := groupScheduleReview([]namedShow{
+		{ID: "one", Name: "Weekend", DJID: "presenter", PlaylistID: "music", Start: 360, End: 1200, Description: "Saturday's public introduction."},
+		{ID: "two", Name: "Weekend", DJID: "presenter", PlaylistID: "music", Start: 360, End: 1200, Description: "Sunday's different introduction."},
+	})
+	if len(groups) != 2 || groups[0].Description == groups[1].Description {
+		t.Fatal("readback merged distinct public copy", groups)
+	}
+}

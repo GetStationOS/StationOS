@@ -1069,9 +1069,22 @@ links. Additional weekdays get fresh slot IDs. Removed slots retain saved sessio
 for history. Reads construct unsaved upcoming projections without persisting them.
 
 The schedule adapter loads lightweight historical timing windows for started or
-ended saved instances; current parent metadata remains inherited while actual-air
-receipts and historical timing do not change. Changes to future parent settings
-invalidate stale production revisions through the existing transactional validation.
+ended saved instances. A show save reconciles the end of an active, aired episode
+in the same transaction: its original dated start and actual-air receipts stay
+intact; its end follows the edited station-local clock, including overnight/DST
+boundaries. Start-time edits apply to future occurrences once an episode has aired.
+Completed and cancelled sessions retain their saved windows. Re-saving an already
+edited show also repairs an active window frozen by older code.
+
+Reconciliation trims unaired choices that no longer fit after the current recording,
+clears an invalid next reservation and invalidates pending editorial work. An end
+already in the past marks the session finished. The broadcaster re-resolves the
+schedule and validates the queued programme revision at track boundaries:
+shortening hands over after the current track; extending continues the same episode.
+Prepared audio/speech with stale identity cannot dictate the next music choice.
+The schedule marks reconciled sessions “Timing changed” using persisted facts.
+Current parent metadata remains inherited; stale production revisions are rejected
+through transactional validation using the station timezone and saved episode window.
 Archiving removes a show from active scheduling without deleting its sessions;
 station deletion still cascades. Audience admission rechecks active show state.
 

@@ -41,15 +41,6 @@ func (r Episodes) Update(ctx context.Context, o schedule.Occurrence, fn func(*ep
 	if err != nil {
 		return err
 	}
-	valid := false
-	for _, candidate := range schedule.Occurrences([]schedule.Show{show}, o.Start, o.Start.Location()) {
-		if !show.Archived && candidate.Key == o.Key {
-			valid = true
-		}
-	}
-	if !valid {
-		return episodes.ErrStale
-	}
 	e := episodes.New(o)
 	var raw string
 	err = tx.QueryRowContext(ctx, `SELECT payload FROM show_episodes WHERE episode_key=?`, episodes.SessionKey(o.Key)).Scan(&raw)
@@ -61,12 +52,32 @@ func (r Episodes) Update(ctx context.Context, o schedule.Occurrence, fn func(*ep
 			return err
 		}
 	}
+	if len(e.Aired) > 0 || !time.Now().Before(e.End) {
+		show.History = map[string]schedule.EpisodeWindow{e.Key: {Start: e.Start, End: e.End}}
+	}
+	var zone string
+	if err = tx.QueryRowContext(ctx, `SELECT timezone FROM stations WHERE id=?`, o.StationID).Scan(&zone); err != nil {
+		return err
+	}
+	loc, err := time.LoadLocation(zone)
+	if err != nil {
+		return err
+	}
+	valid := false
+	for _, candidate := range schedule.Occurrences([]schedule.Show{show}, o.Start, loc) {
+		if !show.Archived && candidate.Key == o.Key {
+			valid = true
+		}
+	}
+	if !valid {
+		return episodes.ErrStale
+	}
 	if e.ShowKey != o.Key {
 		e.ShowKey = o.Key
 		e.RepetitionReason = ""
 		e.Start = o.Start
 		e.End = o.End
-		if !e.Cancelled {
+		if !e.Cancelled && e.Status != "finished" {
 			e.Status = "attention"
 			e.Problem = "Show settings changed; updating the running order."
 		}

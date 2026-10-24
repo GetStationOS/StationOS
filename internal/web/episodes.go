@@ -50,7 +50,7 @@ func (s *Server) loadEpisode(r *http.Request, v schedulePageView, showID string)
 			v.Episode = episodes.New(o)
 			err = nil
 		}
-		if err == nil && !v.Episode.Cancelled && v.Episode.ShowKey != o.Key {
+		if err == nil && !v.Episode.Cancelled && v.Episode.Status != "finished" && v.Episode.ShowKey != o.Key {
 			v.Episode.Status = "attention"
 			v.Episode.Problem = "Show settings changed; the DJ will update this episode automatically."
 		}

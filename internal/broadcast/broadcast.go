@@ -920,6 +920,14 @@ func (m *Manager) playProgramme(id string, r *run) {
 		}
 		candidates, repeatRelaxed := rotationPool(pool, rotation, playoutNow(), previous)
 		candidates = varietyPoolFormat(candidates, pool, rotation, previous, previousMusic, m.episodeMusicPolicy(r.ctx, timeline.Current))
+		// A timing/template edit can change the programme after this track was
+		// queued. Revalidate at the boundary; never play old-programme music under
+		// the new presenter, or the next programme early after an extension.
+		if queued.ID != "" && queuedShow != timeline.Current.Key {
+			queued = content.AudioItem{}
+			queuedShow = ""
+			queuedAfter = ""
+		}
 		if len(candidates) == 0 && queued.ID == "" {
 			return
 		}

@@ -50,6 +50,10 @@ rules canonicalize only unique case-insensitive catalogue matches. Unknown futur
 values remain legal. Dates prefer source original dates, falling back to release
 dates; unknown dates do not satisfy date filters.
 
+Show edits reconcile an active aired episode’s end while preserving its original
+start and actual aired history. Start edits apply to future episodes; completed
+episodes retain their timing. The current track finishes before any handover.
+
 Show weekdays are Monday=0 through Sunday=6. Times are station-local. New shows use
 clock start plus duration; legacy patches use minutes after midnight. Public
 `description`, recurring `music_direction` and episode `notes` serve different

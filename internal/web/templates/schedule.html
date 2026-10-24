@@ -12,7 +12,7 @@
     </div>{{end}}{{range .ScheduleCards}}<a href="{{.URL}}" hx-get="{{.URL}}" hx-target="#main" hx-swap="innerHTML show:top" hx-push-url="true" class="calendar-show {{.Class}}" title="{{.Name}} · {{.Time}} · {{.DJ}} · {{.Playlist}}">
       <strong>{{.Name}}</strong>
       <span>{{.Time}}</span>
-      <span>{{.DJ}}</span><span>{{.Status}}</span>
+      <span>{{.DJ}}</span><span>{{.Status}}</span>{{if .TimingChanged}}<span>Timing changed</span>{{end}}
     </a>{{end}}
   </div>
 </div>

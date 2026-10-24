@@ -803,3 +803,12 @@ AI metadata but omits the transcript. Do not add another timeline entry for thes
 details. Historical preparation records without captured details remain unknown.
 
 Show provider brands and model IDs, without endpoint names or endpoint links.
+
+### Editing a show during broadcast
+
+An active episode keeps its original start and actual aired history. Saving an
+end-time edit updates its remaining window; if that end has passed, the broadcaster
+hands over after the current track. Extending the end continues the same episode.
+Start-time changes apply to future episodes once broadcasting has begun. Completed
+episodes retain their historical timing. Schedule entries with a reconciled window
+show a quiet “Timing changed” label; no extra confirmation workflow is required.

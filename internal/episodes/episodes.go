@@ -36,6 +36,7 @@ type Episode struct {
 	Key, StationID, ShowID           string
 	ShowKey                          string
 	Start, End                       time.Time
+	TimingChangedAt                  time.Time
 	PlanStartsAt                     time.Time
 	AcceptedNextID                   string
 	QueueCurrent                     Track
@@ -99,6 +100,8 @@ func (e Episode) Label() string {
 		return "Delayed"
 	}
 	switch e.Status {
+	case "finished":
+		return "Finished"
 	case "ready":
 		return "Ready"
 	case "starting":

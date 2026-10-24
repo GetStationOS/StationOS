@@ -19,6 +19,7 @@ type scheduleDay struct {
 type scheduleCard struct {
 	ID, Name, DJ, Playlist, Time, Class string
 	EpisodeStart, Status                string
+	TimingChanged                       bool
 	Day                                 int
 	URL                                 string
 }
@@ -78,7 +79,7 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 			loaded, loadErr := s.d.Episodes.Store.Get(r.Context(), o.Key)
 			if loadErr == nil {
 				e = loaded
-				if e.ShowKey != o.Key {
+				if e.ShowKey != o.Key && e.Status != "finished" {
 					e.Status = "attention"
 				}
 			} else if !errors.Is(loadErr, episodes.ErrNotFound) {
@@ -103,7 +104,7 @@ func (s *Server) scheduleView(r *http.Request) (schedulePageView, error) {
 				endMinute = 1440
 			}
 			day := (int(date.Weekday()) + 6) % 7
-			v.ScheduleCards = append(v.ScheduleCards, scheduleCard{ID: o.ShowID, Name: o.Title, DJ: o.DJ.Name, Playlist: o.PlaylistName, Time: schedule.TimeLabel(startMinute) + "–" + schedule.TimeLabel(endMinute), Class: "day-" + strconv.Itoa(day) + " at-" + strconv.Itoa(startMinute/15) + " length-" + strconv.Itoa(max(1, (endMinute-startMinute)/15)) + " " + class, EpisodeStart: o.Start.Format(time.RFC3339), Status: e.Label(), Day: day, URL: episodePath(o.StationID, o.Key)})
+			v.ScheduleCards = append(v.ScheduleCards, scheduleCard{ID: o.ShowID, Name: o.Title, DJ: o.DJ.Name, Playlist: o.PlaylistName, Time: schedule.TimeLabel(startMinute) + "–" + schedule.TimeLabel(endMinute), Class: "day-" + strconv.Itoa(day) + " at-" + strconv.Itoa(startMinute/15) + " length-" + strconv.Itoa(max(1, (endMinute-startMinute)/15)) + " " + class, EpisodeStart: o.Start.Format(time.RFC3339), Status: e.Label(), TimingChanged: !e.TimingChangedAt.IsZero(), Day: day, URL: episodePath(o.StationID, o.Key)})
 		}
 	}
 	v.Show = schedule.Show{StationID: v.Station.ID, Start: 9 * 60, End: 10 * 60}

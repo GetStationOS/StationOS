@@ -16,6 +16,7 @@ import (
 type Schedule struct {
 	DB      *sql.DB
 	Changes *changefeed.Bus
+	Now     func() time.Time
 }
 
 var showFields = `s.id,s.station_id,s.name,s.weekday,s.start_minute,s.end_minute,s.dj_id,s.playlist_id,s.revision,d.name,p.name,(SELECT curation_model FROM producer_settings WHERE id=1),d.voice,d.prompt,d.vibe,d.conversation_speed,d.background,d.portrait_url,` + strings.ReplaceAll(speechReadySQL, "djs.", "d.") + `,` + textReadySQL + `,(SELECT ai_revision FROM producer_settings WHERE id=1),s.accept_requests,s.accept_shoutouts,s.description,s.music_direction,d.speech_voices,d.speech_connection,d.speech_model,d.speech_settings,s.weekdays,s.archived,s.slot_ids`
@@ -86,6 +87,13 @@ func (r Schedule) Get(ctx context.Context, stationID, id string) (schedule.Show,
 	}
 	return v, err
 }
+func (r Schedule) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
+}
+
 func (r Schedule) Save(ctx context.Context, v schedule.Show) error {
 	return r.SaveMany(ctx, []schedule.Show{v})
 }
@@ -101,7 +109,7 @@ func (r Schedule) SaveMany(ctx context.Context, shows []schedule.Show) error {
 	}
 	defer tx.Rollback()
 	for _, v := range shows {
-		if err := saveShow(ctx, tx, v); err != nil {
+		if err := saveShow(ctx, tx, v, r.now()); err != nil {
 			return err
 		}
 	}
@@ -112,7 +120,7 @@ func (r Schedule) SaveMany(ctx context.Context, shows []schedule.Show) error {
 	return nil
 }
 
-func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
+func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show, now time.Time) error {
 	v = v.Normalized()
 	if err := v.Validate(); err != nil {
 		return err
@@ -216,6 +224,9 @@ func saveShow(ctx context.Context, tx *sql.Tx, v schedule.Show) error {
 	if n != 1 {
 		return schedule.ErrNotFound
 	}
+	if found {
+		return reconcileEpisodeEnds(ctx, tx, v, now)
+	}
 	return nil
 }
 func (r Schedule) Delete(ctx context.Context, stationID, id string) error {
@@ -297,7 +308,7 @@ func (r Schedule) loadEpisodeWindows(ctx context.Context, shows []schedule.Show)
 		return nil
 	}
 	byID := map[string]*schedule.Show{}
-	args := []any{shows[0].StationID, time.Now().Unix(), time.Now().Unix()}
+	args := []any{shows[0].StationID, r.now().Unix(), r.now().Unix()}
 	for i := range shows {
 		shows[i].History = map[string]schedule.EpisodeWindow{}
 		byID[shows[i].ID] = &shows[i]

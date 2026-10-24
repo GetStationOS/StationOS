@@ -75,7 +75,7 @@ func readEpisode(ctx context.Context, d Dependencies, o schedule.Occurrence) (ep
 	if errors.Is(err, episodes.ErrNotFound) {
 		return episodes.New(o), nil
 	}
-	if err == nil && e.ShowKey != o.Key {
+	if err == nil && e.ShowKey != o.Key && e.Status != "finished" {
 		e.Status = "attention"
 		e.Problem = "Show settings changed; automatic replanning is pending."
 	}

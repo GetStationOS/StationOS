@@ -856,9 +856,12 @@ func (m *Manager) playProgramme(id string, r *run) {
 			case result := <-pendingLink:
 				if result.err == nil && result.request.Current.ID == previousMusic.ID {
 					link = &result
+				} else if result.err == nil && len(result.audio) > 0 {
+					m.skippedSpeech(id, result, timeline.Current, previousMusic, "The recording used to prepare this speech did not match the last recording aired")
 				}
 			default:
 				if m.options.Links != nil {
+					m.logger.Warn("DJ speech missed track boundary", "station_id", id, "show_key", playing.Key, "current_track_id", previousMusic.ID)
 					m.observe(id, "ai", "DJ speech was not ready at the track boundary; music continues", State{Programme: playing}, "speech", false)
 				}
 			}
@@ -866,6 +869,9 @@ func (m *Manager) playProgramme(id string, r *run) {
 		stopLink()
 		pendingLink = nil
 		if changing {
+			if link != nil && len(link.audio) > 0 && (!link.request.Handover || link.request.Following.Key != timeline.Current.Key) {
+				m.skippedSpeech(id, *link, timeline.Current, previousMusic, "The actual programme handover did not match the prepared speech")
+			}
 			// Never disconnect subscribers at a show boundary. Prepared speech is sent
 			// through the same paced fan-out as music, in the outgoing DJ's voice.
 			outro := []byte(nil)
@@ -983,6 +989,11 @@ func (m *Manager) playProgramme(id string, r *run) {
 		linkUsable := true
 		if link != nil && len(link.audienceValidIDs) > 0 && m.options.Audience != nil {
 			linkUsable, _ = m.options.Audience.Usable(r.ctx, id, playing.Key, link.audienceValidIDs, playoutNow())
+		}
+		if !changing && link != nil && len(link.audio) > 0 {
+			if reason := linkPlaybackRejection(*link, playing, current, musicErr, linkUsable); reason != "" {
+				m.skippedSpeech(id, *link, playing, current, reason)
+			}
 		}
 		if musicErr == nil && linkUsable && !changing && link != nil && !link.request.Handover && link.request.Show.Key == playing.Key && link.request.Next.ID == current.ID && len(link.audio) > 0 {
 			cue := content.AudioItem{ID: "link:" + playing.Key + ":" + current.ID, Title: "DJ link", Artist: playing.DJ.Name, Kind: content.PresenterLink, Origin: content.Generated}

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -99,4 +101,54 @@ func TestPreparedSpeechRevisionRejectionIsReported(t *testing.T) {
 		}
 	}
 	t.Fatal("skipped prepared speech missing from incident history")
+}
+
+type newlyCreatedShowSchedule struct {
+	enabled atomic.Bool
+	shows   timedSchedule
+}
+
+func (s *newlyCreatedShowSchedule) Resolve(ctx context.Context, id string, at time.Time) (schedule.Timeline, error) {
+	if !s.enabled.Load() {
+		return schedule.Timeline{Current: schedule.Occurrence{Key: "default:" + id + ":pool", StationID: id, PlaylistID: "pool", Title: "Continuous music"}}, nil
+	}
+	return s.shows.Resolve(ctx, id, at)
+}
+
+func TestShowCreatedDuringDefaultPlaybackAirsSpeechWithoutRestart(t *testing.T) {
+	now := time.Date(2026, 10, 24, 10, 0, 0, 0, time.UTC)
+	source := &newlyCreatedShowSchedule{shows: timedSchedule{shows: []schedule.Show{{ID: "pop", StationID: "radio", Name: "The 80s Collection", Day: 5, Start: 360, End: 1200, PlaylistID: "pool", DJ: djs.Profile{ID: "alex", Name: "Alex", TextReady: true}}}}}
+	encoder := &fakeEncoder{calls: make(chan opening, 16)}
+	links := readyLinks{called: make(chan production.LinkRequest, 8)}
+	repo := &memoryRepo{playlist: "pool", pool: []content.AudioItem{length("a", 90), length("b", 90), length("c", 90)}}
+	manager := New(repo, encoder, slog.New(slog.NewTextHandler(io.Discard, nil)), Options{Schedule: source, Links: links, Now: func() time.Time { return now }})
+	defer manager.Close()
+	sub, err := manager.Subscribe(context.Background(), "radio")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sub.Close()
+	first := opened(t, encoder)
+	first.write.Write([]byte("DEFAULT"))
+	if string(receive(t, sub)) != "DEFAULT" || manager.State("radio").Programme.ShowID != "" {
+		t.Fatal("did not start on default playlist")
+	}
+	source.enabled.Store(true)
+	first.write.Close()
+	second := opened(t, encoder)
+	musicStatus(t, manager, sub, second, "Ready")
+	if manager.State("radio").Programme.ShowID != "pop" {
+		t.Fatal("new show not adopted at boundary")
+	}
+	second.write.Close()
+	third := opened(t, encoder)
+	if string(receive(t, sub)) != "HANDOVER" {
+		t.Fatal("new show's prepared speech did not air")
+	}
+	if _, err := third.write.Write([]byte("SHOW")); err != nil {
+		t.Fatal(err)
+	}
+	if string(receive(t, sub)) != "SHOW" {
+		t.Fatal("show music did not follow speech")
+	}
 }
